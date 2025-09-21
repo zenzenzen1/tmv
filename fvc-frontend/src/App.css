@@ -1,0 +1,31 @@
+/* App-specific styles using Tailwind utilities */
+.app-container {
+  @apply min-h-screen bg-gray-50;
+}
+
+.logo {
+  @apply h-24 p-6 transition-all duration-300;
+}
+
+.logo:hover {
+  @apply drop-shadow-lg;
+}
+
+.logo.react:hover {
+  @apply drop-shadow-lg;
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .logo-spin {
+    animation: logo-spin infinite 20s linear;
+  }
+}
