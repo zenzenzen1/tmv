@@ -673,3 +673,45 @@ When generating code, always:
 13. **Follow sequential error handling**
 14. **Use response wrapper pattern**
 15. **Implement proper authentication**
+
+## Backend Service Design – REQUIRED
+
+- Define a service interface with abstract method signatures for every domain service (e.g., `UserService`).
+- Provide a concrete implementation class in `service/impl` (e.g., `UserServiceImpl implements UserService`).
+- Controllers MUST depend on the interface (constructor injection), never on the implementation type.
+- Benefits: clear contracts, easier unit testing (mock interfaces), swappable implementations.
+
+Example (concise):
+```java
+// service/UserService.java (interface)
+public interface UserService {
+    PaginationResponse<User> getUsers(RequestParam params);
+    User getById(String id);
+    void create(User user);
+}
+
+// service/impl/UserServiceImpl.java (implementation)
+@Service
+@RequiredArgsConstructor
+public class UserServiceImpl implements UserService {
+    private final UserRepository userRepository;
+    @Override public PaginationResponse<User> getUsers(RequestParam p) { /* ... */ }
+    @Override public User getById(String id) { /* ... */ }
+    @Override public void create(User user) { /* ... */ }
+}
+
+// controller/UserController.java (inject interface)
+@RestController
+@RequestMapping(ApiConstants.API_BASE_PATH + "/users")
+@RequiredArgsConstructor
+public class UserController {
+    private final UserService userService; // interface, not impl
+}
+```
+
+Enforcement (PR checklist):
+- [ ] Service has interface + implementation
+- [ ] Controller injects interface
+- [ ] Responses use `ResponseUtils` (`BaseResponse` envelope)
+- [ ] Validation annotations on request DTOs; first-error strategy respected
+- [ ] Pagination via `RequestParam` where applicable

@@ -213,6 +213,7 @@ export const useAuthActions = () => useAuthStore((state) => ({
   clearError: state.clearError,
 }));
 
+
 // Computed selectors
 export const useIsAdmin = () => useAuthStore((state) => 
   state.user?.role === 'ADMIN'
