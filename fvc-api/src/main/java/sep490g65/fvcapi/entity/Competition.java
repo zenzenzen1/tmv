@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Entity
 @Table(name = "competitions")
@@ -29,5 +30,15 @@ public class Competition extends BaseEntity {
     @Column()
     private LocalDate endDate;
 
-    //to be decided more field for this entity
+    @Column()
+    private LocalDate registrationStartDate;
+
+    @Column()
+    private LocalDate registrationEndDate;
+
+    @OneToMany(mappedBy = "competition", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<VovinamFormConfig> formConfigs;
+
+    @OneToMany(mappedBy = "competition", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<VovinamSparringConfig> sparringConfigs;
 }

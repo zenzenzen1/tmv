@@ -9,7 +9,7 @@ import sep490g65.fvcapi.enums.CompetitionRoleType;
 
 @Entity
 @Table(
-        name = "competition_role",
+        name = "competition_roles",
         uniqueConstraints = {
                 @UniqueConstraint(columnNames = {"competition_id", "user_id", "role"})
         }
