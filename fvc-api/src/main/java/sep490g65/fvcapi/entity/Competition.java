@@ -36,6 +36,9 @@ public class Competition extends BaseEntity {
     @Column()
     private LocalDate registrationEndDate;
 
+    @Column()
+    private Integer numberOfParticipants;
+
     @OneToMany(mappedBy = "competition", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<VovinamFormConfig> formConfigs;
 

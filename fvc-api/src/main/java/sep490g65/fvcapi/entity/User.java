@@ -24,14 +24,14 @@ public class User extends BaseEntity {
     @Column()
     private String fullName;
 
-    @Column(nullable = true)
+    @Column()
     private String personalMail;
 
-    @Column(nullable = true)
+    @Column()
     private String eduMail;
 
     @Column()
-    private String password;
+    private String hashPassword;
 
     @Column()
     private String studentCode;
@@ -39,6 +39,7 @@ public class User extends BaseEntity {
     @Column()
     private Boolean status;
 
+    @Column()
     private LocalDate dob;
 
     @Column(length = 10)
@@ -47,6 +48,9 @@ public class User extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private SystemRole systemRole;
+
+    @Column()
+    private Boolean isInChallenge;
 
     private LocalDateTime createdAt = LocalDateTime.now();
 

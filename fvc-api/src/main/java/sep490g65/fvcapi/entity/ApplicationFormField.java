@@ -35,7 +35,7 @@ public class ApplicationFormField extends BaseEntity {
     private Boolean required = true;
 
     @Type(JsonType.class)
-    @Column(columnDefinition = "jsonb", nullable = false)
+    @Column(columnDefinition = "jsonb")
     private String options; // for options
 
     private Integer sortOrder = 0;
