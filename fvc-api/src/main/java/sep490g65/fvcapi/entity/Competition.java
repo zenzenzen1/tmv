@@ -40,8 +40,11 @@ public class Competition extends BaseEntity {
     private Integer numberOfParticipants;
 
     @OneToMany(mappedBy = "competition", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<VovinamFormConfig> formConfigs;
+    private List<CompetitionVovinamFist> vovinamFistRelations;
 
     @OneToMany(mappedBy = "competition", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<VovinamSparringConfig> sparringConfigs;
+
+    @OneToMany(mappedBy = "competition", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CompetitionMusicIntegratedPerformance> musicPerformanceRelations;
 }

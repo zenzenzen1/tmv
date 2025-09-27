@@ -6,28 +6,28 @@ import lombok.*;
 import java.util.List;
 
 @Entity
-@Table(name = "vovinam_form_items")
+@Table(name = "vovinam_fist_items")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class VovinamFormItem extends BaseEntity {
+public class VovinamFistItem extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vovinam_form_config_id", nullable = false)
-    private VovinamFormConfig vovinamFormConfig;
+    @JoinColumn(name = "vovinam_fist_config_id", nullable = false)
+    private VovinamFistConfig vovinamFistConfig;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")
-    private VovinamFormItem parent;
+    private VovinamFistItem parent;
 
     @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<VovinamFormItem> children;
+    private List<VovinamFistItem> children;
 
     @Column(nullable = false, length = 255)
     private String name;
