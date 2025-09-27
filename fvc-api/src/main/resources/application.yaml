@@ -5,7 +5,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/fvc-db
     username: postgres
-    password: 12345
+    password: 123
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -36,7 +36,7 @@ logging:
 app:
   security:
     cors:
-      allowed-origins: "http://localhost:3000"
+      allowed-origins: "http://localhost:5173"
       allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
     password-encoder:
       strength: 12

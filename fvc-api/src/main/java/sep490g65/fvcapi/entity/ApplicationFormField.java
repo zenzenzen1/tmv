@@ -20,7 +20,7 @@ public class ApplicationFormField extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "application_form_id", nullable = false)
-    private VovinamFormConfig vovinamFormConfig;
+    private ApplicationFormConfig applicationFormConfig;
 
     @Column(nullable = false, length = 100)
     private String label;
@@ -32,12 +32,14 @@ public class ApplicationFormField extends BaseEntity {
     private String fieldType; // TEXT, DATE, NUMBER, EMAIL, SELECT...
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean required = true;
 
     @Type(JsonType.class)
     @Column(columnDefinition = "jsonb")
     private String options; // for options
 
+    @Builder.Default
     private Integer sortOrder = 0;
 }
 

@@ -28,8 +28,9 @@ public class SubmittedApplicationForm {
     @Column(columnDefinition = "jsonb", nullable = false)
     private String formData;
 
-    @Column
-    private String userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -37,6 +38,10 @@ public class SubmittedApplicationForm {
 
     @Column(length = 255)
     private String reviewerNote;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "application_form_config_id")
+    private ApplicationFormConfig applicationFormConfig;
 
 }
 

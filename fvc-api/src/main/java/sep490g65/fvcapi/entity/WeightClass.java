@@ -2,6 +2,7 @@ package sep490g65.fvcapi.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "weight_classes")
@@ -27,8 +28,8 @@ public class WeightClass extends BaseEntity {
     private String weightClass; // Ex: -55kg, 55-60kg, +75kg
 
     @Column(precision = 5, scale = 2)
-    private Double minWeight; // kg
+    private BigDecimal minWeight; // kg
 
     @Column(precision = 5, scale = 2)
-    private Double maxWeight; // kg
+    private BigDecimal maxWeight; // kg
 }

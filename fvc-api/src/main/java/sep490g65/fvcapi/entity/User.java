@@ -9,6 +9,7 @@ import sep490g65.fvcapi.enums.SystemRole;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -54,5 +55,13 @@ public class User extends BaseEntity {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CompetitionRole> competitionRoles;
+
+    @OneToMany(mappedBy = "assignedBy", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CompetitionRole> assignedCompetitionRoles;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<SubmittedApplicationForm> submittedApplicationForms;
 
 }

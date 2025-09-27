@@ -30,9 +30,12 @@ public class ApplicationFormConfig extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @OneToMany(mappedBy = "formConfig", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "applicationFormConfig", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ApplicationFormField> fields = new ArrayList<>();
+
+    @OneToMany(mappedBy = "applicationFormConfig", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<SubmittedApplicationForm> submittedApplicationForms;
 
 }
 
