@@ -1,13 +1,43 @@
 // src/pages/LoginPage.tsx
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Logo from "../../assets/logo.png";
 import Background from "../../assets/background.png";
 import { Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
+import { useAuthActions, useAuth } from "../../stores/authStore";
+import type { LoginRequest } from "../../types";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState<LoginRequest>({
+    email: "",
+    password: "",
+  });
+
+  const navigate = useNavigate();
+  const { login } = useAuthActions();
+  const { isLoading, error } = useAuth();
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await login(formData);
+      navigate("/dashboard");
+    } catch (error) {
+      // Error is handled by the store
+      console.error("Login failed:", error);
+    }
+  };
 
   return (
     <div
@@ -59,14 +89,26 @@ export default function LoginPage() {
               Log In to your Account
             </h1>
 
-            <form className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Error Message */}
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+                  {error}
+                </div>
+              )}
+
               {/* Email */}
               <div>
                 <label className="text-sm font-medium">Email</label>
                 <input
                   type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
                   placeholder="Enter your email"
+                  autoComplete="email"
                   className="mt-1 w-full rounded-md border border-gray-300 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white/70"
+                  required
                 />
               </div>
 
@@ -76,8 +118,13 @@ export default function LoginPage() {
                 <div className="relative mt-1">
                   <input
                     type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
                     placeholder="********"
+                    autoComplete="current-password"
                     className="w-full rounded-md border border-gray-300 p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white/70"
+                    required
                   />
                   <span
                     onClick={() => setShowPassword(!showPassword)}
@@ -102,9 +149,10 @@ export default function LoginPage() {
               {/* Submit */}
               <button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md font-medium transition-colors"
+                disabled={isLoading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white py-2 rounded-md font-medium transition-colors"
               >
-                CONTINUE
+                {isLoading ? "LOGGING IN..." : "CONTINUE"}
               </button>
 
               {/* Divider */}

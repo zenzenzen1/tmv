@@ -1,25 +1,25 @@
 // Re-export all types
-export * from './api';
+export * from "./api";
 
 // Common entity types
 export interface User {
   id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: UserRole;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  fullName: string;
+  personalMail: string;
+  eduMail: string;
+  studentCode: string;
+  systemRole: UserRole;
 }
 
 export const UserRole = {
-  ADMIN: 'ADMIN',
-  USER: 'USER',
-  MODERATOR: 'MODERATOR'
+  MEMBER: "MEMBER",
+  TEACHER: "TEACHER",
+  EXECUTIVE_BOARD: "EXECUTIVE_BOARD",
+  ORGANIZATION_COMMITTEE: "ORGANIZATION_COMMITTEE",
+  ADMIN: "ADMIN",
 } as const;
 
-export type UserRole = typeof UserRole[keyof typeof UserRole];
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
 // Common form types
 export interface LoginRequest {
@@ -36,9 +36,7 @@ export interface RegisterRequest {
 
 export interface AuthResponse {
   user: User;
-  token: string;
-  refreshToken: string;
-  expiresIn: number;
+  message: string;
 }
 
 // Generic types
@@ -57,6 +55,6 @@ export interface TableColumn<T = any> {
 
 export interface FilterOption {
   field: string;
-  operator: 'eq' | 'ne' | 'gt' | 'lt' | 'like' | 'in' | 'between';
+  operator: "eq" | "ne" | "gt" | "lt" | "like" | "in" | "between";
   value: any;
 }
