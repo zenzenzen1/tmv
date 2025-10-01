@@ -60,3 +60,52 @@ export interface FilterOption {
   operator: 'eq' | 'ne' | 'gt' | 'lt' | 'like' | 'in' | 'between';
   value: any;
 }
+
+// WeightClass domain
+export const Gender = {
+  MALE: 'MALE',
+  FEMALE: 'FEMALE',
+} as const;
+export type Gender = typeof Gender[keyof typeof Gender];
+
+export const WeightClassStatus = {
+  DRAFT: 'DRAFT',
+  ACTIVE: 'ACTIVE',
+  LOCKED: 'LOCKED',
+} as const;
+export type WeightClassStatus = typeof WeightClassStatus[keyof typeof WeightClassStatus];
+
+export interface WeightClassResponse {
+  [key: string]: unknown;
+  id: string;
+  gender: Gender;
+  minWeight: number;
+  maxWeight: number;
+  note?: string | null;
+  status: WeightClassStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateWeightClassRequest {
+  gender: Gender;
+  minWeight: number;
+  maxWeight: number;
+  note?: string;
+  saveMode?: WeightClassStatus; // DRAFT or ACTIVE
+}
+
+export interface UpdateWeightClassRequest {
+  minWeight?: number;
+  maxWeight?: number;
+  note?: string;
+}
+
+export interface WeightClassFilters {
+  page?: number;
+  size?: number;
+  sort?: string;
+  search?: string;
+  gender?: Gender;
+  status?: WeightClassStatus;
+}
