@@ -31,6 +31,13 @@ export const API_ENDPOINTS = {
   // Common endpoints
   HEALTH: '/health',
   VERSION: '/version',
+
+  // Weight classes
+  WEIGHT_CLASSES: {
+    BASE: '/weight-classes',
+    BY_ID: (id: string) => `/weight-classes/${id}`,
+    STATUS: (id: string) => `/weight-classes/${id}/status`,
+  },
 } as const;
 
 // Helper function to build endpoint URLs

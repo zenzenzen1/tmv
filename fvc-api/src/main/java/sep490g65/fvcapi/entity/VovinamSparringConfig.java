@@ -45,6 +45,6 @@ public class VovinamSparringConfig extends BaseEntity {
     private Integer injuryTimeoutSeconds = 60;
 
     @OneToMany(mappedBy = "vovinamSparringConfig", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<WeightClass> weightClasses = new ArrayList<>();
+    private List<VovinamSparringConfigWeightClass> weightClassLinks = new ArrayList<>();
 }
 
