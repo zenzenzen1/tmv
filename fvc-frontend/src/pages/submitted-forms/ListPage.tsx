@@ -19,6 +19,9 @@ export default function SubmittedFormsPage() {
   const [rows, setRows] = useState<SubmittedRow[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [page, setPage] = useState<number>(1); // CommonTable is 1-based
+  const [pageSize] = useState<number>(10); // fixed page size
+  const [totalElements, setTotalElements] = useState<number>(0);
 
   useEffect(() => {
     let ignore = false;
@@ -33,9 +36,9 @@ export default function SubmittedFormsPage() {
           totalElements: number;
         }>("/submitted-forms", {
           type: "CLUB_REGISTRATION",
-          page: 0,
-          size: 50,
-          sortBy: "id",
+          page: page - 1,
+          size: pageSize,
+          sortBy: "createdAt",
           ascending: false,
         });
         if (!ignore) {
@@ -55,6 +58,7 @@ export default function SubmittedFormsPage() {
             } as SubmittedRow;
           });
           setRows(mapped);
+          setTotalElements(res.data?.totalElements ?? mapped.length);
         }
       } catch (e: any) {
         if (!ignore) setError(e?.message || "Không tải được dữ liệu");
@@ -66,7 +70,7 @@ export default function SubmittedFormsPage() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [page, pageSize]);
 
   function safePick(jsonString: string, keys: string[]): string {
     try {
@@ -183,7 +187,7 @@ export default function SubmittedFormsPage() {
           Đăng kí tham gia FPTU Vovinam Club FALL 2025
         </p>
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm text-gray-600">Lượt điền: {filtered.length}</div>
+          <div className="text-sm text-gray-600">Lượt điền: {totalElements}</div>
           <input
             placeholder="Tìm kiếm..."
             value={query}
@@ -197,10 +201,12 @@ export default function SubmittedFormsPage() {
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       )}
       <CommonTable
-        data={filtered.map((r, idx) => ({ ...r, stt: idx + 1 })) as any}
+        data={filtered.map((r, idx) => ({ ...r, stt: (page - 1) * pageSize + idx + 1 })) as any}
         columns={columns as any}
-        pageSizeOptions={[5, 10, 20]}
-        initialPageSize={5}
+        page={page}
+        pageSize={pageSize}
+        total={totalElements}
+        onPageChange={(p) => setPage(p)}
         className={loading ? "opacity-60" : undefined}
       />
     </div>
