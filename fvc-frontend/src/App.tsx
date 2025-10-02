@@ -4,6 +4,7 @@ import Sidebar from "./components/layout/Sidebar";
 import Footer from "./components/layout/Footer";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import SubmittedFormsPage from "./pages/submitted-forms/ListPage";
+import FormEditPage from "./pages/forms/EditPage";
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <Routes>
             <Route path="/weight-classes" element={<WeightClassListPage />} />
             <Route path="/submitted-forms" element={<SubmittedFormsPage />} />
+            <Route path="/forms/member/edit" element={<FormEditPage />} />
             <Route path="/" element={<Navigate to="/weight-classes" replace />} />
             <Route path="*" element={<div>404 Not Found</div>} />
           </Routes>
