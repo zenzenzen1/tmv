@@ -7,6 +7,7 @@ export type MenuItem = {
 export const defaultMenuItems: MenuItem[] = [
   { key: "tournaments", label: "Danh sách giải đấu" },
   { key: "tournamentForm", label: "Form đăng ký giải đấu" },
+  { key: "weightClassPage", label: "Quản lí hạng cân" },
   { key: "athletes", label: "Quản lí VDV" },
   { section: "Quản lí nội dung", key: "fighting", label: "Đối kháng" },
   { section: "Quản lí nội dung", key: "forms", label: "Quyền" },
