@@ -138,6 +138,16 @@ export default function SubmittedFormsPage() {
   }
 
   const columns: TableColumn<SubmittedRow>[] = useMemo(() => {
+    const formatDate = (v?: string) => {
+      if (!v) return "";
+      try {
+        const d = new Date(v);
+        if (Number.isNaN(d.getTime())) return v;
+        return d.toLocaleDateString("vi-VN");
+      } catch {
+        return v;
+      }
+    };
     return [
       {
         key: "stt",
@@ -146,7 +156,7 @@ export default function SubmittedFormsPage() {
         sortable: false,
         className: "w-16",
       },
-      { key: "submittedAt", title: "Thời gian nộp", sortable: true },
+      { key: "submittedAt", title: "Thời gian nộp", sortable: true, render: (r) => formatDate(r.submittedAt) },
       { key: "fullName", title: "Họ và tên", sortable: true },
       { key: "email", title: "Email", sortable: true },
       { key: "studentCode", title: "MSSV", sortable: true },
