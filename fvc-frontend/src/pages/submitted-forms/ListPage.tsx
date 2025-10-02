@@ -186,7 +186,10 @@ export default function SubmittedFormsPage() {
         >
           ⟵ Quay lại
         </button>
-        <button className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600">
+        <button
+          onClick={() => exportCsv(filtered)}
+          className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
+        >
           Xuất Excel
         </button>
       </div>
@@ -221,6 +224,64 @@ export default function SubmittedFormsPage() {
       />
     </div>
   );
+}
+
+function exportCsv(rows: SubmittedRow[]) {
+  if (!rows || rows.length === 0) {
+    alert("Không có dữ liệu để xuất");
+    return;
+  }
+  const headers = [
+    "STT",
+    "Thời gian nộp",
+    "Họ và tên",
+    "Email",
+    "MSSV",
+    "SDT liên lạc",
+    "Mô tả ngắn về bản thân",
+  ];
+
+  const formatDate = (v?: string) => {
+    if (!v) return "";
+    try {
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return v;
+      return d.toLocaleDateString("vi-VN");
+    } catch {
+      return v;
+    }
+  };
+
+  const csvRows = rows.map((r, i) => [
+    String(i + 1),
+    formatDate(r.submittedAt),
+    escapeCsv(r.fullName),
+    escapeCsv(r.email),
+    escapeCsv(r.studentCode),
+    escapeCsv(r.phone),
+    escapeCsv(r.note),
+  ]);
+
+  const csv = [headers.join(","), ...csvRows.map((line) => line.join(","))].join("\r\n");
+
+  // Add BOM for UTF-8 to display Vietnamese correctly in Excel
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `submitted-forms-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function escapeCsv(value?: string) {
+  const s = value ?? "";
+  if (/[",\n]/.test(s)) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
 }
 
 
