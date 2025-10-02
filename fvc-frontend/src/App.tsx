@@ -3,6 +3,7 @@ import { Route, Routes, Navigate } from "react-router-dom";
 import Sidebar from "./components/layout/Sidebar";
 import Footer from "./components/layout/Footer";
 import WeightClassListPage from "./pages/weight-class/ListPage";
+import SubmittedFormsPage from "./pages/submitted-forms/ListPage";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
         <main className="flex-1 p-6">
           <Routes>
             <Route path="/weight-classes" element={<WeightClassListPage />} />
+            <Route path="/submitted-forms" element={<SubmittedFormsPage />} />
             <Route path="/" element={<Navigate to="/weight-classes" replace />} />
             <Route path="*" element={<div>404 Not Found</div>} />
           </Routes>

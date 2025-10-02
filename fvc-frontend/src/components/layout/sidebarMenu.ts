@@ -11,4 +11,5 @@ export const defaultMenuItems: MenuItem[] = [
   { section: "Quản lí nội dung", key: "fighting", label: "Đối kháng" },
   { section: "Quản lí nội dung", key: "forms", label: "Quyền" },
   { section: "Quản lí nội dung", key: "music", label: "Võ nhạc" },
+  { section: "Quản lí form", key: "submittedForms", label: "Kết quả đăng ký" },
 ];
