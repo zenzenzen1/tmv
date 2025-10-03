@@ -42,6 +42,17 @@ export const API_ENDPOINTS = {
   // Tournament forms
   TOURNAMENT_FORMS: {
     BASE: "/tournament-forms",
+
+  // Fist contents
+  FIST_CONTENTS: {
+    BASE: '/fist-configs',
+    BY_ID: (id: string) => `/fist-configs/${id}`,
+  },
+
+  // Music contents
+  MUSIC_CONTENTS: {
+    BASE: '/music-contents',
+    BY_ID: (id: string) => `/music-contents/${id}`,
   },
 } as const;
 
