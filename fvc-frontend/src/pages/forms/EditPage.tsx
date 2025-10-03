@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 
 type FieldType = "TEXT" | "DATE" | "SELECT" | "CHECKBOX";
 
@@ -30,10 +31,7 @@ export default function FormEditPage() {
     makeField("Mô tả ngắn về bản thân", "bio", "Nhập đoạn trả lời", "TEXT", false, 5),
   ]);
 
-  const ordered = useMemo(
-    () => [...fields].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
-    [fields]
-  );
+  const [showAddMenu, setShowAddMenu] = useState(false);
 
   function handleChangeField(idx: number, patch: Partial<FormField>) {
     setFields((prev) => {
@@ -47,11 +45,32 @@ export default function FormEditPage() {
     setFields((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  function findFieldIndex(fieldId: string): number {
+    return fields.findIndex(f => f.id === fieldId);
+  }
+
   function handleAdd(type: FieldType) {
     setFields((prev) => [
       ...prev,
       makeField("", "", "", type, false, (prev[prev.length - 1]?.sortOrder ?? 0) + 1),
     ]);
+    setShowAddMenu(false);
+  }
+
+  function handleDragEnd(result: any) {
+    if (!result.destination) return;
+
+    const items = Array.from(fields);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    // Update sortOrder
+    const updatedItems = items.map((item, index) => ({
+      ...item,
+      sortOrder: index + 1,
+    }));
+
+    setFields(updatedItems);
   }
 
   function handleSave() {
@@ -105,73 +124,154 @@ export default function FormEditPage() {
           </div>
 
           {/* Fields */}
-          <div className="mt-4 divide-y divide-gray-200">
-            {ordered.map((f, i) => (
-              <div key={f.id} className="py-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-[13px] text-gray-700">=</div>
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 text-[12px] text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={f.required}
-                        onChange={(e) => handleChangeField(i, { required: e.target.checked })}
-                      />
-                      Required
-                    </label>
-                    <button className="text-red-500" onClick={() => handleDelete(i)}>x</button>
-                  </div>
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="fields">
+              {(provided) => (
+                <div {...provided.droppableProps} ref={provided.innerRef} className="mt-4 space-y-2">
+                  {fields.map((f, i) => (
+                    <Draggable key={f.id} draggableId={f.id} index={i}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`rounded-lg border border-gray-200 bg-white p-3 ${snapshot.isDragging ? 'bg-blue-50 shadow-lg' : 'hover:bg-gray-50'}`}
+                        >
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div {...provided.dragHandleProps} className="text-gray-400 cursor-move">
+                                ⋮⋮
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <label className="flex items-center gap-2 text-xs text-gray-600">
+                                  <input
+                                    type="checkbox"
+                                    checked={f.required}
+                                    onChange={(e) => handleChangeField(findFieldIndex(f.id), { required: e.target.checked })}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  Required
+                                </label>
+                                <button 
+                                  className="text-red-500 hover:text-red-700 text-sm"
+                                  onClick={() => handleDelete(findFieldIndex(f.id))}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            </div>
+                            <div className="space-y-3">
+                              <div>
+                                <div className="mb-1 text-xs font-medium text-gray-700">Nhãn câu hỏi</div>
+                                <input
+                                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                                  value={f.label}
+                                  onChange={(e) => handleChangeField(findFieldIndex(f.id), { label: e.target.value })}
+                                  placeholder="Nhập câu hỏi"
+                                />
+                              </div>
+                              <div>
+                                <div className="mb-1 text-xs font-medium text-gray-700">Ghi chú</div>
+                                <input
+                                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                                  value={f.note ?? ""}
+                                  onChange={(e) => handleChangeField(findFieldIndex(f.id), { note: e.target.value })}
+                                  placeholder="Ghi chú cho câu hỏi"
+                                />
+                              </div>
+                              <div>
+                                <div className="mb-1 text-xs font-medium text-gray-700">Phần nhập thông tin vào</div>
+                                <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
+                                  {f.fieldType === "TEXT" && (
+                                    <input
+                                      className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                                      placeholder={f.note || "Nhập câu trả lời"}
+                                      disabled
+                                    />
+                                  )}
+                                  {f.fieldType === "DATE" && (
+                                    <input
+                                      type="date"
+                                      className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                                      disabled
+                                    />
+                                  )}
+                                  {f.fieldType === "SELECT" && (
+                                    <select className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm" disabled>
+                                      <option>{f.note || "Chọn một tùy chọn"}</option>
+                                    </select>
+                                  )}
+                                  {f.fieldType === "CHECKBOX" && (
+                                    <div className="space-y-2">
+                                      <label className="flex items-center gap-2 text-sm">
+                                        <input type="checkbox" disabled className="rounded border-gray-300" />
+                                        <span className="text-gray-500">{f.note || "Tùy chọn 1"}</span>
+                                      </label>
+                                      <label className="flex items-center gap-2 text-sm">
+                                        <input type="checkbox" disabled className="rounded border-gray-300" />
+                                        <span className="text-gray-500">{f.note || "Tùy chọn 2"}</span>
+                                      </label>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
                 </div>
-
-                <div className="mt-3 space-y-3">
-                  <div>
-                    <div className="mb-1 text-[12px] font-medium text-gray-700">{f.label || "Họ và tên"}</div>
-                    <input
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
-                      placeholder={f.placeholder || "Ghi chú"}
-                      value={f.note ?? ""}
-                      onChange={(e) => handleChangeField(i, { note: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <input
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
-                      placeholder="Nhãn (label)"
-                      value={f.label}
-                      onChange={(e) => handleChangeField(i, { label: e.target.value })}
-                    />
-                    <input
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
-                      placeholder="Name (key)"
-                      value={f.name}
-                      onChange={(e) => handleChangeField(i, { name: e.target.value })}
-                    />
-                  </div>
-                  <div className="max-w-xs">
-                    <select
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
-                      value={f.fieldType}
-                      onChange={(e) => handleChangeField(i, { fieldType: e.target.value as FieldType })}
-                    >
-                      <option value="TEXT">Short answer</option>
-                      <option value="DATE">Date</option>
-                      <option value="SELECT">Multiple choice</option>
-                      <option value="CHECKBOX">Checkboxes</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+              )}
+            </Droppable>
+          </DragDropContext>
 
           {/* Add question */}
-          <div className="mt-4">
+          <div className="mt-4 relative">
             <button
               className="rounded-md border border-dashed border-gray-300 bg-white px-3 py-2 text-[13px] font-medium text-[#2563eb] hover:bg-blue-50"
-              onClick={() => handleAdd("TEXT")}
+              onClick={() => setShowAddMenu(!showAddMenu)}
             >
               + Thêm câu hỏi
             </button>
+            
+            {showAddMenu && (
+              <div className="absolute top-full left-0 mt-2 w-48 rounded-md border border-gray-200 bg-white shadow-lg z-10">
+                <div className="p-2">
+                  <div className="text-xs font-semibold text-gray-600 mb-2">LOẠI CÂU HỎI</div>
+                  <div className="space-y-1">
+                    <button
+                      className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
+                      onClick={() => handleAdd("TEXT")}
+                    >
+                      <span>≡</span>
+                      <span>Short answer</span>
+                    </button>
+                    <button
+                      className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
+                      onClick={() => handleAdd("DATE")}
+                    >
+                      <span>📅</span>
+                      <span>Date</span>
+                    </button>
+                    <button
+                      className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
+                      onClick={() => handleAdd("SELECT")}
+                    >
+                      <span>☰</span>
+                      <span>Multiple choice</span>
+                    </button>
+                    <button
+                      className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
+                      onClick={() => handleAdd("CHECKBOX")}
+                    >
+                      <span>☑</span>
+                      <span>Checkboxes</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
