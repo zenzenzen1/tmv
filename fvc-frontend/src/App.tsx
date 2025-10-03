@@ -1,13 +1,23 @@
 import "./App.css";
 import { Route, Routes, Navigate } from "react-router-dom";
+
 import Sidebar from "./components/layout/Sidebar";
 import Footer from "./components/layout/Footer";
+
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import SubmittedFormsPage from "./pages/submitted-forms/ListPage";
 import FormListPage from "./pages/forms/ListPage";
 import FormBuilderPage from "./pages/forms/BuilderPage";
 import FormEditPage from "./pages/forms/EditPage";
 import FormRegistrationPage from "./pages/forms/RegistrationPage";
+import FistContentListPage from "./pages/fist-content/ListPage";
+import MusicContentListPage from "./pages/music-content/ListPage";
+
+import TournamentManage from "./pages/tournament/TournamentManagement";
+import FormResults from "./features/tournament/FormResults";
+import FormBuilder from "./features/tournament/FormBuilder";
+import PublishedForm from "./features/tournament/PublishedForm";
+import Home from "./pages/Home";
 
 export default function App() {
   return (
@@ -16,6 +26,7 @@ export default function App() {
         <Sidebar />
         <main className="flex-1 p-6">
           <Routes>
+
             <Route path="/weight-classes" element={<WeightClassListPage />} />
             <Route path="/submitted-forms" element={<SubmittedFormsPage />} />
             <Route path="/formList" element={<FormListPage />} />
@@ -24,7 +35,15 @@ export default function App() {
             <Route path="/forms/:id/edit" element={<FormEditPage />} />
             <Route path="/forms/:id/view" element={<FormRegistrationPage />} />
             <Route path="/register/:id" element={<FormRegistrationPage />} />
-            <Route path="/" element={<Navigate to="/weight-classes" replace />} />
+            <Route path="/fist-contents" element={<FistContentListPage />} />
+            <Route path="/music-contents" element={<MusicContentListPage />} />
+
+            <Route path="/" element={<Home />} />
+            <Route path="/manage" element={<TournamentManage />} />
+            <Route path="/results/:id" element={<FormResults />} />
+            <Route path="/form-builder" element={<FormBuilder />} />
+            <Route path="/form-builder/:id" element={<FormBuilder />} />
+            <Route path="/forms/:id/fill" element={<PublishedForm />} />
             <Route path="*" element={<div>404 Not Found</div>} />
           </Routes>
           <Footer />
@@ -33,3 +52,4 @@ export default function App() {
     </div>
   );
 }
+

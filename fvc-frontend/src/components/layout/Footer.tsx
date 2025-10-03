@@ -1,6 +1,6 @@
 export default function Footer() {
   return (
-    <footer className="mt-10 bg-gradient-to-br from-[#74a6ff] via-[#4d7dff] to-[#2b57ff] py-12 text-white">
+    <footer className="bg-gradient-to-br from-[#74a6ff] via-[#4d7dff] to-[#2b57ff] py-12 text-white">
       <div className="mx-auto max-w-5xl">
         <h3 className="mb-2 text-lg font-semibold">FPTU Vovinam CMS</h3>
         <p className="mb-6 text-sm opacity-90">

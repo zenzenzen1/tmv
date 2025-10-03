@@ -3,6 +3,9 @@ package sep490g65.fvcapi.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import sep490g65.fvcapi.enums.ApplicationFormType;
+import sep490g65.fvcapi.enums.FormStatus;
+import sep490g65.fvcapi.enums.FormStatusConverter;
+import sep490g65.fvcapi.entity.Competition;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +39,14 @@ public class ApplicationFormConfig extends BaseEntity {
 
     @OneToMany(mappedBy = "applicationFormConfig", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SubmittedApplicationForm> submittedApplicationForms;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "competition_id")
+    private Competition competition;
+
+    @Convert(converter = FormStatusConverter.class)
+    @Column(length = 20)
+    private FormStatus status;
 
 }
 
