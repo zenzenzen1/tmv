@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import sep490g65.fvcapi.enums.TournamentStatus;
+import sep490g65.fvcapi.enums.FormStatus;
+import sep490g65.fvcapi.enums.FormStatusConverter;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -59,6 +61,10 @@ public class Competition extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TournamentStatus status = TournamentStatus.DRAFT;
+
+    @Convert(converter = FormStatusConverter.class)
+    @Column(length = 20)
+    private FormStatus formStatus;
 
     @OneToMany(mappedBy = "competition", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<VovinamSparringConfig> sparringConfigs;

@@ -46,5 +46,9 @@ public interface CompetitionRepository extends JpaRepository<Competition, String
     Optional<Competition> findByName(String name);
     
     boolean existsByName(String name);
+
+    @Query("SELECT c FROM Competition c WHERE (:q IS NULL OR LOWER(COALESCE(c.name, '')) LIKE :q)")
+    Page<Competition> search(@Param("q") String keyword, Pageable pageable);
 }
+
 
