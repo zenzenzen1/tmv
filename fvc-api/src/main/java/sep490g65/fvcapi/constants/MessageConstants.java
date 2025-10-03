@@ -41,6 +41,10 @@ public final class MessageConstants {
     public static final String WEIGHT_CLASS_OVERLAP_CONFLICT = "Overlapping active weight class for gender";
     public static final String WEIGHT_CLASS_CANNOT_UNLOCK = "Cannot unlock locked weight class";
 
+    // Tournament Forms Messages
+    public static final String TOURNAMENT_FORMS_RETRIEVED = "Tournament registration forms retrieved";
+    public static final String TOURNAMENT_FORM_STATUS_UPDATED = "Form status updated";
+
     // Music Content Messages
     public static final String MUSIC_CONTENTS_RETRIEVED = "Music contents retrieved";
     public static final String MUSIC_CONTENT_RETRIEVED = "Music content retrieved";
