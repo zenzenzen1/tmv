@@ -40,4 +40,7 @@ public final class MessageConstants {
     public static final String WEIGHT_CLASS_RANGE_INVALID = "Min weight must be less than max weight";
     public static final String WEIGHT_CLASS_OVERLAP_CONFLICT = "Overlapping active weight class for gender";
     public static final String WEIGHT_CLASS_CANNOT_UNLOCK = "Cannot unlock locked weight class";
+
+    // General Messages
+    public static final String DATA_RETRIEVED = "Data retrieved successfully";
 }

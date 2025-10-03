@@ -38,6 +38,20 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/weight-classes/${id}`,
     STATUS: (id: string) => `/weight-classes/${id}/status`,
   },
+
+  // Submitted Application Forms
+  SUBMITTED_FORMS: {
+    BASE: '/submitted-forms',
+    BY_ID: (id: string) => `/submitted-forms/${id}`,
+    EXPORT: (id: string) => `/submitted-forms/${id}/export`,
+  },
+
+  // Application Form Configs
+  APPLICATION_FORMS: {
+    BASE: '/application-forms',
+    BY_TYPE: (type: string) => `/application-forms/${type}`,
+    INIT_CLUB: '/application-forms/init-club-registration',
+  },
 } as const;
 
 // Helper function to build endpoint URLs
