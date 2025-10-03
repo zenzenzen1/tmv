@@ -7,15 +7,15 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "competition_vovinam_fist", 
+@Table(name = "competition_fist_item_selections",
        uniqueConstraints = {
-           @UniqueConstraint(columnNames = {"competition_id", "vovinam_fist_config_id"})
+           @UniqueConstraint(columnNames = {"competition_id", "vovinam_fist_config_id", "vovinam_fist_item_id"})
        })
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class CompetitionVovinamFist extends BaseEntity {
+public class CompetitionFistItemSelection extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -28,4 +28,8 @@ public class CompetitionVovinamFist extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vovinam_fist_config_id", nullable = false)
     private VovinamFistConfig vovinamFistConfig;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vovinam_fist_item_id", nullable = false)
+    private VovinamFistItem vovinamFistItem;
 }
