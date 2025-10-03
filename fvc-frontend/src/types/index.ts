@@ -109,3 +109,59 @@ export interface WeightClassFilters {
   gender?: Gender;
   status?: WeightClassStatus;
 }
+
+// Fist Content domain
+export interface FistContentResponse {
+  id: string;
+  name: string;
+  description?: string | null;
+  status: boolean;
+}
+
+export interface CreateFistContentRequest {
+  name: string;
+  description?: string;
+  status?: boolean;
+}
+
+export interface UpdateFistContentRequest {
+  name?: string;
+  description?: string;
+  status?: boolean;
+}
+
+export interface FistContentFilters {
+  page?: number;
+  size?: number;
+  sort?: string;
+  search?: string;
+  status?: boolean;
+}
+
+// Music content domain
+export interface MusicContentResponse {
+  id: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+}
+
+export interface MusicContentCreateRequest {
+  name: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface MusicContentUpdateRequest {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface MusicContentFilters {
+  page?: number;
+  size?: number;
+  sort?: string;
+  search?: string;
+  status?: 'ACTIVE' | 'INACTIVE' | string;
+}
