@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,6 +25,7 @@ import sep490g65.fvcapi.enums.FormStatus;
 import sep490g65.fvcapi.dto.response.SubmittedFormResponse;
 import sep490g65.fvcapi.dto.request.UpdateFormStatusRequest;
 import sep490g65.fvcapi.dto.request.UpdateSubmissionStatusRequest;
+import sep490g65.fvcapi.dto.request.CreateSubmissionRequest;
 import sep490g65.fvcapi.dto.request.CreateFormRequest;
 import sep490g65.fvcapi.dto.response.CompetitionOptionResponse;
 import sep490g65.fvcapi.entity.Competition;
@@ -94,6 +96,14 @@ public class TournamentFormController {
                                                                      @RequestBody UpdateSubmissionStatusRequest req) {
         tournamentFormService.updateSubmissionStatus(submissionId, req.getStatus());
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS));
+    }
+
+    @PostMapping("/{id}/submissions")
+    public ResponseEntity<BaseResponse<Void>> submit(@PathVariable String id,
+                                                     @Valid @RequestBody CreateSubmissionRequest req) {
+        tournamentFormService.submit(id, req);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS));
     }
 }
 

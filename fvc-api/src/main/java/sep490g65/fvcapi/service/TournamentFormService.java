@@ -8,6 +8,7 @@ import sep490g65.fvcapi.dto.response.SubmittedFormResponse;
 import sep490g65.fvcapi.dto.request.CreateFormRequest;
 import sep490g65.fvcapi.dto.request.UpdateFormRequest;
 import sep490g65.fvcapi.dto.response.FormDetailResponse;
+import sep490g65.fvcapi.dto.request.CreateSubmissionRequest;
 
 public interface TournamentFormService {
     PaginationResponse<TournamentFormResponse> list(RequestParam params);
@@ -17,6 +18,7 @@ public interface TournamentFormService {
     void updateStatus(String id, FormStatus status);
     PaginationResponse<SubmittedFormResponse> listSubmissions(String formId, RequestParam params);
     void updateSubmissionStatus(Long submissionId, sep490g65.fvcapi.enums.ApplicationFormStatus status);
+    void submit(String formId, CreateSubmissionRequest request);
 }
 
 

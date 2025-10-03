@@ -166,14 +166,31 @@ export default function FormResults() {
             parsed = {};
           }
           const status = STATUS_MAP[item.status as string] || "CHỜ DUYỆT";
+          const compRaw = (parsed.competitionType as string) || "";
+          const compVi =
+            compRaw === "quyen"
+              ? "Quyền"
+              : compRaw === "fighting"
+              ? "Đối kháng"
+              : compRaw === "music"
+              ? "Võ nhạc"
+              : "";
+          const categoryVi =
+            compRaw === "quyen"
+              ? (parsed.quyenCategory as string) || ""
+              : compRaw === "fighting"
+              ? (parsed.weightClass as string) || ""
+              : compRaw === "music"
+              ? (parsed.musicCategory as string) || ""
+              : (parsed.category as string) || "";
           return {
             id: String(item.id),
             submittedAt: "", // backend model lacks timestamp; leave empty
             fullName: parsed.fullName || "",
             email: parsed.email || "",
             gender: parsed.gender === "FEMALE" ? "Nữ" : "Nam",
-            competitionType: parsed.competitionType || "",
-            category: parsed.category || "",
+            competitionType: compVi,
+            category: categoryVi,
             studentId: parsed.studentId || "",
             club: parsed.club || "",
             coach: parsed.coach || "",

@@ -16,6 +16,7 @@ import sep490g65.fvcapi.repository.CompetitionRepository;
 import sep490g65.fvcapi.repository.ApplicationFormConfigRepository;
 import sep490g65.fvcapi.entity.ApplicationFormConfig;
 import sep490g65.fvcapi.repository.SubmittedApplicationFormRepository;
+import sep490g65.fvcapi.repository.UserRepository;
 import sep490g65.fvcapi.enums.ApplicationFormStatus;
 import sep490g65.fvcapi.service.TournamentFormService;
 import sep490g65.fvcapi.utils.ResponseUtils;
@@ -23,6 +24,7 @@ import sep490g65.fvcapi.dto.request.CreateFormRequest;
 import sep490g65.fvcapi.dto.request.UpdateFormRequest;
 import sep490g65.fvcapi.dto.response.FormDetailResponse;
 import sep490g65.fvcapi.dto.response.FormFieldDto;
+import sep490g65.fvcapi.dto.request.CreateSubmissionRequest;
 
 import java.time.LocalDate;
 
@@ -34,6 +36,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     private final CompetitionRepository competitionRepository;
     private final ApplicationFormConfigRepository formConfigRepository;
     private final SubmittedApplicationFormRepository submittedRepository;
+    private final UserRepository userRepository;
 
     private TournamentFormResponse toDto(Competition c) {
         String status = resolveStatus(c);
@@ -243,6 +246,40 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     public void updateSubmissionStatus(Long submissionId, sep490g65.fvcapi.enums.ApplicationFormStatus status) {
         sep490g65.fvcapi.entity.SubmittedApplicationForm s = submittedRepository.findById(submissionId).orElseThrow();
         s.setStatus(status);
+        submittedRepository.save(s);
+    }
+
+    @Override
+    @Transactional
+    public void submit(String formId, CreateSubmissionRequest request) {
+        ApplicationFormConfig form = formConfigRepository.findById(formId).orElseThrow();
+        // Basic validation for required standard fields
+        if (request.getFullName() == null || request.getFullName().isBlank()
+                || request.getEmail() == null || request.getEmail().isBlank()
+                || request.getStudentId() == null || request.getStudentId().isBlank()
+                || request.getClub() == null || request.getClub().isBlank()
+                || request.getGender() == null || request.getGender().isBlank()
+                || request.getFormDataJson() == null || request.getFormDataJson().isBlank()) {
+            throw new IllegalArgumentException("Missing required fields for submission");
+        }
+        // resolve user from email or create a lightweight guest user
+        sep490g65.fvcapi.entity.User user = userRepository.findByPersonalMail(request.getEmail())
+                .orElseGet(() -> {
+                    sep490g65.fvcapi.entity.User u = new sep490g65.fvcapi.entity.User();
+                    u.setFullName(request.getFullName());
+                    u.setPersonalMail(request.getEmail());
+                    u.setSystemRole(sep490g65.fvcapi.enums.SystemRole.MEMBER);
+                    u.setStatus(Boolean.TRUE);
+                    return userRepository.save(u);
+                });
+
+        sep490g65.fvcapi.entity.SubmittedApplicationForm s = sep490g65.fvcapi.entity.SubmittedApplicationForm.builder()
+                .applicationFormConfig(form)
+                .formType(form.getFormType())
+                .formData(request.getFormDataJson())
+                .user(user)
+                .status(sep490g65.fvcapi.enums.ApplicationFormStatus.PENDING)
+                .build();
         submittedRepository.save(s);
     }
 
