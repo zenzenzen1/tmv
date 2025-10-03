@@ -44,4 +44,11 @@ public final class MessageConstants {
     // Tournament Forms Messages
     public static final String TOURNAMENT_FORMS_RETRIEVED = "Tournament registration forms retrieved";
     public static final String TOURNAMENT_FORM_STATUS_UPDATED = "Form status updated";
+
+    // Music Content Messages
+    public static final String MUSIC_CONTENTS_RETRIEVED = "Music contents retrieved";
+    public static final String MUSIC_CONTENT_RETRIEVED = "Music content retrieved";
+    public static final String MUSIC_CONTENT_CREATED = "Music content created";
+    public static final String MUSIC_CONTENT_UPDATED = "Music content updated";
+    public static final String MUSIC_CONTENT_DELETED = "Music content deleted";
 }

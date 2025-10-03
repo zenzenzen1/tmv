@@ -38,4 +38,8 @@ public final class ApiConstants {
 
     // Resource Paths - Tournament Forms
     public static final String TOURNAMENT_FORMS_PATH = "/tournament-forms";
+
+    // Resource Paths - Music Integrated Performances
+    public static final String MUSIC_CONTENTS_PATH = "/music-contents";
+    public static final String MUSIC_CONTENT_ID_PATH = "/{id}";
 }
