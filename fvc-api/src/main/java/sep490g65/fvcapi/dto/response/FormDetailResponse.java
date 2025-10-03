@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import sep490g65.fvcapi.enums.ApplicationFormType;
+import sep490g65.fvcapi.enums.FormStatus;
 
 import java.time.LocalDateTime;
 
@@ -11,14 +13,15 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TournamentFormResponse {
+public class FormDetailResponse {
     private String id;
+    private String name;
+    private String description;
+    private ApplicationFormType formType;
     private String competitionId;
-    private String tournamentName;
-    private String formTitle;
-    private Integer numberOfParticipants;
+    private FormStatus status;
     private LocalDateTime createdAt;
-    private String status;
+    private java.util.List<FormFieldDto> fields;
 }
 
 

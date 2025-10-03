@@ -85,6 +85,8 @@ export default function TournamentFormList() {
                     `${API_ENDPOINTS.TOURNAMENT_FORMS.BASE}/${r.id}/status`,
                     { status: map[val] }
                   );
+                  // Notify Home to refresh published list
+                  window.dispatchEvent(new Event("forms:changed"));
                   // hard refresh to reflect backend truth
                   setPage((p) => p);
                 } catch (err) {
@@ -122,6 +124,12 @@ export default function TournamentFormList() {
               className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
             >
               Xem kết quả
+            </button>
+            <button
+              onClick={() => navigate(`/form-builder/${r.id}`)}
+              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
+            >
+              Sửa
             </button>
           </div>
         ),

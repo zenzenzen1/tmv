@@ -10,6 +10,7 @@ import MusicContentListPage from "./pages/music-content/ListPage";
 
 import TournamentManage from "./pages/tournament/TournamentManagement";
 import FormResults from "./features/tournament/FormResults";
+import FormBuilder from "./features/tournament/FormBuilder";
 
 export default function App() {
   return (
@@ -19,13 +20,15 @@ export default function App() {
         <main className="flex-1 p-6">
           <Routes>
 
-            <Route path="/weight-class" element={<WeightClassListPage />} />
-            <Route path="/fist-content" element={<FistContentListPage />} />
-            <Route path="/music-content" element={<MusicContentListPage />} />
-
+            <Route path="/weight-classes" element={<WeightClassListPage />} />
+            <Route path="/fist-contents" element={<FistContentListPage />} />
+            <Route path="/music-contents" element={<MusicContentListPage />} />
+            <Route path="/" element={<Navigate to="/weight-classes" replace />} />
 
             <Route path="/manage" element={<TournamentManage />} />
             <Route path="/results/:id" element={<FormResults />} />
+            <Route path="/form-builder" element={<FormBuilder />} />
+            <Route path="/form-builder/:id" element={<FormBuilder />} />
 
             <Route path="*" element={<div>404 Not Found</div>} />
           </Routes>

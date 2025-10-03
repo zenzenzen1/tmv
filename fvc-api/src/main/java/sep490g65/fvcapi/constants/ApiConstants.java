@@ -36,6 +36,7 @@ public final class ApiConstants {
     public static final String WEIGHT_CLASS_ID_PATH = "/{id}";
     public static final String WEIGHT_CLASS_STATUS_PATH = "/{id}/status";
 
+    // Resource Paths - Tournament Forms
     public static final String TOURNAMENT_FORMS_PATH = "/tournament-forms";
 
     // Resource Paths - Music Integrated Performances
