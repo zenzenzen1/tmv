@@ -38,6 +38,18 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/weight-classes/${id}`,
     STATUS: (id: string) => `/weight-classes/${id}/status`,
   },
+
+  // Fist contents
+  FIST_CONTENTS: {
+    BASE: '/fist-configs',
+    BY_ID: (id: string) => `/fist-configs/${id}`,
+  },
+
+  // Music contents
+  MUSIC_CONTENTS: {
+    BASE: '/music-contents',
+    BY_ID: (id: string) => `/music-contents/${id}`,
+  },
 } as const;
 
 // Helper function to build endpoint URLs
