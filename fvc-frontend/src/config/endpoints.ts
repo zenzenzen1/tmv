@@ -49,6 +49,7 @@ export const API_ENDPOINTS = {
   // Application Form Configs
   APPLICATION_FORMS: {
     BASE: '/application-forms',
+    BY_ID: (id: string) => `/application-forms/${id}`,
     BY_TYPE: (type: string) => `/application-forms/${type}`,
     INIT_CLUB: '/application-forms/init-club-registration',
   },

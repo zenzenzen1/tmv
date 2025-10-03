@@ -1,10 +1,10 @@
 import { Fragment, useMemo, useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import apiService from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 
-type FieldType = "TEXT" | "DATE" | "SELECT" | "CHECKBOX";
+type FieldType = "TEXT" | "DATE" | "SELECT" | "CHECKBOX" | "FILE";
 
 type FormField = {
   id: string;
@@ -15,184 +15,89 @@ type FormField = {
   required: boolean;
   note?: string;
   sortOrder: number;
+  options?: string;
 };
 
-export default function FormEditPage() {
+export default function FormBuilderPage() {
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [fields, setFields] = useState<FormField[]>([]);
-  const [customFields, setCustomFields] = useState<FormField[]>([]);
-  const [answers, setAnswers] = useState<Record<string, any>>({});
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  function handleChangeField(idx: number, patch: Partial<FormField>, isCustom = false) {
-    if (isCustom) {
-      setCustomFields((prev) => {
-        const copy = [...prev];
+  // Base fields that are always present and not draggable/deletable
+  const baseFields = useMemo(() => [
+    { id: "base-fullName", label: "Họ và tên", name: "fullName", fieldType: "TEXT", required: true, sortOrder: 1, placeholder: "Nhập họ và tên" },
+    { id: "base-email", label: "Email", name: "email", fieldType: "TEXT", required: true, sortOrder: 2, placeholder: "Nhập email" },
+    { id: "base-studentCode", label: "MSSV", name: "studentCode", fieldType: "TEXT", required: true, sortOrder: 3, placeholder: "Nhập MSSV" },
+    { id: "base-phone", label: "SĐT liên lạc", name: "phone", fieldType: "TEXT", required: false, sortOrder: 4, placeholder: "Nhập số điện thoại" },
+    { id: "base-bio", label: "Mô tả ngắn về bản thân", name: "bio", fieldType: "TEXT", required: false, sortOrder: 5, placeholder: "Nhập mô tả" },
+  ], []);
+
+  // Custom fields are the ones that can be dragged and deleted
+  const customFields = useMemo(() => fields.filter(f => !f.id.startsWith("base-")), [fields]);
+
+  function handleChangeField(fieldId: string, patch: Partial<FormField>) {
+    setFields((prev) => {
+      const copy = [...prev];
+      const idx = copy.findIndex(f => f.id === fieldId);
+      if (idx !== -1) {
         copy[idx] = { ...copy[idx], ...patch } as FormField;
-        return copy;
-      });
-    } else {
-      setFields((prev) => {
-        const copy = [...prev];
-        copy[idx] = { ...copy[idx], ...patch } as FormField;
-        return copy;
-      });
-    }
+      }
+      return copy;
+    });
   }
 
-  function handleDeleteCustom(idx: number) {
-    setCustomFields((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  function findFieldIndex(fieldId: string, isCustom = false): number {
-    return (isCustom ? customFields : fields).findIndex(f => f.id === fieldId);
+  function handleDelete(fieldId: string) {
+    setFields((prev) => prev.filter((f) => f.id !== fieldId));
   }
 
   function handleAdd(type: FieldType) {
-    setCustomFields((prev) => [
-      ...prev,
-      makeField("", "", "", type, false, (prev[prev.length - 1]?.sortOrder ?? fields.length + prev.length + 1)),
-    ]);
+    const newField = makeField("", "", "", type, false, (fields[fields.length - 1]?.sortOrder ?? 0) + 1);
+    setFields((prev) => [...prev, newField]);
     setShowAddMenu(false);
   }
 
   function handleDragEnd(result: any) {
     if (!result.destination) return;
 
-    const items = Array.from(customFields);
+    const draggableId = result.draggableId;
+    if (draggableId.startsWith("base-")) {
+      // Prevent dragging base fields
+      return;
+    }
+
+    const items = Array.from(customFields); // Only reorder custom fields
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
 
-    // Update sortOrder
-    const updatedItems = items.map((item, index) => ({
+    // Update sortOrder for custom fields
+    const updatedCustomItems = items.map((item, index) => ({
       ...item,
-      sortOrder: index + 1,
+      sortOrder: baseFields.length + index + 1, // Adjust sortOrder based on base fields count
     }));
 
-    setCustomFields(updatedItems);
+    setFields([...baseFields, ...updatedCustomItems]); // Combine base and reordered custom fields
   }
 
   useEffect(() => {
-    loadFormConfig();
-  }, []);
-
-  // Fallback: if BE không trả fields, hiển thị 5 trường bắt buộc mặc định
-  useEffect(() => {
-    if (!loading && fields.length === 0 && customFields.length === 0) {
-      const base = [
-        makeField("Họ và tên", "fullName", "", "TEXT", true, 1),
-        makeField("Email", "email", "", "TEXT", true, 2),
-        makeField("MSSV", "studentCode", "", "TEXT", true, 3),
-        makeField("SDT liên lạc", "phone", "", "TEXT", false, 4),
-        makeField("Mô tả ngắn về bản thân", "bio", "", "TEXT", false, 5),
-      ];
-      setFields(base);
-    }
-  }, [loading]);
-
-  const loadFormConfig = async () => {
-    try {
-      setLoading(true);
-      
-      if (id === 'new') {
-        // Tạo form mới
-        await createDefaultForm();
-        return;
-      }
-      
-      if (id) {
-        // Load form theo ID
-        const response = await apiService.get<any>(`${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${id}`);
-        
-        if (response.success && response.data) {
-          setTitle(response.data.name || "");
-          setDescription(response.data.description || "");
-          
-          const formFields = response.data.fields?.map((field: any) => ({
-            id: field.id || crypto.randomUUID(),
-            label: field.label || "",
-            name: field.name || "",
-            fieldType: field.fieldType || "TEXT",
-            required: field.required || false,
-            sortOrder: field.sortOrder || 0,
-          })) || [];
-          
-          setFields(formFields);
-        } else {
-          // Fallback: tạo form mới nếu không tìm thấy
-          await createDefaultForm();
-        }
-      } else {
-        // Fallback: load form CLB_REGISTRATION mặc định
-        const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_TYPE('CLUB_REGISTRATION'));
-        
-        if (response.success && response.data) {
-          setTitle(response.data.name || "");
-          setDescription(response.data.description || "");
-          
-          const formFields = response.data.fields?.map((field: any) => ({
-            id: field.id || crypto.randomUUID(),
-            label: field.label || "",
-            name: field.name || "",
-            fieldType: field.fieldType || "TEXT",
-            required: field.required || false,
-            sortOrder: field.sortOrder || 0,
-          })) || [];
-          
-          setFields(formFields);
-        } else {
-          // If no config exists, create default one
-          await createDefaultForm();
-        }
-      }
-    } catch (error) {
-      console.error("Error loading form config:", error);
-      // Try to create default form
-      await createDefaultForm();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createDefaultForm = async () => {
-    try {
-      const response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.INIT_CLUB);
-      if (response.success && response.data) {
-        setTitle(response.data.name || "");
-        setDescription(response.data.description || "");
-        
-        const formFields = response.data.fields?.map((field: any) => ({
-          id: field.id || crypto.randomUUID(),
-          label: field.label || "",
-          name: field.name || "",
-          fieldType: field.fieldType || "TEXT",
-          required: field.required || false,
-          sortOrder: field.sortOrder || 0,
-        })) || [];
-        
-        setFields(formFields);
-      }
-    } catch (error) {
-      console.error("Error creating default form:", error);
-    }
-  };
+    // Initialize with base fields
+    setFields(baseFields);
+  }, [baseFields]);
 
   const handleSave = async () => {
     try {
       setSaving(true);
-      
+
       const requestData = {
         name: title,
         description: description,
         formType: "CLUB_REGISTRATION",
         fields: fields.map(field => ({
-          id: field.id,
+          id: field.id.startsWith("base-") ? null : field.id, // Don't send ID for base fields if they are new
           label: field.label,
           name: field.name,
           fieldType: field.fieldType,
@@ -202,16 +107,17 @@ export default function FormEditPage() {
         }))
       };
 
-      const response = await apiService.put<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_TYPE('CLUB_REGISTRATION'), requestData);
-      
+      const response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE, requestData);
+
       if (response.success) {
-        alert("Đã lưu thành công!");
+        alert("Đã tạo form thành công!");
+        navigate('/formList');
       } else {
-        alert("Lỗi khi lưu: " + (response.message || "Unknown error"));
+        alert("Lỗi khi tạo form: " + (response.message || "Unknown error"));
       }
     } catch (error: any) {
-      console.error("Error saving form:", error);
-      alert("Lỗi khi lưu: " + (error?.message || "Network error"));
+      console.error("Error creating form:", error);
+      alert("Lỗi khi tạo form: " + (error?.message || "Network error"));
     } finally {
       setSaving(false);
     }
@@ -229,51 +135,45 @@ export default function FormEditPage() {
             >
               ⟵ Quay lại
             </button>
-            <h1 className="text-[15px] font-semibold text-gray-900">
-              {id === 'new' ? 'Tạo Form Mới' : 'Chỉnh Sửa Form'}
-            </h1>
+            <h1 className="text-[15px] font-semibold text-gray-900">Tạo Form</h1>
             <span className="rounded-md border px-2 py-1 text-[11px] font-semibold text-gray-600">CLB</span>
           </div>
           <div className="flex items-center gap-2">
-            <button className="rounded-md border px-3 py-2 text-[13px] text-gray-700 shadow-sm hover:bg-gray-50">Xem trước</button>
-            <button 
-            onClick={handleSave} 
-            disabled={saving}
-            className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50"
-          >
-            {saving ? "Đang lưu..." : (id === 'new' ? "TẠO" : "SỬA")}
-          </button>
+            <button className="rounded-md border px-3 py-2 text-[13px] text-gray-700 shadow-sm hover:bg-gray-50">Lưu nháp</button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50"
+            >
+              {saving ? "Đang lưu..." : "Lưu & Publish"}
+            </button>
           </div>
         </div>
 
         {/* Card */}
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="text-gray-600">Đang tải dữ liệu...</div>
+          {/* Title/Description */}
+          <div className="space-y-3">
+            <div>
+              <div className="mb-1 text-[13px] font-semibold text-gray-800">Tiêu đề</div>
+              <input
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Nhập tiêu đề form"
+              />
             </div>
-          ) : (
-            <>
-              {/* Title/Description */}
-              <div className="space-y-3">
-                <div>
-                  <div className="mb-1 text-[13px] font-semibold text-gray-800">Tiêu đề</div>
-                  <input
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <div className="mb-1 text-[13px] font-semibold text-gray-800">Mô tả</div>
-                  <textarea
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
-                    rows={3}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-              </div>
+            <div>
+              <div className="mb-1 text-[13px] font-semibold text-gray-800">Mô tả</div>
+              <textarea
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Nhập mô tả form"
+              />
+            </div>
+          </div>
 
           {/* Fields */}
           <DragDropContext onDragEnd={handleDragEnd}>
@@ -281,7 +181,7 @@ export default function FormEditPage() {
               {(provided) => (
                 <div {...provided.droppableProps} ref={provided.innerRef} className="mt-4 space-y-2">
                   {fields.map((f, i) => (
-                    <Draggable key={f.id} draggableId={f.id} index={i}>
+                    <Draggable key={f.id} draggableId={f.id} index={i} isDragDisabled={f.id.startsWith("base-")}>
                       {(provided, snapshot) => (
                         <div
                           ref={provided.innerRef}
@@ -290,25 +190,28 @@ export default function FormEditPage() {
                         >
                           <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                              <div {...provided.dragHandleProps} className="text-gray-400 cursor-move">
-                                ⋮⋮
+                              <div {...provided.dragHandleProps} className={`text-gray-400 ${f.id.startsWith("base-") ? 'cursor-not-allowed' : 'cursor-move'}`}>
+                                {f.id.startsWith("base-") ? '✖' : '⋮⋮'} {/* Changed handle for base fields */}
                               </div>
                               <div className="flex items-center gap-3">
                                 <label className="flex items-center gap-2 text-xs text-gray-600">
                                   <input
                                     type="checkbox"
                                     checked={f.required}
-                                    onChange={(e) => handleChangeField(findFieldIndex(f.id), { required: e.target.checked })}
+                                    onChange={(e) => handleChangeField(f.id, { required: e.target.checked })}
                                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    disabled={f.id.startsWith("base-")} // Disable for base fields
                                   />
                                   Required
                                 </label>
-                                <button 
-                                  className="text-red-500 hover:text-red-700 text-sm"
-                                  onClick={() => handleDelete(findFieldIndex(f.id))}
-                                >
-                                  ×
-                                </button>
+                                {!f.id.startsWith("base-") && ( // Only show delete for custom fields
+                                  <button
+                                    className="text-red-500 hover:text-red-700 text-sm"
+                                    onClick={() => handleDelete(f.id)}
+                                  >
+                                    ×
+                                  </button>
+                                )}
                               </div>
                             </div>
                             <div className="space-y-3">
@@ -317,12 +220,12 @@ export default function FormEditPage() {
                                 <input
                                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
                                   value={f.label}
-                                  onChange={(e) => handleChangeField(findFieldIndex(f.id), { label: e.target.value })}
+                                  onChange={(e) => handleChangeField(f.id, { label: e.target.value })}
                                   placeholder="Nhập câu hỏi"
                                 />
                               </div>
                               <div>
-                                <div className="mb-1 text-xs font-medium text-gray-700">Phần nhập thông tin vào</div>
+                                <div className="mb-1 text-xs font-medium text-gray-700">Ghi chú</div>
                                 <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
                                   {f.fieldType === "TEXT" && (
                                     <input
@@ -346,13 +249,23 @@ export default function FormEditPage() {
                                   {f.fieldType === "CHECKBOX" && (
                                     <div className="space-y-2">
                                       <label className="flex items-center gap-2 text-sm">
-                                        <input type="checkbox" disabled className="rounded border-gray-300" />
+                                        <input type="checkbox" className="rounded border-gray-300" disabled />
                                         <span className="text-gray-500">Tùy chọn 1</span>
                                       </label>
                                       <label className="flex items-center gap-2 text-sm">
-                                        <input type="checkbox" disabled className="rounded border-gray-300" />
+                                        <input type="checkbox" className="rounded border-gray-300" disabled />
                                         <span className="text-gray-500">Tùy chọn 2</span>
                                       </label>
+                                    </div>
+                                  )}
+                                  {f.fieldType === "FILE" && (
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="file"
+                                        className="text-sm text-gray-500"
+                                        disabled
+                                      />
+                                      <span className="text-sm text-gray-500">No file chosen</span>
                                     </div>
                                   )}
                                 </div>
@@ -377,7 +290,7 @@ export default function FormEditPage() {
             >
               + Thêm câu hỏi
             </button>
-            
+
             {showAddMenu && (
               <div className="absolute top-full left-0 mt-2 w-48 rounded-md border border-gray-200 bg-white shadow-lg z-10">
                 <div className="p-2">
@@ -411,13 +324,18 @@ export default function FormEditPage() {
                       <span>☑</span>
                       <span>Checkboxes</span>
                     </button>
+                    <button
+                      className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
+                      onClick={() => handleAdd("FILE")}
+                    >
+                      <span>📄</span>
+                      <span>File upload</span>
+                    </button>
                   </div>
                 </div>
               </div>
             )}
           </div>
-            </>
-          )}
         </div>
       </div>
     </div>
@@ -430,7 +348,8 @@ function makeField(
   placeholder: string,
   fieldType: FieldType,
   required: boolean,
-  sortOrder: number
+  sortOrder: number,
+  options?: string | null
 ): FormField {
   return {
     id: crypto.randomUUID(),
@@ -440,7 +359,6 @@ function makeField(
     fieldType,
     required,
     sortOrder,
+    options,
   };
 }
-
-

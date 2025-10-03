@@ -23,6 +23,7 @@ export default function TournamentSidebar({
 
   // Map menu keys to routes
   const keyToPath: Record<string, string> = {
+    formList: "/formList",
     submittedForms: "/submitted-forms",
   };
 

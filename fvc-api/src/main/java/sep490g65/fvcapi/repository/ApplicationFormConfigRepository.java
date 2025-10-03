@@ -7,10 +7,17 @@ import org.springframework.stereotype.Repository;
 import sep490g65.fvcapi.entity.ApplicationFormConfig;
 import sep490g65.fvcapi.enums.ApplicationFormType;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface ApplicationFormConfigRepository extends JpaRepository<ApplicationFormConfig, String> {
+
+    @Query("SELECT afc FROM ApplicationFormConfig afc LEFT JOIN FETCH afc.fields ORDER BY afc.createdAt DESC")
+    List<ApplicationFormConfig> findAllWithFields();
+
+    @Query("SELECT afc FROM ApplicationFormConfig afc LEFT JOIN FETCH afc.fields WHERE afc.id = :id")
+    Optional<ApplicationFormConfig> findByIdWithFields(@Param("id") String id);
 
     @Query("SELECT afc FROM ApplicationFormConfig afc LEFT JOIN FETCH afc.fields WHERE afc.formType = :formType")
     Optional<ApplicationFormConfig> findByFormTypeWithFields(@Param("formType") ApplicationFormType formType);

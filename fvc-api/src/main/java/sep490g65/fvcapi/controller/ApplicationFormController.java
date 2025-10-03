@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import sep490g65.fvcapi.constants.ApiConstants;
 import sep490g65.fvcapi.constants.MessageConstants;
+import sep490g65.fvcapi.dto.request.CreateApplicationFormConfigRequest;
 import sep490g65.fvcapi.dto.request.UpdateApplicationFormConfigRequest;
 import sep490g65.fvcapi.dto.response.ApplicationFormConfigResponse;
 import sep490g65.fvcapi.dto.response.BaseResponse;
@@ -13,12 +14,36 @@ import sep490g65.fvcapi.enums.ApplicationFormType;
 import sep490g65.fvcapi.service.ApplicationFormService;
 import sep490g65.fvcapi.utils.ResponseUtils;
 
+import java.util.List;
+
 @RestController
 @RequestMapping(ApiConstants.API_BASE_PATH + "/application-forms")
 @RequiredArgsConstructor
 public class ApplicationFormController {
 
     private final ApplicationFormService applicationFormService;
+
+    @PostMapping
+    public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> create(
+            @Valid @RequestBody CreateApplicationFormConfigRequest request
+    ) {
+        ApplicationFormConfigResponse data = applicationFormService.create(request);
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
+    }
+
+    @GetMapping
+    public ResponseEntity<BaseResponse<List<ApplicationFormConfigResponse>>> listAll() {
+        List<ApplicationFormConfigResponse> data = applicationFormService.listAll();
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, data));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> getById(
+            @PathVariable String id
+    ) {
+        ApplicationFormConfigResponse data = applicationFormService.getById(id);
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, data));
+    }
 
     @GetMapping("/{formType}")
     public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> getByFormType(

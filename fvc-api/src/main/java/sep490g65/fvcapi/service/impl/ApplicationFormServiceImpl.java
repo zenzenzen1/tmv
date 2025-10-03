@@ -3,6 +3,7 @@ package sep490g65.fvcapi.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import sep490g65.fvcapi.dto.request.CreateApplicationFormConfigRequest;
 import sep490g65.fvcapi.dto.request.UpdateApplicationFormConfigRequest;
 import sep490g65.fvcapi.dto.response.ApplicationFormConfigResponse;
 import sep490g65.fvcapi.entity.ApplicationFormConfig;
@@ -19,6 +20,53 @@ import java.util.stream.Collectors;
 public class ApplicationFormServiceImpl implements ApplicationFormService {
 
     private final ApplicationFormConfigRepository applicationFormConfigRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ApplicationFormConfigResponse> listAll() {
+        List<ApplicationFormConfig> configs = applicationFormConfigRepository.findAllWithFields();
+        return configs.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApplicationFormConfigResponse getById(String id) {
+        ApplicationFormConfig config = applicationFormConfigRepository
+                .findByIdWithFields(id)
+                .orElseThrow(() -> new RuntimeException("Form config not found with id: " + id));
+        return mapToResponse(config);
+    }
+
+    @Override
+    @Transactional
+    public ApplicationFormConfigResponse create(CreateApplicationFormConfigRequest request) {
+        ApplicationFormConfig config = ApplicationFormConfig.builder()
+                .name(request.getName())
+                .description(request.getDescription())
+                .formType(request.getFormType())
+                .build();
+
+        if (request.getFields() != null) {
+            List<ApplicationFormField> fields = request.getFields().stream()
+                    .map(fieldRequest -> ApplicationFormField.builder()
+                            .label(fieldRequest.getLabel())
+                            .name(fieldRequest.getName())
+                            .fieldType(fieldRequest.getFieldType())
+                            .required(fieldRequest.getRequired())
+                            .options(fieldRequest.getOptions())
+                            .sortOrder(fieldRequest.getSortOrder())
+                            .applicationFormConfig(config)
+                            .build())
+                    .collect(Collectors.toList());
+
+            config.setFields(fields);
+        }
+
+        ApplicationFormConfig savedConfig = applicationFormConfigRepository.save(config);
+        return mapToResponse(savedConfig);
+    }
 
     @Override
     public ApplicationFormConfigResponse getByFormType(ApplicationFormType formType) {
