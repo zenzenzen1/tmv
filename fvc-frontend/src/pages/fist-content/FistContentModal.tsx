@@ -2,11 +2,13 @@ import { useFistContentStore } from '../../stores/fistContent';
 import { useState, useEffect, useMemo } from 'react';
 
 export default function FistContentModal() {
-  const { modalOpen, closeModal, isLoading, editing, create, update } = useFistContentStore();
-  const [contentType, setContentType] = useState<'song-luyen' | 'don-luyen' | 'da-luyen' | 'dong-doi'>('song-luyen');
+  const { modalOpen, closeModal, isLoading, editing, create, update, error: storeError } = useFistContentStore();
+  const [contentType, setContentType] = useState<'' | 'song-luyen' | 'don-luyen' | 'da-luyen' | 'dong-doi'>('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [active, setActive] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (editing) {
@@ -18,27 +20,72 @@ export default function FistContentModal() {
       setDescription('');
       setActive(true);
     }
+    setError(null);
+    setSuccess(null);
   }, [editing, modalOpen]);
 
-  const isValid = useMemo(() => name.trim().length > 0, [name]);
+  // Show store errors
+  useEffect(() => {
+    if (storeError) {
+      setError(storeError);
+    }
+  }, [storeError]);
+
+  const isValid = useMemo(() => {
+    return name.trim().length > 0 && contentType !== '';
+  }, [name, contentType]);
+
+  const getValidationError = () => {
+    if (name.trim().length === 0) return 'Vui lòng nhập nội dung quyền!';
+    if (contentType === '') return 'Vui lòng chọn loại nội dung!';
+    return null;
+  };
 
   if (!modalOpen) return null;
 
   const onSaveDraft = async () => {
-    if (!isValid) return;
-    if (editing) {
-      await update(editing.id, { name, description, status: false });
-    } else {
-      await create({ name, description, status: false });
+    const validationError = getValidationError();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError(null);
+    setSuccess(null);
+    try {
+      if (editing) {
+        await update(editing.id, { name, description, status: false });
+        setSuccess('Đã lưu nháp thành công!');
+        setTimeout(() => setSuccess(null), 2000);
+      } else {
+        await create({ name, description, status: false });
+        setSuccess('Đã tạo nháp thành công!');
+        setTimeout(() => setSuccess(null), 2000);
+      }
+    } catch (err) {
+      // Error handled in store
     }
   };
 
   const onSave = async () => {
-    if (!isValid) return;
-    if (editing) {
-      await update(editing.id, { name, description, status: active });
-    } else {
-      await create({ name, description, status: active });
+    const validationError = getValidationError();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError(null);
+    setSuccess(null);
+    try {
+      if (editing) {
+        await update(editing.id, { name, description, status: active });
+        setSuccess('Đã cập nhật thành công!');
+        setTimeout(() => setSuccess(null), 2000);
+      } else {
+        await create({ name, description, status: active });
+        setSuccess('Đã tạo thành công!');
+        setTimeout(() => setSuccess(null), 2000);
+      }
+    } catch (err) {
+      // Error handled in store
     }
   };
 
@@ -53,17 +100,17 @@ export default function FistContentModal() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm mb-1">Loại nội dung</label>
-            <select className="input-field" value={contentType} onChange={(e) => setContentType(e.target.value as any)}>
-              <option value="song-luyen">Chọn kiểu thi đấu</option>
-              <option value="song-luyen">Song luyện</option>
-              <option value="don-luyen">Đơn luyện</option>
-              <option value="da-luyen">Đa luyện</option>
-              <option value="dong-doi">Đồng đội</option>
+            <select className="input-field" value={contentType} onChange={(e) => { setContentType(e.target.value as any); setError(null); }}>
+            <option value="">Chọn kiểu thi đấu</option>
+            <option value="don-luyen">Đơn luyện</option>
+            <option value="da-luyen">Đa luyện</option>
+            <option value="dong-doi">Đồng đội</option>
+            <option value="song-luyen">Song luyện</option>
             </select>
           </div>
           <div>
             <label className="block text-sm mb-1">Nội dung Quyền</label>
-            <input className="input-field" value={name} onChange={(e) => setName(e.target.value)} placeholder="VD: Song Luyện quyền 1" />
+            <input className="input-field" value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="VD: Song Luyện quyền 1" />
           </div>
           <div>
             <label className="block text-sm mb-1">Ghi chú</label>
@@ -75,10 +122,13 @@ export default function FistContentModal() {
           </div>
         </div>
 
+        {error && <div className="text-red-600 mt-3">{error}</div>}
+        {success && <div className="text-green-600 mt-3">{success}</div>}
+
         <div className="flex justify-end gap-2 mt-6">
           <button className="input-field" onClick={closeModal}>Hủy</button>
-          <button className="input-field" onClick={onSaveDraft} disabled={!isValid || isLoading}>Lưu nháp</button>
-          <button className="btn-primary" onClick={onSave} disabled={!isValid || isLoading}>Lưu</button>
+          <button className="input-field" onClick={onSaveDraft} disabled={isLoading}>Lưu nháp</button>
+          <button className="btn-primary" onClick={onSave} disabled={isLoading}>Lưu</button>
         </div>
       </div>
     </div>

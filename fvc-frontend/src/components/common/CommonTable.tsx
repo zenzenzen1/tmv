@@ -25,7 +25,7 @@ function range(from: number, to: number): number[] {
   return result;
 }
 
-export function CommonTable<T extends object>({
+export function CommonTable<T extends Record<string, unknown>>({
   columns,
   data,
   keyField,
