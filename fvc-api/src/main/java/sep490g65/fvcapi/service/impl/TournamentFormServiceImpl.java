@@ -51,8 +51,8 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     }
 
     private String resolveStatus(Competition c) {
-        if (c.getStatus() != null) {
-            FormStatus s = c.getStatus();
+        if (c.getFormStatus() != null) {
+            FormStatus s = c.getFormStatus();
             switch (s) {
                 case DRAFT: return "draft";
                 case PUBLISH: return "publish";

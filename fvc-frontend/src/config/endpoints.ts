@@ -48,10 +48,15 @@ export const API_ENDPOINTS = {
     SUBMISSION_STATUS: (submissionId: string) =>
       `/tournament-forms/submissions/${submissionId}/status`,
     COMPETITIONS: "/tournament-forms/competitions",
+  },
+
   // Fist contents
   FIST_CONTENTS: {
     BASE: '/fist-configs',
     BY_ID: (id: string) => `/fist-configs/${id}`,
+    ITEMS: '/fist-configs/items',
+    ITEM_BY_ID: (id: string) => `/fist-configs/items/${id}`,
+    ITEMS_BY_CONFIG: (configId: string) => `/fist-configs/${configId}/items`,
   },
 
   // Music contents

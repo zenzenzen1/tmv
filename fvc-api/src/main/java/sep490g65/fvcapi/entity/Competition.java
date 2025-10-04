@@ -5,10 +5,12 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import sep490g65.fvcapi.enums.TournamentStatus;
 import sep490g65.fvcapi.enums.FormStatus;
 import sep490g65.fvcapi.enums.FormStatusConverter;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @Entity
@@ -41,16 +43,35 @@ public class Competition extends BaseEntity {
     @Column()
     private Integer numberOfParticipants;
 
+    @Column()
+    private LocalDate drawDate;
+
+    @Column()
+    private LocalDate weighInDate;
+
+    @Column(length = 1000)
+    private String description;
+
+    @Column(length = 200)
+    private String location;
+
+    @Column()
+    private LocalTime openingCeremonyTime;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TournamentStatus status = TournamentStatus.DRAFT;
+
     @Convert(converter = FormStatusConverter.class)
     @Column(length = 20)
-    private FormStatus status;
-
-    @OneToMany(mappedBy = "competition", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<CompetitionVovinamFist> vovinamFistRelations;
+    private FormStatus formStatus;
 
     @OneToMany(mappedBy = "competition", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<VovinamSparringConfig> sparringConfigs;
 
     @OneToMany(mappedBy = "competition", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CompetitionMusicIntegratedPerformance> musicPerformanceRelations;
+
+    @OneToMany(mappedBy = "competition", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CompetitionFistItemSelection> fistItemSelections;
 }
