@@ -5,23 +5,23 @@ import type { MusicContentCreateRequest, MusicContentFilters, MusicContentRespon
 
 export const musicContentService = {
   async list(params: MusicContentFilters): Promise<PaginationResponse<MusicContentResponse>> {
-    const res = await apiService.get<PaginationResponse<MusicContentResponse>>(API_ENDPOINTS.MUSIC_CONTENTS.BASE, params);
-    return res.data;
+    const res = await apiService.get<BaseResponse<PaginationResponse<MusicContentResponse>>>(API_ENDPOINTS.MUSIC_CONTENTS.BASE, params);
+    return res.data.data;
   },
 
   async get(id: string): Promise<MusicContentResponse> {
-    const res = await apiService.get<MusicContentResponse>(API_ENDPOINTS.MUSIC_CONTENTS.BY_ID(id));
-    return res.data;
+    const res = await apiService.get<BaseResponse<MusicContentResponse>>(API_ENDPOINTS.MUSIC_CONTENTS.BY_ID(id));
+    return res.data.data;
   },
 
   async create(payload: MusicContentCreateRequest): Promise<MusicContentResponse> {
-    const res = await apiService.post<MusicContentResponse>(API_ENDPOINTS.MUSIC_CONTENTS.BASE, payload);
-    return res.data;
+    const res = await apiService.post<BaseResponse<MusicContentResponse>>(API_ENDPOINTS.MUSIC_CONTENTS.BASE, payload);
+    return res.data.data;
   },
 
   async update(id: string, payload: MusicContentUpdateRequest): Promise<MusicContentResponse> {
-    const res = await apiService.put<MusicContentResponse>(API_ENDPOINTS.MUSIC_CONTENTS.BY_ID(id), payload);
-    return res.data;
+    const res = await apiService.put<BaseResponse<MusicContentResponse>>(API_ENDPOINTS.MUSIC_CONTENTS.BY_ID(id), payload);
+    return res.data.data;
   },
 
   async remove(id: string): Promise<void> {

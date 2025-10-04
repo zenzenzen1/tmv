@@ -17,10 +17,10 @@ import java.util.Optional;
 public interface CompetitionRepository extends JpaRepository<Competition, String> {
     
     @Query("SELECT c FROM Competition c WHERE " +
-           "(:search IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))) AND " +
+           "(:search IS NULL OR c.name LIKE %:search%) AND " +
            "(:status IS NULL OR c.status = :status) AND " +
            "(:year IS NULL OR YEAR(c.startDate) = :year) AND " +
-           "(:location IS NULL OR LOWER(c.location) LIKE LOWER(CONCAT('%', :location, '%')))")
+           "(:location IS NULL OR c.location LIKE %:location%)")
     Page<Competition> findCompetitionsWithFilters(
             @Param("search") String search,
             @Param("status") TournamentStatus status,

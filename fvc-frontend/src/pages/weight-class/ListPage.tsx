@@ -11,6 +11,11 @@ export default function WeightClassListPage() {
     fetch();
   }, [fetch]);
 
+  // Debug logging
+  console.log('WeightClassListPage - list:', list);
+  console.log('WeightClassListPage - isLoading:', isLoading);
+  console.log('WeightClassListPage - error:', error);
+
   return (
     <div className="p-6">
       <div className="flex justify-between mb-4">
@@ -21,7 +26,7 @@ export default function WeightClassListPage() {
       {isLoading && <div>Loading...</div>}
       {error && <div className="text-red-600">{error}</div>}
 
-      {list && (
+      {list && list.content && list.content.length > 0 ? (
         <CommonTable<WeightClassResponse>
           className="card"
           columns={[
@@ -29,43 +34,54 @@ export default function WeightClassListPage() {
               key: 'range',
               title: 'Hạng cân',
               render: (row) => (
-                <span>{row.minWeight}–{row.maxWeight} kg</span>
+                row ? <span>{row.minWeight}–{row.maxWeight} kg</span> : <span>-</span>
               ),
             } as TableColumn<WeightClassResponse>,
             {
               key: 'gender',
               title: 'Giới tính',
-              render: (row) => (row.gender === 'MALE' ? 'Nam' : 'Nữ'),
+              render: (row) => row ? (row.gender === 'MALE' ?
+                'Nam' : 'Nữ') : '-',
             },
-            { key: 'note', title: 'Ghi chú', render: (row) => row.note || '—' },
+            { key: 'note', title: 'Ghi chú', render: (row) => row ? (row.note || '—') : '—' },
             {
               key: 'status',
               title: 'Trạng thái',
-              render: (row) => (
+              render: (row) => row ? (
                 <span className={`px-2 py-1 rounded text-xs ${
                   row.status === 'ACTIVE' ? 'bg-green-100 text-green-700' :
                   row.status === 'DRAFT' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'
                 }`}>
                   {row.status === 'ACTIVE' ? 'Đang dùng' : row.status === 'DRAFT' ? 'Nháp' : 'Khóa'}
                 </span>
-              ),
+              ) : <span>-</span>,
             },
             {
               key: 'actions',
               title: 'Thao tác',
               render: (row) => (
-                <button className="input-field" onClick={() => openEdit(row)}>Chi tiết</button>
+                row ? (
+                  <button className="input-field" onClick={() => openEdit(row)}>Chi tiết</button>
+                ) : (
+                  <span>-</span>
+                )
               ),
               sortable: false,
             },
           ]}
-          data={list.content}
+          data={list.content || []}
           keyField={'id'}
           page={(list.page ?? 0) + 1}
           pageSize={list.size}
           total={list.totalElements}
           onPageChange={(p) => setPage(p - 1)}
         />
+      ) : (
+        !isLoading && (
+          <div className="text-center py-8 text-gray-500">
+            Không có dữ liệu hạng cân nào
+          </div>
+        )
       )}
       <WeightClassModal />
     </div>
