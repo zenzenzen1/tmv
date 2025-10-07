@@ -34,7 +34,6 @@ public final class MessageConstants {
     public static final String WEIGHT_CLASS_DELETED = "Weight class deleted";
 
     // Weight Class Error Messages
-    public static final String WEIGHT_CLASS_NOT_FOUND = "WeightClass not found: %s";
     public static final String WEIGHT_CLASS_LOCKED_EDIT = "Locked weight class cannot be edited";
     public static final String WEIGHT_CLASS_DELETE_ONLY_DRAFT = "Only draft weight classes can be deleted";
     public static final String WEIGHT_CLASS_RANGE_INVALID = "Min weight must be less than max weight";
@@ -54,4 +53,36 @@ public final class MessageConstants {
     public static final String MUSIC_CONTENT_CREATED = "Music content created";
     public static final String MUSIC_CONTENT_UPDATED = "Music content updated";
     public static final String MUSIC_CONTENT_DELETED = "Music content deleted";
+
+    // Competition Messages
+    public static final String COMPETITIONS_RETRIEVED_SUCCESS = "Competitions retrieved successfully";
+    public static final String COMPETITION_RETRIEVED_SUCCESS = "Competition retrieved successfully";
+    public static final String COMPETITION_CREATED_SUCCESS = "Competition created successfully";
+    public static final String COMPETITION_UPDATED_SUCCESS = "Competition updated successfully";
+    public static final String COMPETITION_DELETED_SUCCESS = "Competition deleted successfully";
+    public static final String COMPETITION_STATUS_UPDATED_SUCCESS = "Competition status updated successfully";
+
+    // Competition Error Messages
+    public static final String COMPETITION_NOT_FOUND = "Competition not found with id: %s";
+    public static final String COMPETITION_ALREADY_EXISTS = "Competition with name '%s' already exists";
+    public static final String COMPETITION_FETCH_ERROR = "Failed to fetch competitions";
+    public static final String COMPETITION_CREATE_ERROR = "Failed to create competition";
+    public static final String COMPETITION_UPDATE_ERROR = "Failed to update competition";
+    public static final String COMPETITION_DELETE_ERROR = "Failed to delete competition";
+    public static final String COMPETITION_STATUS_CHANGE_ERROR = "Failed to change competition status";
+
+    // Competition Validation Messages
+    public static final String INVALID_DATE_RANGE = "Invalid date range";
+    public static final String REGISTRATION_START_AFTER_END = "Registration start date must be before registration end date";
+    public static final String COMPETITION_START_AFTER_END = "Competition start date must be before competition end date";
+    public static final String REGISTRATION_END_AFTER_COMPETITION_START = "Registration end date cannot be after competition start date";
+    public static final String WEIGH_IN_BEFORE_REGISTRATION_END = "Weigh-in date cannot be before registration end date";
+    public static final String DRAW_DATE_BEFORE_WEIGH_IN = "Draw date cannot be before weigh-in date";
+
+    // Content Linking Error Messages
+    public static final String FIST_CONFIG_NOT_FOUND = "Fist config not found with id: %s";
+    public static final String FIST_ITEM_NOT_FOUND = "Fist item not found with id: %s";
+    public static final String INVALID_FIST_ITEM_CONFIG = "Fist item %s does not belong to config %s";
+    public static final String WEIGHT_CLASS_NOT_FOUND = "Weight class not found with id: %s";
+    public static final String MUSIC_PERFORMANCE_NOT_FOUND = "Music performance not found with id: %s";
 }

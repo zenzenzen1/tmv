@@ -46,7 +46,7 @@ public class DataSeeder {
         c1.setRegistrationStartDate(LocalDate.now().minusDays(1));
         c1.setRegistrationEndDate(LocalDate.now().plusDays(10));
         c1.setNumberOfParticipants(248);
-        c1.setStatus(FormStatus.PUBLISH);
+        c1.setFormStatus(FormStatus.PUBLISH);
 
         // CLOSED: registration window ended before today
         Competition c2 = new Competition();
@@ -56,7 +56,7 @@ public class DataSeeder {
         c2.setRegistrationStartDate(LocalDate.now().minusDays(20));
         c2.setRegistrationEndDate(LocalDate.now().minusDays(1));
         c2.setNumberOfParticipants(86);
-        c2.setStatus(FormStatus.ARCHIVED);
+        c2.setFormStatus(FormStatus.ARCHIVED);
 
         // DRAFT: registration window starts in the future
         Competition c3 = new Competition();
@@ -66,7 +66,7 @@ public class DataSeeder {
         c3.setRegistrationStartDate(LocalDate.now().plusDays(5));
         c3.setRegistrationEndDate(LocalDate.now().plusDays(10));
         c3.setNumberOfParticipants(0);
-        c3.setStatus(FormStatus.DRAFT);
+        c3.setFormStatus(FormStatus.DRAFT);
 
         if (needCompetitions) {
             competitionRepository.saveAll(List.of(c1, c2, c3));

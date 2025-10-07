@@ -11,6 +11,7 @@ import sep490g65.fvcapi.dto.request.RequestParam;
 import sep490g65.fvcapi.dto.request.UpdateFistConfigRequest;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.FistConfigResponse;
+import sep490g65.fvcapi.dto.response.FistItemResponse;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
 import sep490g65.fvcapi.service.VovinamFistConfigService;
 import sep490g65.fvcapi.utils.ResponseUtils;
@@ -43,6 +44,24 @@ public class FistContentController {
     public ResponseEntity<BaseResponse<FistConfigResponse>> update(@PathVariable String id,
                                                                    @Valid @RequestBody UpdateFistConfigRequest request) {
         return ResponseEntity.ok(ResponseUtils.success("Fist content updated", service.update(id, request)));
+    }
+
+    // FistItem endpoints
+    @GetMapping("/items")
+    public ResponseEntity<BaseResponse<PaginationResponse<FistItemResponse>>> listItems(@Valid @ModelAttribute RequestParam params) {
+        PaginationResponse<FistItemResponse> data = service.listItems(params);
+        return ResponseEntity.ok(ResponseUtils.success("Fist items retrieved", data));
+    }
+
+    @GetMapping("/items/{id}")
+    public ResponseEntity<BaseResponse<FistItemResponse>> getItem(@PathVariable String id) {
+        return ResponseEntity.ok(ResponseUtils.success("Fist item retrieved", service.getItemById(id)));
+    }
+
+    @GetMapping("/{configId}/items")
+    public ResponseEntity<BaseResponse<PaginationResponse<FistItemResponse>>> getItemsByConfigId(@PathVariable String configId) {
+        PaginationResponse<FistItemResponse> data = service.getItemsByConfigId(configId);
+        return ResponseEntity.ok(ResponseUtils.success("Fist items by config retrieved", data));
     }
 }
 

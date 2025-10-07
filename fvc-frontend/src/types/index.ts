@@ -184,3 +184,134 @@ export interface MusicContentFilters {
   search?: string;
   status?: 'ACTIVE' | 'INACTIVE' | string;
 }
+
+// Tournament/Competition domain
+export const TournamentStatus = {
+  DRAFT: 'DRAFT',
+  OPEN_REGISTRATION: 'OPEN_REGISTRATION',
+  IN_PROGRESS: 'IN_PROGRESS',
+  FINISHED: 'FINISHED',
+  CANCELLED: 'CANCELLED',
+} as const;
+export type TournamentStatus = typeof TournamentStatus[keyof typeof TournamentStatus];
+
+export interface CompetitionResponse {
+  id: string;
+  name: string;
+  description?: string;
+  registrationStartDate: string;
+  registrationEndDate: string;
+  weighInDate: string;
+  startDate: string;
+  endDate: string;
+  openingCeremonyTime?: string;
+  drawDate?: string;
+  location?: string;
+  status: TournamentStatus;
+  numberOfParticipants?: number;
+  
+  // Related content
+  weightClasses: WeightClassResponse[];
+  vovinamFistConfigs: FistConfigResponse[];
+  musicPerformances: MusicContentResponse[];
+  
+  // Fist content with selected items
+  fistConfigItemSelections: Record<string, FistItemResponse[]>;
+  
+  // Sparring configuration
+  numberOfRounds?: number;
+  roundDurationSeconds?: number;
+  allowExtraRound?: boolean;
+  maxExtraRounds?: number;
+  tieBreakRule?: string;
+  assessorCount?: number;
+  injuryTimeoutSeconds?: number;
+  
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FistConfigResponse {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface FistItemResponse {
+  id: string;
+  name: string;
+  description?: string;
+  level?: number;
+  parentId?: string;
+}
+
+export interface CreateCompetitionRequest {
+  name: string;
+  description?: string;
+  registrationStartDate: string;
+  registrationEndDate: string;
+  weighInDate: string;
+  startDate: string;
+  endDate: string;
+  openingCeremonyTime?: string;
+  drawDate?: string;
+  location?: string;
+  
+  // Content selections
+  vovinamFistConfigIds: string[];
+  musicPerformanceIds: string[];
+  weightClassIds: string[];
+  
+  // Fist content selection - config ID mapped to selected item IDs
+  fistConfigItemSelections: Record<string, string[]>;
+  
+  // Sparring configuration
+  numberOfRounds?: number;
+  roundDurationSeconds?: number;
+  allowExtraRound?: boolean;
+  maxExtraRounds?: number;
+  tieBreakRule?: string;
+  assessorCount?: number;
+  injuryTimeoutSeconds?: number;
+}
+
+export interface UpdateCompetitionRequest {
+  name?: string;
+  description?: string;
+  registrationStartDate?: string;
+  registrationEndDate?: string;
+  weighInDate?: string;
+  startDate?: string;
+  endDate?: string;
+  openingCeremonyTime?: string;
+  drawDate?: string;
+  location?: string;
+  
+  // Content selections
+  vovinamFistConfigIds?: string[];
+  musicPerformanceIds?: string[];
+  weightClassIds?: string[];
+  
+  // Fist content selection - config ID mapped to selected item IDs
+  fistConfigItemSelections?: Record<string, string[]>;
+  
+  // Sparring configuration
+  numberOfRounds?: number;
+  roundDurationSeconds?: number;
+  allowExtraRound?: boolean;
+  maxExtraRounds?: number;
+  tieBreakRule?: string;
+  assessorCount?: number;
+  injuryTimeoutSeconds?: number;
+}
+
+export interface CompetitionFilters {
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+  search?: string;
+  status?: TournamentStatus;
+  year?: string;
+  location?: string;
+}

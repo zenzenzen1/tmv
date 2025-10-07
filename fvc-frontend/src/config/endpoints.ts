@@ -69,6 +69,9 @@ export const API_ENDPOINTS = {
   FIST_CONTENTS: {
     BASE: '/fist-configs',
     BY_ID: (id: string) => `/fist-configs/${id}`,
+    ITEMS: '/fist-configs/items',
+    ITEM_BY_ID: (id: string) => `/fist-configs/items/${id}`,
+    ITEMS_BY_CONFIG: (configId: string) => `/fist-configs/${configId}/items`,
   },
 
   // Music contents

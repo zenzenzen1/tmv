@@ -1,5 +1,5 @@
 import "./App.css";
-import { Route, Routes, Navigate } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 
 import Sidebar from "./components/layout/Sidebar";
 import Footer from "./components/layout/Footer";
@@ -13,6 +13,8 @@ import FormRegistrationPage from "./pages/forms/RegistrationPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
 
+import TournamentListPage from "./pages/tournament/ListPage";
+import CompetitionFormPage from "./pages/tournament/CompetitionFormPage";
 import TournamentManage from "./pages/tournament/TournamentManagement";
 import FormResults from "./features/tournament/FormResults";
 import FormBuilder from "./features/tournament/FormBuilder";
@@ -39,6 +41,10 @@ export default function App() {
             <Route path="/music-contents" element={<MusicContentListPage />} />
 
             <Route path="/" element={<Home />} />
+            <Route path="/tournaments" element={<TournamentListPage />} />
+            <Route path="/tournaments/create" element={<CompetitionFormPage />} />
+            <Route path="/tournaments/edit/:id" element={<CompetitionFormPage />} />
+            <Route path="/tournaments/view/:id" element={<CompetitionFormPage />} />
             <Route path="/manage" element={<TournamentManage />} />
             <Route path="/results/:id" element={<FormResults />} />
             <Route path="/form-builder" element={<FormBuilder />} />
