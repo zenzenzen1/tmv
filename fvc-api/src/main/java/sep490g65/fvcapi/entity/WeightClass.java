@@ -3,6 +3,10 @@ package sep490g65.fvcapi.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import sep490g65.fvcapi.enums.Gender;
+import sep490g65.fvcapi.enums.WeightClassStatus;
 
 @Entity
 @Table(name = "weight_classes")
@@ -17,12 +21,9 @@ public class WeightClass extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vovinam_sparring_config_id", nullable = false)
-    private VovinamSparringConfig vovinamSparringConfig;
-
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
-    private String gender;
+    private Gender gender;
 
     @Column(nullable = false, length = 50)
     private String weightClass; // Ex: -55kg, 55-60kg, +75kg
@@ -32,4 +33,27 @@ public class WeightClass extends BaseEntity {
 
     @Column(precision = 5, scale = 2)
     private BigDecimal maxWeight; // kg
+
+    @Column(length = 255)
+    private String note;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    @Builder.Default
+    private WeightClassStatus status = WeightClassStatus.DRAFT;
+
+    @OneToMany(mappedBy = "weightClass", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<VovinamSparringConfigWeightClass> sparringConfigLinks = new ArrayList<>();
+
+    @PrePersist
+    @PreUpdate
+    protected void generateWeightClassLabel() {
+        if (minWeight != null && maxWeight != null) {
+            this.weightClass = formatWeight(minWeight) + "-" + formatWeight(maxWeight) + "kg";
+        }
+    }
+
+    private String formatWeight(BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
+    }
 }
