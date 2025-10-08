@@ -5,8 +5,8 @@ import type { MusicContentCreateRequest, MusicContentFilters, MusicContentRespon
 
 export const musicContentService = {
   async list(params: MusicContentFilters): Promise<PaginationResponse<MusicContentResponse>> {
-    const res = await apiService.get<PaginationResponse<MusicContentResponse>>(API_ENDPOINTS.MUSIC_CONTENTS.BASE, params);
-    return res.data;
+    const res = await apiService.get<BaseResponse<PaginationResponse<MusicContentResponse>>>(API_ENDPOINTS.MUSIC_CONTENTS.BASE, params);
+    return res.data.data;
   },
 
   async get(id: string): Promise<MusicContentResponse> {
