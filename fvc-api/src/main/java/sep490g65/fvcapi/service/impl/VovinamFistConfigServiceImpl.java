@@ -6,14 +6,19 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 import sep490g65.fvcapi.dto.request.CreateFistConfigRequest;
 import sep490g65.fvcapi.dto.request.RequestParam;
 import sep490g65.fvcapi.dto.request.UpdateFistConfigRequest;
 import sep490g65.fvcapi.dto.response.FistConfigResponse;
+import sep490g65.fvcapi.dto.response.FistItemResponse;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
 import sep490g65.fvcapi.entity.VovinamFistConfig;
+import sep490g65.fvcapi.entity.VovinamFistItem;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.repository.VovinamFistConfigRepository;
+import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.service.VovinamFistConfigService;
 
 @Service
@@ -21,6 +26,7 @@ import sep490g65.fvcapi.service.VovinamFistConfigService;
 public class VovinamFistConfigServiceImpl implements VovinamFistConfigService {
 
     private final VovinamFistConfigRepository repository;
+    private final VovinamFistItemRepository fistItemRepository;
 
     private FistConfigResponse toDto(VovinamFistConfig v) {
         return FistConfigResponse.builder()
@@ -88,6 +94,70 @@ public class VovinamFistConfigServiceImpl implements VovinamFistConfigService {
         if (request.getStatus() != null) v.setStatus(request.getStatus());
         VovinamFistConfig saved = repository.save(v);
         return toDto(saved);
+    }
+
+    // FistItem methods
+    @Override
+    public PaginationResponse<FistItemResponse> listItems(RequestParam params) {
+        Sort sort = Sort.by(params.getSortBy());
+        sort = params.isAscending() ? sort.ascending() : sort.descending();
+        Pageable pageable = PageRequest.of(params.getPage(), params.getSize(), sort);
+
+        Page<VovinamFistItem> page = fistItemRepository.findAll(pageable);
+        Page<FistItemResponse> mapped = page.map(this::mapItemToResponse);
+        
+        return PaginationResponse.<FistItemResponse>builder()
+                .content(mapped.getContent())
+                .page(mapped.getNumber())
+                .size(mapped.getSize())
+                .totalElements(mapped.getTotalElements())
+                .totalPages(mapped.getTotalPages())
+                .first(mapped.isFirst())
+                .last(mapped.isLast())
+                .hasNext(mapped.hasNext())
+                .hasPrevious(mapped.hasPrevious())
+                .build();
+    }
+
+    @Override
+    public FistItemResponse getItemById(String id) {
+        VovinamFistItem item = fistItemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("FistItem not found: " + id));
+        return mapItemToResponse(item);
+    }
+
+    @Override
+    public PaginationResponse<FistItemResponse> getItemsByConfigId(String configId) {
+        // Verify config exists
+        repository.findById(configId)
+                .orElseThrow(() -> new ResourceNotFoundException("FistConfig not found: " + configId));
+                
+        List<VovinamFistItem> items = fistItemRepository.findByVovinamFistConfigId(configId);
+        List<FistItemResponse> content = items.stream()
+                .map(this::mapItemToResponse)
+                .toList();
+                
+        return PaginationResponse.<FistItemResponse>builder()
+                .content(content)
+                .page(0)
+                .size(content.size())
+                .totalElements(content.size())
+                .totalPages(1)
+                .first(true)
+                .last(true)
+                .hasNext(false)
+                .hasPrevious(false)
+                .build();
+    }
+
+    private FistItemResponse mapItemToResponse(VovinamFistItem item) {
+        return FistItemResponse.builder()
+                .id(item.getId())
+                .name(item.getName())
+                .description(item.getDescription())
+                .level(item.getLevel())
+                .parentId(item.getParent() != null ? item.getParent().getId() : null)
+                .build();
     }
 }
 
