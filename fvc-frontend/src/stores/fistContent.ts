@@ -27,7 +27,7 @@ interface Actions {
   create: (payload: CreateFistContentRequest) => Promise<void>;
   update: (id: string, payload: UpdateFistContentRequest) => Promise<void>;
   setPage: (page: number) => void;
-  
+  remove: (id: string) => Promise<void>;
   // Additional methods for CompetitionModal
   fetchFistConfigs: () => Promise<void>;
   fetchFistItems: () => Promise<void>;
@@ -93,6 +93,16 @@ export const useFistContentStore = create<Store>()(
       } catch (err) {
         const { message } = globalErrorHandler(err);
         set({ error: message, isLoading: false });
+        throw err;
+      }
+    },
+    remove: async (id) => {
+      try {
+        await fistContentService.remove(id);
+        await get().fetch();
+      } catch (err) {
+        const { message } = globalErrorHandler(err);
+        set({ error: message });
         throw err;
       }
     },

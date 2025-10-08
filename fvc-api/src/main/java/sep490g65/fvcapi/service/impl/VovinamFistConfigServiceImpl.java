@@ -95,6 +95,12 @@ public class VovinamFistConfigServiceImpl implements VovinamFistConfigService {
         VovinamFistConfig saved = repository.save(v);
         return toDto(saved);
     }
+    @Override
+    public void delete(String id) {
+        VovinamFistConfig v = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("FistConfig not found: " + id));
+        repository.delete(v);
+    }
 
     // FistItem methods
     @Override

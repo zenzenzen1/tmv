@@ -47,6 +47,7 @@ export const useMusicContentStore = create<Store>()(
       set({ isLoading: true, error: null, filters: current });
       try {
         const data = await musicContentService.list(current);
+        // debugger;
         set({ list: data, isLoading: false });
       } catch (err) {
         const { message } = globalErrorHandler(err);

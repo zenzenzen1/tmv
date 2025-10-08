@@ -4,7 +4,7 @@ import { useFistContentStore } from '../../stores/fistContent';
 import FistContentModal from './FistContentModal';
 
 export default function FistContentListPage() {
-  const { list, isLoading, error, fetch, openCreate, openEdit, setPage } = useFistContentStore();
+  const { list, isLoading, error, fetch, openCreate, openEdit, setPage, remove } = useFistContentStore();
 
   useEffect(() => {
     fetch();
@@ -39,7 +39,17 @@ export default function FistContentListPage() {
               key: 'actions',
               title: 'Thao tác',
               render: (row) => (
+                <div className="flex gap-2">
                 <button className="input-field" onClick={() => openEdit(row)}>Chi tiết</button>
+                {!row.status && (
+                  <button
+                    className="input-field text-red-600 hover:underline"
+                    onClick={() => remove(row.id)}
+                  >
+                    Xóa
+                  </button>
+                )}
+                          </div>
               ),
               sortable: false,
             },

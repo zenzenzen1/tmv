@@ -37,7 +37,7 @@ public class MusicIntegratedPerformance extends BaseEntity {
     private String performanceType;
 
     @Column(name = "is_active")
-    private Boolean isActive = true;
+    private Boolean isActive;
 
     // Many-to-many relationship with Competition through junction table
     @OneToMany(mappedBy = "musicIntegratedPerformance", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
