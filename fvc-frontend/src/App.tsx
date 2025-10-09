@@ -5,6 +5,11 @@ import Sidebar from "./components/layout/Sidebar";
 import Footer from "./components/layout/Footer";
 
 import WeightClassListPage from "./pages/weight-class/ListPage";
+import SubmittedFormsPage from "./pages/submitted-forms/ListPage";
+import FormListPage from "./pages/forms/ListPage";
+import FormBuilderPage from "./pages/forms/BuilderPage";
+import FormEditPage from "./pages/forms/EditPage";
+import FormRegistrationPage from "./pages/forms/RegistrationPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
 
@@ -25,6 +30,13 @@ export default function App() {
           <Routes>
 
             <Route path="/weight-classes" element={<WeightClassListPage />} />
+            <Route path="/submitted-forms" element={<SubmittedFormsPage />} />
+            <Route path="/formList" element={<FormListPage />} />
+            <Route path="/forms" element={<FormListPage />} />
+            <Route path="/forms/new" element={<FormBuilderPage />} />
+            <Route path="/forms/:id/edit" element={<FormEditPage />} />
+            <Route path="/forms/:id/view" element={<FormRegistrationPage />} />
+            <Route path="/register/:id" element={<FormRegistrationPage />} />
             <Route path="/fist-contents" element={<FistContentListPage />} />
             <Route path="/music-contents" element={<MusicContentListPage />} />
 
@@ -38,7 +50,6 @@ export default function App() {
             <Route path="/form-builder" element={<FormBuilder />} />
             <Route path="/form-builder/:id" element={<FormBuilder />} />
             <Route path="/forms/:id/fill" element={<PublishedForm />} />
-
             <Route path="*" element={<div>404 Not Found</div>} />
           </Routes>
           <Footer />

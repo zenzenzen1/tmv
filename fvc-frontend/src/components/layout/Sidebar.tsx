@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { defaultMenuItems } from "@/components/layout/sidebarMenu.ts";
 import type { MenuItem } from "@/components/layout/sidebarMenu.ts";
 
@@ -18,6 +19,13 @@ export default function TournamentSidebar({
   onChange,
 }: TournamentSidebarProps) {
   const items = menuItems ?? defaultMenuItems;
+  const navigate = useNavigate();
+
+  // Map menu keys to routes
+  const keyToPath: Record<string, string> = {
+    formList: "/formList",
+    submittedForms: "/submitted-forms",
+  };
 
   const isControlled =
     controlledActiveMenu !== undefined && typeof onChange === "function";
@@ -34,6 +42,8 @@ export default function TournamentSidebar({
     } else {
       setUncontrolledActiveMenu(next);
     }
+    const path = keyToPath[next];
+    if (path) navigate(path);
   };
 
   const { topLevelItems, sectionToItems } = useMemo(() => {

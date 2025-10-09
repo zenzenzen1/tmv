@@ -41,6 +41,25 @@ export interface AuthResponse {
   expiresIn: number;
 }
 
+// FVC API specific types for register
+export interface FvcRegisterRequest {
+  fullName: string;
+  personalMail: string;
+  eduMail?: string;
+  password: string;
+  studentCode?: string;
+}
+
+export interface FvcUserResponse {
+  id: string;
+  fullName: string;
+  personalMail: string;
+  eduMail?: string | null;
+  studentCode?: string | null;
+  systemRole: string;
+}
+
+
 // Generic types
 export interface SelectOption {
   value: string | number;
