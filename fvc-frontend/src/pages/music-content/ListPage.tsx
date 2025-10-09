@@ -4,11 +4,13 @@ import MusicContentModal from '@/pages/music-content/MusicContentModal';
 import { CommonTable, type TableColumn } from '../../components/common/CommonTable';
 
 export default function MusicContentListPage() {
-  const { list, isLoading, error, fetch, openCreate, openEdit, setPage } = useMusicContentStore();
+  const { list, isLoading, error, fetch, openCreate, openEdit, setPage, remove } = useMusicContentStore();
 
   useEffect(() => {
     fetch();
   }, [fetch]);
+
+  console.log(list);
 
   return (
     <div className="p-6">
@@ -34,6 +36,9 @@ export default function MusicContentListPage() {
               key: 'isActive',
               title: 'Trạng thái',
               render: (row) => (
+                // <span className={`px-2 py-1 rounded text-xs ${(row.isActive === null || row.isActive === undefined) ? "bg-gray-100 text-gray-700" : row.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                //   {(row.isActive === null || row.isActive === undefined) ? "Nháp" : row.isActive ? 'Đang dùng' : 'Không dùng'}
+                // </span>
                 <span className={`px-2 py-1 rounded text-xs ${row.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
                   {row.isActive ? 'Đang dùng' : 'Nháp'}
                 </span>
@@ -43,7 +48,20 @@ export default function MusicContentListPage() {
               key: 'actions',
               title: 'Thao tác',
               render: (row) => (
-                <button className="input-field" onClick={() => openEdit(row)}>Chi tiết</button>
+                <div className="flex gap-2">
+                <button className="input-field" onClick={() => openEdit(row)}>
+                  Chi tiết
+                </button>
+
+                {!row.isActive && (
+        <button
+          className="input-field text-red-600 hover:underline"
+          onClick={() => remove(row.id)}
+        >
+          Xóa
+        </button>
+      )}
+                </div>
               ),
               sortable: false,
             },
@@ -53,7 +71,11 @@ export default function MusicContentListPage() {
           page={(list.page ?? 0) + 1}
           pageSize={list.size}
           total={list.totalElements}
-          onPageChange={(p) => setPage(p - 1)}
+          onPageChange={(p) => {
+            const next = p - 1; // CommonTable dùng 1-based
+            setPage(next);
+            fetch({ page: next, size: list.size }); // <-- truyền thẳng tham số mới
+          }}
         />
       )}
       <MusicContentModal />
