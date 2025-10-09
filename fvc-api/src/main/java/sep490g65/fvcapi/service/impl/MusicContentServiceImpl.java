@@ -58,6 +58,7 @@ public class MusicContentServiceImpl implements MusicContentService {
 
     @Override
     public MusicContentResponse create(CreateMusicContentRequest request) {
+        System.out.println("request.getIsActive() = " + request.getIsActive());
         MusicIntegratedPerformance e = MusicIntegratedPerformance.builder()
                 .name(request.getName())
                 .description(request.getDescription())

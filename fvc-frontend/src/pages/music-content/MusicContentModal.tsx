@@ -108,7 +108,7 @@ export default function MusicContentModal() {
       const payload: MusicContentCreateRequest | MusicContentUpdateRequest = {
         name: name.trim(),
         description: description.trim(),
-        isActive: true,
+        isActive,
       };
 
       if (editing) await update(editing.id, payload as MusicContentUpdateRequest);
@@ -175,9 +175,9 @@ export default function MusicContentModal() {
         <div className="flex justify-end gap-2 mt-6">
           <button className="input-field" onClick={closeModal}>Hủy</button>
           {/* Không disable theo isValid để vẫn chạy validate và show lỗi; chỉ disable khi đang saving */}
-          <button className={`input-field ${saving ? 'opacity-60 cursor-not-allowed' : ''}`} onClick={onSaveDraft} disabled={saving}>
+          { !editing && <button className={`input-field ${saving ? 'opacity-60 cursor-not-allowed' : ''}`} onClick={onSaveDraft} disabled={saving}>
             Lưu nháp
-          </button>
+          </button>}
           <button className={`btn-primary ${saving ? 'opacity-60 cursor-not-allowed' : ''}`} onClick={onSave} disabled={saving}>
             Lưu
           </button>

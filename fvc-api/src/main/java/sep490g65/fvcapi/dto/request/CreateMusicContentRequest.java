@@ -21,7 +21,8 @@ public class CreateMusicContentRequest {
     private String description;
     
     @NotNull(message = "Is active is required")
-    private Boolean isActive;
+    @Builder.Default
+    private Boolean isActive = true;
 }
 
 

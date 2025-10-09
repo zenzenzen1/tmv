@@ -12,7 +12,7 @@ public interface VovinamFistConfigService {
     FistConfigResponse getById(String id);
     FistConfigResponse create(CreateFistConfigRequest request);
     FistConfigResponse update(String id, UpdateFistConfigRequest request);
-    
+    void delete(String id);
     // FistItem methods
     PaginationResponse<FistItemResponse> listItems(RequestParam params);
     FistItemResponse getItemById(String id);

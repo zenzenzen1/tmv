@@ -2,6 +2,8 @@ package sep490g65.fvcapi.dto.request;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,8 +29,10 @@ public class RequestParam {
     private String sortBy = ApiConstants.DEFAULT_SORT_BY;
 
     @Builder.Default
+    @Pattern(regexp = "(?i)asc|desc", message = "Sort direction must be 'asc' or 'desc'")
     private String sortDirection = ApiConstants.DEFAULT_SORT_DIRECTION;
 
+    @Size(max = 100, message = "Search term too long (max 100)")
     private String search;
 
     private String status;

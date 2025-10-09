@@ -14,7 +14,7 @@ import sep490g65.fvcapi.enums.ApplicationFormType;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SubmittedApplicationForm {
+public class SubmittedApplicationForm extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,6 +42,5 @@ public class SubmittedApplicationForm {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "application_form_config_id")
     private ApplicationFormConfig applicationFormConfig;
-
 }
 

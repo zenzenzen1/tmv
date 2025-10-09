@@ -45,6 +45,11 @@ public class FistContentController {
                                                                    @Valid @RequestBody UpdateFistConfigRequest request) {
         return ResponseEntity.ok(ResponseUtils.success("Fist content updated", service.update(id, request)));
     }
+    @DeleteMapping("/{id}")
+    public ResponseEntity<BaseResponse<Void>> delete(@PathVariable String id) {
+        service.delete(id);
+        return ResponseEntity.ok(ResponseUtils.success("Fist content deleted"));
+    }
 
     // FistItem endpoints
     @GetMapping("/items")

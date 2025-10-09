@@ -10,6 +10,11 @@ import Footer from "./components/layout/Footer";
 import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import WeightClassListPage from "./pages/weight-class/ListPage";
+import SubmittedFormsPage from "./pages/submitted-forms/ListPage";
+import FormListPage from "./pages/forms/ListPage";
+import FormBuilderPage from "./pages/forms/BuilderPage";
+import FormEditPage from "./pages/forms/EditPage";
+import FormRegistrationPage from "./pages/forms/RegistrationPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
 import Home from "./pages/Home";
@@ -28,14 +33,8 @@ export default function App() {
   if (!isAuthenticated) {
     return (
       <Routes>
-        <Route
-          path="/login"
-          element={<LoginPage />}
-        />
-        <Route
-          path="*"
-          element={<Navigate to="/login" replace />}
-        />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
   }
@@ -49,15 +48,31 @@ export default function App() {
           <Routes>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/weight-classes" element={<WeightClassListPage />} />
+            <Route path="/submitted-forms" element={<SubmittedFormsPage />} />
+            <Route path="/formList" element={<FormListPage />} />
+            <Route path="/forms" element={<FormListPage />} />
+            <Route path="/forms/new" element={<FormBuilderPage />} />
+            <Route path="/forms/:id/edit" element={<FormEditPage />} />
+            <Route path="/forms/:id/view" element={<FormRegistrationPage />} />
+            <Route path="/register/:id" element={<FormRegistrationPage />} />
             <Route path="/fist-contents" element={<FistContentListPage />} />
             <Route path="/music-contents" element={<MusicContentListPage />} />
             <Route path="/" element={<Home />} />
 
             {/* Tournaments */}
             <Route path="/tournaments" element={<TournamentListPage />} />
-            <Route path="/tournaments/create" element={<CompetitionFormPage />} />
-            <Route path="/tournaments/edit/:id" element={<CompetitionFormPage />} />
-            <Route path="/tournaments/view/:id" element={<CompetitionFormPage />} />
+            <Route
+              path="/tournaments/create"
+              element={<CompetitionFormPage />}
+            />
+            <Route
+              path="/tournaments/edit/:id"
+              element={<CompetitionFormPage />}
+            />
+            <Route
+              path="/tournaments/view/:id"
+              element={<CompetitionFormPage />}
+            />
             <Route path="/manage" element={<TournamentManage />} />
 
             {/* Form */}
@@ -67,6 +82,7 @@ export default function App() {
             <Route path="/forms/:id/fill" element={<PublishedForm />} />
 
             {/* 404 */}
+
             <Route path="*" element={<div>404 Not Found</div>} />
           </Routes>
           <Footer />

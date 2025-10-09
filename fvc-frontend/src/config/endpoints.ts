@@ -41,6 +41,21 @@ export const API_ENDPOINTS = {
     STATUS: (id: string) => `/weight-classes/${id}/status`,
   },
 
+  // Submitted Application Forms
+  SUBMITTED_FORMS: {
+    BASE: '/submitted-forms',
+    BY_ID: (id: string) => `/submitted-forms/${id}`,
+    EXPORT: (id: string) => `/submitted-forms/${id}/export`,
+  },
+
+  // Application Form Configs
+  APPLICATION_FORMS: {
+    BASE: '/application-forms',
+    BY_ID: (id: string) => `/application-forms/${id}`,
+    BY_TYPE: (type: string) => `/application-forms/${type}`,
+    INIT_CLUB: '/application-forms/init-club-registration',
+  },
+
   // Tournament forms
   TOURNAMENT_FORMS: {
     BASE: "/tournament-forms",
