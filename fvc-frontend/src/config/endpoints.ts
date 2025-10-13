@@ -1,8 +1,4 @@
-<<<<<<< fvc-frontend/src/config/endpoints.ts
-// API endpoints configuration
-export const API_ENDPOINTS = {
-  // Authentication
-  AUTH: {
+
 // API endpoints configuration
 export const API_ENDPOINTS = {
   // Authentication
