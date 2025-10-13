@@ -22,6 +22,7 @@ public class User extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
+
     @Column()
     private String fullName;
 

@@ -1,14 +1,20 @@
+<<<<<<< fvc-frontend/src/config/endpoints.ts
 // API endpoints configuration
 export const API_ENDPOINTS = {
   // Authentication
   AUTH: {
-    LOGIN: "/auth/login",
-    REGISTER: "/auth/register",
-    REFRESH: "/auth/refresh",
-    LOGOUT: "/auth/logout",
-    FORGOT_PASSWORD: "/auth/forgot-password",
-    RESET_PASSWORD: "/auth/reset-password",
-    VERIFY_EMAIL: "/auth/verify-email",
+// API endpoints configuration
+export const API_ENDPOINTS = {
+  // Authentication
+  AUTH: {
+    LOGIN: "/v1/auth/login",
+    ME: "/v1/auth/me",
+    REGISTER: "/v1/auth/register",
+    REFRESH: "/v1/auth/refresh",
+    LOGOUT: "/v1/auth/logout",
+    FORGOT_PASSWORD: "/v1/auth/forgot-password",
+    RESET_PASSWORD: "/v1/auth/reset-password",
+    VERIFY_EMAIL: "/v1/auth/verify-email",
   },
 
   // User management
@@ -27,10 +33,6 @@ export const API_ENDPOINTS = {
     DOWNLOAD: "/files/download",
     DELETE: "/files",
   },
-
-  // Common endpoints
-  HEALTH: "/health",
-  VERSION: "/version",
 
   // Weight classes
   WEIGHT_CLASSES: {
@@ -67,18 +69,22 @@ export const API_ENDPOINTS = {
 
   // Fist contents
   FIST_CONTENTS: {
-    BASE: '/fist-configs',
+    BASE: "/fist-configs",
     BY_ID: (id: string) => `/fist-configs/${id}`,
-    ITEMS: '/fist-configs/items',
+    ITEMS: "/fist-configs/items",
     ITEM_BY_ID: (id: string) => `/fist-configs/items/${id}`,
     ITEMS_BY_CONFIG: (configId: string) => `/fist-configs/${configId}/items`,
   },
 
   // Music contents
   MUSIC_CONTENTS: {
-    BASE: '/music-contents',
+    BASE: "/music-contents",
     BY_ID: (id: string) => `/music-contents/${id}`,
   },
+
+  // Common endpoints
+  HEALTH: "/health",
+  VERSION: "/version",
 } as const;
 
 // Helper function to build endpoint URLs
@@ -89,3 +95,4 @@ export const buildEndpoint = (base: string, ...paths: string[]): string => {
 // Type-safe endpoint builder
 export type EndpointKey = keyof typeof API_ENDPOINTS;
 export type EndpointPath<T extends EndpointKey> = (typeof API_ENDPOINTS)[T];
+

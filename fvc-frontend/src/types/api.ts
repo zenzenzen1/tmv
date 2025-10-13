@@ -36,7 +36,7 @@ export interface RequestParams {
 }
 
 // HTTP methods
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 // API endpoint configuration
 export interface ApiEndpoint {
