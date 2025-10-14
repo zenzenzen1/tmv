@@ -161,6 +161,7 @@ export default function SubmittedFormsPage() {
   const [page, setPage] = useState<number>(1); // CommonTable is 1-based
   const [pageSize] = useState<number>(10); // fixed page size
   const [totalElements, setTotalElements] = useState<number>(0);
+  const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -348,6 +349,20 @@ export default function SubmittedFormsPage() {
       { key: "studentCode", title: "MSSV", sortable: true },
       { key: "note", title: "Mô tả ngắn về bản thân" },
       ...formDataColumns, // Thêm các cột form data động (bao gồm số điện thoại)
+      {
+        key: "actions",
+        title: "",
+        sortable: false,
+        className: "w-28",
+        render: (row: SubmittedRow) => (
+          <button
+            onClick={() => setViewingRow(row)}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[12px] text-gray-700 hover:bg-gray-50"
+          >
+            Xem form
+          </button>
+        ),
+      },
     ];
   }, [rows]);
 
@@ -373,6 +388,7 @@ export default function SubmittedFormsPage() {
   }, [rows, query]);
 
   return (
+    <>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <button
@@ -394,7 +410,7 @@ export default function SubmittedFormsPage() {
         <p className="mb-4 text-sm text-gray-600">
           Đăng kí tham gia FPTU Vovinam Club FALL 2025
         </p>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div className="text-sm text-gray-600">Lượt điền: {totalElements}</div>
           <input
             placeholder="Tìm kiếm..."
@@ -418,6 +434,33 @@ export default function SubmittedFormsPage() {
         className={loading ? "opacity-60" : undefined}
       />
     </div>
+
+    {/* View Form Modal */}
+    {viewingRow && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="w-[720px] max-w-full rounded-lg bg-white shadow-xl">
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <h3 className="text-base font-semibold">Chi tiết form #{viewingRow.id}</h3>
+            <button onClick={() => setViewingRow(null)} className="text-gray-500 hover:text-gray-700">✕</button>
+          </div>
+          <div className="max-h-[70vh] overflow-auto p-4 text-sm">
+            <div className="mb-3 grid grid-cols-2 gap-3">
+              <div><span className="text-gray-500">Họ và tên:</span> {viewingRow.fullName || "-"}</div>
+              <div><span className="text-gray-500">Email:</span> {viewingRow.email || "-"}</div>
+              <div><span className="text-gray-500">MSSV:</span> {viewingRow.studentCode || "-"}</div>
+              <div><span className="text-gray-500">Thời gian nộp:</span> {new Date(viewingRow.submittedAt).toLocaleString("vi-VN")}</div>
+            </div>
+            <pre className="whitespace-pre-wrap rounded-md bg-gray-50 p-3 text-[12px] leading-relaxed">
+{typeof viewingRow.formData === 'string' ? viewingRow.formData : JSON.stringify(viewingRow.formData, null, 2)}
+            </pre>
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
+            <button onClick={() => setViewingRow(null)} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] text-gray-700 hover:bg-gray-50">Đóng</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
