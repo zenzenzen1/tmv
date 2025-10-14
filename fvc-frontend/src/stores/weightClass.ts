@@ -47,9 +47,12 @@ export const useWeightClassStore = create<Store>()(
       const current = { ...get().filters, ...(params || {}) };
       set({ isLoading: true, error: null, filters: current });
       try {
+        console.log('WeightClassStore - fetching with params:', current);
         const data = await weightClassService.list(current);
+        console.log('WeightClassStore - received data:', data);
         set({ list: data, isLoading: false });
       } catch (err) {
+        console.error('WeightClassStore - fetch error:', err);
         const { message } = globalErrorHandler(err);
         set({ error: message, isLoading: false });
       }

@@ -28,8 +28,4 @@ public class VovinamFistConfig extends BaseEntity {
 
     @OneToMany(mappedBy = "vovinamFistConfig", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<VovinamFistItem> items;
-
-    @OneToMany(mappedBy = "vovinamFistConfig", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<CompetitionVovinamFist> competitionRelations;
-
 }

@@ -6,22 +6,27 @@ import type { CreateWeightClassRequest, UpdateWeightClassRequest, WeightClassFil
 export const weightClassService = {
   async list(params: WeightClassFilters): Promise<PaginationResponse<WeightClassResponse>> {
     const res = await apiService.get<PaginationResponse<WeightClassResponse>>(API_ENDPOINTS.WEIGHT_CLASSES.BASE, params);
+    
+    if (!res.data) {
+      console.error('WeightClassService - response.data is undefined!');
+      throw new Error('Invalid API response structure');
+    }
     return res.data;
   },
 
   async get(id: string): Promise<WeightClassResponse> {
-    const res = await apiService.get<WeightClassResponse>(API_ENDPOINTS.WEIGHT_CLASSES.BY_ID(id));
-    return res.data;
+    const res = await apiService.get<BaseResponse<WeightClassResponse>>(API_ENDPOINTS.WEIGHT_CLASSES.BY_ID(id));
+    return res.data.data;
   },
 
   async create(payload: CreateWeightClassRequest): Promise<WeightClassResponse> {
-    const res = await apiService.post<WeightClassResponse>(API_ENDPOINTS.WEIGHT_CLASSES.BASE, payload);
-    return res.data;
+    const res = await apiService.post<BaseResponse<WeightClassResponse>>(API_ENDPOINTS.WEIGHT_CLASSES.BASE, payload);
+    return res.data.data;
   },
 
   async update(id: string, payload: UpdateWeightClassRequest): Promise<WeightClassResponse> {
-    const res = await apiService.put<WeightClassResponse>(API_ENDPOINTS.WEIGHT_CLASSES.BY_ID(id), payload);
-    return res.data;
+    const res = await apiService.put<BaseResponse<WeightClassResponse>>(API_ENDPOINTS.WEIGHT_CLASSES.BY_ID(id), payload);
+    return res.data.data;
   },
 
   async changeStatus(id: string, status: WeightClassStatus): Promise<void> {

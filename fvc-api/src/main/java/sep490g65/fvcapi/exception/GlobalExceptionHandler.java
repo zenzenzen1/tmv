@@ -7,6 +7,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.exception.custom.BusinessException;
@@ -61,5 +62,12 @@ public class GlobalExceptionHandler {
         log.error("Unexpected error occurred: {}", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(BaseResponse.error("An unexpected error occurred", "INTERNAL_SERVER_ERROR"));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<BaseResponse<Void>> handleNoResourceFoundException(
+            NoResourceFoundException ex, WebRequest request) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(BaseResponse.error("Resource not found", "NOT_FOUND"));
     }
 }

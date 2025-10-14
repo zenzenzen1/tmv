@@ -23,6 +23,7 @@ export default function TournamentSidebar({
 
   // Map menu keys to routes
   const keyToPath: Record<string, string> = {
+    formList: "/formList",
     submittedForms: "/submitted-forms",
   };
 
@@ -58,7 +59,7 @@ export default function TournamentSidebar({
   }, [items]);
 
   return (
-    <aside className="w-64 border-r border-gray-200 bg-white/100">
+    <aside className="w-64 h-full min-h-full flex-shrink-0 border-r border-gray-200 bg-white/100">
       <div className="px-4 py-5">
         <div className="mb-4 text-sm font-semibold text-gray-800">{title}</div>
         <nav className="space-y-1 text-[13px] font-medium text-gray-700">
