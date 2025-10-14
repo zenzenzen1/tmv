@@ -12,6 +12,7 @@ type SubmittedRow = {
   studentCode: string;
   phone: string;
   note: string;
+  stt?: number;
 };
 
 export default function SubmittedFormsPage() {
@@ -152,9 +153,9 @@ export default function SubmittedFormsPage() {
       {
         key: "stt",
         title: "STT",
-        render: (_row: SubmittedRow) => null, // will be filled by row render index
+        render: (row: SubmittedRow) => row.stt,
         sortable: false,
-        className: "w-16",
+        className: "w-16 text-center",
       },
       { key: "submittedAt", title: "Thời gian nộp", sortable: true, render: (r) => formatDate(r.submittedAt) },
       { key: "fullName", title: "Họ và tên", sortable: true },
