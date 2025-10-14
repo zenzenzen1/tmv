@@ -34,7 +34,7 @@ export default function SubmittedFormsPage() {
           page: number;
           size: number;
           totalElements: number;
-        }>("/submitted-forms", {
+        }>("/v1/submitted-forms", {
           type: "CLUB_REGISTRATION",
           page: page - 1,
           size: pageSize,
@@ -42,21 +42,35 @@ export default function SubmittedFormsPage() {
           ascending: false,
         });
         if (!ignore) {
-          const mapped: SubmittedRow[] = (res.data?.content ?? []).map((s: any, idx: number) => {
-            const emailFromUser = s.userPersonalMail || s.userEduMail || "";
-            const codeFromUser = s.userStudentCode || "";
-            const nameFromUser = s.userFullName || "";
-            const phoneFromForm = s.formData ? safePick(s.formData, ["phone", "sdt", "mobile"]) : "";
-            return {
-              id: String(s.id ?? idx),
-              submittedAt: s.createdAt ?? "",
-              fullName: nameFromUser || (s.formData ? safePick(s.formData, ["fullName", "name", "hovaten"]) : ""),
-              email: emailFromUser || (s.formData ? safePick(s.formData, ["email", "mail"]) : ""),
-              studentCode: codeFromUser || (s.formData ? safePick(s.formData, ["studentCode", "mssv", "msv"]) : ""),
-              phone: phoneFromForm,
-              note: s.reviewerNote ?? "",
-            } as SubmittedRow;
-          });
+          const mapped: SubmittedRow[] = (res.data?.content ?? []).map(
+            (s: any, idx: number) => {
+              const emailFromUser = s.userPersonalMail || s.userEduMail || "";
+              const codeFromUser = s.userStudentCode || "";
+              const nameFromUser = s.userFullName || "";
+              const phoneFromForm = s.formData
+                ? safePick(s.formData, ["phone", "sdt", "mobile"])
+                : "";
+              return {
+                id: String(s.id ?? idx),
+                submittedAt: s.createdAt ?? "",
+                fullName:
+                  nameFromUser ||
+                  (s.formData
+                    ? safePick(s.formData, ["fullName", "name", "hovaten"])
+                    : ""),
+                email:
+                  emailFromUser ||
+                  (s.formData ? safePick(s.formData, ["email", "mail"]) : ""),
+                studentCode:
+                  codeFromUser ||
+                  (s.formData
+                    ? safePick(s.formData, ["studentCode", "mssv", "msv"])
+                    : ""),
+                phone: phoneFromForm,
+                note: s.reviewerNote ?? "",
+              } as SubmittedRow;
+            }
+          );
           setRows(mapped);
           setTotalElements(res.data?.totalElements ?? mapped.length);
         }
@@ -74,12 +88,15 @@ export default function SubmittedFormsPage() {
 
   function safePick(jsonString: string, keys: string[]): string {
     try {
-      const obj = typeof jsonString === "string" ? JSON.parse(jsonString) : jsonString;
+      const obj =
+        typeof jsonString === "string" ? JSON.parse(jsonString) : jsonString;
       for (const k of keys) {
         // try exact
         if (obj && obj[k] != null) return String(obj[k]);
         // try case-insensitive
-        const found = Object.keys(obj ?? {}).find((kk) => kk.toLowerCase() === k.toLowerCase());
+        const found = Object.keys(obj ?? {}).find(
+          (kk) => kk.toLowerCase() === k.toLowerCase()
+        );
         if (found && obj[found] != null) return String(obj[found]);
       }
       // try deep/heuristic extraction
@@ -116,7 +133,10 @@ export default function SubmittedFormsPage() {
       };
 
       const email = findBy((s) => emailRegex.test(s), /(email|mail)/i);
-      const phone = findBy((s) => phoneRegex.test(s), /(phone|sdt|mobile|contact)/i);
+      const phone = findBy(
+        (s) => phoneRegex.test(s),
+        /(phone|sdt|mobile|contact)/i
+      );
       const mssv = findBy((s) => mssvRegex.test(s), /(mssv|student|code|msv)/i);
       const name = findBy(
         (s) => /\s/.test(s) && s.length >= 5 && !emailRegex.test(s),
@@ -156,7 +176,12 @@ export default function SubmittedFormsPage() {
         sortable: false,
         className: "w-16",
       },
-      { key: "submittedAt", title: "Thời gian nộp", sortable: true, render: (r) => formatDate(r.submittedAt) },
+      {
+        key: "submittedAt",
+        title: "Thời gian nộp",
+        sortable: true,
+        render: (r) => formatDate(r.submittedAt),
+      },
       { key: "fullName", title: "Họ và tên", sortable: true },
       { key: "email", title: "Email", sortable: true },
       { key: "studentCode", title: "MSSV", sortable: true },
@@ -200,7 +225,9 @@ export default function SubmittedFormsPage() {
           Đăng kí tham gia FPTU Vovinam Club FALL 2025
         </p>
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm text-gray-600">Lượt điền: {totalElements}</div>
+          <div className="text-sm text-gray-600">
+            Lượt điền: {totalElements}
+          </div>
           <input
             placeholder="Tìm kiếm..."
             value={query}
@@ -211,10 +238,17 @@ export default function SubmittedFormsPage() {
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
       )}
       <CommonTable
-        data={filtered.map((r, idx) => ({ ...r, stt: (page - 1) * pageSize + idx + 1 })) as any}
+        data={
+          filtered.map((r, idx) => ({
+            ...r,
+            stt: (page - 1) * pageSize + idx + 1,
+          })) as any
+        }
         columns={columns as any}
         page={page}
         pageSize={pageSize}
@@ -262,14 +296,17 @@ function exportCsv(rows: SubmittedRow[]) {
     escapeCsv(r.note),
   ]);
 
-  const csv = [headers.join(","), ...csvRows.map((line) => line.join(","))].join("\r\n");
+  const csv = [
+    headers.join(","),
+    ...csvRows.map((line) => line.join(",")),
+  ].join("\r\n");
 
   // Add BOM for UTF-8 to display Vietnamese correctly in Excel
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `submitted-forms-${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `submitted-forms-${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -283,5 +320,3 @@ function escapeCsv(value?: string) {
   }
   return s;
 }
-
-

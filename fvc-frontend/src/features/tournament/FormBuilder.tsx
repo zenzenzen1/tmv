@@ -28,6 +28,7 @@ interface FormData {
   phoneRequired: boolean;
   weightClass?: string;
   quyenCategory?: string;
+  quyenContent?: string;
   musicCategory?: string;
 }
 
@@ -67,6 +68,7 @@ const FormBuilder: React.FC = () => {
     phoneRequired: false,
     weightClass: "",
     quyenCategory: "",
+    quyenContent: "",
     musicCategory: "",
   });
 
@@ -78,6 +80,63 @@ const FormBuilder: React.FC = () => {
   const [competitions, setCompetitions] = useState<
     Array<{ id: string; name: string }>
   >([]);
+  const [weightClasses, setWeightClasses] = useState<
+    Array<{
+      id: string;
+      weightClass: string;
+      gender: string;
+      minWeight: number;
+      maxWeight: number;
+    }>
+  >([]);
+  const [musicContents, setMusicContents] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  // Fixed quyen categories (config cứng)
+  const quyenCategories = ["Đơn luyện", "Song luyện", "Đa luyện", "Song quyền"];
+
+  // Dynamic quyen content from API
+  const [quyenContents, setQuyenContents] = useState<
+    Array<{ id: string; name: string; category?: string }>
+  >([]);
+  const [allQuyenContents, setAllQuyenContents] = useState<
+    Array<{ id: string; name: string; category?: string }>
+  >([]);
+
+  // Helpers to normalize quyen categories without using 'any'
+  const getString = (obj: Record<string, unknown>, key: string): string => {
+    const v = obj[key];
+    return typeof v === "string" ? v : "";
+  };
+
+  const normalizeQuyenCategory = (
+    rawCategory: string,
+    rawName: string,
+    parentName: string
+  ): string => {
+    const candidates: string[] = [];
+    if (rawCategory) candidates.push(rawCategory);
+    if (parentName) candidates.push(parentName);
+    if (rawName) candidates.push(rawName);
+
+    const stripAccents = (s: string) =>
+      s
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/g, "d")
+        .replace(/Đ/g, "D")
+        .toLowerCase();
+
+    for (const c of candidates) {
+      const t = stripAccents(c);
+      if (t.includes("don luyen")) return "Đơn luyện";
+      if (t.includes("song luyen") && !t.includes("song quyen"))
+        return "Song luyện";
+      if (t.includes("da luyen")) return "Đa luyện";
+      if (t.includes("song quyen")) return "Song quyền";
+    }
+    return "";
+  };
   const [submitting, setSubmitting] = useState<boolean>(false);
   const snapshotKey = `formBuilder:snapshot:${editingId ?? "new"}`;
   const discardedKey = `formBuilder:discarded:${editingId ?? "new"}`;
@@ -114,26 +173,203 @@ const FormBuilder: React.FC = () => {
     { id: "checkbox", label: "Checkbox", icon: "☑️" },
   ];
 
-  const weightClasses = [
-    "Chọn hạng cân của bạn",
-    "-45 kg",
-    "45 - 50 kg",
-    "50 - 55 kg",
-    "55 - 60 kg",
-    "60 - 65 kg",
-    "> 65 kg",
-  ];
-  const quyenCategories = ["Đơn luyện", "Đa luyện", "Song Luyện", "Đồng Đội"];
+  // Weight classes will be loaded from API
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.get<Array<{ id: string; name: string }>>(
-          `/tournament-forms/competitions`
-        );
-        setCompetitions(res.data);
-        if (!competitionId && res.data.length > 0) {
-          setCompetitionId(res.data[0].id);
+        // Load competitions
+        const competitionsRes = await api.get<
+          Array<{ id: string; name: string }>
+        >(`/v1/tournament-forms/competitions`);
+        setCompetitions(competitionsRes.data);
+        if (!competitionId && competitionsRes.data.length > 0) {
+          setCompetitionId(competitionsRes.data[0].id);
+        }
+
+        // Load weight classes
+        try {
+          const weightClassesRes = await api.get<{
+            content: Array<{
+              id: string;
+              weightClass: string;
+              gender: string;
+              minWeight: number;
+              maxWeight: number;
+            }>;
+            totalElements: number;
+          }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
+          console.log("Weight classes API response:", weightClassesRes.data);
+          setWeightClasses(weightClassesRes.data?.content || []);
+        } catch (weightError) {
+          console.warn("Failed to load weight classes:", weightError);
+          setWeightClasses([]);
+        }
+
+        // Load music contents
+        try {
+          const musicContentsRes = await api.get<{
+            content: Array<{ id: string; name: string }>;
+            totalElements: number;
+          }>(API_ENDPOINTS.MUSIC_CONTENTS.BASE);
+          console.log("Music contents API response:", musicContentsRes.data);
+          const musicData = musicContentsRes.data?.content || [];
+          console.log("Setting music contents state:", musicData);
+          setMusicContents(musicData);
+        } catch (musicError) {
+          console.warn("Failed to load music contents:", musicError);
+          setMusicContents([]);
+        }
+
+        // Load quyen contents (fist items)
+        try {
+          const quyenContentsRes = await api.get(
+            API_ENDPOINTS.FIST_CONTENTS.ITEMS
+          );
+          console.log("Quyen contents API response:", quyenContentsRes.data);
+
+          // Handle different response structures
+          let quyenData: Array<{
+            id: string;
+            name: string;
+            category?: string;
+          }> = [];
+          const responseData = quyenContentsRes.data as Record<string, unknown>;
+          if (responseData?.content && Array.isArray(responseData.content)) {
+            quyenData = responseData.content as Array<{
+              id: string;
+              name: string;
+              category?: string;
+            }>;
+          } else if (
+            responseData?.data &&
+            typeof responseData.data === "object" &&
+            responseData.data !== null
+          ) {
+            const dataObj = responseData.data as Record<string, unknown>;
+            if (dataObj.content && Array.isArray(dataObj.content)) {
+              quyenData = dataObj.content as Array<{
+                id: string;
+                name: string;
+                category?: string;
+              }>;
+            }
+          } else if (Array.isArray(responseData)) {
+            quyenData = responseData as Array<{
+              id: string;
+              name: string;
+              category?: string;
+            }>;
+          } else if (responseData?.data && Array.isArray(responseData.data)) {
+            quyenData = responseData.data as Array<{
+              id: string;
+              name: string;
+              category?: string;
+            }>;
+          }
+
+          const mapped = (quyenData || []).map((raw) => {
+            const item = raw as unknown as Record<string, unknown>;
+            const parent =
+              (item["parent"] as Record<string, unknown> | undefined) ??
+              undefined;
+            const derived = normalizeQuyenCategory(
+              getString(item, "category") ||
+                getString(item, "categoryName") ||
+                getString(item, "group") ||
+                getString(item, "groupName") ||
+                getString(item, "type") ||
+                getString(item, "typeName"),
+              getString(item, "name"),
+              parent
+                ? getString(parent, "name")
+                : getString(item, "parentName") ||
+                    getString(item, "parentTitle")
+            );
+            return {
+              id: String(item["id"] ?? ""),
+              name: getString(item, "name"),
+              category: derived || getString(item, "category"),
+            };
+          });
+          console.log("Setting quyen contents state (mapped):", mapped);
+          console.log("Quyen contents count:", mapped.length);
+          console.log("Sample quyen content:", mapped[0]);
+          console.log("All quyen categories found:", [
+            ...new Set(mapped.map((it) => it.category)),
+          ]);
+
+          // If no data, try alternative endpoint
+          if (mapped.length === 0) {
+            console.log("Trying alternative endpoint...");
+            const altRes = await api.get(API_ENDPOINTS.FIST_CONTENTS.BASE);
+            console.log("Alternative API response:", altRes.data);
+
+            const altResponseData = altRes.data as Record<string, unknown>;
+            if (
+              altResponseData?.content &&
+              Array.isArray(altResponseData.content)
+            ) {
+              quyenData = altResponseData.content as Array<{
+                id: string;
+                name: string;
+                category?: string;
+              }>;
+            } else if (
+              altResponseData?.data &&
+              typeof altResponseData.data === "object" &&
+              altResponseData.data !== null
+            ) {
+              const dataObj = altResponseData.data as Record<string, unknown>;
+              if (dataObj.content && Array.isArray(dataObj.content)) {
+                quyenData = dataObj.content as Array<{
+                  id: string;
+                  name: string;
+                  category?: string;
+                }>;
+              }
+            } else if (Array.isArray(altResponseData)) {
+              quyenData = altResponseData as Array<{
+                id: string;
+                name: string;
+                category?: string;
+              }>;
+            }
+            const mappedAlt = (quyenData || []).map((raw: unknown) => {
+              const item = (raw ?? {}) as Record<string, unknown>;
+              const parent =
+                (item["parent"] as Record<string, unknown> | undefined) ??
+                undefined;
+              const derived = normalizeQuyenCategory(
+                getString(item, "category") ||
+                  getString(item, "categoryName") ||
+                  getString(item, "group") ||
+                  getString(item, "groupName") ||
+                  getString(item, "type") ||
+                  getString(item, "typeName"),
+                getString(item, "name"),
+                parent
+                  ? getString(parent, "name")
+                  : getString(item, "parentName") ||
+                      getString(item, "parentTitle")
+              );
+              return {
+                id: String(item["id"] ?? ""),
+                name: getString(item, "name"),
+                category: derived || getString(item, "category"),
+              };
+            });
+            console.log("Alternative data mapped:", mappedAlt);
+            setAllQuyenContents(mappedAlt);
+            setQuyenContents(mappedAlt);
+            return;
+          }
+
+          setAllQuyenContents(mapped);
+          setQuyenContents(mapped);
+        } catch (quyenError) {
+          console.warn("Failed to load quyen contents:", quyenError);
+          setQuyenContents([]);
         }
       } catch (e) {
         console.error(e);
@@ -142,6 +378,28 @@ const FormBuilder: React.FC = () => {
 
     // removed duplicate-form fetch/validation per latest request
   }, [competitionId]);
+
+  // Filter quyen contents based on selected category
+  useEffect(() => {
+    console.log(
+      "Filter effect triggered - quyenCategory:",
+      formData.quyenCategory,
+      "allQuyenContents length:",
+      allQuyenContents.length
+    );
+    if (!formData.quyenCategory) {
+      // No category chosen yet → show empty dropdown
+      setQuyenContents([]);
+      return;
+    }
+    if (allQuyenContents.length > 0) {
+      const filtered = allQuyenContents.filter(
+        (content) => content.category === formData.quyenCategory
+      );
+      console.log("Filtered quyen contents:", filtered);
+      setQuyenContents(filtered);
+    }
+  }, [formData.quyenCategory, allQuyenContents]);
 
   useEffect(() => {
     if (!editingId) return;
@@ -162,7 +420,7 @@ const FormBuilder: React.FC = () => {
             options?: string;
             sortOrder?: number;
           }>;
-        }>(`/tournament-forms/${editingId}?_ts=${Date.now()}`);
+        }>(`/v1/tournament-forms/${editingId}?_ts=${Date.now()}`);
         const d = res.data as {
           id: string;
           name: string;
@@ -345,7 +603,7 @@ const FormBuilder: React.FC = () => {
                       })),
                     };
                     if (editingId) {
-                      await api.put(`/tournament-forms/${editingId}`, {
+                      await api.put(`/v1/tournament-forms/${editingId}`, {
                         ...body,
                         status: "DRAFT",
                       });
@@ -353,7 +611,7 @@ const FormBuilder: React.FC = () => {
                       sessionStorage.setItem(snapshotKey, snapNow);
                       window.dispatchEvent(new Event("forms:changed"));
                     } else {
-                      await api.post(`/tournament-forms`, body);
+                      await api.post(`/v1/tournament-forms`, body);
                       const snapNow = JSON.stringify(questions);
                       sessionStorage.setItem(snapshotKey, snapNow);
                       window.dispatchEvent(new Event("forms:changed"));
@@ -459,7 +717,7 @@ const FormBuilder: React.FC = () => {
                       })),
                     };
                     if (editingId) {
-                      await api.put(`/tournament-forms/${editingId}`, {
+                      await api.put(`/v1/tournament-forms/${editingId}`, {
                         ...body,
                         status: "PUBLISH",
                       });
@@ -467,7 +725,7 @@ const FormBuilder: React.FC = () => {
                       sessionStorage.setItem(snapshotKey, snapNow);
                       window.dispatchEvent(new Event("forms:changed"));
                     } else {
-                      await api.post(`/tournament-forms`, body);
+                      await api.post(`/v1/tournament-forms`, body);
                       const snapNow = JSON.stringify(questions);
                       sessionStorage.setItem(snapshotKey, snapNow);
                       window.dispatchEvent(new Event("forms:changed"));
@@ -624,14 +882,25 @@ const FormBuilder: React.FC = () => {
                     }
                     className="w-full appearance-none bg-white border border-gray-400 rounded-full px-4 pr-9 h-9 text-sm text-gray-700"
                   >
-                    {weightClasses.map((w) => (
-                      <option
-                        key={w}
-                        value={w === "Chọn hạng cân của bạn" ? "" : w}
-                      >
-                        {w}
-                      </option>
-                    ))}
+                    <option value="">Chọn hạng cân của bạn</option>
+                    {weightClasses &&
+                      weightClasses.length > 0 &&
+                      weightClasses.map((w) => {
+                        const weightDisplay =
+                          w.weightClass || `${w.minWeight}-${w.maxWeight}kg`;
+                        console.log(
+                          "Weight class item:",
+                          w,
+                          "Display:",
+                          weightDisplay
+                        );
+                        return (
+                          <option key={w.id} value={weightDisplay}>
+                            {w.gender === "MALE" ? "Nam" : "Nữ"} -{" "}
+                            {weightDisplay}
+                          </option>
+                        );
+                      })}
                   </select>
                   <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                 </div>
@@ -658,7 +927,11 @@ const FormBuilder: React.FC = () => {
                       <button
                         key={c}
                         type="button"
-                        onClick={() => handleInputChange("quyenCategory", c)}
+                        onClick={() => {
+                          // when change category: reset selected content
+                          handleInputChange("quyenCategory", c);
+                          handleInputChange("quyenContent", "");
+                        }}
                         className={`rounded-full border px-3 py-1.5 text-xs ${
                           active
                             ? "border-blue-500 text-blue-600 bg-blue-50"
@@ -670,7 +943,37 @@ const FormBuilder: React.FC = () => {
                     );
                   })}
                 </div>
-                {/* Removed dropdown under Quyền as requested */}
+
+                {/* Quyen Contents Dropdown - Always visible */}
+                <div className="mt-3">
+                  <label className="block text-sm text-gray-700 mb-1">
+                    Nội dung thi đấu
+                  </label>
+                  <select
+                    value={formData.quyenContent || ""}
+                    onChange={(e) =>
+                      handleInputChange("quyenContent", e.target.value)
+                    }
+                    className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value="">Chọn nội dung thi đấu</option>
+                    {(() => {
+                      console.log(
+                        "Rendering quyen contents dropdown, quyenContents:",
+                        quyenContents
+                      );
+                      return (
+                        quyenContents &&
+                        quyenContents.length > 0 &&
+                        quyenContents.map((content) => (
+                          <option key={content.id} value={content.name}>
+                            {content.name}
+                          </option>
+                        ))
+                      );
+                    })()}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -695,9 +998,21 @@ const FormBuilder: React.FC = () => {
                   className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
                 >
                   <option value="">Chọn nội dung thi đấu</option>
-                  <option value="doc-tau">Độc tấu</option>
-                  <option value="nhom-3-5">Nhóm 3-5</option>
-                  <option value="dong-dien">Đồng diễn</option>
+                  {(() => {
+                    console.log(
+                      "Rendering music contents dropdown, state:",
+                      musicContents
+                    );
+                    return (
+                      musicContents &&
+                      musicContents.length > 0 &&
+                      musicContents.map((content) => (
+                        <option key={content.id} value={content.name}>
+                          {content.name}
+                        </option>
+                      ))
+                    );
+                  })()}
                 </select>
               </div>
             </div>
