@@ -4,6 +4,142 @@ import { useEffect, useMemo, useMemo as useReactMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
 
+// Hàm để extract tất cả các trường từ form data
+function extractFormDataFields(formData: any): Record<string, string> {
+  if (!formData) return {};
+  try {
+    const obj = typeof formData === "string" ? JSON.parse(formData) : formData;
+    const fields: Record<string, string> = {};
+    
+    function walk(o: any, path: string[] = []) {
+      if (o == null) return;
+      if (typeof o !== "object") {
+        const key = path.join(".");
+        const value = String(o);
+        if (value.trim()) {
+          fields[key] = value;
+        }
+        return;
+      }
+      if (Array.isArray(o)) {
+        o.forEach((v, i) => walk(v, [...path, String(i)]));
+        return;
+      }
+      Object.entries(o).forEach(([kk, vv]) => walk(vv, [...path, kk]));
+    }
+    
+    walk(obj);
+    return fields;
+  } catch {
+    return {};
+  }
+}
+
+// Mapping các trường phổ biến sang tên hiển thị tiếng Việt
+const fieldDisplayNames: Record<string, string> = {
+  // Số điện thoại
+  "phone": "Số điện thoại",
+  "sdt": "Số điện thoại", 
+  "mobile": "Số điện thoại",
+  "phoneNumber": "Số điện thoại",
+  "contactPhone": "Số điện thoại liên lạc",
+  "emergencyPhone": "Số điện thoại khẩn cấp",
+  
+  // Lý do tham gia
+  "reason": "Lý do tham gia",
+  "lydo": "Lý do tham gia",
+  "motivation": "Động lực tham gia",
+  
+  // Tên (để hiển thị khi không có user_id)
+  "ten": "Tên",
+  "name": "Tên",
+  "fullName": "Họ và tên",
+  "hovaten": "Họ và tên",
+  
+  // Các trường khác sẽ tự động xuất hiện khi người dùng thay đổi form
+  // Không cần định nghĩa trước để tránh hiển thị các cột không cần thiết
+};
+
+// Hàm để extract tên từ form data một cách chính xác
+function extractNameFromFormData(formData: any): string {
+  if (!formData) return "";
+  try {
+    const obj = typeof formData === "string" ? JSON.parse(formData) : formData;
+    
+    // Danh sách các trường có thể chứa tên (ưu tiên cao đến thấp)
+    const nameFields = ["fullName", "name", "hovaten", "ten", "hoTen", "full_name"];
+    
+    // Tìm exact match trước
+    for (const field of nameFields) {
+      if (obj[field] && typeof obj[field] === "string" && obj[field].trim()) {
+        return obj[field].trim();
+      }
+    }
+    
+    // Tìm case-insensitive match
+    for (const field of nameFields) {
+      const foundKey = Object.keys(obj).find(key => 
+        key.toLowerCase() === field.toLowerCase()
+      );
+      if (foundKey && obj[foundKey] && typeof obj[foundKey] === "string" && obj[foundKey].trim()) {
+        return obj[foundKey].trim();
+      }
+    }
+    
+    // Loại bỏ các trường không phải tên
+    const excludeFields = ["club", "clb", "team", "competition", "reason", "lydo", "phone", "sdt", "mobile", "email", "mail", "studentCode", "mssv", "msv"];
+    
+    // Tìm trường có vẻ giống tên (có khoảng trắng, độ dài hợp lý, không phải email/phone)
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === "string" && value.trim()) {
+        const lowerKey = key.toLowerCase();
+        const lowerValue = value.trim().toLowerCase();
+        
+        // Loại bỏ các trường không phải tên
+        if (excludeFields.some(exclude => lowerKey.includes(exclude) || lowerValue.includes(exclude))) {
+          continue;
+        }
+        
+        // Kiểm tra nếu có vẻ giống tên (có khoảng trắng, độ dài 5-50 ký tự, không phải email/phone)
+        if (/\s/.test(value.trim()) && 
+            value.trim().length >= 5 && 
+            value.trim().length <= 50 &&
+            !/\b[\w.+-]+@\w+\.[\w.-]+\b/.test(value.trim()) &&
+            !/\b(0|\+84)?[\d\s.-]{8,14}\b/.test(value.trim())) {
+          return value.trim();
+        }
+      }
+    }
+    
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+// Hàm để lấy tên hiển thị cho một trường
+function getFieldDisplayName(fieldKey: string): string {
+  const lowerKey = fieldKey.toLowerCase();
+  
+  // Tìm exact match trước
+  if (fieldDisplayNames[lowerKey]) {
+    return fieldDisplayNames[lowerKey];
+  }
+  
+  // Tìm partial match
+  for (const [key, displayName] of Object.entries(fieldDisplayNames)) {
+    if (lowerKey.includes(key) || key.includes(lowerKey)) {
+      return displayName;
+    }
+  }
+  
+  // Nếu không tìm thấy, format key thành tên hiển thị
+  return fieldKey
+    .split(/[._-]/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 type SubmittedRow = {
   id: string;
   submittedAt: string;
@@ -12,6 +148,9 @@ type SubmittedRow = {
   studentCode: string;
   phone: string;
   note: string;
+  stt?: number;
+  formData?: any;
+  [key: string]: any; // Cho phép các trường động từ form data
 };
 
 export default function SubmittedFormsPage() {
@@ -22,6 +161,7 @@ export default function SubmittedFormsPage() {
   const [page, setPage] = useState<number>(1); // CommonTable is 1-based
   const [pageSize] = useState<number>(10); // fixed page size
   const [totalElements, setTotalElements] = useState<number>(0);
+  const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -42,35 +182,37 @@ export default function SubmittedFormsPage() {
           ascending: false,
         });
         if (!ignore) {
-          const mapped: SubmittedRow[] = (res.data?.content ?? []).map(
-            (s: any, idx: number) => {
-              const emailFromUser = s.userPersonalMail || s.userEduMail || "";
-              const codeFromUser = s.userStudentCode || "";
-              const nameFromUser = s.userFullName || "";
-              const phoneFromForm = s.formData
-                ? safePick(s.formData, ["phone", "sdt", "mobile"])
-                : "";
-              return {
-                id: String(s.id ?? idx),
-                submittedAt: s.createdAt ?? "",
-                fullName:
-                  nameFromUser ||
-                  (s.formData
-                    ? safePick(s.formData, ["fullName", "name", "hovaten"])
-                    : ""),
-                email:
-                  emailFromUser ||
-                  (s.formData ? safePick(s.formData, ["email", "mail"]) : ""),
-                studentCode:
-                  codeFromUser ||
-                  (s.formData
-                    ? safePick(s.formData, ["studentCode", "mssv", "msv"])
-                    : ""),
-                phone: phoneFromForm,
-                note: s.reviewerNote ?? "",
-              } as SubmittedRow;
+          const mapped: SubmittedRow[] = (res.data?.content ?? []).map((s: any, idx: number) => {
+            const emailFromUser = s.userPersonalMail || s.userEduMail || "";
+            const codeFromUser = s.userStudentCode || "";
+            const nameFromUser = s.userFullName || "";
+            const phoneFromForm = s.formData ? safePick(s.formData, ["phone", "sdt", "mobile"]) : "";
+            
+            // Extract tất cả các trường từ form data
+            const formFields = extractFormDataFields(s.formData);
+            
+            // Logic ưu tiên tên: 1) Từ bảng user nếu có user_id, 2) Từ form_data nếu không có user_id
+            let finalName = "";
+            if (s.userId && nameFromUser) {
+              // Có user_id và có tên từ bảng user
+              finalName = nameFromUser;
+            } else {
+              // Không có user_id hoặc không có tên từ bảng user, lấy từ form_data
+              finalName = s.formData ? extractNameFromFormData(s.formData) : "";
             }
-          );
+            
+            return {
+              id: String(s.id ?? idx),
+              submittedAt: s.createdAt ?? "",
+              fullName: finalName,
+              email: emailFromUser || (s.formData ? safePick(s.formData, ["email", "mail"]) : ""),
+              studentCode: codeFromUser || (s.formData ? safePick(s.formData, ["studentCode", "mssv", "msv"]) : ""),
+              phone: phoneFromForm,
+              note: s.reviewerNote ?? "",
+              formData: s.formData,
+              ...formFields, // Spread tất cả các trường form data vào row
+            } as SubmittedRow;
+          });
           setRows(mapped);
           setTotalElements(res.data?.totalElements ?? mapped.length);
         }
@@ -168,13 +310,44 @@ export default function SubmittedFormsPage() {
         return v;
       }
     };
+
+    // Lấy các trường form data được định nghĩa trong fieldDisplayNames
+    const allowedFormFields = new Set<string>();
+    rows.forEach(row => {
+      const formFields = extractFormDataFields(row.formData);
+      Object.keys(formFields).forEach(key => {
+        const lowerKey = key.toLowerCase();
+        // Loại bỏ các trường tên vì đã hiển thị trong cột "Họ và tên"
+        const isNameField = ["fullName", "name", "hovaten", "ten"].includes(lowerKey);
+        if (!isNameField) {
+          // Chỉ hiển thị các trường được định nghĩa trong fieldDisplayNames
+          if (Object.keys(fieldDisplayNames).some(definedKey => 
+            definedKey.toLowerCase() === lowerKey || 
+            lowerKey.includes(definedKey.toLowerCase()) ||
+            definedKey.toLowerCase().includes(lowerKey)
+          )) {
+            allowedFormFields.add(key);
+          }
+        }
+      });
+    });
+
+    // Tạo cột cho các trường form data được phép
+    const formDataColumns: TableColumn<SubmittedRow>[] = Array.from(allowedFormFields)
+      .map(fieldKey => ({
+        key: fieldKey,
+        title: getFieldDisplayName(fieldKey),
+        render: (row: SubmittedRow) => row[fieldKey] || "",
+        className: "max-w-xs",
+      }));
+
     return [
       {
         key: "stt",
         title: "STT",
-        render: (_row: SubmittedRow) => null, // will be filled by row render index
+        render: (row: SubmittedRow) => row.stt,
         sortable: false,
-        className: "w-16",
+        className: "w-16 text-center",
       },
       {
         key: "submittedAt",
@@ -185,24 +358,48 @@ export default function SubmittedFormsPage() {
       { key: "fullName", title: "Họ và tên", sortable: true },
       { key: "email", title: "Email", sortable: true },
       { key: "studentCode", title: "MSSV", sortable: true },
-      { key: "phone", title: "SDT liên lạc", sortable: true },
       { key: "note", title: "Mô tả ngắn về bản thân" },
+      ...formDataColumns, // Thêm các cột form data động (bao gồm số điện thoại)
+      {
+        key: "actions",
+        title: "",
+        sortable: false,
+        className: "w-28",
+        render: (row: SubmittedRow) => (
+          <button
+            onClick={() => setViewingRow(row)}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[12px] text-gray-700 hover:bg-gray-50"
+          >
+            Xem form
+          </button>
+        ),
+      },
     ];
-  }, []);
+  }, [rows]);
 
   // Search
   const [query, setQuery] = useState<string>("");
   const filtered = useReactMemo(() => {
     if (!query.trim()) return rows;
     const q = query.toLowerCase();
-    return rows.filter((r) =>
-      [r.fullName, r.email, r.studentCode, r.phone, r.note]
+    return rows.filter((r) => {
+      // Lấy tất cả các giá trị từ row để search
+      const searchableValues = [
+        r.fullName, 
+        r.email, 
+        r.studentCode, 
+        r.note,
+        ...Object.values(r).filter(v => typeof v === 'string' && v.trim())
+      ];
+      
+      return searchableValues
         .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q))
-    );
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
   }, [rows, query]);
 
   return (
+    <>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <button
@@ -224,10 +421,8 @@ export default function SubmittedFormsPage() {
         <p className="mb-4 text-sm text-gray-600">
           Đăng kí tham gia FPTU Vovinam Club FALL 2025
         </p>
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            Lượt điền: {totalElements}
-          </div>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="text-sm text-gray-600">Lượt điền: {totalElements}</div>
           <input
             placeholder="Tìm kiếm..."
             value={query}
@@ -257,6 +452,33 @@ export default function SubmittedFormsPage() {
         className={loading ? "opacity-60" : undefined}
       />
     </div>
+
+    {/* View Form Modal */}
+    {viewingRow && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="w-[720px] max-w-full rounded-lg bg-white shadow-xl">
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <h3 className="text-base font-semibold">Chi tiết form #{viewingRow.id}</h3>
+            <button onClick={() => setViewingRow(null)} className="text-gray-500 hover:text-gray-700">✕</button>
+          </div>
+          <div className="max-h-[70vh] overflow-auto p-4 text-sm">
+            <div className="mb-3 grid grid-cols-2 gap-3">
+              <div><span className="text-gray-500">Họ và tên:</span> {viewingRow.fullName || "-"}</div>
+              <div><span className="text-gray-500">Email:</span> {viewingRow.email || "-"}</div>
+              <div><span className="text-gray-500">MSSV:</span> {viewingRow.studentCode || "-"}</div>
+              <div><span className="text-gray-500">Thời gian nộp:</span> {new Date(viewingRow.submittedAt).toLocaleString("vi-VN")}</div>
+            </div>
+            <pre className="whitespace-pre-wrap rounded-md bg-gray-50 p-3 text-[12px] leading-relaxed">
+{typeof viewingRow.formData === 'string' ? viewingRow.formData : JSON.stringify(viewingRow.formData, null, 2)}
+            </pre>
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
+            <button onClick={() => setViewingRow(null)} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] text-gray-700 hover:bg-gray-50">Đóng</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -265,14 +487,36 @@ function exportCsv(rows: SubmittedRow[]) {
     alert("Không có dữ liệu để xuất");
     return;
   }
+  
+  // Lấy các trường form data được phép từ dữ liệu
+  const allowedFormFields = new Set<string>();
+  rows.forEach(row => {
+    const formFields = extractFormDataFields(row.formData);
+    Object.keys(formFields).forEach(key => {
+      const lowerKey = key.toLowerCase();
+      // Loại bỏ các trường tên vì đã có trong cột "Họ và tên"
+      const isNameField = ["fullName", "name", "hovaten", "ten"].includes(lowerKey);
+      if (!isNameField) {
+        // Chỉ export các trường được định nghĩa trong fieldDisplayNames
+        if (Object.keys(fieldDisplayNames).some(definedKey => 
+          definedKey.toLowerCase() === lowerKey || 
+          lowerKey.includes(definedKey.toLowerCase()) ||
+          definedKey.toLowerCase().includes(lowerKey)
+        )) {
+          allowedFormFields.add(key);
+        }
+      }
+    });
+  });
+
   const headers = [
     "STT",
     "Thời gian nộp",
     "Họ và tên",
     "Email",
     "MSSV",
-    "SDT liên lạc",
     "Mô tả ngắn về bản thân",
+    ...Array.from(allowedFormFields).map(fieldKey => getFieldDisplayName(fieldKey)),
   ];
 
   const formatDate = (v?: string) => {
@@ -292,8 +536,8 @@ function exportCsv(rows: SubmittedRow[]) {
     escapeCsv(r.fullName),
     escapeCsv(r.email),
     escapeCsv(r.studentCode),
-    escapeCsv(r.phone),
     escapeCsv(r.note),
+    ...Array.from(allowedFormFields).map(fieldKey => escapeCsv(r[fieldKey] || "")),
   ]);
 
   const csv = [

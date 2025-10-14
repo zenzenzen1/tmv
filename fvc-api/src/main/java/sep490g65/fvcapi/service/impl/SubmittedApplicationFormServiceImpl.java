@@ -8,10 +8,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.request.RequestParam;
+import sep490g65.fvcapi.dto.request.SubmitApplicationFormRequest;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
 import sep490g65.fvcapi.dto.response.SubmittedApplicationFormResponse;
 import sep490g65.fvcapi.entity.SubmittedApplicationForm;
 import sep490g65.fvcapi.enums.ApplicationFormType;
+import sep490g65.fvcapi.enums.ApplicationFormStatus;
 import sep490g65.fvcapi.repository.SubmittedApplicationFormRepository;
 import sep490g65.fvcapi.service.SubmittedApplicationFormService;
 import sep490g65.fvcapi.utils.ResponseUtils;
@@ -22,6 +24,7 @@ import sep490g65.fvcapi.utils.ResponseUtils;
 public class SubmittedApplicationFormServiceImpl implements SubmittedApplicationFormService {
 
     private final SubmittedApplicationFormRepository repository;
+    
 
     private SubmittedApplicationFormResponse toDto(SubmittedApplicationForm s) {
         return SubmittedApplicationFormResponse.builder()
@@ -48,6 +51,44 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
         Pageable pageable = PageRequest.of(params.getPage(), params.getSize(), sort);
         Page<SubmittedApplicationForm> page = repository.search(type, pageable);
         return ResponseUtils.createPaginatedResponse(page.map(this::toDto));
+    }
+    
+    @Override
+    @Transactional
+    public SubmittedApplicationFormResponse submit(SubmitApplicationFormRequest request) {
+        // Create entity. Persist structured DTO as JSON string
+        SubmittedApplicationForm entity = SubmittedApplicationForm.builder()
+                .formType(request.getFormType())
+                .formData(toJson(request.getFormData()))
+                .reviewerNote(request.getReviewerNote())
+                .status(ApplicationFormStatus.PENDING)
+                .build();
+        
+        // Set user if provided
+        if (hasUserId) {
+            // TODO: Load user from repository and set it
+            // entity.setUser(userRepository.findById(request.getUserId()).orElse(null));
+        }
+        
+        // Set application form config if provided
+        if (request.getApplicationFormConfigId() != null && !request.getApplicationFormConfigId().trim().isEmpty()) {
+            // TODO: Load config from repository and set it
+            // entity.setApplicationFormConfig(configRepository.findById(request.getApplicationFormConfigId()).orElse(null));
+        }
+        
+        // Save entity
+        SubmittedApplicationForm saved = repository.save(entity);
+        
+        // Return response
+        return toDto(saved);
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(obj);
+        } catch (Exception e) {
+            return "{}";
+        }
     }
 }
 
