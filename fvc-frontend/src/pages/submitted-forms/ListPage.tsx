@@ -45,61 +45,77 @@ const fieldDisplayNames: Record<string, string> = {
   "contactPhone": "Số điện thoại liên lạc",
   "emergencyPhone": "Số điện thoại khẩn cấp",
   
-  // Địa chỉ
-  "address": "Địa chỉ",
-  "diachi": "Địa chỉ",
-  "homeAddress": "Địa chỉ nhà",
-  "currentAddress": "Địa chỉ hiện tại",
-  
-  // Ngày sinh
-  "birthday": "Ngày sinh",
-  "dateOfBirth": "Ngày sinh",
-  "ngaysinh": "Ngày sinh",
-  
-  // Giới tính
-  "gender": "Giới tính",
-  "gioitinh": "Giới tính",
-  
-  // Lớp/Khoa
-  "class": "Lớp",
-  "lop": "Lớp",
-  "major": "Chuyên ngành",
-  "chuyennganh": "Chuyên ngành",
-  "faculty": "Khoa",
-  "khoa": "Khoa",
-  
-  // Kinh nghiệm
-  "experience": "Kinh nghiệm",
-  "kinhnghiem": "Kinh nghiệm",
-  "vovinamExperience": "Kinh nghiệm Vovinam",
-  
   // Lý do tham gia
   "reason": "Lý do tham gia",
   "lydo": "Lý do tham gia",
   "motivation": "Động lực tham gia",
   
-  // Mục tiêu
-  "goal": "Mục tiêu",
-  "muctieu": "Mục tiêu",
-  "objectives": "Mục tiêu",
+  // Tên (để hiển thị khi không có user_id)
+  "ten": "Tên",
+  "name": "Tên",
+  "fullName": "Họ và tên",
+  "hovaten": "Họ và tên",
   
-  // Thời gian rảnh
-  "freeTime": "Thời gian rảnh",
-  "thoigianranh": "Thời gian rảnh",
-  "availableTime": "Thời gian có thể tham gia",
-  
-  // Sở thích
-  "hobby": "Sở thích",
-  "sothich": "Sở thích",
-  "interests": "Sở thích",
-  
-  // Thông tin khác
-  "other": "Thông tin khác",
-  "khac": "Thông tin khác",
-  "additional": "Thông tin bổ sung",
-  "note": "Ghi chú",
-  "ghichu": "Ghi chú",
+  // Các trường khác sẽ tự động xuất hiện khi người dùng thay đổi form
+  // Không cần định nghĩa trước để tránh hiển thị các cột không cần thiết
 };
+
+// Hàm để extract tên từ form data một cách chính xác
+function extractNameFromFormData(formData: any): string {
+  if (!formData) return "";
+  try {
+    const obj = typeof formData === "string" ? JSON.parse(formData) : formData;
+    
+    // Danh sách các trường có thể chứa tên (ưu tiên cao đến thấp)
+    const nameFields = ["fullName", "name", "hovaten", "ten", "hoTen", "full_name"];
+    
+    // Tìm exact match trước
+    for (const field of nameFields) {
+      if (obj[field] && typeof obj[field] === "string" && obj[field].trim()) {
+        return obj[field].trim();
+      }
+    }
+    
+    // Tìm case-insensitive match
+    for (const field of nameFields) {
+      const foundKey = Object.keys(obj).find(key => 
+        key.toLowerCase() === field.toLowerCase()
+      );
+      if (foundKey && obj[foundKey] && typeof obj[foundKey] === "string" && obj[foundKey].trim()) {
+        return obj[foundKey].trim();
+      }
+    }
+    
+    // Loại bỏ các trường không phải tên
+    const excludeFields = ["club", "clb", "team", "competition", "reason", "lydo", "phone", "sdt", "mobile", "email", "mail", "studentCode", "mssv", "msv"];
+    
+    // Tìm trường có vẻ giống tên (có khoảng trắng, độ dài hợp lý, không phải email/phone)
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === "string" && value.trim()) {
+        const lowerKey = key.toLowerCase();
+        const lowerValue = value.trim().toLowerCase();
+        
+        // Loại bỏ các trường không phải tên
+        if (excludeFields.some(exclude => lowerKey.includes(exclude) || lowerValue.includes(exclude))) {
+          continue;
+        }
+        
+        // Kiểm tra nếu có vẻ giống tên (có khoảng trắng, độ dài 5-50 ký tự, không phải email/phone)
+        if (/\s/.test(value.trim()) && 
+            value.trim().length >= 5 && 
+            value.trim().length <= 50 &&
+            !/\b[\w.+-]+@\w+\.[\w.-]+\b/.test(value.trim()) &&
+            !/\b(0|\+84)?[\d\s.-]{8,14}\b/.test(value.trim())) {
+          return value.trim();
+        }
+      }
+    }
+    
+    return "";
+  } catch {
+    return "";
+  }
+}
 
 // Hàm để lấy tên hiển thị cho một trường
 function getFieldDisplayName(fieldKey: string): string {
@@ -174,10 +190,20 @@ export default function SubmittedFormsPage() {
             // Extract tất cả các trường từ form data
             const formFields = extractFormDataFields(s.formData);
             
+            // Logic ưu tiên tên: 1) Từ bảng user nếu có user_id, 2) Từ form_data nếu không có user_id
+            let finalName = "";
+            if (s.userId && nameFromUser) {
+              // Có user_id và có tên từ bảng user
+              finalName = nameFromUser;
+            } else {
+              // Không có user_id hoặc không có tên từ bảng user, lấy từ form_data
+              finalName = s.formData ? extractNameFromFormData(s.formData) : "";
+            }
+            
             return {
               id: String(s.id ?? idx),
               submittedAt: s.createdAt ?? "",
-              fullName: nameFromUser || (s.formData ? safePick(s.formData, ["fullName", "name", "hovaten"]) : ""),
+              fullName: finalName,
               email: emailFromUser || (s.formData ? safePick(s.formData, ["email", "mail"]) : ""),
               studentCode: codeFromUser || (s.formData ? safePick(s.formData, ["studentCode", "mssv", "msv"]) : ""),
               phone: phoneFromForm,
@@ -278,21 +304,29 @@ export default function SubmittedFormsPage() {
       }
     };
 
-    // Lấy tất cả các trường form data từ dữ liệu hiện tại
-    const allFormFields = new Set<string>();
+    // Lấy các trường form data được định nghĩa trong fieldDisplayNames
+    const allowedFormFields = new Set<string>();
     rows.forEach(row => {
       const formFields = extractFormDataFields(row.formData);
       Object.keys(formFields).forEach(key => {
-        // Loại bỏ các trường đã có cột riêng
-        if (!["fullName", "name", "hovaten", "email", "mail", "studentCode", "mssv", "msv", "phone", "sdt", "mobile"].includes(key.toLowerCase())) {
-          allFormFields.add(key);
+        const lowerKey = key.toLowerCase();
+        // Loại bỏ các trường tên vì đã hiển thị trong cột "Họ và tên"
+        const isNameField = ["fullName", "name", "hovaten", "ten"].includes(lowerKey);
+        if (!isNameField) {
+          // Chỉ hiển thị các trường được định nghĩa trong fieldDisplayNames
+          if (Object.keys(fieldDisplayNames).some(definedKey => 
+            definedKey.toLowerCase() === lowerKey || 
+            lowerKey.includes(definedKey.toLowerCase()) ||
+            definedKey.toLowerCase().includes(lowerKey)
+          )) {
+            allowedFormFields.add(key);
+          }
         }
       });
     });
 
-    // Tạo cột cho các trường form data phổ biến
-    const formDataColumns: TableColumn<SubmittedRow>[] = Array.from(allFormFields)
-      .slice(0, 5) // Chỉ hiển thị tối đa 5 cột form data để tránh bảng quá rộng
+    // Tạo cột cho các trường form data được phép
+    const formDataColumns: TableColumn<SubmittedRow>[] = Array.from(allowedFormFields)
       .map(fieldKey => ({
         key: fieldKey,
         title: getFieldDisplayName(fieldKey),
@@ -395,13 +429,23 @@ function exportCsv(rows: SubmittedRow[]) {
     return;
   }
   
-  // Lấy tất cả các trường form data từ dữ liệu
-  const allFormFields = new Set<string>();
+  // Lấy các trường form data được phép từ dữ liệu
+  const allowedFormFields = new Set<string>();
   rows.forEach(row => {
     const formFields = extractFormDataFields(row.formData);
     Object.keys(formFields).forEach(key => {
-      if (!["fullName", "name", "hovaten", "email", "mail", "studentCode", "mssv", "msv", "phone", "sdt", "mobile"].includes(key.toLowerCase())) {
-        allFormFields.add(key);
+      const lowerKey = key.toLowerCase();
+      // Loại bỏ các trường tên vì đã có trong cột "Họ và tên"
+      const isNameField = ["fullName", "name", "hovaten", "ten"].includes(lowerKey);
+      if (!isNameField) {
+        // Chỉ export các trường được định nghĩa trong fieldDisplayNames
+        if (Object.keys(fieldDisplayNames).some(definedKey => 
+          definedKey.toLowerCase() === lowerKey || 
+          lowerKey.includes(definedKey.toLowerCase()) ||
+          definedKey.toLowerCase().includes(lowerKey)
+        )) {
+          allowedFormFields.add(key);
+        }
       }
     });
   });
@@ -414,7 +458,7 @@ function exportCsv(rows: SubmittedRow[]) {
     "MSSV",
     "SDT liên lạc",
     "Mô tả ngắn về bản thân",
-    ...Array.from(allFormFields).map(fieldKey => getFieldDisplayName(fieldKey)),
+    ...Array.from(allowedFormFields).map(fieldKey => getFieldDisplayName(fieldKey)),
   ];
 
   const formatDate = (v?: string) => {
@@ -436,7 +480,7 @@ function exportCsv(rows: SubmittedRow[]) {
     escapeCsv(r.studentCode),
     escapeCsv(r.phone),
     escapeCsv(r.note),
-    ...Array.from(allFormFields).map(fieldKey => escapeCsv(r[fieldKey] || "")),
+    ...Array.from(allowedFormFields).map(fieldKey => escapeCsv(r[fieldKey] || "")),
   ]);
 
   const csv = [headers.join(","), ...csvRows.map((line) => line.join(","))].join("\r\n");
