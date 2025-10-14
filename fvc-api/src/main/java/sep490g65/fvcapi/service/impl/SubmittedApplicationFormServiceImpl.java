@@ -55,7 +55,7 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
     
     @Override
     @Transactional
-    public SubmittedApplicationFormResponse submit(SubmitApplicationFormRequest request) {
+    public SubmittedApplicationFormResponse submit(SubmitApplicationFormRequest request) throws com.fasterxml.jackson.core.JsonProcessingException {
         // Create entity. Persist structured DTO as JSON string
         SubmittedApplicationForm entity = SubmittedApplicationForm.builder()
                 .formType(request.getFormType())
@@ -65,7 +65,7 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
                 .build();
         
         // Set user if provided
-        if (hasUserId) {
+        if (request.getUserId() != null) {
             // TODO: Load user from repository and set it
             // entity.setUser(userRepository.findById(request.getUserId()).orElse(null));
         }

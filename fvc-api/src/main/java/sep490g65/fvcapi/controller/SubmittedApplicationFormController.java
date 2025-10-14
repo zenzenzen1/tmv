@@ -35,9 +35,14 @@ public class SubmittedApplicationFormController {
     public ResponseEntity<BaseResponse<SubmittedApplicationFormResponse>> submit(
             @Valid @RequestBody SubmitApplicationFormRequest request
     ) {
-        // Submit the form (this would need to be implemented in the service)
-        SubmittedApplicationFormResponse response = service.submit(request);
-        return ResponseEntity.ok(ResponseUtils.success("Form submitted successfully", response));
+        try {
+            // Submit the form (this would need to be implemented in the service)
+            SubmittedApplicationFormResponse response = service.submit(request);
+            return ResponseEntity.ok(ResponseUtils.success("Form submitted successfully", response));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return ResponseEntity.badRequest()
+                    .body(ResponseUtils.error("Invalid JSON format in form data", "JSON_PROCESSING_ERROR"));
+        }
     }
 }
 

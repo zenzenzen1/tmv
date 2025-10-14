@@ -28,7 +28,7 @@ public class FormDataValidationService {
      * @return validated and cleaned form data
      * @throws ValidationException if validation fails
      */
-    public Map<String, Object> validateFormData(String formDataJson, boolean hasUserId) {
+    public Map<String, Object> validateFormData(String formDataJson, boolean hasUserId) throws com.fasterxml.jackson.core.JsonProcessingException {
         if (formDataJson == null || formDataJson.trim().isEmpty()) {
             throw new ValidationException("formData", "Form data is required");
         }

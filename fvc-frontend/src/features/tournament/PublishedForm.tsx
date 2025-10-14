@@ -82,16 +82,21 @@ export default function PublishedForm() {
     }>
   >([]);
 
-  // Helper: derive normalized category for quyen content item
+  // Helpers aligned with FormBuilder
+  const getString = (obj: Record<string, unknown>, key: string): string => {
+    const v = obj[key];
+    return typeof v === "string" ? v : "";
+  };
+
   const normalizeQuyenCategory = (
-    rawCategory: unknown,
-    rawName: unknown,
-    parentName?: unknown
+    rawCategory: string,
+    rawName: string,
+    parentName: string
   ): string => {
     const candidates: string[] = [];
-    if (typeof rawCategory === "string") candidates.push(rawCategory);
-    if (typeof parentName === "string") candidates.push(parentName);
-    if (typeof rawName === "string") candidates.push(rawName);
+    if (rawCategory) candidates.push(rawCategory);
+    if (parentName) candidates.push(parentName);
+    if (rawName) candidates.push(rawName);
 
     const stripAccents = (s: string) =>
       s
@@ -121,7 +126,7 @@ export default function PublishedForm() {
           API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(id as string)
         );
         setMeta(res.data);
-        const initial: Record<string, any> = {};
+        const initial: Record<string, string | string[]> = {};
         (res.data.fields || []).forEach((f) => {
           if (f.fieldType === "CHECKBOX") initial[f.name] = [];
           else initial[f.name] = "";
@@ -158,7 +163,9 @@ export default function PublishedForm() {
           setMusicContents([]);
         }
 
-        // Load quyen contents (fist items)
+        // 1) BỎ competition-scope: luôn dùng global như FormBuilder
+
+        // 2) Load quyền contents (global fist items)
         try {
           const quyenContentsRes = await api.get(
             API_ENDPOINTS.FIST_CONTENTS.ITEMS
@@ -200,8 +207,15 @@ export default function PublishedForm() {
               name: string;
               category?: string;
             }>;
-          } else if (responseData?.data && Array.isArray(responseData.data)) {
-            quyenData = responseData.data as Array<{
+          } else if (
+            responseData?.data &&
+            Array.isArray((responseData as { data: unknown[] }).data)
+          ) {
+            quyenData = (
+              responseData as {
+                data: Array<{ id: string; name: string; category?: string }>;
+              }
+            ).data as Array<{
               id: string;
               name: string;
               category?: string;
@@ -214,40 +228,22 @@ export default function PublishedForm() {
               (item["parent"] as Record<string, unknown> | undefined) ??
               undefined;
             const derived = normalizeQuyenCategory(
-              (typeof item["category"] === "string" &&
-                (item["category"] as string)) ||
-                (typeof item["categoryName"] === "string" &&
-                  (item["categoryName"] as string)) ||
-                (typeof item["group"] === "string" &&
-                  (item["group"] as string)) ||
-                (typeof item["groupName"] === "string" &&
-                  (item["groupName"] as string)) ||
-                (typeof item["type"] === "string" &&
-                  (item["type"] as string)) ||
-                (typeof item["typeName"] === "string" &&
-                  (item["typeName"] as string)) ||
-                "",
-              (typeof item["name"] === "string" && (item["name"] as string)) ||
-                "",
-              parent && typeof parent["name"] === "string"
-                ? (parent["name"] as string)
-                : (typeof item["parentName"] === "string" &&
-                    (item["parentName"] as string)) ||
-                    (typeof item["parentTitle"] === "string" &&
-                      (item["parentTitle"] as string)) ||
-                    ""
+              getString(item, "category") ||
+                getString(item, "categoryName") ||
+                getString(item, "group") ||
+                getString(item, "groupName") ||
+                getString(item, "type") ||
+                getString(item, "typeName"),
+              getString(item, "name"),
+              parent
+                ? getString(parent, "name")
+                : getString(item, "parentName") ||
+                    getString(item, "parentTitle")
             );
             return {
               id: String(item["id"] ?? ""),
-              name:
-                (typeof item["name"] === "string" &&
-                  (item["name"] as string)) ||
-                "",
-              category:
-                derived ||
-                (typeof item["category"] === "string"
-                  ? (item["category"] as string)
-                  : ""),
+              name: getString(item, "name"),
+              category: derived || getString(item, "category"),
             };
           });
           console.log(
@@ -255,14 +251,46 @@ export default function PublishedForm() {
             mapped
           );
           console.log("PublishedForm - Quyen contents count:", mapped.length);
-          console.log("PublishedForm - Sample quyen content:", mapped[0]);
-          console.log("PublishedForm - All quyen categories found:", [
-            ...new Set(mapped.map((item: any) => item.category)),
-          ]);
-
-          // Avoid extra alternative fetch to reduce re-renders when empty (backend may not have data yet)
-          setAllQuyenContents(mapped);
-          setQuyenContents(mapped);
+          // If empty, fallback to using config names as contents
+          if (mapped.length === 0) {
+            try {
+              const cfgRes = await api.get(
+                `${API_ENDPOINTS.FIST_CONTENTS.BASE}?page=0&size=100`
+              );
+              const root = cfgRes.data as Record<string, unknown>;
+              const pageObj = (root["data"] as Record<string, unknown>) ?? root;
+              const cfgs = (pageObj["content"] as Array<unknown>) ?? [];
+              const mappedFromConfigs = cfgs.map((raw) => {
+                const it = raw as Record<string, unknown>;
+                const name =
+                  typeof it["name"] === "string" ? (it["name"] as string) : "";
+                return {
+                  id: String(it["id"] ?? ""),
+                  name,
+                  category: normalizeQuyenCategory("", name, ""),
+                };
+              });
+              setAllQuyenContents(mappedFromConfigs);
+              setQuyenContents(
+                quyenCategory
+                  ? mappedFromConfigs.filter(
+                      (m) => m.category === quyenCategory
+                    )
+                  : mappedFromConfigs
+              );
+            } catch (fallbackErr) {
+              console.warn(
+                "PublishedForm - Fallback load configs failed",
+                fallbackErr
+              );
+              setAllQuyenContents([]);
+              setQuyenContents([]);
+            }
+          } else {
+            // Use items when available
+            setAllQuyenContents(mapped);
+            setQuyenContents(mapped);
+          }
         } catch (quyenError) {
           console.warn("Failed to load quyen contents:", quyenError);
           setQuyenContents([]);
@@ -369,8 +397,24 @@ export default function PublishedForm() {
       navigate(-1);
     } catch (e: unknown) {
       console.error(e);
-      const msg = (e as { message?: string })?.message;
-      alert(msg || "Gửi đăng ký thất bại");
+      const err = e as {
+        response?: { status?: number; data?: any };
+        message?: string;
+      };
+      const status = err?.response?.status;
+      const serverMsg = (err?.response?.data as { message?: string })?.message;
+      if (
+        status === 409 ||
+        (typeof serverMsg === "string" &&
+          serverMsg.toLowerCase().includes("email"))
+      ) {
+        alert(
+          "Email này đã đăng ký cho form này. Mỗi email chỉ được đăng ký một lần."
+        );
+        return;
+      }
+      const msg = err?.message;
+      alert(serverMsg || msg || "Gửi đăng ký thất bại");
     }
   };
 
@@ -729,7 +773,7 @@ export default function PublishedForm() {
                                         const current: string[] = Array.isArray(
                                           prev[f.name]
                                         )
-                                          ? prev[f.name]
+                                          ? (prev[f.name] as string[])
                                           : [];
                                         let next: string[];
                                         if (current.includes(o)) {

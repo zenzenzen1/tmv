@@ -2,6 +2,9 @@ import { useEffect, useState, useMemo } from "react";
 import CommonTable, {
   type TableColumn,
 } from "../../components/common/CommonTable";
+import api from "../../services/api";
+import type { PaginationResponse } from "../../types/api";
+import { API_ENDPOINTS } from "../../config/endpoints";
 
 type AthleteRow = {
   id: string;
@@ -16,13 +19,26 @@ type AthleteRow = {
   status: "ĐÃ ĐẦU" | "HOÀN ĐẦU" | "VI PHẠM" | "CHỜ ĐẦU" | "ĐANG ĐẦU" | "-";
 };
 
+type AthleteApi = {
+  id: string;
+  fullName: string;
+  email: string;
+  gender: "MALE" | "FEMALE";
+  content: string;
+  studentId?: string | null;
+  club?: string | null;
+  tournamentId?: string | null;
+  tournamentName?: string | null; // optional if backend enriches later
+  status: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "VIOLATED" | string;
+};
+
 type CompetitionType = "fighting" | "quyen" | "music";
 
 const STATUS_COLORS = {
   "ĐÃ ĐẦU": "bg-green-100 text-green-800 border-green-200",
   "HOÀN ĐẦU": "bg-purple-100 text-purple-800 border-purple-200",
   "VI PHẠM": "bg-red-100 text-red-800 border-red-200",
-  "CHỜ ĐẦU": "bg-orange-100 text-orange-800 border-orange-200",
+  "CHỜ ĐẤU": "bg-orange-100 text-orange-800 border-orange-200",
   "ĐANG ĐẦU": "bg-blue-100 text-blue-800 border-blue-200",
   "-": "bg-gray-100 text-gray-600 border-gray-200",
 };
@@ -45,10 +61,15 @@ export default function AthleteManagementPage({
   const [page, setPage] = useState(1);
   const [pageSize] = useState(5);
   const [total, setTotal] = useState(0);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTournament, setSelectedTournament] = useState(
-    "FPTU Vovinam Club FALL 2025"
-  );
+  const [nameQuery, setNameQuery] = useState("");
+  const [debouncedName, setDebouncedName] = useState("");
+  // Debounce name search to reduce request volume
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedName(nameQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [nameQuery]);
+
+  const [selectedTournament, setSelectedTournament] = useState<string>(""); // tournamentId
   const [rows, setRows] = useState<AthleteRow[]>([]);
   const [tournaments, setTournaments] = useState<
     Array<{ id: string; name: string }>
@@ -56,8 +77,6 @@ export default function AthleteManagementPage({
 
   // Filter states - closed by default
   const [showGenderFilter, setShowGenderFilter] = useState(false);
-  const [showClubFilter, setShowClubFilter] = useState(false);
-  const [showArenaFilter, setShowArenaFilter] = useState(false);
   const [showStatusFilter, setShowStatusFilter] = useState(false);
 
   // Click outside to close dropdowns
@@ -66,8 +85,6 @@ export default function AthleteManagementPage({
       const target = event.target as HTMLElement;
       if (!target.closest(".filter-dropdown")) {
         setShowGenderFilter(false);
-        setShowClubFilter(false);
-        setShowArenaFilter(false);
         setShowStatusFilter(false);
       }
     };
@@ -78,84 +95,120 @@ export default function AthleteManagementPage({
     };
   }, []);
 
-  // Mock data - sẽ được thay thế bằng API call khi backend sẵn sàng
-  const mockAthletes: AthleteRow[] = useMemo(
-    () => [
-      {
-        id: "1",
-        stt: 1,
-        name: "Phạm C",
-        email: "c.pham@fpt.edu.vn",
-        gender: "Nam",
-        content: "Võ nhạc số 1",
-        studentId: "HE160003",
-        club: "FPTU ĐN",
-        tournament: "FPTU Vovinam Club FALL 2025",
-        status: "ĐÃ ĐẦU",
-      },
-      {
-        id: "2",
-        stt: 2,
-        name: "Lê E",
-        email: "e.le@fpt.edu.vn",
-        gender: "Nữ",
-        content: "Võ nhạc số 1",
-        studentId: "HE160005",
-        club: "FPTU HCM",
-        tournament: "FPTU Vovinam Club FALL 2025",
-        status: "HOÀN ĐẦU",
-      },
-      {
-        id: "3",
-        stt: 3,
-        name: "Vũ F",
-        email: "f.vu@fpt.edu.vn",
-        gender: "Nam",
-        content: "Võ nhạc số 1",
-        studentId: "HE160006",
-        club: "FPTU HN",
-        tournament: "FPTU Vovinam Club FALL 2025",
-        status: "VI PHẠM",
-      },
-      {
-        id: "4",
-        stt: 4,
-        name: "Mai O",
-        email: "o.mai@fpt.edu.vn",
-        gender: "Nữ",
-        content: "Võ nhạc số 1",
-        studentId: "HE160014",
-        club: "FPTU HN",
-        tournament: "FPTU Vovinam Club FALL 2025",
-        status: "-",
-      },
-      {
-        id: "5",
-        stt: 5,
-        name: "Đoàn P",
-        email: "p.doan@fpt.edu.vn",
-        gender: "Nam",
-        content: "Võ nhạc sáng tạo",
-        studentId: "HE160015",
-        club: "FPTU HCM",
-        tournament: "FPTU Vovinam Club FALL 2025",
-        status: "CHỜ ĐẦU",
-      },
-      {
-        id: "6",
-        stt: 6,
-        name: "La Q",
-        email: "q.la@fpt.edu.vn",
-        gender: "Nam",
-        content: "Võ nhạc sáng tạo",
-        studentId: "HE160016",
-        club: "FPTU ĐN",
-        tournament: "FPTU Vovinam Club FALL 2025",
-        status: "ĐANG ĐẦU",
-      },
-    ],
-    []
-  );
+  // Filters
+  const [genderFilter, setGenderFilter] = useState<string>(""); // MALE/FEMALE/''
+  const [statusFilter, setStatusFilter] = useState<string>("");
+
+  // Fetch athletes from backend
+  useEffect(() => {
+    (async () => {
+      try {
+        const qs = new URLSearchParams();
+        qs.set("page", String(page - 1));
+        qs.set("size", String(pageSize));
+        qs.set("competitionType", activeTab);
+        if (selectedTournament) qs.set("tournamentId", selectedTournament);
+        if (debouncedName) qs.set("name", debouncedName);
+        if (genderFilter) qs.set("gender", genderFilter);
+        if (statusFilter) qs.set("status", statusFilter);
+
+        const res = await api.get<PaginationResponse<AthleteApi>>(
+          `${API_ENDPOINTS.ATHLETES.BASE}?${qs.toString()}`
+        );
+        // Unwrap BaseResponse (handles data, or data.data)
+        const rootAny = res.data as unknown as Record<string, unknown>;
+        const outer = (rootAny?.data as Record<string, unknown>) ?? rootAny;
+        const inner =
+          (outer?.data as PaginationResponse<AthleteApi>) ??
+          (outer as unknown as PaginationResponse<AthleteApi>);
+        const pageData: PaginationResponse<AthleteApi> = inner;
+        const content: AthleteApi[] = pageData?.content ?? [];
+        // Client-side safety filter in case backend ignores filters
+        const filteredRaw: AthleteApi[] = content.filter((a) => {
+          const okName = debouncedName
+            ? (a.fullName || "")
+                .toLowerCase()
+                .includes(debouncedName.toLowerCase())
+            : true;
+          const okGender = genderFilter
+            ? a.gender === (genderFilter as "MALE" | "FEMALE")
+            : true;
+          const okStatus = statusFilter
+            ? a.status ===
+              (statusFilter as
+                | "NOT_STARTED"
+                | "IN_PROGRESS"
+                | "DONE"
+                | "VIOLATED")
+            : true;
+          return okName && okGender && okStatus;
+        });
+        const totalElements: number =
+          pageData?.totalElements ?? filteredRaw.length;
+        const mapped: AthleteRow[] = filteredRaw.map(
+          (a: AthleteApi, idx: number) => ({
+            id: a.id,
+            stt: (page - 1) * pageSize + idx + 1,
+            name: a.fullName,
+            email: a.email,
+            gender: a.gender === "FEMALE" ? "Nữ" : "Nam",
+            content: a.content,
+            studentId: a.studentId ?? "",
+            club: a.club ?? "",
+            tournament:
+              a.tournamentName ??
+              (tournaments.find((t) => t.id === a.tournamentId)?.name || ""),
+            status:
+              a.status === "NOT_STARTED"
+                ? "CHỜ ĐẦU"
+                : a.status === "IN_PROGRESS"
+                ? "ĐANG ĐẦU"
+                : a.status === "DONE"
+                ? "ĐÃ ĐẦU"
+                : a.status === "VIOLATED"
+                ? "VI PHẠM"
+                : "-",
+          })
+        );
+        setRows(mapped);
+        setTotal(totalElements);
+      } catch (e) {
+        console.error("Failed to load athletes", e);
+        setRows([]);
+        setTotal(0);
+      }
+    })();
+  }, [
+    page,
+    pageSize,
+    debouncedName,
+    selectedTournament,
+    genderFilter,
+    activeTab,
+    statusFilter,
+    tournaments,
+  ]);
+
+  // Reset to first page when filters/search change
+  useEffect(() => {
+    setPage(1);
+  }, [
+    debouncedName,
+    genderFilter,
+    statusFilter,
+    selectedTournament,
+    activeTab,
+  ]);
+
+  // Refetch when other pages broadcast change
+  useEffect(() => {
+    const handler = () => {
+      // Reset to first page and trigger fetch via dependencies
+      setPage(1);
+    };
+    window.addEventListener("athletes:refetch", handler);
+    return () => window.removeEventListener("athletes:refetch", handler);
+  }, []);
 
   const columns: TableColumn<AthleteRow>[] = useMemo(
     () => [
@@ -195,18 +248,7 @@ export default function AthleteManagementPage({
         className: "whitespace-nowrap",
         sortable: true,
       },
-      {
-        key: "club",
-        title: "CLB",
-        className: "whitespace-nowrap",
-        sortable: true,
-      },
-      {
-        key: "tournament",
-        title: "Giải đấu",
-        className: "whitespace-nowrap",
-        sortable: true,
-      },
+      // Remove tournament column per request
       {
         key: "status",
         title: "Trạng thái",
@@ -214,7 +256,7 @@ export default function AthleteManagementPage({
         render: (row) => (
           <span
             className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-              STATUS_COLORS[row.status]
+              STATUS_COLORS[row.status === "CHỜ ĐẦU" ? "CHỜ ĐẤU" : row.status]
             }`}
           >
             {row.status}
@@ -226,65 +268,17 @@ export default function AthleteManagementPage({
     []
   );
 
-  // Filter athletes based on search term and active tab
-  const filteredRows = useMemo(() => {
-    let filtered = mockAthletes;
-
-    // Filter by competition type (tab)
-    if (activeTab === "fighting") {
-      filtered = filtered.filter(
-        (athlete) =>
-          athlete.content.includes("Đối kháng") ||
-          athlete.content.includes("Hạng cân")
-      );
-    } else if (activeTab === "quyen") {
-      filtered = filtered.filter(
-        (athlete) =>
-          athlete.content.includes("Quyền") ||
-          athlete.content.includes("Đơn luyện") ||
-          athlete.content.includes("Đa luyện") ||
-          athlete.content.includes("Song Luyện")
-      );
-    } else if (activeTab === "music") {
-      filtered = filtered.filter((athlete) =>
-        athlete.content.includes("Võ nhạc")
-      );
-    }
-
-    // Filter by search term
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (athlete) =>
-          athlete.name.toLowerCase().includes(term) ||
-          athlete.email.toLowerCase().includes(term) ||
-          athlete.studentId.toLowerCase().includes(term) ||
-          athlete.club.toLowerCase().includes(term)
-      );
-    }
-
-    return filtered;
-  }, [mockAthletes, activeTab, searchTerm]);
-
-  // Pagination
-  const paginatedRows = useMemo(() => {
-    const startIndex = (page - 1) * pageSize;
-    return filteredRows.slice(startIndex, startIndex + pageSize);
-  }, [filteredRows, page, pageSize]);
-
-  // Load tournaments on component mount
+  // Load tournaments from database
   useEffect(() => {
     const loadTournaments = async () => {
       try {
-        // TODO: Uncomment when backend is ready
-        // const tournamentsData = await athleteService.getTournaments();
-        // setTournaments(tournamentsData);
-
-        // Mock data for now
-        setTournaments([
-          { id: "1", name: "FPTU Vovinam Club FALL 2025" },
-          { id: "2", name: "FPTU Vovinam Club SPRING 2025" },
-        ]);
+        type CompetitionOption = { id: string; name: string };
+        const res = await api.get<CompetitionOption[]>(
+          API_ENDPOINTS.TOURNAMENT_FORMS.COMPETITIONS
+        );
+        const list = res.data ?? [];
+        setTournaments(list);
+        // Do not auto-select a tournament; default to no filter so data can load
       } catch (error) {
         console.error("Failed to load tournaments:", error);
       }
@@ -293,10 +287,7 @@ export default function AthleteManagementPage({
     loadTournaments();
   }, []);
 
-  useEffect(() => {
-    setTotal(filteredRows.length);
-    setRows(paginatedRows);
-  }, [filteredRows, paginatedRows]);
+  // rows, total are driven by API fetch; no local recompute
 
   const handleExportExcel = async () => {
     try {
@@ -319,7 +310,7 @@ export default function AthleteManagementPage({
       // URL.revokeObjectURL(url);
 
       // Mock export for now
-      const headers = [
+      const headers: string[] = [
         "STT",
         "Tên",
         "Email",
@@ -331,7 +322,7 @@ export default function AthleteManagementPage({
         "Trạng thái",
       ];
 
-      const csvRows = filteredRows.map((athlete) => [
+      const csvRows = rows.map((athlete: AthleteRow) => [
         athlete.stt,
         athlete.name,
         athlete.email,
@@ -381,9 +372,9 @@ export default function AthleteManagementPage({
             onChange={(e) => setSelectedTournament(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            {tournaments.map((tournament) => (
-              <option key={tournament.id} value={tournament.name}>
-                {tournament.name}
+            {tournaments.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
               </option>
             ))}
           </select>
@@ -417,7 +408,7 @@ export default function AthleteManagementPage({
       {/* Search and Filters */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          {/* Search */}
+          {/* Search by athlete name */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <svg
@@ -436,14 +427,14 @@ export default function AthleteManagementPage({
             </div>
             <input
               type="text"
-              placeholder="Tìm theo tên, MSSV, Email, CLB..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm theo tên vận động viên..."
+              value={nameQuery}
+              onChange={(e) => setNameQuery(e.target.value)}
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-80"
             />
           </div>
 
-          {/* Filter Buttons */}
+          {/* Filter Buttons (removed CLB, Sân đấu) */}
           <div className="flex gap-1">
             <div className="relative filter-dropdown">
               <button
@@ -455,114 +446,25 @@ export default function AthleteManagementPage({
               {showGenderFilter && (
                 <div className="absolute top-full left-0 mt-1 w-32 bg-white border border-gray-300 rounded shadow-lg z-20">
                   <div className="p-2 space-y-1">
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                        defaultChecked
-                      />
-                      <span className="text-sm text-gray-700">Tất cả</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">Nam</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">Nữ</span>
-                    </label>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="relative filter-dropdown">
-              <button
-                onClick={() => setShowClubFilter(!showClubFilter)}
-                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                CLB
-              </button>
-              {showClubFilter && (
-                <div className="absolute top-full left-0 mt-1 w-32 bg-white border border-gray-300 rounded shadow-lg z-20">
-                  <div className="p-2 space-y-1">
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">Tất cả</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">FPTU HCM</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">FPTU HN</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">FPTU ĐN</span>
-                    </label>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="relative filter-dropdown">
-              <button
-                onClick={() => setShowArenaFilter(!showArenaFilter)}
-                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                Sân đấu
-              </button>
-              {showArenaFilter && (
-                <div className="absolute top-full left-0 mt-1 w-32 bg-white border border-gray-300 rounded shadow-lg z-20">
-                  <div className="p-2 space-y-1">
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">Tất cả</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">Sân A</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">Sân B</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">Sân C</span>
-                    </label>
+                    {[
+                      { label: "Tất cả", value: "" },
+                      { label: "Nam", value: "MALE" },
+                      { label: "Nữ", value: "FEMALE" },
+                    ].map((g) => (
+                      <label
+                        key={g.value}
+                        className="flex items-center cursor-pointer"
+                      >
+                        <input
+                          type="radio"
+                          name="genderFilter"
+                          className="mr-2 h-3 w-3 text-blue-600"
+                          checked={genderFilter === g.value}
+                          onChange={() => setGenderFilter(g.value)}
+                        />
+                        <span className="text-sm text-gray-700">{g.label}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
               )}
@@ -578,48 +480,27 @@ export default function AthleteManagementPage({
               {showStatusFilter && (
                 <div className="absolute top-full left-0 mt-1 w-32 bg-white border border-gray-300 rounded shadow-lg z-20">
                   <div className="p-2 space-y-1">
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">Tất cả</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">ĐÃ ĐẦU</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">HOÀN ĐẦU</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">VI PHẠM</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">CHỜ ĐẦU</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-2 h-3 w-3 text-blue-600"
-                      />
-                      <span className="text-sm text-gray-700">ĐANG ĐẦU</span>
-                    </label>
+                    {[
+                      { label: "Tất cả", value: "" },
+                      { label: "CHỜ ĐẤU", value: "NOT_STARTED" },
+                      { label: "ĐANG ĐẦU", value: "IN_PROGRESS" },
+                      { label: "ĐÃ ĐẦU", value: "DONE" },
+                      { label: "VI PHẠM", value: "VIOLATED" },
+                    ].map((s) => (
+                      <label
+                        key={s.value}
+                        className="flex items-center cursor-pointer"
+                      >
+                        <input
+                          type="radio"
+                          name="statusFilter"
+                          className="mr-2 h-3 w-3 text-blue-600"
+                          checked={statusFilter === s.value}
+                          onChange={() => setStatusFilter(s.value)}
+                        />
+                        <span className="text-sm text-gray-700">{s.label}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
               )}

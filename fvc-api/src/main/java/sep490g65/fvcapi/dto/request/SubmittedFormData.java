@@ -14,11 +14,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SubmittedFormData {
     @Size(max = 100, message = "Name must not exceed 100 characters")
-    @Pattern(regexp = "^[\u00C0-\u024F\p{L} .'-]+$", message = "Name must contain letters only")
+    @Pattern(regexp = "^[\u00C0-\u024F\\p{L} .'-]+$", message = "Name must contain letters only")
     private String name;
 
     @Size(max = 100, message = "Full name must not exceed 100 characters")
-    @Pattern(regexp = "^[\u00C0-\u024F\p{L} .'-]+$", message = "Full name must contain letters only")
+    @Pattern(regexp = "^[\u00C0-\u024F\\p{L} .'-]+$", message = "Full name must contain letters only")
     private String fullName;
 
     @Email(message = "Invalid email format")
