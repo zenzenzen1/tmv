@@ -3,14 +3,11 @@ package sep490g65.fvcapi.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import sep490g65.fvcapi.constants.ApiConstants;
 import sep490g65.fvcapi.constants.MessageConstants;
 // use fully qualified name in method signature to avoid naming conflict
+import sep490g65.fvcapi.dto.request.SubmitApplicationFormRequest;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
 import sep490g65.fvcapi.dto.response.SubmittedApplicationFormResponse;
@@ -32,6 +29,15 @@ public class SubmittedApplicationFormController {
     ) {
         PaginationResponse<SubmittedApplicationFormResponse> data = service.list(params, type);
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
+    }
+    
+    @PostMapping
+    public ResponseEntity<BaseResponse<SubmittedApplicationFormResponse>> submit(
+            @Valid @RequestBody SubmitApplicationFormRequest request
+    ) {
+        // Submit the form (this would need to be implemented in the service)
+        SubmittedApplicationFormResponse response = service.submit(request);
+        return ResponseEntity.ok(ResponseUtils.success("Form submitted successfully", response));
     }
 }
 

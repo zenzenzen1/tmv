@@ -346,9 +346,8 @@ export default function SubmittedFormsPage() {
       { key: "fullName", title: "Họ và tên", sortable: true },
       { key: "email", title: "Email", sortable: true },
       { key: "studentCode", title: "MSSV", sortable: true },
-      { key: "phone", title: "SDT liên lạc", sortable: true },
       { key: "note", title: "Mô tả ngắn về bản thân" },
-      ...formDataColumns, // Thêm các cột form data động
+      ...formDataColumns, // Thêm các cột form data động (bao gồm số điện thoại)
     ];
   }, [rows]);
 
@@ -363,7 +362,6 @@ export default function SubmittedFormsPage() {
         r.fullName, 
         r.email, 
         r.studentCode, 
-        r.phone, 
         r.note,
         ...Object.values(r).filter(v => typeof v === 'string' && v.trim())
       ];
@@ -456,7 +454,6 @@ function exportCsv(rows: SubmittedRow[]) {
     "Họ và tên",
     "Email",
     "MSSV",
-    "SDT liên lạc",
     "Mô tả ngắn về bản thân",
     ...Array.from(allowedFormFields).map(fieldKey => getFieldDisplayName(fieldKey)),
   ];
@@ -478,7 +475,6 @@ function exportCsv(rows: SubmittedRow[]) {
     escapeCsv(r.fullName),
     escapeCsv(r.email),
     escapeCsv(r.studentCode),
-    escapeCsv(r.phone),
     escapeCsv(r.note),
     ...Array.from(allowedFormFields).map(fieldKey => escapeCsv(r[fieldKey] || "")),
   ]);
