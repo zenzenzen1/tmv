@@ -4,6 +4,126 @@ import { useEffect, useMemo, useMemo as useReactMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
 
+// Hàm để extract tất cả các trường từ form data
+function extractFormDataFields(formData: any): Record<string, string> {
+  if (!formData) return {};
+  try {
+    const obj = typeof formData === "string" ? JSON.parse(formData) : formData;
+    const fields: Record<string, string> = {};
+    
+    function walk(o: any, path: string[] = []) {
+      if (o == null) return;
+      if (typeof o !== "object") {
+        const key = path.join(".");
+        const value = String(o);
+        if (value.trim()) {
+          fields[key] = value;
+        }
+        return;
+      }
+      if (Array.isArray(o)) {
+        o.forEach((v, i) => walk(v, [...path, String(i)]));
+        return;
+      }
+      Object.entries(o).forEach(([kk, vv]) => walk(vv, [...path, kk]));
+    }
+    
+    walk(obj);
+    return fields;
+  } catch {
+    return {};
+  }
+}
+
+// Mapping các trường phổ biến sang tên hiển thị tiếng Việt
+const fieldDisplayNames: Record<string, string> = {
+  // Số điện thoại
+  "phone": "Số điện thoại",
+  "sdt": "Số điện thoại", 
+  "mobile": "Số điện thoại",
+  "phoneNumber": "Số điện thoại",
+  "contactPhone": "Số điện thoại liên lạc",
+  "emergencyPhone": "Số điện thoại khẩn cấp",
+  
+  // Địa chỉ
+  "address": "Địa chỉ",
+  "diachi": "Địa chỉ",
+  "homeAddress": "Địa chỉ nhà",
+  "currentAddress": "Địa chỉ hiện tại",
+  
+  // Ngày sinh
+  "birthday": "Ngày sinh",
+  "dateOfBirth": "Ngày sinh",
+  "ngaysinh": "Ngày sinh",
+  
+  // Giới tính
+  "gender": "Giới tính",
+  "gioitinh": "Giới tính",
+  
+  // Lớp/Khoa
+  "class": "Lớp",
+  "lop": "Lớp",
+  "major": "Chuyên ngành",
+  "chuyennganh": "Chuyên ngành",
+  "faculty": "Khoa",
+  "khoa": "Khoa",
+  
+  // Kinh nghiệm
+  "experience": "Kinh nghiệm",
+  "kinhnghiem": "Kinh nghiệm",
+  "vovinamExperience": "Kinh nghiệm Vovinam",
+  
+  // Lý do tham gia
+  "reason": "Lý do tham gia",
+  "lydo": "Lý do tham gia",
+  "motivation": "Động lực tham gia",
+  
+  // Mục tiêu
+  "goal": "Mục tiêu",
+  "muctieu": "Mục tiêu",
+  "objectives": "Mục tiêu",
+  
+  // Thời gian rảnh
+  "freeTime": "Thời gian rảnh",
+  "thoigianranh": "Thời gian rảnh",
+  "availableTime": "Thời gian có thể tham gia",
+  
+  // Sở thích
+  "hobby": "Sở thích",
+  "sothich": "Sở thích",
+  "interests": "Sở thích",
+  
+  // Thông tin khác
+  "other": "Thông tin khác",
+  "khac": "Thông tin khác",
+  "additional": "Thông tin bổ sung",
+  "note": "Ghi chú",
+  "ghichu": "Ghi chú",
+};
+
+// Hàm để lấy tên hiển thị cho một trường
+function getFieldDisplayName(fieldKey: string): string {
+  const lowerKey = fieldKey.toLowerCase();
+  
+  // Tìm exact match trước
+  if (fieldDisplayNames[lowerKey]) {
+    return fieldDisplayNames[lowerKey];
+  }
+  
+  // Tìm partial match
+  for (const [key, displayName] of Object.entries(fieldDisplayNames)) {
+    if (lowerKey.includes(key) || key.includes(lowerKey)) {
+      return displayName;
+    }
+  }
+  
+  // Nếu không tìm thấy, format key thành tên hiển thị
+  return fieldKey
+    .split(/[._-]/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 type SubmittedRow = {
   id: string;
   submittedAt: string;
@@ -13,6 +133,8 @@ type SubmittedRow = {
   phone: string;
   note: string;
   stt?: number;
+  formData?: any;
+  [key: string]: any; // Cho phép các trường động từ form data
 };
 
 export default function SubmittedFormsPage() {
@@ -48,6 +170,10 @@ export default function SubmittedFormsPage() {
             const codeFromUser = s.userStudentCode || "";
             const nameFromUser = s.userFullName || "";
             const phoneFromForm = s.formData ? safePick(s.formData, ["phone", "sdt", "mobile"]) : "";
+            
+            // Extract tất cả các trường từ form data
+            const formFields = extractFormDataFields(s.formData);
+            
             return {
               id: String(s.id ?? idx),
               submittedAt: s.createdAt ?? "",
@@ -56,6 +182,8 @@ export default function SubmittedFormsPage() {
               studentCode: codeFromUser || (s.formData ? safePick(s.formData, ["studentCode", "mssv", "msv"]) : ""),
               phone: phoneFromForm,
               note: s.reviewerNote ?? "",
+              formData: s.formData,
+              ...formFields, // Spread tất cả các trường form data vào row
             } as SubmittedRow;
           });
           setRows(mapped);
@@ -149,6 +277,29 @@ export default function SubmittedFormsPage() {
         return v;
       }
     };
+
+    // Lấy tất cả các trường form data từ dữ liệu hiện tại
+    const allFormFields = new Set<string>();
+    rows.forEach(row => {
+      const formFields = extractFormDataFields(row.formData);
+      Object.keys(formFields).forEach(key => {
+        // Loại bỏ các trường đã có cột riêng
+        if (!["fullName", "name", "hovaten", "email", "mail", "studentCode", "mssv", "msv", "phone", "sdt", "mobile"].includes(key.toLowerCase())) {
+          allFormFields.add(key);
+        }
+      });
+    });
+
+    // Tạo cột cho các trường form data phổ biến
+    const formDataColumns: TableColumn<SubmittedRow>[] = Array.from(allFormFields)
+      .slice(0, 5) // Chỉ hiển thị tối đa 5 cột form data để tránh bảng quá rộng
+      .map(fieldKey => ({
+        key: fieldKey,
+        title: getFieldDisplayName(fieldKey),
+        render: (row: SubmittedRow) => row[fieldKey] || "",
+        className: "max-w-xs",
+      }));
+
     return [
       {
         key: "stt",
@@ -163,19 +314,30 @@ export default function SubmittedFormsPage() {
       { key: "studentCode", title: "MSSV", sortable: true },
       { key: "phone", title: "SDT liên lạc", sortable: true },
       { key: "note", title: "Mô tả ngắn về bản thân" },
+      ...formDataColumns, // Thêm các cột form data động
     ];
-  }, []);
+  }, [rows]);
 
   // Search
   const [query, setQuery] = useState<string>("");
   const filtered = useReactMemo(() => {
     if (!query.trim()) return rows;
     const q = query.toLowerCase();
-    return rows.filter((r) =>
-      [r.fullName, r.email, r.studentCode, r.phone, r.note]
+    return rows.filter((r) => {
+      // Lấy tất cả các giá trị từ row để search
+      const searchableValues = [
+        r.fullName, 
+        r.email, 
+        r.studentCode, 
+        r.phone, 
+        r.note,
+        ...Object.values(r).filter(v => typeof v === 'string' && v.trim())
+      ];
+      
+      return searchableValues
         .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q))
-    );
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
   }, [rows, query]);
 
   return (
@@ -232,6 +394,18 @@ function exportCsv(rows: SubmittedRow[]) {
     alert("Không có dữ liệu để xuất");
     return;
   }
+  
+  // Lấy tất cả các trường form data từ dữ liệu
+  const allFormFields = new Set<string>();
+  rows.forEach(row => {
+    const formFields = extractFormDataFields(row.formData);
+    Object.keys(formFields).forEach(key => {
+      if (!["fullName", "name", "hovaten", "email", "mail", "studentCode", "mssv", "msv", "phone", "sdt", "mobile"].includes(key.toLowerCase())) {
+        allFormFields.add(key);
+      }
+    });
+  });
+
   const headers = [
     "STT",
     "Thời gian nộp",
@@ -240,6 +414,7 @@ function exportCsv(rows: SubmittedRow[]) {
     "MSSV",
     "SDT liên lạc",
     "Mô tả ngắn về bản thân",
+    ...Array.from(allFormFields).map(fieldKey => getFieldDisplayName(fieldKey)),
   ];
 
   const formatDate = (v?: string) => {
@@ -261,6 +436,7 @@ function exportCsv(rows: SubmittedRow[]) {
     escapeCsv(r.studentCode),
     escapeCsv(r.phone),
     escapeCsv(r.note),
+    ...Array.from(allFormFields).map(fieldKey => escapeCsv(r[fieldKey] || "")),
   ]);
 
   const csv = [headers.join(","), ...csvRows.map((line) => line.join(","))].join("\r\n");
