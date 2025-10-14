@@ -1,4 +1,5 @@
 import apiService from './api';
+import { API_ENDPOINTS } from '../config/endpoints';
 import type {
   CompetitionResponse,
   CreateCompetitionRequest,
@@ -11,7 +12,7 @@ import type { BaseResponse } from '../types/api';
 
 // Tournament/Competition API service
 class CompetitionService {
-  private readonly baseEndpoint = '/competitions';
+  private readonly baseEndpoint = API_ENDPOINTS.COMPETITIONS.BASE;
 
   // Get all competitions with filters and pagination
   async getCompetitions(filters: CompetitionFilters = {}): Promise<PaginationResponse<CompetitionResponse>> {

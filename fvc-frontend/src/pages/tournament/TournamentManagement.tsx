@@ -6,12 +6,14 @@ import TournamentFormList from "@/features/tournament/TournamentFormList";
 import TournamentListPage from "./ListPage";
 import FistContentListPage from "../fist-content/ListPage";
 import MusicContentListPage from "../music-content/ListPage";
+import AthleteManagementWrapper from "../athletes/AthleteManagementWrapper";
 
 export default function TournamentManage() {
   const [activeMenu, setActiveMenu] = useState<string>("tournamentForm");
   const contentWeightClass = <WeightClassListPage />;
   const contentTournamentForm = <TournamentFormList />;
   const contentTournament = <TournamentListPage />;
+  const contentAthletes = <AthleteManagementWrapper />;
   const contentFist = <FistContentListPage />;
   const contentMusic = <MusicContentListPage />;
 
@@ -24,11 +26,11 @@ export default function TournamentManage() {
       <div className="row-span-2 h-full">
         <TournamentSidebar activeMenu={activeMenu} onChange={setActiveMenu} />
       </div>
-      <div className="flex flex-col">
+      <div className="flex flex-col h-full">
         {activeMenu === "weightClassPage" && contentWeightClass}
         {activeMenu === "tournamentForm" && contentTournamentForm}
         {activeMenu === "tournaments" && contentTournament}
-        {activeMenu === "athletes" && placeholder("Quản lí VDV")}
+        {activeMenu === "athletes" && contentAthletes}
         {activeMenu === "fighting" && placeholder("Đối kháng")}
         {activeMenu === "forms" && contentFist}
         {activeMenu === "music" && contentMusic}

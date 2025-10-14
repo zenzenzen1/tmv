@@ -1,4 +1,3 @@
-
 // API endpoints configuration
 export const API_ENDPOINTS = {
   // Authentication
@@ -15,67 +14,73 @@ export const API_ENDPOINTS = {
 
   // User management
   USERS: {
-    BASE: "/users",
-    PROFILE: "/users/profile",
-    UPDATE_PROFILE: "/users/profile",
-    CHANGE_PASSWORD: "/users/change-password",
-    UPLOAD_AVATAR: "/users/avatar",
+    BASE: "/v1/users",
+    PROFILE: "/v1/users/profile",
+    UPDATE_PROFILE: "/v1/users/profile",
+    CHANGE_PASSWORD: "/v1/users/change-password",
+    UPLOAD_AVATAR: "/v1/users/avatar",
   },
 
   // File management
   FILES: {
-    BASE: "/files",
-    UPLOAD: "/files/upload",
-    DOWNLOAD: "/files/download",
-    DELETE: "/files",
+    BASE: "/v1/files",
+    UPLOAD: "/v1/files/upload",
+    DOWNLOAD: "/v1/files/download",
+    DELETE: "/v1/files",
   },
 
   // Weight classes
   WEIGHT_CLASSES: {
-    BASE: "/weight-classes",
-    BY_ID: (id: string) => `/weight-classes/${id}`,
-    STATUS: (id: string) => `/weight-classes/${id}/status`,
+    BASE: "/v1/weight-classes",
+    BY_ID: (id: string) => `/v1/weight-classes/${id}`,
+    STATUS: (id: string) => `/v1/weight-classes/${id}/status`,
   },
 
   // Submitted Application Forms
   SUBMITTED_FORMS: {
-    BASE: '/submitted-forms',
-    BY_ID: (id: string) => `/submitted-forms/${id}`,
-    EXPORT: (id: string) => `/submitted-forms/${id}/export`,
+    BASE: "/v1/submitted-forms",
+    BY_ID: (id: string) => `/v1/submitted-forms/${id}`,
+    EXPORT: (id: string) => `/v1/submitted-forms/${id}/export`,
   },
 
   // Application Form Configs
   APPLICATION_FORMS: {
-    BASE: '/application-forms',
-    BY_ID: (id: string) => `/application-forms/${id}`,
-    BY_TYPE: (type: string) => `/application-forms/${type}`,
-    INIT_CLUB: '/application-forms/init-club-registration',
+    BASE: "/v1/application-forms",
+    BY_ID: (id: string) => `/v1/application-forms/${id}`,
+    BY_TYPE: (type: string) => `/v1/application-forms/${type}`,
+    INIT_CLUB: "/v1/application-forms/init-club-registration",
   },
 
   // Tournament forms
   TOURNAMENT_FORMS: {
-    BASE: "/tournament-forms",
-    BY_ID: (id: string) => `/tournament-forms/${id}`,
-    STATUS: (id: string) => `/tournament-forms/${id}/status`,
-    SUBMISSIONS: (id: string) => `/tournament-forms/${id}/submissions`,
+    BASE: "/v1/tournament-forms",
+    BY_ID: (id: string) => `/v1/tournament-forms/${id}`,
+    STATUS: (id: string) => `/v1/tournament-forms/${id}/status`,
+    SUBMISSIONS: (id: string) => `/v1/tournament-forms/${id}/submissions`,
     SUBMISSION_STATUS: (submissionId: string) =>
-      `/tournament-forms/submissions/${submissionId}/status`,
-    COMPETITIONS: "/tournament-forms/competitions",
+      `/v1/tournament-forms/submissions/${submissionId}/status`,
+    COMPETITIONS: "/v1/tournament-forms/competitions",
+  },
+
+  // Competitions
+  COMPETITIONS: {
+    BASE: "/v1/competitions",
+    BY_ID: (id: string) => `/v1/competitions/${id}`,
   },
 
   // Fist contents
   FIST_CONTENTS: {
-    BASE: "/fist-configs",
-    BY_ID: (id: string) => `/fist-configs/${id}`,
-    ITEMS: "/fist-configs/items",
-    ITEM_BY_ID: (id: string) => `/fist-configs/items/${id}`,
-    ITEMS_BY_CONFIG: (configId: string) => `/fist-configs/${configId}/items`,
+    BASE: "/v1/fist-configs",
+    BY_ID: (id: string) => `/v1/fist-configs/${id}`,
+    ITEMS: "/v1/fist-configs/items",
+    ITEM_BY_ID: (id: string) => `/v1/fist-configs/items/${id}`,
+    ITEMS_BY_CONFIG: (configId: string) => `/v1/fist-configs/${configId}/items`,
   },
 
   // Music contents
   MUSIC_CONTENTS: {
-    BASE: "/music-contents",
-    BY_ID: (id: string) => `/music-contents/${id}`,
+    BASE: "/v1/music-contents",
+    BY_ID: (id: string) => `/v1/music-contents/${id}`,
   },
 
   // Common endpoints
@@ -91,4 +96,3 @@ export const buildEndpoint = (base: string, ...paths: string[]): string => {
 // Type-safe endpoint builder
 export type EndpointKey = keyof typeof API_ENDPOINTS;
 export type EndpointPath<T extends EndpointKey> = (typeof API_ENDPOINTS)[T];
-
