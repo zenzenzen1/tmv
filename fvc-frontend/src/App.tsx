@@ -22,6 +22,7 @@ import MainLayout from "./components/layout/MainLayout";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
+import FistItemsPage from "./pages/fist-content/ItemsPage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -88,6 +89,7 @@ export default function App() {
         {/* Content mgmt */}
         <Route path="weight-class" element={<WeightClassListPage />} />
         <Route path="fist-content" element={<FistContentListPage />} />
+        <Route path="fist-content/:id/items" element={<FistItemsPage />} />
         <Route path="music-content" element={<MusicContentListPage />} />
       </Route>
 

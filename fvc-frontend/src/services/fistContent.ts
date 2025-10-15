@@ -1,7 +1,7 @@
 import apiService from './api';
 import { API_ENDPOINTS } from '../config/endpoints';
 import type { BaseResponse, PaginationResponse } from '../types/api';
-import type { CreateFistContentRequest, FistContentFilters, FistContentResponse, UpdateFistContentRequest, FistItemResponse } from '../types';
+import type { CreateFistContentRequest, FistContentFilters, FistContentResponse, UpdateFistContentRequest, FistItemResponse, FistTypeResponse, CreateFistTypeRequest, UpdateFistTypeRequest, CreateFistItemRequest, UpdateFistItemRequest } from '../types';
 
 export const fistContentService = {
   async list(params: FistContentFilters = {}): Promise<PaginationResponse<FistContentResponse>> {
@@ -48,6 +48,39 @@ export const fistContentService = {
   async getItemsByConfig(configId: string): Promise<PaginationResponse<FistItemResponse>> {
     const res = await apiService.get<BaseResponse<PaginationResponse<FistItemResponse>>>(API_ENDPOINTS.FIST_CONTENTS.ITEMS_BY_CONFIG(configId));
     return res.data.data;
+  },
+  async createItem(configId: string, payload: CreateFistItemRequest): Promise<FistItemResponse> {
+    const url = `${API_ENDPOINTS.FIST_CONTENTS.BY_ID(configId)}/items`;
+    const res = await apiService.post<BaseResponse<FistItemResponse>>(url, payload);
+    return res.data.data;
+  },
+  async updateItem(configId: string, itemId: string, payload: UpdateFistItemRequest): Promise<FistItemResponse> {
+    const url = `${API_ENDPOINTS.FIST_CONTENTS.BY_ID(configId)}/items/${itemId}`;
+    const res = await apiService.put<BaseResponse<FistItemResponse>>(url, payload);
+    return res.data.data;
+  },
+  async deleteItem(configId: string, itemId: string): Promise<void> {
+    const url = `${API_ENDPOINTS.FIST_CONTENTS.BY_ID(configId)}/items/${itemId}`;
+    await apiService.delete<void>(url);
+  },
+};
+
+// Fist Types (dynamic)
+export const fistTypeService = {
+  async list(params: { page?: number; size?: number } = {}): Promise<PaginationResponse<FistTypeResponse>> {
+    const res = await apiService.get<PaginationResponse<FistTypeResponse>>(API_ENDPOINTS.FIST_CONTENTS.TYPES.BASE, params);
+    return res.data;
+  },
+  async create(payload: CreateFistTypeRequest): Promise<FistTypeResponse> {
+    const res = await apiService.post<BaseResponse<FistTypeResponse>>(API_ENDPOINTS.FIST_CONTENTS.TYPES.BASE, payload);
+    return res.data.data;
+  },
+  async update(id: string, payload: UpdateFistTypeRequest): Promise<FistTypeResponse> {
+    const res = await apiService.put<BaseResponse<FistTypeResponse>>(API_ENDPOINTS.FIST_CONTENTS.TYPES.BY_ID(id), payload);
+    return res.data.data;
+  },
+  async remove(id: string): Promise<void> {
+    await apiService.delete<void>(API_ENDPOINTS.FIST_CONTENTS.TYPES.BY_ID(id));
   },
 };
 

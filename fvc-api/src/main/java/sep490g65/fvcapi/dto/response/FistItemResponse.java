@@ -15,4 +15,5 @@ public class FistItemResponse {
     private String description;
     private Integer level;
     private String parentId;
+    private String configId;
 }

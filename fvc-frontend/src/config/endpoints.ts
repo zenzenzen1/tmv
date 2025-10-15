@@ -75,6 +75,10 @@ export const API_ENDPOINTS = {
     ITEMS: "/v1/fist-configs/items",
     ITEM_BY_ID: (id: string) => `/v1/fist-configs/items/${id}`,
     ITEMS_BY_CONFIG: (configId: string) => `/v1/fist-configs/${configId}/items`,
+    TYPES: {
+      BASE: "/v1/fist-types",
+      BY_ID: (id: string) => `/v1/fist-types/${id}`,
+    },
   },
 
   // Music contents

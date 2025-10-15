@@ -1,5 +1,5 @@
 import { useFistContentStore } from '../../stores/fistContent';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -11,12 +11,10 @@ import {
   Checkbox,
   Alert,
   Stack,
-  MenuItem,
 } from '@mui/material';
 
 export default function FistContentModal() {
   const { modalOpen, closeModal, isLoading, editing, create, update, error: storeError } = useFistContentStore();
-  const [contentType, setContentType] = useState<'' | 'song-luyen' | 'don-luyen' | 'da-luyen' | 'dong-doi'>('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [active, setActive] = useState(true);
@@ -28,14 +26,18 @@ export default function FistContentModal() {
       setName(editing.name || '');
       setDescription(editing.description || '');
       setActive(!!editing.status);
+      // parent only
     } else {
       setName('');
       setDescription('');
       setActive(true);
+      // parent only
     }
     setError(null);
     setSuccess(null);
   }, [editing, modalOpen]);
+
+  // parent only, no extra preload
 
   // Show store errors
   useEffect(() => {
@@ -44,13 +46,11 @@ export default function FistContentModal() {
     }
   }, [storeError]);
 
-  const isValid = useMemo(() => {
-    return name.trim().length > 0 && contentType !== '';
-  }, [name, contentType]);
+  // remove unused variable to satisfy linter
 
   const getValidationError = () => {
     if (name.trim().length === 0) return 'Vui lòng nhập nội dung quyền!';
-    if (contentType === '') return 'Vui lòng chọn loại nội dung!';
+    // parent has no type in this model
     return null;
   };
 
@@ -107,18 +107,7 @@ export default function FistContentModal() {
       <DialogTitle>{editing ? 'Chỉnh sửa nội dung Quyền' : 'Thêm nội dung Quyền'}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
-          <TextField
-            select
-            label="Loại nội dung"
-            value={contentType}
-            onChange={(e) => { setContentType(e.target.value as any); setError(null); }}
-          >
-            <MenuItem value="">Chọn kiểu thi đấu</MenuItem>
-            <MenuItem value="don-luyen">Đơn luyện</MenuItem>
-            <MenuItem value="da-luyen">Đa luyện</MenuItem>
-            <MenuItem value="dong-doi">Đồng đội</MenuItem>
-            <MenuItem value="song-luyen">Song luyện</MenuItem>
-          </TextField>
+          {/* Parent only: no type selector here */}
 
           <TextField
             label="Nội dung Quyền"
