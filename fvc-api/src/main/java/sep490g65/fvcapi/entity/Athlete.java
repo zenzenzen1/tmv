@@ -44,9 +44,12 @@ public class Athlete extends BaseEntity {
     @Column(name = "competition_type", nullable = false)
     private CompetitionType competitionType;
 
-    // For display: "Đa luyện - Đa luyện 1" or weight class etc.
-    @Column(nullable = false)
-    private String content;
+    // Hierarchical competition structure
+    @Column(name = "sub_competition_type")
+    private String subCompetitionType; // e.g. "Song luyện", "Đa luyện", "Hạng cân"
+
+    @Column(name = "detail_sub_competition_type")
+    private String detailSubCompetitionType; // e.g. "Song luyện 1", "Võ nhạc 1", "Đa luyện 2"
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

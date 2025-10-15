@@ -12,7 +12,9 @@ type AthleteRow = {
   name: string;
   email: string;
   gender: "Nam" | "Nữ";
-  content: string;
+  competitionType: string;
+  subCompetitionType: string;
+  detailSubCompetitionType: string;
   studentId: string;
   club: string;
   tournament: string;
@@ -24,7 +26,9 @@ type AthleteApi = {
   fullName: string;
   email: string;
   gender: "MALE" | "FEMALE";
-  content: string;
+  competitionType: "fighting" | "quyen" | "music";
+  subCompetitionType?: string | null;
+  detailSubCompetitionType?: string | null;
   studentId?: string | null;
   club?: string | null;
   tournamentId?: string | null;
@@ -49,6 +53,14 @@ const COMPETITION_TYPES = {
   music: "Võ nhạc",
 };
 
+// Fixed quyền categories like in PublishedForm
+const FIXED_QUYEN_CATEGORIES = [
+  "Đơn luyện",
+  "Song luyện",
+  "Đa luyện",
+  "Đồng đội",
+];
+
 interface AthleteManagementPageProps {
   activeTab: CompetitionType;
   onTabChange: (tab: CompetitionType) => void;
@@ -69,15 +81,84 @@ export default function AthleteManagementPage({
     return () => clearTimeout(t);
   }, [nameQuery]);
 
+  // Listen for refetch events from form approval
+  useEffect(() => {
+    const handleRefetch = () => {
+      setPage(1); // Reset to first page
+      // Trigger refetch by updating a dependency
+      setReloadKey((prev) => prev + 1);
+    };
+
+    window.addEventListener("athletes:refetch", handleRefetch);
+    return () => window.removeEventListener("athletes:refetch", handleRefetch);
+  }, []);
+
   const [selectedTournament, setSelectedTournament] = useState<string>(""); // tournamentId
   const [rows, setRows] = useState<AthleteRow[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
   const [tournaments, setTournaments] = useState<
     Array<{ id: string; name: string }>
   >([]);
 
+  // API data for dynamic filters
+  const [weightClasses, setWeightClasses] = useState<
+    Array<{
+      id: string;
+      weightClass: string;
+      gender: string;
+      minWeight: number;
+      maxWeight: number;
+    }>
+  >([]);
+  // Derived categories no longer needed for fixed buttons UI
+  // Keeping state removed to avoid unused warnings
+  const [quyenContents, setQuyenContents] = useState<
+    Array<{ id: string; name: string; category?: string }>
+  >([]);
+  const [musicContents, setMusicContents] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+
+  // Helper: derive normalized category for quyền content item
+  const normalizeQuyenCategory = (
+    rawCategory?: string | null,
+    rawName?: string | null,
+    parentName?: string | null
+  ): string => {
+    const candidates: string[] = [];
+    if (rawCategory) candidates.push(rawCategory);
+    if (parentName) candidates.push(parentName);
+    if (rawName) candidates.push(rawName);
+    const strip = (s: string) =>
+      s
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/g, "d")
+        .replace(/Đ/g, "D")
+        .toLowerCase();
+    for (const c of candidates) {
+      const t = strip(c);
+      if (t.includes("don luyen")) return "Đơn luyện";
+      if (t.includes("song luyen") && !t.includes("song quyen"))
+        return "Song luyện";
+      if (t.includes("da luyen")) return "Đa luyện";
+      if (t.includes("song quyen")) return "Đồng đội";
+    }
+    return "";
+  };
+
   // Filter states - closed by default
   const [showGenderFilter, setShowGenderFilter] = useState(false);
   const [showStatusFilter, setShowStatusFilter] = useState(false);
+  const [showCompetitionFilter, setShowCompetitionFilter] = useState(false);
+  // Detail dropdown toggle no longer used with inline detail list
+
+  // Dynamic filter states
+  const [subCompetitionFilter, setSubCompetitionFilter] = useState<string>("");
+  const [detailCompetitionFilter, setDetailCompetitionFilter] =
+    useState<string>("");
+  // Track which quyền category dropdown is open
+  const [openCategory, setOpenCategory] = useState<string>("");
 
   // Click outside to close dropdowns
   useEffect(() => {
@@ -86,6 +167,8 @@ export default function AthleteManagementPage({
       if (!target.closest(".filter-dropdown")) {
         setShowGenderFilter(false);
         setShowStatusFilter(false);
+        setShowCompetitionFilter(false);
+        setOpenCategory("");
       }
     };
 
@@ -111,6 +194,18 @@ export default function AthleteManagementPage({
         if (debouncedName) qs.set("name", debouncedName);
         if (genderFilter) qs.set("gender", genderFilter);
         if (statusFilter) qs.set("status", statusFilter);
+        // Standard handling by type
+        if (activeTab === "fighting") {
+          // For fighting, backend expects weight as detailSubCompetitionType
+          if (subCompetitionFilter)
+            qs.set("detailSubCompetitionType", subCompetitionFilter);
+        } else {
+          // For quyền/music: category -> subCompetitionType, detail -> detailSubCompetitionType
+          if (subCompetitionFilter)
+            qs.set("subCompetitionType", subCompetitionFilter);
+          if (detailCompetitionFilter)
+            qs.set("detailSubCompetitionType", detailCompetitionFilter);
+        }
 
         const res = await api.get<PaginationResponse<AthleteApi>>(
           `${API_ENDPOINTS.ATHLETES.BASE}?${qs.toString()}`
@@ -154,7 +249,16 @@ export default function AthleteManagementPage({
             name: a.fullName,
             email: a.email,
             gender: a.gender === "FEMALE" ? "Nữ" : "Nam",
-            content: a.content,
+            competitionType:
+              a.competitionType === "fighting"
+                ? "Đối kháng"
+                : a.competitionType === "quyen"
+                ? "Quyền"
+                : a.competitionType === "music"
+                ? "Võ nhạc"
+                : "-",
+            subCompetitionType: a.subCompetitionType || "-",
+            detailSubCompetitionType: a.detailSubCompetitionType || "-",
             studentId: a.studentId ?? "",
             club: a.club ?? "",
             tournament:
@@ -189,6 +293,9 @@ export default function AthleteManagementPage({
     activeTab,
     statusFilter,
     tournaments,
+    reloadKey,
+    subCompetitionFilter,
+    detailCompetitionFilter,
   ]);
 
   // Reset to first page when filters/search change
@@ -200,17 +307,16 @@ export default function AthleteManagementPage({
     statusFilter,
     selectedTournament,
     activeTab,
+    subCompetitionFilter,
+    detailCompetitionFilter,
   ]);
 
-  // Refetch when other pages broadcast change
+  // Reset competition filters when competition type changes
   useEffect(() => {
-    const handler = () => {
-      // Reset to first page and trigger fetch via dependencies
-      setPage(1);
-    };
-    window.addEventListener("athletes:refetch", handler);
-    return () => window.removeEventListener("athletes:refetch", handler);
-  }, []);
+    setSubCompetitionFilter("");
+    setDetailCompetitionFilter("");
+    setShowCompetitionFilter(false);
+  }, [activeTab]);
 
   const columns: TableColumn<AthleteRow>[] = useMemo(
     () => [
@@ -239,9 +345,22 @@ export default function AthleteManagementPage({
         sortable: true,
       },
       {
-        key: "content",
-        title: "Nội dung",
+        key: "competitionType",
+        title: "Loại thi đấu",
         className: "whitespace-nowrap",
+        sortable: true,
+      },
+      {
+        key: "detailSubCompetitionType",
+        title: "Hạng cân",
+        className: "whitespace-nowrap",
+        render: (row) => {
+          const value =
+            row.detailSubCompetitionType || row.subCompetitionType || "-";
+          return String(value)
+            .replace(/^Nam\s+/i, "")
+            .replace(/^Nữ\s+/i, "");
+        },
         sortable: true,
       },
       {
@@ -289,6 +408,106 @@ export default function AthleteManagementPage({
     loadTournaments();
   }, []);
 
+  // Load data for dynamic filters
+  useEffect(() => {
+    const loadFilterData = async () => {
+      try {
+        // Load weight classes
+        const weightClassesRes = await api.get<{
+          content: Array<{
+            id: string;
+            weightClass: string;
+            gender: string;
+            minWeight: number;
+            maxWeight: number;
+          }>;
+          totalElements: number;
+        }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
+        setWeightClasses(weightClassesRes.data?.content || []);
+
+        // Load quyền contents and derive categories
+        const quyenContentsRes = await api.get(
+          API_ENDPOINTS.FIST_CONTENTS.ITEMS
+        );
+        type FistItem = {
+          id: string | number;
+          name?: string;
+          category?: string | null;
+          categoryName?: string | null;
+          parent?: { name?: string } | null;
+        };
+        let rawItems: FistItem[] = [];
+        const responseData = quyenContentsRes.data as {
+          content?: FistItem[];
+          data?: { content?: FistItem[] };
+        };
+        if (responseData && Array.isArray(responseData.content)) {
+          rawItems = responseData.content as FistItem[];
+        } else if (
+          responseData?.data?.content &&
+          Array.isArray(responseData.data.content)
+        ) {
+          rawItems = (responseData.data.content ?? []) as FistItem[];
+        }
+
+        const mapped = rawItems.map((it) => {
+          const id = String(it.id ?? "");
+          const name = typeof it.name === "string" ? it.name : "";
+          const parent = it.parent ?? undefined;
+          const category = normalizeQuyenCategory(
+            (it.category as string | undefined) ??
+              (it.categoryName as string | undefined),
+            name,
+            parent && typeof parent.name === "string" ? parent.name : undefined
+          );
+          return { id, name, category } as {
+            id: string;
+            name: string;
+            category?: string;
+          };
+        });
+        setQuyenContents(mapped);
+
+        // Fallback: if no items returned, try loading from fist-configs (like PublishedForm)
+        if (!mapped || mapped.length === 0) {
+          try {
+            const cfgRes = await api.get(
+              `${API_ENDPOINTS.FIST_CONTENTS.BASE}?page=0&size=100`
+            );
+            const root = cfgRes.data as Record<string, unknown>;
+            const pageObj = ((root["data"] as Record<string, unknown>) ??
+              root) as Record<string, unknown>;
+            const cfgs = (pageObj["content"] as Array<unknown>) ?? [];
+            const mappedFromConfigs = cfgs.map((raw) => {
+              const it = raw as Record<string, unknown>;
+              const name =
+                typeof it["name"] === "string" ? (it["name"] as string) : "";
+              return {
+                id: String(it["id"] ?? ""),
+                name,
+                category: normalizeQuyenCategory("", name, ""),
+              } as { id: string; name: string; category?: string };
+            });
+            setQuyenContents(mappedFromConfigs);
+          } catch (fallbackErr) {
+            console.warn("Failed to load fallback fist-configs", fallbackErr);
+          }
+        }
+
+        // Load music contents
+        const musicContentsRes = await api.get<{
+          content: Array<{ id: string; name: string }>;
+          totalElements: number;
+        }>(API_ENDPOINTS.MUSIC_CONTENTS.BASE);
+        setMusicContents(musicContentsRes.data?.content || []);
+      } catch (error) {
+        console.error("Failed to load filter data:", error);
+      }
+    };
+
+    loadFilterData();
+  }, []);
+
   // rows, total are driven by API fetch; no local recompute
 
   const handleExportExcel = async () => {
@@ -317,7 +536,7 @@ export default function AthleteManagementPage({
         "Tên",
         "Email",
         "Giới tính",
-        "Nội dung",
+        "Loại thi đấu",
         "MSSV",
         "CLB",
         "Giải đấu",
@@ -329,7 +548,7 @@ export default function AthleteManagementPage({
         athlete.name,
         athlete.email,
         athlete.gender,
-        athlete.content,
+        athlete.competitionType,
         athlete.studentId,
         athlete.club,
         athlete.tournament,
@@ -507,6 +726,179 @@ export default function AthleteManagementPage({
                 </div>
               )}
             </div>
+
+            {/* Dynamic Competition Filter */}
+            {activeTab === "fighting" && (
+              <div className="relative filter-dropdown">
+                <button
+                  onClick={() =>
+                    setShowCompetitionFilter(!showCompetitionFilter)
+                  }
+                  className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  Hạng cân
+                </button>
+                {showCompetitionFilter && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-300 rounded shadow-lg z-20">
+                    <div className="p-2 space-y-1">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="subCompetitionFilter"
+                          className="mr-2 h-3 w-3 text-blue-600"
+                          checked={subCompetitionFilter === ""}
+                          onChange={() => setSubCompetitionFilter("")}
+                        />
+                        <span className="text-sm text-gray-700">Tất cả</span>
+                      </label>
+                      {weightClasses.map((wc) => {
+                        const weightDisplay =
+                          wc.weightClass || `${wc.minWeight}-${wc.maxWeight}kg`;
+                        return (
+                          <label
+                            key={wc.id}
+                            className="flex items-center cursor-pointer"
+                          >
+                            <input
+                              type="radio"
+                              name="subCompetitionFilter"
+                              className="mr-2 h-3 w-3 text-blue-600"
+                              checked={subCompetitionFilter === weightDisplay}
+                              onChange={() =>
+                                setSubCompetitionFilter(weightDisplay)
+                              }
+                            />
+                            <span className="text-sm text-gray-700">
+                              {weightDisplay}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "quyen" && (
+              <div className="flex items-center flex-wrap gap-2">
+                {FIXED_QUYEN_CATEGORIES.map((c) => (
+                  <div key={c} className="relative filter-dropdown">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (subCompetitionFilter === c) {
+                          // Toggle off current category filter
+                          setSubCompetitionFilter("");
+                          setDetailCompetitionFilter("");
+                          setOpenCategory("");
+                        } else {
+                          setSubCompetitionFilter(c);
+                          setDetailCompetitionFilter("");
+                          setOpenCategory((prev) => (prev === c ? "" : c));
+                        }
+                      }}
+                      className={`px-3 py-1.5 text-xs font-medium rounded border ${
+                        subCompetitionFilter === c
+                          ? "border-blue-500 text-blue-600 bg-blue-50"
+                          : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                    {openCategory === c && (
+                      <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-300 rounded shadow-lg z-20">
+                        <div className="p-2 space-y-1 max-h-64 overflow-auto">
+                          <label className="flex items-center cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`detailCompetitionFilter-${c}`}
+                              className="mr-2 h-3 w-3 text-blue-600"
+                              checked={detailCompetitionFilter === ""}
+                              onChange={() => setDetailCompetitionFilter("")}
+                            />
+                            <span className="text-sm text-gray-700">
+                              Tất cả
+                            </span>
+                          </label>
+                          {quyenContents
+                            .filter((content) => content.category === c)
+                            .map((content) => (
+                              <label
+                                key={content.id}
+                                className="flex items-center cursor-pointer"
+                              >
+                                <input
+                                  type="radio"
+                                  name={`detailCompetitionFilter-${c}`}
+                                  className="mr-2 h-3 w-3 text-blue-600"
+                                  checked={
+                                    detailCompetitionFilter === content.name
+                                  }
+                                  onChange={() =>
+                                    setDetailCompetitionFilter(content.name)
+                                  }
+                                />
+                                <span className="text-sm text-gray-700">
+                                  {content.name}
+                                </span>
+                              </label>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeTab === "music" && (
+              <div className="relative filter-dropdown">
+                <button
+                  onClick={() =>
+                    setShowCompetitionFilter(!showCompetitionFilter)
+                  }
+                  className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  Tiết mục
+                </button>
+                {showCompetitionFilter && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-300 rounded shadow-lg z-20">
+                    <div className="p-2 space-y-1">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="subCompetitionFilter"
+                          className="mr-2 h-3 w-3 text-blue-600"
+                          checked={subCompetitionFilter === ""}
+                          onChange={() => setSubCompetitionFilter("")}
+                        />
+                        <span className="text-sm text-gray-700">Tất cả</span>
+                      </label>
+                      {musicContents.map((content) => (
+                        <label
+                          key={content.id}
+                          className="flex items-center cursor-pointer"
+                        >
+                          <input
+                            type="radio"
+                            name="subCompetitionFilter"
+                            className="mr-2 h-3 w-3 text-blue-600"
+                            checked={subCompetitionFilter === content.name}
+                            onChange={() =>
+                              setSubCompetitionFilter(content.name)
+                            }
+                          />
+                          <span className="text-sm text-gray-700">
+                            {content.name}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

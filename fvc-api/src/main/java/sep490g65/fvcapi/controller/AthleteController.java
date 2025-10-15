@@ -23,14 +23,16 @@ public class AthleteController {
 
     @GetMapping
     public ResponseEntity<BaseResponse<PaginationResponse<Athlete>>> list(@RequestParam(defaultValue = "0") int page,
-                                                                          @RequestParam(defaultValue = "5") int size,
-                                                                          @RequestParam(required = false) String tournamentId,
-                                                                          @RequestParam(required = false) Athlete.CompetitionType competitionType,
-                                                                          @RequestParam(required = false) String name,
-                                                                          @RequestParam(required = false) Athlete.Gender gender,
-                                                                          @RequestParam(required = false) Athlete.AthleteStatus status) {
+                                                                         @RequestParam(defaultValue = "5") int size,
+                                                                         @RequestParam(required = false) String tournamentId,
+                                                                         @RequestParam(required = false) Athlete.CompetitionType competitionType,
+                                                                         @RequestParam(required = false) String subCompetitionType,
+                                                                         @RequestParam(required = false) String detailSubCompetitionType,
+                                                                         @RequestParam(required = false) String name,
+                                                                         @RequestParam(required = false) Athlete.Gender gender,
+                                                                         @RequestParam(required = false) Athlete.AthleteStatus status) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<Athlete> result = athleteService.list(tournamentId, competitionType, name, gender, status, pageable);
+        Page<Athlete> result = athleteService.list(tournamentId, competitionType, subCompetitionType, detailSubCompetitionType, name, gender, status, pageable);
         PaginationResponse<Athlete> payload = ResponseUtils.createPaginatedResponse(result);
         return ResponseEntity.ok(ResponseUtils.success("Athletes retrieved", payload));
     }

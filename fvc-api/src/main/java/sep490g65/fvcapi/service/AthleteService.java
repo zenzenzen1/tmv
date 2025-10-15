@@ -26,7 +26,8 @@ public class AthleteService {
                     existing.setStudentId(prototype.getStudentId());
                     existing.setClub(prototype.getClub());
                     existing.setCompetitionType(prototype.getCompetitionType());
-                    existing.setContent(prototype.getContent());
+                    existing.setSubCompetitionType(prototype.getSubCompetitionType());
+                    existing.setDetailSubCompetitionType(prototype.getDetailSubCompetitionType());
                     existing.setStatus(prototype.getStatus());
                     return athleteRepository.save(existing);
                 })
@@ -36,6 +37,8 @@ public class AthleteService {
     public Page<Athlete> list(
             String tournamentId,
             Athlete.CompetitionType competitionType,
+            String subCompetitionType,
+            String detailSubCompetitionType,
             String name,
             Athlete.Gender gender,
             Athlete.AthleteStatus status,
@@ -47,6 +50,12 @@ public class AthleteService {
         }
         if (competitionType != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("competitionType"), competitionType));
+        }
+        if (subCompetitionType != null && !subCompetitionType.isBlank()) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("subCompetitionType"), subCompetitionType));
+        }
+        if (detailSubCompetitionType != null && !detailSubCompetitionType.isBlank()) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("detailSubCompetitionType"), detailSubCompetitionType));
         }
         if (name != null && !name.isBlank()) {
             String pattern = "%" + name.trim().toLowerCase() + "%";

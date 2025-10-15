@@ -64,7 +64,7 @@ export default function PublishedForm() {
     }>
   >([]);
   // Fixed quyen categories (config cứng)
-  const quyenCategories = ["Đơn luyện", "Song luyện", "Đa luyện", "Song quyền"];
+  const quyenCategories = ["Đơn luyện", "Song luyện", "Đa luyện", "Đồng đội"];
 
   // Dynamic quyen content from API
   const [quyenContents, setQuyenContents] = useState<
@@ -112,7 +112,7 @@ export default function PublishedForm() {
       if (t.includes("song luyen") && !t.includes("song quyen"))
         return "Song luyện";
       if (t.includes("da luyen")) return "Đa luyện";
-      if (t.includes("song quyen")) return "Song quyền";
+      if (t.includes("song quyen")) return "Đồng đội";
     }
     return "";
   };

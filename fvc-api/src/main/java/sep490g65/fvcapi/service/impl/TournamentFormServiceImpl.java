@@ -265,12 +265,15 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 String email = textOrNull(root, "email");
                 String club = textOrNull(root, "club");
                 String competitionTypeStr = textOrNull(root, "competitionType");
-                String content = resolveContent(root, competitionTypeStr);
                 String genderStr = textOrNull(root, "gender");
                 String studentId = textOrNull(root, "studentId");
 
                 Athlete.Gender gender = parseGender(genderStr);
                 Athlete.CompetitionType competitionType = parseCompetitionType(competitionTypeStr);
+                
+                // Extract hierarchical competition structure
+        String subCompetitionType = resolveSubCompetitionType(root, competitionTypeStr);
+        String detailSubCompetitionType = resolveDetailSubCompetitionType(root, competitionTypeStr);
 
                 String tournamentId = null;
                 if (s.getApplicationFormConfig() != null && s.getApplicationFormConfig().getCompetition() != null) {
@@ -281,17 +284,18 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 }
 
                 if (tournamentId != null && fullName != null && email != null && gender != null && competitionType != null) {
-                    Athlete prototype = Athlete.builder()
-                            .tournamentId(tournamentId)
-                            .fullName(fullName)
-                            .email(email)
-                            .studentId(studentId)
-                            .gender(gender)
-                            .club(club)
-                            .competitionType(competitionType)
-                            .content((content != null && !content.isBlank()) ? content : "-")
-                            .status(Athlete.AthleteStatus.NOT_STARTED)
-                            .build();
+                Athlete prototype = Athlete.builder()
+                        .tournamentId(tournamentId)
+                        .fullName(fullName)
+                        .email(email)
+                        .studentId(studentId)
+                        .gender(gender)
+                        .club(club)
+                        .competitionType(competitionType)
+                        .subCompetitionType(subCompetitionType)
+                        .detailSubCompetitionType(detailSubCompetitionType)
+                        .status(Athlete.AthleteStatus.NOT_STARTED)
+                        .build();
                     athleteService.upsert(prototype);
                 }
             } catch (Exception ignored) {
@@ -429,6 +433,45 @@ public class TournamentFormServiceImpl implements TournamentFormService {
 
     private String textOrNull(JsonNode node, String field) {
         return (node != null && node.hasNonNull(field)) ? node.get(field).asText() : null;
+    }
+
+
+    private String resolveSubCompetitionType(JsonNode root, String competitionTypeStr) {
+        if (competitionTypeStr == null) return null;
+        String ct = competitionTypeStr.trim().toLowerCase();
+        
+        switch (ct) {
+            case "fighting":
+                return "Hạng cân";
+            case "quyen":
+                return textOrNull(root, "quyenCategory"); // Song luyện, Đa luyện
+            case "music":
+                return "Tiết mục";
+            default:
+                return null;
+        }
+    }
+
+    private String resolveDetailSubCompetitionType(JsonNode root, String competitionTypeStr) {
+        if (competitionTypeStr == null) return null;
+        String ct = competitionTypeStr.trim().toLowerCase();
+        
+        switch (ct) {
+            case "fighting":
+                String weightClass = textOrNull(root, "weightClass");
+                String gender = textOrNull(root, "gender");
+                if (weightClass != null && !weightClass.isBlank()) {
+                    String genderDisplay = "MALE".equals(gender) ? "Nam" : "FEMALE".equals(gender) ? "Nữ" : "";
+                    return genderDisplay.isEmpty() ? weightClass : genderDisplay + " " + weightClass;
+                }
+                return null;
+            case "quyen":
+                return textOrNull(root, "quyenContent"); // Song luyện 1, Đa luyện 2
+            case "music":
+                return textOrNull(root, "musicCategory"); // Võ nhạc 1, etc.
+            default:
+                return null;
+        }
     }
 
 

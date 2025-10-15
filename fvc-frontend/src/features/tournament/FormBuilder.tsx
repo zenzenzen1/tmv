@@ -93,7 +93,7 @@ const FormBuilder: React.FC = () => {
     Array<{ id: string; name: string }>
   >([]);
   // Fixed quyen categories (config cứng)
-  const quyenCategories = ["Đơn luyện", "Song luyện", "Đa luyện", "Song quyền"];
+  const quyenCategories = ["Đơn luyện", "Song luyện", "Đa luyện", "Đồng đội"];
 
   // Dynamic quyen content from API
   const [quyenContents, setQuyenContents] = useState<
@@ -133,7 +133,7 @@ const FormBuilder: React.FC = () => {
       if (t.includes("song luyen") && !t.includes("song quyen"))
         return "Song luyện";
       if (t.includes("da luyen")) return "Đa luyện";
-      if (t.includes("song quyen")) return "Song quyền";
+      if (t.includes("song quyen")) return "Đồng đội";
     }
     return "";
   };
