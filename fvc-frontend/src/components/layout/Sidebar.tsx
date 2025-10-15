@@ -21,11 +21,9 @@ export default function TournamentSidebar({
   const items = menuItems ?? defaultMenuItems;
   const navigate = useNavigate();
 
-  // Map menu keys to routes
-  const keyToPath: Record<string, string> = {
-    formList: "/formList",
-    submittedForms: "/submitted-forms",
-  };
+  // Optional mapping for standalone pages.
+  // Keep empty so clicks stay within /manage (controlled mode).
+  const keyToPath: Record<string, string> = {};
 
   const isControlled =
     controlledActiveMenu !== undefined && typeof onChange === "function";

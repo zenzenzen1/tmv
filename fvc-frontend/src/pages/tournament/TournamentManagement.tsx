@@ -7,6 +7,7 @@ import TournamentListPage from "./ListPage";
 import FistContentListPage from "../fist-content/ListPage";
 import MusicContentListPage from "../music-content/ListPage";
 import AthleteManagementWrapper from "../athletes/AthleteManagementWrapper";
+import SubmittedFormsPage from "../submitted-forms/ListPage";
 
 export default function TournamentManage() {
   const [activeMenu, setActiveMenu] = useState<string>("tournamentForm");
@@ -16,6 +17,7 @@ export default function TournamentManage() {
   const contentAthletes = <AthleteManagementWrapper />;
   const contentFist = <FistContentListPage />;
   const contentMusic = <MusicContentListPage />;
+  const contentSubmittedForms = <SubmittedFormsPage />;
 
   const placeholder = (title: string) => (
     <div className="px-6 py-10 text-sm text-gray-600">{title}</div>
@@ -34,6 +36,7 @@ export default function TournamentManage() {
         {activeMenu === "fighting" && placeholder("Đối kháng")}
         {activeMenu === "forms" && contentFist}
         {activeMenu === "music" && contentMusic}
+        {activeMenu === "submittedForms" && contentSubmittedForms}
       </div>
       <div className="col-span-2">
         <Footer />
