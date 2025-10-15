@@ -13,7 +13,7 @@ public interface SubmittedApplicationFormService {
     PaginationResponse<SubmittedApplicationFormResponse> list(RequestParam params, ApplicationFormType type);
     
     @Transactional
-    SubmittedApplicationFormResponse submit(SubmitApplicationFormRequest request);
+    SubmittedApplicationFormResponse submit(SubmitApplicationFormRequest request) throws com.fasterxml.jackson.core.JsonProcessingException;
 }
 
 

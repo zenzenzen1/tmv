@@ -83,6 +83,11 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/v1/music-contents/${id}`,
   },
 
+  // Athletes
+  ATHLETES: {
+    BASE: "/v1/athletes",
+  },
+
   // Common endpoints
   HEALTH: "/health",
   VERSION: "/version",

@@ -124,6 +124,10 @@ export default function FormResults() {
                     `/v1/tournament-forms/submissions/${r.id}/status`,
                     { status: map[next] }
                   );
+                  // Notify athlete list to refetch after approval
+                  if (next === "ĐÃ DUYỆT") {
+                    window.dispatchEvent(new Event("athletes:refetch"));
+                  }
                 } catch (err) {
                   console.error("Update submission status failed", err);
                 }

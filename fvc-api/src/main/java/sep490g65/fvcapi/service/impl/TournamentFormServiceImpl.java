@@ -25,6 +25,11 @@ import sep490g65.fvcapi.dto.request.UpdateFormRequest;
 import sep490g65.fvcapi.dto.response.FormDetailResponse;
 import sep490g65.fvcapi.dto.response.FormFieldDto;
 import sep490g65.fvcapi.dto.request.CreateSubmissionRequest;
+import sep490g65.fvcapi.service.AthleteService;
+import sep490g65.fvcapi.entity.Athlete;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
 
@@ -37,6 +42,8 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     private final ApplicationFormConfigRepository formConfigRepository;
     private final SubmittedApplicationFormRepository submittedRepository;
     private final UserRepository userRepository;
+    private final AthleteService athleteService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private TournamentFormResponse toDto(Competition c) {
         String status = resolveStatus(c);
@@ -247,6 +254,54 @@ public class TournamentFormServiceImpl implements TournamentFormService {
         sep490g65.fvcapi.entity.SubmittedApplicationForm s = submittedRepository.findById(submissionId).orElseThrow();
         s.setStatus(status);
         submittedRepository.save(s);
+
+        // On approval, upsert an athlete based on submission data
+        if (status == ApplicationFormStatus.APPROVED) {
+            try {
+                String formJson = s.getFormData();
+                JsonNode root = formJson != null ? objectMapper.readTree(formJson) : objectMapper.createObjectNode();
+
+                String fullName = textOrNull(root, "fullName");
+                String email = textOrNull(root, "email");
+                String club = textOrNull(root, "club");
+                String competitionTypeStr = textOrNull(root, "competitionType");
+                String genderStr = textOrNull(root, "gender");
+                String studentId = textOrNull(root, "studentId");
+
+                Athlete.Gender gender = parseGender(genderStr);
+                Athlete.CompetitionType competitionType = parseCompetitionType(competitionTypeStr);
+                
+                // Extract hierarchical competition structure
+        String subCompetitionType = resolveSubCompetitionType(root, competitionTypeStr);
+        String detailSubCompetitionType = resolveDetailSubCompetitionType(root, competitionTypeStr);
+
+                String tournamentId = null;
+                if (s.getApplicationFormConfig() != null && s.getApplicationFormConfig().getCompetition() != null) {
+                    String compId = s.getApplicationFormConfig().getCompetition().getId();
+                    if (compId != null && !compId.isBlank()) {
+                        tournamentId = compId;
+                    }
+                }
+
+                if (tournamentId != null && fullName != null && email != null && gender != null && competitionType != null) {
+                Athlete prototype = Athlete.builder()
+                        .tournamentId(tournamentId)
+                        .fullName(fullName)
+                        .email(email)
+                        .studentId(studentId)
+                        .gender(gender)
+                        .club(club)
+                        .competitionType(competitionType)
+                        .subCompetitionType(subCompetitionType)
+                        .detailSubCompetitionType(detailSubCompetitionType)
+                        .status(Athlete.AthleteStatus.NOT_STARTED)
+                        .build();
+                    athleteService.upsert(prototype);
+                }
+            } catch (Exception ignored) {
+                // Intentionally ignore to avoid breaking approval flow; consider logging if needed
+            }
+        }
     }
 
     @Override
@@ -261,6 +316,53 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 || request.getGender() == null || request.getGender().isBlank()
                 || request.getFormDataJson() == null || request.getFormDataJson().isBlank()) {
             throw new IllegalArgumentException("Missing required fields for submission");
+        }
+
+        // Enforce 1 email per form: check existing submissions by formId + email
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+        String normalizedStudentId = request.getStudentId().trim();
+        
+        // submittedRepository should expose a method to search by formId and email contained in formData
+        // As a pragmatic approach, fetch minimal page and scan for match
+        PageRequest onePage = PageRequest.of(0, 100);
+        Page<sep490g65.fvcapi.entity.SubmittedApplicationForm> existing = submittedRepository.findByFormId(formId, onePage);
+        
+        // Check for duplicate email
+        boolean duplicateEmail = existing.stream().anyMatch(s -> {
+            try {
+                String formJson = s.getFormData();
+                if (formJson == null) return false;
+                com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(formJson);
+                String e = (node != null && node.hasNonNull("email")) ? node.get("email").asText("") : "";
+                return !e.isBlank() && e.trim().toLowerCase().equals(normalizedEmail);
+            } catch (Exception ex) {
+                return false;
+            }
+        });
+        if (duplicateEmail) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT,
+                    "Email này đã được đăng ký cho form này"
+            );
+        }
+        
+        // Check for duplicate studentId
+        boolean duplicateStudentId = existing.stream().anyMatch(s -> {
+            try {
+                String formJson = s.getFormData();
+                if (formJson == null) return false;
+                com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(formJson);
+                String sid = (node != null && node.hasNonNull("studentId")) ? node.get("studentId").asText("") : "";
+                return !sid.isBlank() && sid.trim().equals(normalizedStudentId);
+            } catch (Exception ex) {
+                return false;
+            }
+        });
+        if (duplicateStudentId) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT,
+                    "MSSV này đã được đăng ký cho form này"
+            );
         }
         // resolve user from email or create a lightweight guest user
         sep490g65.fvcapi.entity.User user = userRepository.findByPersonalMail(request.getEmail())
@@ -309,6 +411,155 @@ public class TournamentFormServiceImpl implements TournamentFormService {
         }
         if (c == null) return "draft";
         return resolveStatus(c);
+    }
+
+    private Athlete.Gender parseGender(String value) {
+        if (value == null) return null;
+        String v = value.trim().toUpperCase();
+        if ("MALE".equals(v) || "NAM".equals(v)) return Athlete.Gender.MALE;
+        if ("FEMALE".equals(v) || "NỮ".equals(v) || "NU".equals(v)) return Athlete.Gender.FEMALE;
+        return null;
+    }
+
+    private Athlete.CompetitionType parseCompetitionType(String value) {
+        if (value == null) return null;
+        String v = value.trim().toLowerCase();
+        try {
+            return Athlete.CompetitionType.valueOf(v);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private String textOrNull(JsonNode node, String field) {
+        return (node != null && node.hasNonNull(field)) ? node.get(field).asText() : null;
+    }
+
+
+    private String resolveSubCompetitionType(JsonNode root, String competitionTypeStr) {
+        if (competitionTypeStr == null) return null;
+        String ct = competitionTypeStr.trim().toLowerCase();
+        
+        switch (ct) {
+            case "fighting":
+                return "Hạng cân";
+            case "quyen":
+                return textOrNull(root, "quyenCategory"); // Song luyện, Đa luyện
+            case "music":
+                return "Tiết mục";
+            default:
+                return null;
+        }
+    }
+
+    private String resolveDetailSubCompetitionType(JsonNode root, String competitionTypeStr) {
+        if (competitionTypeStr == null) return null;
+        String ct = competitionTypeStr.trim().toLowerCase();
+        
+        switch (ct) {
+            case "fighting":
+                String weightClass = textOrNull(root, "weightClass");
+                String gender = textOrNull(root, "gender");
+                if (weightClass != null && !weightClass.isBlank()) {
+                    String genderDisplay = "MALE".equals(gender) ? "Nam" : "FEMALE".equals(gender) ? "Nữ" : "";
+                    return genderDisplay.isEmpty() ? weightClass : genderDisplay + " " + weightClass;
+                }
+                return null;
+            case "quyen":
+                return textOrNull(root, "quyenContent"); // Song luyện 1, Đa luyện 2
+            case "music":
+                return textOrNull(root, "musicCategory"); // Võ nhạc 1, etc.
+            default:
+                return null;
+        }
+    }
+
+
+    private String resolveContent(JsonNode root, String competitionTypeStr) {
+        String ct = competitionTypeStr != null ? competitionTypeStr.trim().toLowerCase() : null;
+        
+        // Build hierarchical content display
+        if ("quyen".equals(ct)) {
+            String category = textOrNull(root, "quyenCategory"); // Song luyện, Đa luyện
+            String content = textOrNull(root, "quyenContent"); // Song luyện 1, Đa luyện 2
+            
+            if (category != null && !category.isBlank() && content != null && !content.isBlank()) {
+                return "Quyền - " + category + " - " + content;
+            }
+            if (content != null && !content.isBlank()) {
+                return "Quyền - " + content;
+            }
+            if (category != null && !category.isBlank()) {
+                return "Quyền - " + category;
+            }
+            return "Quyền";
+            
+        } else if ("music".equals(ct)) {
+            String mc = textOrNull(root, "musicCategory");
+            if (mc != null && !mc.isBlank()) {
+                return "Võ nhạc - " + mc;
+            }
+            return "Võ nhạc";
+            
+        } else if ("fighting".equals(ct)) {
+            String wc = textOrNull(root, "weightClass");
+            String gender = textOrNull(root, "gender");
+            
+            if (wc != null && !wc.isBlank()) {
+                String genderDisplay = "MALE".equals(gender) ? "Nam" : "FEMALE".equals(gender) ? "Nữ" : "";
+                if (!genderDisplay.isEmpty()) {
+                    return "Đối kháng - Hạng cân - " + genderDisplay + " " + wc;
+                }
+                return "Đối kháng - Hạng cân - " + wc;
+            }
+            return "Đối kháng";
+        }
+        // Try multiple known keys from form results mapping
+        String[] keys = new String[]{
+                "content",
+                "contentName",
+                "quyenContentName",
+                "quyenContent",
+                "quyenCategory",
+                "fistContent",
+                "fistItem",
+                "fistItemName",
+                "weightClass",
+                "musicCategory",
+                "category"
+        };
+        for (String k : keys) {
+            String v = textOrNull(root, k);
+            if (v != null && !v.isBlank()) return v;
+        }
+        // Fallback: if a nested object/array holds a displayable name
+        if (root != null && root.has("quyenContent")) {
+            JsonNode q = root.get("quyenContent");
+            if (q.isObject()) {
+                String v = firstStringFromObject(q);
+                if (v != null && !v.isBlank()) return v;
+            } else if (q.isArray() && q.size() > 0) {
+                JsonNode first = q.get(0);
+                String v = firstStringFromObject(first);
+                if (v != null && !v.isBlank()) return v;
+            }
+        }
+        return null;
+    }
+
+    private String firstStringFromObject(JsonNode node) {
+        if (node == null) return null;
+        if (node.hasNonNull("name")) return node.get("name").asText();
+        if (node.hasNonNull("title")) return node.get("title").asText();
+        if (node.hasNonNull("label")) return node.get("label").asText();
+        // iterate keys
+        java.util.Iterator<String> it = node.fieldNames();
+        while (it.hasNext()) {
+            String k = it.next();
+            JsonNode v = node.get(k);
+            if (v.isTextual() && !v.asText().isBlank()) return v.asText();
+        }
+        return null;
     }
 }
 
