@@ -15,6 +15,7 @@ type FormField = {
   required: boolean;
   note?: string;
   sortOrder: number;
+  options?: string[] | null;
 };
 
 export default function FormEditPage() {
@@ -44,6 +45,10 @@ export default function FormEditPage() {
         return copy;
       });
     }
+  }
+
+  function handleDelete(idx: number) {
+    setFields((prev) => prev.filter((_, i) => i !== idx));
   }
 
   function handleDeleteCustom(idx: number) {
