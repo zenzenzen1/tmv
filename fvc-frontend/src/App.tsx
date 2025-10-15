@@ -18,12 +18,13 @@ import TournamentManage from "./pages/tournament/TournamentManagement";
 import FormResults from "./features/tournament/FormResults";
 import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
+import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
 
-  // Nếu chưa login → chuyển sang /login
-  // Nếu đã login → hiển thị layout chính
+  Nếu chưa login → chuyển sang /login
+  Nếu đã login → hiển thị layout chính
   if (!isAuthenticated) {
     return (
       <Routes>
@@ -33,9 +34,15 @@ export default function App() {
     );
   }
 
-  // Nếu đã login → hiển thị layout chính
+  Nếu đã login → hiển thị layout chính
   return (
     <Routes>
+      <Route
+        path="/login"
+        element={
+          isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
+        }
+      />
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/submitted-forms" element={<SubmittedFormsPage />} />
       <Route path="/formList" element={<FormListPage />} />
@@ -58,6 +65,12 @@ export default function App() {
       <Route path="/form-builder" element={<FormBuilder />} />
       <Route path="/form-builder/:id" element={<FormBuilder />} />
       <Route path="/forms/:id/fill" element={<PublishedForm />} />
+
+      {/* Athletes Management */}
+      <Route path="/athletes" element={<AthleteManagementWrapper />} />
+      <Route path="/athletes/fighting" element={<AthleteManagementWrapper />} />
+      <Route path="/athletes/quyen" element={<AthleteManagementWrapper />} />
+      <Route path="/athletes/music" element={<AthleteManagementWrapper />} />
 
       {/* 404 */}
 

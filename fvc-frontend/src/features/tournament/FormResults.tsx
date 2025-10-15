@@ -6,7 +6,7 @@ import {
   type TableColumn,
 } from "../../components/common/CommonTable";
 import api from "../../services/api";
-import type { PaginationResponse } from "../../types/api";
+// import type { PaginationResponse } from "../../types/api";
 
 type ResultRow = {
   id: string;
@@ -35,6 +35,7 @@ export default function FormResults() {
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [, setLoading] = useState<boolean>(false);
+  const [reloadKey, setReloadKey] = useState<number>(0);
   const { id } = useParams<{ id: string }>();
   const location = useLocation() as { state?: { tournamentName?: string } };
 
@@ -52,6 +53,7 @@ export default function FormResults() {
         key: "submittedAt",
         title: "Thời gian nộp",
         className: "whitespace-nowrap text-[15px]",
+        render: (r: ResultRow) => r.submittedAt || "",
       },
       {
         key: "fullName",
@@ -84,11 +86,7 @@ export default function FormResults() {
         className: "whitespace-nowrap text-[15px]",
       },
       { key: "club", title: "CLB", className: "whitespace-nowrap text-[15px]" },
-      {
-        key: "coach",
-        title: "Huấn luyện viên quản lí",
-        className: "whitespace-nowrap text-[15px]",
-      },
+      // Removed coach column per request
       {
         key: "phone",
         title: "SDT liên lạc",
@@ -123,7 +121,7 @@ export default function FormResults() {
                     )
                   );
                   await api.patch(
-                    `/tournament-forms/submissions/${r.id}/status`,
+                    `/v1/tournament-forms/submissions/${r.id}/status`,
                     { status: map[next] }
                   );
                 } catch (err) {
@@ -143,22 +141,33 @@ export default function FormResults() {
     []
   );
 
-  const pageSize = 10;
+  const pageSize = 5;
 
   useEffect(() => {
     const fetchData = async () => {
       if (!id) return;
       try {
         setLoading(true);
-        const resp = await api.get<
-          PaginationResponse<{ id: number; formData: string; status: string }>
-        >(`/tournament-forms/${id}/submissions`, {
-          page: page - 1,
-          size: pageSize,
-        });
-        const data = resp.data;
-        setTotal(data.totalElements);
-        const mapped: ResultRow[] = data.content.map((item) => {
+        // Force backend to paginate 5 per page
+        const resp = await api.get(
+          `/v1/tournament-forms/${id}/submissions?page=${
+            page - 1
+          }&size=${pageSize}`
+        );
+        const root = resp.data as Record<string, unknown>;
+        const pageData = (root["data"] as Record<string, unknown>) ?? root;
+        const responseTimestamp = (root["timestamp"] as string) || "";
+        const totalElements =
+          (pageData["totalElements"] as number) ||
+          (pageData["total"] as number) ||
+          0;
+        const content = (pageData["content"] as Array<unknown>) ?? [];
+        const mapped: ResultRow[] = content.map((raw) => {
+          const item = raw as {
+            id: number;
+            formData?: string;
+            status?: string;
+          };
           let parsed: Record<string, unknown> = {};
           try {
             parsed = item.formData ? JSON.parse(item.formData) : {};
@@ -166,7 +175,9 @@ export default function FormResults() {
             parsed = {};
           }
           const status = STATUS_MAP[item.status as string] || "CHỜ DUYỆT";
-          const compRaw = (parsed.competitionType as string) || "";
+          const compRaw = (
+            (parsed.competitionType as string) || ""
+          ).toLowerCase();
           const compVi =
             compRaw === "quyen"
               ? "Quyền"
@@ -175,17 +186,104 @@ export default function FormResults() {
               : compRaw === "music"
               ? "Võ nhạc"
               : "";
+          const getFirstString = (v: unknown): string => {
+            if (Array.isArray(v)) {
+              if (v.length === 0) return "";
+              return getFirstString(v[0]);
+            }
+            if (v && typeof v === "object") {
+              const obj = v as Record<string, unknown>;
+              if (typeof obj.name === "string" && obj.name) return obj.name;
+              if (typeof obj.title === "string" && obj.title) return obj.title;
+              if (typeof obj.label === "string" && obj.label) return obj.label;
+              for (const key of Object.keys(obj)) {
+                const val = obj[key];
+                if (typeof val === "string" && val) return val;
+              }
+              return "";
+            }
+            if (typeof v === "string" || typeof v === "number")
+              return String(v);
+            return "";
+          };
+
+          const quyenCategory =
+            getFirstString(parsed.quyenCategory) ||
+            getFirstString(parsed.category) ||
+            "";
+          const quyenContent =
+            getFirstString(parsed.quyenContent) ||
+            getFirstString((parsed as Record<string, unknown>).fistContent) ||
+            getFirstString((parsed as Record<string, unknown>).fistItem) ||
+            getFirstString((parsed as Record<string, unknown>).fistItemName) ||
+            getFirstString(
+              (parsed as Record<string, unknown>).quyenContentName
+            ) ||
+            getFirstString((parsed as Record<string, unknown>).contentName) ||
+            getFirstString(parsed.content) ||
+            "";
           const categoryVi =
             compRaw === "quyen"
-              ? (parsed.quyenCategory as string) || ""
+              ? `${quyenCategory}${quyenContent ? ` - ${quyenContent}` : ""}`
               : compRaw === "fighting"
               ? (parsed.weightClass as string) || ""
               : compRaw === "music"
               ? (parsed.musicCategory as string) || ""
               : (parsed.category as string) || "";
+          if (compRaw === "quyen") {
+            console.log("FormResults parsed quyen:", {
+              raw: parsed,
+              quyenCategory,
+              quyenContent,
+              categoryVi,
+            });
+          }
+          // Extract submitted time if available, else fallback empty
+          const it = item as unknown as Record<string, unknown>;
+          const pickDate = (...keys: string[]): string | undefined => {
+            for (const k of keys) {
+              const v = it[k];
+              if (v === undefined || v === null) continue;
+              if (typeof v === "number") {
+                // epoch seconds or ms
+                const ms = v > 1e12 ? v : v * 1000;
+                return new Date(ms).toLocaleString();
+              }
+              if (typeof v === "string" && v.trim()) {
+                const d = new Date(v);
+                if (!isNaN(d.getTime())) return d.toLocaleString();
+              }
+            }
+            return undefined;
+          };
+          let submittedAt =
+            pickDate(
+              "submittedAt",
+              "createdAt",
+              "createdDate",
+              "created_time",
+              "created_at",
+              "timestamp",
+              "createdOn",
+              "updatedAt",
+              "submittedAtClient"
+            ) || "";
+          // Also check inside parsed formData (client timestamp saved there)
+          if (!submittedAt) {
+            const v = (parsed as Record<string, unknown>)["submittedAtClient"];
+            if (typeof v === "string" && v) {
+              const d = new Date(v);
+              if (!isNaN(d.getTime())) submittedAt = d.toLocaleString();
+            }
+          }
+          // Fallback to response timestamp if item lacks its own time
+          if (!submittedAt && responseTimestamp) {
+            const d = new Date(responseTimestamp);
+            if (!isNaN(d.getTime())) submittedAt = d.toLocaleString();
+          }
           return {
             id: String(item.id),
-            submittedAt: "", // backend model lacks timestamp; leave empty
+            submittedAt,
             fullName: parsed.fullName || "",
             email: parsed.email || "",
             gender: parsed.gender === "FEMALE" ? "Nữ" : "Nam",
@@ -198,7 +296,10 @@ export default function FormResults() {
             status,
           } as ResultRow;
         });
+        // Show at most 5 rows on a single page (no extra pages)
+        // Use backend pagination: keep total from server
         setRows(mapped);
+        setTotal(totalElements);
       } catch (e: unknown) {
         console.error("Load submissions failed", e);
         if (typeof e === "object" && e && "message" in e) {
@@ -212,7 +313,14 @@ export default function FormResults() {
       }
     };
     fetchData();
-  }, [id, page]);
+  }, [id, page, reloadKey]);
+
+  // Listen for form submissions elsewhere to refresh results
+  useEffect(() => {
+    const handler = () => setReloadKey((k) => k + 1);
+    window.addEventListener("forms:changed", handler);
+    return () => window.removeEventListener("forms:changed", handler);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#F0F6FF] to-[#E0EAFF] flex flex-col">

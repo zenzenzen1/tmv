@@ -41,22 +41,76 @@ export default function PublishedForm() {
   >("fighting");
   const [weightClass, setWeightClass] = useState("");
   const [quyenCategory, setQuyenCategory] = useState("");
+  const [quyenContent, setQuyenContent] = useState("");
   const [musicCategory, setMusicCategory] = useState("");
   const [coachName, setCoachName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   // const [studentCardFile, setStudentCardFile] = useState<File | null>(null);
 
-  const weightClasses = [
-    "",
-    "-45 kg",
-    "45 - 50 kg",
-    "50 - 55 kg",
-    "55 - 60 kg",
-    "60 - 65 kg",
-    "> 65 kg",
-  ];
-  const quyenCategories = ["Đơn luyện", "Đa luyện", "Song Luyện", "Đồng Đội"];
-  const musicCategories = ["", "Độc tấu", "Nhóm 3-5", "Đồng diễn"];
+  // API data states
+  const [weightClasses, setWeightClasses] = useState<
+    Array<{
+      id: string;
+      weightClass: string;
+      gender: string;
+      minWeight: number;
+      maxWeight: number;
+    }>
+  >([]);
+  const [musicContents, setMusicContents] = useState<
+    Array<{
+      id: string;
+      name: string;
+    }>
+  >([]);
+  // Fixed quyen categories (config cứng)
+  const quyenCategories = ["Đơn luyện", "Song luyện", "Đa luyện", "Song quyền"];
+
+  // Dynamic quyen content from API
+  const [quyenContents, setQuyenContents] = useState<
+    Array<{
+      id: string;
+      name: string;
+      category?: string;
+    }>
+  >([]);
+  const [allQuyenContents, setAllQuyenContents] = useState<
+    Array<{
+      id: string;
+      name: string;
+      category?: string;
+    }>
+  >([]);
+
+  // Helper: derive normalized category for quyen content item
+  const normalizeQuyenCategory = (
+    rawCategory: unknown,
+    rawName: unknown,
+    parentName?: unknown
+  ): string => {
+    const candidates: string[] = [];
+    if (typeof rawCategory === "string") candidates.push(rawCategory);
+    if (typeof parentName === "string") candidates.push(parentName);
+    if (typeof rawName === "string") candidates.push(rawName);
+
+    const stripAccents = (s: string) =>
+      s
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/g, "d")
+        .replace(/Đ/g, "D")
+        .toLowerCase();
+
+    for (const c of candidates) {
+      const t = stripAccents(c);
+      if (t.includes("don luyen")) return "Đơn luyện";
+      if (t.includes("song luyen") && !t.includes("song quyen"))
+        return "Song luyện";
+      if (t.includes("da luyen")) return "Đa luyện";
+      if (t.includes("song quyen")) return "Song quyền";
+    }
+    return "";
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -73,6 +127,146 @@ export default function PublishedForm() {
           else initial[f.name] = "";
         });
         setDynamicValues(initial);
+
+        // Load weight classes
+        try {
+          const weightClassesRes = await api.get<{
+            content: Array<{
+              id: string;
+              weightClass: string;
+              gender: string;
+              minWeight: number;
+              maxWeight: number;
+            }>;
+            totalElements: number;
+          }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
+          setWeightClasses(weightClassesRes.data?.content || []);
+        } catch (weightError) {
+          console.warn("Failed to load weight classes:", weightError);
+          setWeightClasses([]);
+        }
+
+        // Load music contents
+        try {
+          const musicContentsRes = await api.get<{
+            content: Array<{ id: string; name: string }>;
+            totalElements: number;
+          }>(API_ENDPOINTS.MUSIC_CONTENTS.BASE);
+          setMusicContents(musicContentsRes.data?.content || []);
+        } catch (musicError) {
+          console.warn("Failed to load music contents:", musicError);
+          setMusicContents([]);
+        }
+
+        // Load quyen contents (fist items)
+        try {
+          const quyenContentsRes = await api.get(
+            API_ENDPOINTS.FIST_CONTENTS.ITEMS
+          );
+          console.log(
+            "PublishedForm - Quyen contents API response:",
+            quyenContentsRes.data
+          );
+
+          // Handle different response structures
+          let quyenData: Array<{
+            id: string;
+            name: string;
+            category?: string;
+          }> = [];
+          const responseData = quyenContentsRes.data as Record<string, unknown>;
+          if (responseData?.content && Array.isArray(responseData.content)) {
+            quyenData = responseData.content as Array<{
+              id: string;
+              name: string;
+              category?: string;
+            }>;
+          } else if (
+            responseData?.data &&
+            typeof responseData.data === "object" &&
+            responseData.data !== null
+          ) {
+            const dataObj = responseData.data as Record<string, unknown>;
+            if (dataObj.content && Array.isArray(dataObj.content)) {
+              quyenData = dataObj.content as Array<{
+                id: string;
+                name: string;
+                category?: string;
+              }>;
+            }
+          } else if (Array.isArray(responseData)) {
+            quyenData = responseData as Array<{
+              id: string;
+              name: string;
+              category?: string;
+            }>;
+          } else if (responseData?.data && Array.isArray(responseData.data)) {
+            quyenData = responseData.data as Array<{
+              id: string;
+              name: string;
+              category?: string;
+            }>;
+          }
+
+          const mapped = (quyenData || []).map((raw) => {
+            const item = raw as unknown as Record<string, unknown>;
+            const parent =
+              (item["parent"] as Record<string, unknown> | undefined) ??
+              undefined;
+            const derived = normalizeQuyenCategory(
+              (typeof item["category"] === "string" &&
+                (item["category"] as string)) ||
+                (typeof item["categoryName"] === "string" &&
+                  (item["categoryName"] as string)) ||
+                (typeof item["group"] === "string" &&
+                  (item["group"] as string)) ||
+                (typeof item["groupName"] === "string" &&
+                  (item["groupName"] as string)) ||
+                (typeof item["type"] === "string" &&
+                  (item["type"] as string)) ||
+                (typeof item["typeName"] === "string" &&
+                  (item["typeName"] as string)) ||
+                "",
+              (typeof item["name"] === "string" && (item["name"] as string)) ||
+                "",
+              parent && typeof parent["name"] === "string"
+                ? (parent["name"] as string)
+                : (typeof item["parentName"] === "string" &&
+                    (item["parentName"] as string)) ||
+                    (typeof item["parentTitle"] === "string" &&
+                      (item["parentTitle"] as string)) ||
+                    ""
+            );
+            return {
+              id: String(item["id"] ?? ""),
+              name:
+                (typeof item["name"] === "string" &&
+                  (item["name"] as string)) ||
+                "",
+              category:
+                derived ||
+                (typeof item["category"] === "string"
+                  ? (item["category"] as string)
+                  : ""),
+            };
+          });
+          console.log(
+            "PublishedForm - Setting quyen contents state (mapped):",
+            mapped
+          );
+          console.log("PublishedForm - Quyen contents count:", mapped.length);
+          console.log("PublishedForm - Sample quyen content:", mapped[0]);
+          console.log("PublishedForm - All quyen categories found:", [
+            ...new Set(mapped.map((item: any) => item.category)),
+          ]);
+
+          // Avoid extra alternative fetch to reduce re-renders when empty (backend may not have data yet)
+          setAllQuyenContents(mapped);
+          setQuyenContents(mapped);
+        } catch (quyenError) {
+          console.warn("Failed to load quyen contents:", quyenError);
+          setQuyenContents([]);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -80,6 +274,27 @@ export default function PublishedForm() {
       }
     })();
   }, [id]);
+
+  // Filter quyen contents based on selected category
+  useEffect(() => {
+    console.log(
+      "PublishedForm - Filter effect triggered - quyenCategory:",
+      quyenCategory,
+      "allQuyenContents length:",
+      allQuyenContents.length
+    );
+    if (!quyenCategory) {
+      setQuyenContents([]);
+      return;
+    }
+    if (allQuyenContents.length > 0) {
+      const filtered = allQuyenContents.filter(
+        (content) => content.category === quyenCategory
+      );
+      console.log("PublishedForm - Filtered quyen contents:", filtered);
+      setQuyenContents(filtered);
+    }
+  }, [quyenCategory, allQuyenContents]);
 
   const sortedFields = useMemo(() => {
     return (meta?.fields || [])
@@ -107,9 +322,12 @@ export default function PublishedForm() {
       competitionType,
       weightClass,
       quyenCategory,
+      quyenContent,
       musicCategory,
       coachName,
       phoneNumber,
+      // client-side submission timestamp fallback when backend doesn't persist createdAt
+      submittedAtClient: new Date().toISOString(),
     };
     Object.assign(payload, dynamicValues);
     return JSON.stringify(payload);
@@ -278,11 +496,20 @@ export default function PublishedForm() {
                         onChange={(e) => setWeightClass(e.target.value)}
                         className="w-full appearance-none bg-white border border-gray-400 rounded-full px-4 h-9 text-sm text-gray-700"
                       >
-                        {weightClasses.map((w, i) => (
-                          <option key={i} value={w}>
-                            {w || "Chọn hạng cân của bạn"}
-                          </option>
-                        ))}
+                        <option value="">Chọn hạng cân của bạn</option>
+                        {weightClasses &&
+                          weightClasses.length > 0 &&
+                          weightClasses.map((w) => {
+                            const weightDisplay =
+                              w.weightClass ||
+                              `${w.minWeight}-${w.maxWeight}kg`;
+                            return (
+                              <option key={w.id} value={weightDisplay}>
+                                {w.gender === "MALE" ? "Nam" : "Nữ"} -{" "}
+                                {weightDisplay}
+                              </option>
+                            );
+                          })}
                       </select>
                     </div>
                   </div>
@@ -312,6 +539,7 @@ export default function PublishedForm() {
                           onClick={() => {
                             setCompetitionType("quyen");
                             setQuyenCategory(c);
+                            setQuyenContent(""); // reset selected content when category changes
                           }}
                           className={`rounded-full border px-3 py-1.5 text-xs ${
                             quyenCategory === c
@@ -322,6 +550,35 @@ export default function PublishedForm() {
                           {c}
                         </button>
                       ))}
+                    </div>
+
+                    {/* Quyen Contents Dropdown - Always visible */}
+                    <div className="mt-3">
+                      <label className="block text-sm text-gray-700 mb-1">
+                        Nội dung thi đấu
+                      </label>
+                      <select
+                        value={quyenContent}
+                        onChange={(e) => setQuyenContent(e.target.value)}
+                        className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
+                      >
+                        <option value="">Chọn nội dung thi đấu</option>
+                        {(() => {
+                          console.log(
+                            "PublishedForm - Rendering quyen contents dropdown, quyenContents:",
+                            quyenContents
+                          );
+                          return (
+                            quyenContents &&
+                            quyenContents.length > 0 &&
+                            quyenContents.map((content) => (
+                              <option key={content.id} value={content.name}>
+                                {content.name}
+                              </option>
+                            ))
+                          );
+                        })()}
+                      </select>
                     </div>
                   </div>
                   <div>
@@ -350,11 +607,14 @@ export default function PublishedForm() {
                       onChange={(e) => setMusicCategory(e.target.value)}
                       className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
                     >
-                      {musicCategories.map((c, i) => (
-                        <option key={i} value={c}>
-                          {c || "Chọn nội dung thi đấu"}
-                        </option>
-                      ))}
+                      <option value="">Chọn nội dung thi đấu</option>
+                      {musicContents &&
+                        musicContents.length > 0 &&
+                        musicContents.map((content) => (
+                          <option key={content.id} value={content.name}>
+                            {content.name}
+                          </option>
+                        ))}
                     </select>
                   </div>
                 </div>
