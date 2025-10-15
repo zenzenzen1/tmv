@@ -60,7 +60,7 @@ public class FormDataValidationService {
         } catch (Exception e) {
             log.error("Error validating form data: {}", e.getMessage());
             if (e instanceof ValidationException) {
-                throw e;
+                throw (ValidationException) e;
             }
             throw new ValidationException("formData", "Invalid JSON format: " + e.getMessage());
         }

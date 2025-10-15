@@ -25,14 +25,14 @@ export default function App() {
 
   // Nếu chưa login → chuyển sang /login
   // Nếu đã login → hiển thị layout chính
-  // if (!isAuthenticated) {
-  //   return (
-  //     <Routes>
-  //       <Route path="/login" element={<LoginPage />} />
-  //       <Route path="*" element={<Navigate to="/login" replace />} />
-  //     </Routes>
-  //   );
-  // }
+  if (!isAuthenticated) {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
 
   // Nếu đã login → hiển thị layout chính
   return (
