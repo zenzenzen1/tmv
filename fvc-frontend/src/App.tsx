@@ -23,8 +23,8 @@ import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper"
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
 
-  Nếu chưa login → chuyển sang /login
-  Nếu đã login → hiển thị layout chính
+  // Nếu chưa login → chuyển sang /login
+  // Nếu đã login → hiển thị layout chính
   if (!isAuthenticated) {
     return (
       <Routes>
@@ -34,7 +34,7 @@ export default function App() {
     );
   }
 
-  Nếu đã login → hiển thị layout chính
+  // Nếu đã login → hiển thị layout chính
   return (
     <Routes>
       <Route

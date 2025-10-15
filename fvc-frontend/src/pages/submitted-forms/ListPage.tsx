@@ -362,14 +362,19 @@ export default function SubmittedFormsPage() {
       ...formDataColumns, // Thêm các cột form data động (bao gồm số điện thoại)
       {
         key: "actions",
-        title: "",
+        title: "Thao tác",
         sortable: false,
-        className: "w-28",
+        className: "w-32",
         render: (row: SubmittedRow) => (
           <button
+            type="button"
+            aria-label={`Xem form #${row.id}`}
             onClick={() => setViewingRow(row)}
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[12px] text-gray-700 hover:bg-gray-50"
+            className="inline-flex items-center gap-1 rounded-md bg-[#2563eb] px-3 py-1.5 text-[12px] font-medium text-white shadow hover:bg-[#1e4fd9] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/40"
           >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+              <path d="M12 5c-5 0-9 5-9 7s4 7 9 7 9-5 9-7-4-7-9-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/>
+            </svg>
             Xem form
           </button>
         ),
