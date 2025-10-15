@@ -398,7 +398,7 @@ export default function PublishedForm() {
     } catch (e: unknown) {
       console.error(e);
       const err = e as {
-        response?: { status?: number; data?: any };
+        response?: { status?: number; data?: { message?: string } };
         message?: string;
       };
       const status = err?.response?.status;
@@ -410,6 +410,16 @@ export default function PublishedForm() {
       ) {
         alert(
           "Email này đã đăng ký cho form này. Mỗi email chỉ được đăng ký một lần."
+        );
+        return;
+      }
+      if (
+        status === 409 ||
+        (typeof serverMsg === "string" &&
+          serverMsg.toLowerCase().includes("mssv"))
+      ) {
+        alert(
+          "MSSV này đã được đăng ký cho form này. Mỗi MSSV chỉ được đăng ký một lần."
         );
         return;
       }

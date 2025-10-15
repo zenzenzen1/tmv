@@ -316,11 +316,15 @@ public class TournamentFormServiceImpl implements TournamentFormService {
 
         // Enforce 1 email per form: check existing submissions by formId + email
         String normalizedEmail = request.getEmail().trim().toLowerCase();
+        String normalizedStudentId = request.getStudentId().trim();
+        
         // submittedRepository should expose a method to search by formId and email contained in formData
         // As a pragmatic approach, fetch minimal page and scan for match
         PageRequest onePage = PageRequest.of(0, 100);
         Page<sep490g65.fvcapi.entity.SubmittedApplicationForm> existing = submittedRepository.findByFormId(formId, onePage);
-        boolean duplicate = existing.stream().anyMatch(s -> {
+        
+        // Check for duplicate email
+        boolean duplicateEmail = existing.stream().anyMatch(s -> {
             try {
                 String formJson = s.getFormData();
                 if (formJson == null) return false;
@@ -331,10 +335,29 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 return false;
             }
         });
-        if (duplicate) {
+        if (duplicateEmail) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.CONFLICT,
                     "Email này đã được đăng ký cho form này"
+            );
+        }
+        
+        // Check for duplicate studentId
+        boolean duplicateStudentId = existing.stream().anyMatch(s -> {
+            try {
+                String formJson = s.getFormData();
+                if (formJson == null) return false;
+                com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(formJson);
+                String sid = (node != null && node.hasNonNull("studentId")) ? node.get("studentId").asText("") : "";
+                return !sid.isBlank() && sid.trim().equals(normalizedStudentId);
+            } catch (Exception ex) {
+                return false;
+            }
+        });
+        if (duplicateStudentId) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT,
+                    "MSSV này đã được đăng ký cho form này"
             );
         }
         // resolve user from email or create a lightweight guest user
@@ -408,23 +431,45 @@ public class TournamentFormServiceImpl implements TournamentFormService {
         return (node != null && node.hasNonNull(field)) ? node.get(field).asText() : null;
     }
 
+
     private String resolveContent(JsonNode root, String competitionTypeStr) {
         String ct = competitionTypeStr != null ? competitionTypeStr.trim().toLowerCase() : null;
-        // Compose content by type when possible
+        
+        // Build hierarchical content display
         if ("quyen".equals(ct)) {
-            String cat = textOrNull(root, "quyenCategory");
-            String item = textOrNull(root, "quyenContent");
-            if (cat != null && !cat.isBlank() && item != null && !item.isBlank()) {
-                return cat + " - " + item;
+            String category = textOrNull(root, "quyenCategory"); // Song luyện, Đa luyện
+            String content = textOrNull(root, "quyenContent"); // Song luyện 1, Đa luyện 2
+            
+            if (category != null && !category.isBlank() && content != null && !content.isBlank()) {
+                return "Quyền - " + category + " - " + content;
             }
-            if (item != null && !item.isBlank()) return item;
-            if (cat != null && !cat.isBlank()) return cat;
+            if (content != null && !content.isBlank()) {
+                return "Quyền - " + content;
+            }
+            if (category != null && !category.isBlank()) {
+                return "Quyền - " + category;
+            }
+            return "Quyền";
+            
         } else if ("music".equals(ct)) {
             String mc = textOrNull(root, "musicCategory");
-            if (mc != null && !mc.isBlank()) return mc;
+            if (mc != null && !mc.isBlank()) {
+                return "Võ nhạc - " + mc;
+            }
+            return "Võ nhạc";
+            
         } else if ("fighting".equals(ct)) {
             String wc = textOrNull(root, "weightClass");
-            if (wc != null && !wc.isBlank()) return wc;
+            String gender = textOrNull(root, "gender");
+            
+            if (wc != null && !wc.isBlank()) {
+                String genderDisplay = "MALE".equals(gender) ? "Nam" : "FEMALE".equals(gender) ? "Nữ" : "";
+                if (!genderDisplay.isEmpty()) {
+                    return "Đối kháng - Hạng cân - " + genderDisplay + " " + wc;
+                }
+                return "Đối kháng - Hạng cân - " + wc;
+            }
+            return "Đối kháng";
         }
         // Try multiple known keys from form results mapping
         String[] keys = new String[]{

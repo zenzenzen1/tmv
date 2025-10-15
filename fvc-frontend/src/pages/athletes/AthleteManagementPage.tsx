@@ -16,7 +16,7 @@ type AthleteRow = {
   studentId: string;
   club: string;
   tournament: string;
-  status: "ĐÃ ĐẦU" | "HOÀN ĐẦU" | "VI PHẠM" | "CHỜ ĐẦU" | "ĐANG ĐẦU" | "-";
+  status: "ĐÃ ĐẤU" | "HOÀN ĐẤU" | "VI PHẠM" | "CHỜ ĐẤU" | "ĐANG ĐẤU" | "-";
 };
 
 type AthleteApi = {
@@ -35,11 +35,11 @@ type AthleteApi = {
 type CompetitionType = "fighting" | "quyen" | "music";
 
 const STATUS_COLORS = {
-  "ĐÃ ĐẦU": "bg-green-100 text-green-800 border-green-200",
-  "HOÀN ĐẦU": "bg-purple-100 text-purple-800 border-purple-200",
+  "ĐÃ ĐẤU": "bg-green-100 text-green-800 border-green-200",
+  "HOÀN ĐẤU": "bg-purple-100 text-purple-800 border-purple-200",
   "VI PHẠM": "bg-red-100 text-red-800 border-red-200",
   "CHỜ ĐẤU": "bg-orange-100 text-orange-800 border-orange-200",
-  "ĐANG ĐẦU": "bg-blue-100 text-blue-800 border-blue-200",
+  "ĐANG ĐẤU": "bg-blue-100 text-blue-800 border-blue-200",
   "-": "bg-gray-100 text-gray-600 border-gray-200",
 };
 
@@ -124,7 +124,8 @@ export default function AthleteManagementPage({
         const pageData: PaginationResponse<AthleteApi> = inner;
         const content: AthleteApi[] = pageData?.content ?? [];
         // Client-side safety filter in case backend ignores filters
-        const filteredRaw: AthleteApi[] = content.filter((a) => {
+        // Client-side filtering (fallback when backend doesn't support)
+        const filteredRaw: AthleteApi[] = content.filter((a: AthleteApi) => {
           const okName = debouncedName
             ? (a.fullName || "")
                 .toLowerCase()
@@ -141,6 +142,7 @@ export default function AthleteManagementPage({
                 | "DONE"
                 | "VIOLATED")
             : true;
+
           return okName && okGender && okStatus;
         });
         const totalElements: number =
@@ -160,11 +162,11 @@ export default function AthleteManagementPage({
               (tournaments.find((t) => t.id === a.tournamentId)?.name || ""),
             status:
               a.status === "NOT_STARTED"
-                ? "CHỜ ĐẦU"
+                ? "CHỜ ĐẤU"
                 : a.status === "IN_PROGRESS"
-                ? "ĐANG ĐẦU"
+                ? "ĐANG ĐẤU"
                 : a.status === "DONE"
-                ? "ĐÃ ĐẦU"
+                ? "ĐÃ ĐẤU"
                 : a.status === "VIOLATED"
                 ? "VI PHẠM"
                 : "-",
@@ -256,7 +258,7 @@ export default function AthleteManagementPage({
         render: (row) => (
           <span
             className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-              STATUS_COLORS[row.status === "CHỜ ĐẦU" ? "CHỜ ĐẤU" : row.status]
+              STATUS_COLORS[row.status]
             }`}
           >
             {row.status}
@@ -483,8 +485,8 @@ export default function AthleteManagementPage({
                     {[
                       { label: "Tất cả", value: "" },
                       { label: "CHỜ ĐẤU", value: "NOT_STARTED" },
-                      { label: "ĐANG ĐẦU", value: "IN_PROGRESS" },
-                      { label: "ĐÃ ĐẦU", value: "DONE" },
+                      { label: "ĐANG ĐẤU", value: "IN_PROGRESS" },
+                      { label: "ĐÃ ĐẤU", value: "DONE" },
                       { label: "VI PHẠM", value: "VIOLATED" },
                     ].map((s) => (
                       <label
