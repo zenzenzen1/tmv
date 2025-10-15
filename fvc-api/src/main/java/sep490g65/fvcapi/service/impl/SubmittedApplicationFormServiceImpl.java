@@ -65,7 +65,7 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
                 .build();
         
         // Set user if provided
-        if (hasUserId) {
+        if (request.getUserId() != null && !request.getUserId().trim().isEmpty()) {
             // TODO: Load user from repository and set it
             // entity.setUser(userRepository.findById(request.getUserId()).orElse(null));
         }
