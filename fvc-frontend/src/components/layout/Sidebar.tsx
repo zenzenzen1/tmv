@@ -22,9 +22,10 @@ export default function TournamentSidebar({
   const navigate = useNavigate();
 
   // Map menu keys to routes
-  const keyToPath: Record<string, string> = {
+ const keyToPath: Record<string, string> = {
     formList: "/formList",
     submittedForms: "/submitted-forms",
+    memberManagement: "/member-management",
   };
 
   const isControlled =

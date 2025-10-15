@@ -19,6 +19,7 @@ import FormResults from "./features/tournament/FormResults";
 import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
+import MemberManagementListPage from "./pages/member-management/ListPage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -52,6 +53,9 @@ export default function App() {
       <Route path="/forms/:id/view" element={<FormRegistrationPage />} />
       <Route path="/register/:id" element={<FormRegistrationPage />} />
       <Route path="/" element={<Home />} />
+
+      {/* Member Management */}
+      <Route path="/member-management" element={<MemberManagementListPage />} />
 
       {/* Tournaments */}
       <Route path="/tournaments" element={<TournamentListPage />} />
