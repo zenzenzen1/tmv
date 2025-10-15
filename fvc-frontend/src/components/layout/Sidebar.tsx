@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { defaultMenuItems } from "@/components/layout/sidebarMenu.ts";
 import type { MenuItem } from "@/components/layout/sidebarMenu.ts";
+import { Drawer, Box, List, ListItemButton, ListItemText, Divider, Typography } from "@mui/material";
 
 type ActiveMenu = string;
 
@@ -20,19 +21,29 @@ export default function TournamentSidebar({
 }: TournamentSidebarProps) {
   const items = menuItems ?? defaultMenuItems;
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Optional mapping for standalone pages.
-  // Keep empty so clicks stay within /manage (controlled mode).
-  const keyToPath: Record<string, string> = {};
+  // Map menu keys to routes
+  const keyToPath: Record<string, string> = {
+    tournaments: "/manage/tournaments",
+    weightClassPage: "/manage/weight-class",
+    athletes: "/manage/athletes",
+    fighting: "/manage/athletes/fighting",
+    forms: "/manage/fist-content",
+    music: "/manage/music-content",
+    formList: "/manage/form-list",
+    submittedForms: "/manage/submitted-forms",
+  };
 
   const isControlled =
     controlledActiveMenu !== undefined && typeof onChange === "function";
   const [uncontrolledActiveMenu, setUncontrolledActiveMenu] =
     useState<ActiveMenu>(items[0]?.key ?? "");
 
-  const activeMenu = isControlled
-    ? (controlledActiveMenu as ActiveMenu)
-    : uncontrolledActiveMenu;
+  // derive active from location if uncontrolled
+  const path = location.pathname;
+  const derivedKey = Object.entries(keyToPath).find(([, p]) => path.startsWith(p))?.[0];
+  const activeMenu = isControlled ? (controlledActiveMenu as ActiveMenu) : (derivedKey ?? uncontrolledActiveMenu);
 
   const handleChange = (next: ActiveMenu) => {
     if (isControlled) {
@@ -57,50 +68,38 @@ export default function TournamentSidebar({
   }, [items]);
 
   return (
-    <aside className="w-64 h-full min-h-full flex-shrink-0 border-r border-gray-200 bg-white/100">
-      <div className="px-4 py-5">
-        <div className="mb-4 text-sm font-semibold text-gray-800">{title}</div>
-        <nav className="space-y-1 text-[13px] font-medium text-gray-700">
+    <Drawer variant="permanent" PaperProps={{ sx: { width: 256, borderRight: 1, borderColor: 'divider' } }}>
+      <Box sx={{ px: 2, py: 2 }}>
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>{title}</Typography>
+        <List dense>
           {topLevelItems.map((item: MenuItem) => (
-            <button
+            <ListItemButton
               key={item.key}
+              selected={activeMenu === item.key}
               onClick={() => handleChange(item.key)}
-              className={`block w-full rounded-md px-3 py-2 text-left ${
-                activeMenu === item.key
-                  ? "bg-[#2563eb] text-white shadow-sm"
-                  : "hover:bg-gray-50"
-              }`}
             >
-              {item.label}
-            </button>
+              <ListItemText primaryTypographyProps={{ fontSize: 13, fontWeight: 500 }} primary={item.label} />
+            </ListItemButton>
           ))}
-
-          {[...sectionToItems.entries()].map(
-            ([section, sectionItems]: [string, MenuItem[]]) => (
-              <div className="pt-3" key={section}>
-                <div className="mb-1 px-3 text-[12px] font-semibold uppercase tracking-wide text-gray-500">
-                  {section}
-                </div>
-                <div className="ml-2 space-y-1">
-                  {sectionItems.map((item: MenuItem) => (
-                    <button
-                      key={item.key}
-                      onClick={() => handleChange(item.key)}
-                      className={`block w-full rounded-md px-3 py-2 text-left ${
-                        activeMenu === item.key
-                          ? "bg-[#2563eb] text-white shadow-sm"
-                          : "hover:bg-gray-50"
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )
-          )}
-        </nav>
-      </div>
-    </aside>
+        </List>
+        {[...sectionToItems.entries()].map(([section, sectionItems]: [string, MenuItem[]]) => (
+          <Box key={section} sx={{ pt: 1 }}>
+            <Divider sx={{ mb: 1 }} />
+            <Typography variant="overline" sx={{ px: 1 }}>{section}</Typography>
+            <List dense sx={{ ml: 1 }}>
+              {sectionItems.map((item: MenuItem) => (
+                <ListItemButton
+                  key={item.key}
+                  selected={activeMenu === item.key}
+                  onClick={() => handleChange(item.key)}
+                >
+                  <ListItemText primaryTypographyProps={{ fontSize: 13, fontWeight: 500 }} primary={item.label} />
+                </ListItemButton>
+              ))}
+            </List>
+          </Box>
+        ))}
+      </Box>
+    </Drawer>
   );
 }
