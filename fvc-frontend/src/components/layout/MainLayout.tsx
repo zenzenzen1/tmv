@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "@/components/layout/Sidebar";
-import Footer from "@/components/layout/Footer";
 import { defaultMenuItems } from "@/components/layout/sidebarMenu";
+import { Box, Container } from "@mui/material";
 
 export default function MainLayout() {
   const location = useLocation();
@@ -14,16 +14,15 @@ export default function MainLayout() {
   else activeKey = undefined;
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
+    <Box display="flex" height="100vh" width="100vw" overflow="hidden" bgcolor={(t) => t.palette.background.default}>
       <Sidebar activeMenu={activeKey} menuItems={defaultMenuItems} />
-      <div className="flex min-h-screen flex-1 flex-col bg-gray-50">
-        <main className="flex-1 overflow-auto">
-          <div className="mx-auto max-w-[1200px] p-6">
+      <Box display="flex" flexDirection="column" flexGrow={1} minHeight="100vh" sx={{ ml: '256px' }}>
+        <Box component="main" flexGrow={1} overflow="auto">
+          <Container maxWidth="lg" sx={{ py: 3 }}>
             <Outlet />
-          </div>
-        </main>
-        <Footer />
-      </div>
-    </div>
+          </Container>
+        </Box>
+      </Box>
+    </Box>
   );
 }

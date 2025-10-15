@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useMusicContentStore } from '../../stores/musicContent';
 import type { MusicContentCreateRequest, MusicContentUpdateRequest } from '../../types';
+import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Checkbox, FormControlLabel, Button, Alert, Stack } from '@mui/material';
 
 const NAME_MIN = 1;
 const NAME_MAX = 120;
@@ -123,66 +124,40 @@ export default function MusicContentModal() {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">
-            {editing ? 'Chỉnh sửa nội dung Võ nhạc' : 'Thêm nội dung Võ nhạc'}
-          </h2>
-          <button onClick={closeModal} className="input-field">×</button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4">
-          <div>
-            <label className="block text-sm mb-1">Nội dung Võ nhạc<span className="text-red-600"> *</span></label>
-            <input
-              className={`input-field ${nameError ? 'border-red-500' : ''}`}
-              value={name}
-              onChange={(e) => { setName(e.target.value); setError(null); }}
-              placeholder="Ví dụ: Võ nhạc số 1"
-              maxLength={NAME_MAX + 10} // chặn outlier
-            />
-            {nameError && <p className="mt-1 text-sm text-red-600">{nameError}</p>}
-          </div>
-
-          <div>
-            <label className="block text-sm mb-1">Ghi chú</label>
-            <input
-              className={`input-field ${descError ? 'border-red-500' : ''}`}
-              value={description}
-              onChange={(e) => { setDescription(e.target.value); setError(null); }}
-              placeholder="VD: Áp dụng theo chuẩn Vovinam 2025"
-              maxLength={DESC_MAX + 50}
-            />
-            {descError && <p className="mt-1 text-sm text-red-600">{descError}</p>}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              id="mc-active"
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-            />
-            <label htmlFor="mc-active">Đang dùng</label>
-          </div>
-        </div>
-
-        {/* thông báo tổng hợp */}
-        {error && <div className="text-red-600 mt-3">{error}</div>}
-        {success && <div className="text-green-600 mt-3">{success}</div>}
-
-        <div className="flex justify-end gap-2 mt-6">
-          <button className="input-field" onClick={closeModal}>Hủy</button>
-          {/* Không disable theo isValid để vẫn chạy validate và show lỗi; chỉ disable khi đang saving */}
-          { !editing && <button className={`input-field ${saving ? 'opacity-60 cursor-not-allowed' : ''}`} onClick={onSaveDraft} disabled={saving}>
-            Lưu nháp
-          </button>}
-          <button className={`btn-primary ${saving ? 'opacity-60 cursor-not-allowed' : ''}`} onClick={onSave} disabled={saving}>
-            Lưu
-          </button>
-        </div>
-      </div>
-    </div>
+    <Dialog open={modalOpen} onClose={closeModal} fullWidth maxWidth="sm">
+      <DialogTitle>{editing ? 'Chỉnh sửa nội dung Võ nhạc' : 'Thêm nội dung Võ nhạc'}</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2}>
+          <TextField
+            label="Nội dung Võ nhạc"
+            value={name}
+            onChange={(e) => { setName(e.target.value); setError(null); }}
+            placeholder="Ví dụ: Võ nhạc số 1"
+            error={!!nameError}
+            helperText={nameError || ' '}
+            inputProps={{ maxLength: NAME_MAX + 10 }}
+          />
+          <TextField
+            label="Ghi chú"
+            value={description}
+            onChange={(e) => { setDescription(e.target.value); setError(null); }}
+            placeholder="VD: Áp dụng theo chuẩn Vovinam 2025"
+            error={!!descError}
+            helperText={descError || ' '}
+            inputProps={{ maxLength: DESC_MAX + 50 }}
+          />
+          <FormControlLabel control={<Checkbox checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />} label="Đang dùng" />
+          {error && <Alert severity="error">{error}</Alert>}
+          {success && <Alert severity="success">{success}</Alert>}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={closeModal} color="inherit">Hủy</Button>
+        {!editing && (
+          <Button onClick={onSaveDraft} disabled={saving} variant="outlined">Lưu nháp</Button>
+        )}
+        <Button onClick={onSave} disabled={saving} variant="contained">Lưu</Button>
+      </DialogActions>
+    </Dialog>
   );
 }
