@@ -196,11 +196,15 @@ export default function AthleteManagementPage({
         if (statusFilter) qs.set("status", statusFilter);
         // Standard handling by type
         if (activeTab === "fighting") {
-          // For fighting, backend expects weight as detailSubCompetitionType
-          if (subCompetitionFilter)
+          // Do NOT send weight to backend; fetch all then filter client-side
+        } else if (activeTab === "music") {
+          // Music: send selected content as detail, and optionally label the sub type
+          if (subCompetitionFilter) {
+            qs.set("subCompetitionType", "Tiết mục");
             qs.set("detailSubCompetitionType", subCompetitionFilter);
+          }
         } else {
-          // For quyền/music: category -> subCompetitionType, detail -> detailSubCompetitionType
+          // Quyền: category -> subCompetitionType, detail -> detailSubCompetitionType
           if (subCompetitionFilter)
             qs.set("subCompetitionType", subCompetitionFilter);
           if (detailCompetitionFilter)
@@ -220,6 +224,13 @@ export default function AthleteManagementPage({
         const content: AthleteApi[] = pageData?.content ?? [];
         // Client-side safety filter in case backend ignores filters
         // Client-side filtering (fallback when backend doesn't support)
+        const strip = (s: string) =>
+          (s || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase();
+        const normalizeWeight = (s: string) =>
+          (s || "").replace(/[^0-9]+/g, "");
         const filteredRaw: AthleteApi[] = content.filter((a: AthleteApi) => {
           const okName = debouncedName
             ? (a.fullName || "")
@@ -237,8 +248,34 @@ export default function AthleteManagementPage({
                 | "DONE"
                 | "VIOLATED")
             : true;
+          // Client-side filtering for competition-specific filters
+          const rawSub = a.subCompetitionType || "";
+          const rawDetail = a.detailSubCompetitionType || "";
+          let okSubDetail = true;
+          if (activeTab === "fighting") {
+            if (subCompetitionFilter) {
+              const want = normalizeWeight(subCompetitionFilter);
+              okSubDetail =
+                normalizeWeight(rawDetail) === want ||
+                normalizeWeight(rawSub) === want;
+            }
+          } else if (activeTab === "music") {
+            // Match by selected content name in detail
+            const okDetail = subCompetitionFilter
+              ? strip(rawDetail) === strip(subCompetitionFilter)
+              : true;
+            okSubDetail = okDetail;
+          } else {
+            const okSub = subCompetitionFilter
+              ? strip(rawSub) === strip(subCompetitionFilter)
+              : true;
+            const okDetail = detailCompetitionFilter
+              ? strip(rawDetail) === strip(detailCompetitionFilter)
+              : true;
+            okSubDetail = okSub && okDetail;
+          }
 
-          return okName && okGender && okStatus;
+          return okName && okGender && okStatus && okSubDetail;
         });
         const totalElements: number =
           pageData?.totalElements ?? filteredRaw.length;
@@ -258,7 +295,9 @@ export default function AthleteManagementPage({
                 ? "Võ nhạc"
                 : "-",
             subCompetitionType: a.subCompetitionType || "-",
-            detailSubCompetitionType: a.detailSubCompetitionType || "-",
+            // For Quyền/Võ nhạc, prefer detail; if missing, fallback to subCompetitionType
+            detailSubCompetitionType:
+              a.detailSubCompetitionType || a.subCompetitionType || "-",
             studentId: a.studentId ?? "",
             club: a.club ?? "",
             tournament:
@@ -346,23 +385,36 @@ export default function AthleteManagementPage({
       },
       {
         key: "competitionType",
-        title: "Loại thi đấu",
+        title: "Thể thức thi đấu",
         className: "whitespace-nowrap",
         sortable: true,
       },
-      {
-        key: "detailSubCompetitionType",
-        title: "Hạng cân",
-        className: "whitespace-nowrap",
-        render: (row) => {
-          const value =
-            row.detailSubCompetitionType || row.subCompetitionType || "-";
-          return String(value)
-            .replace(/^Nam\s+/i, "")
-            .replace(/^Nữ\s+/i, "");
-        },
-        sortable: true,
-      },
+      ...(activeTab === "fighting"
+        ? [
+            {
+              key: "detailSubCompetitionType",
+              title: "Hạng cân",
+              className: "whitespace-nowrap",
+              render: (row: AthleteRow) => {
+                const value =
+                  row.detailSubCompetitionType || row.subCompetitionType || "-";
+                return String(value)
+                  .replace(/^Nam\s+/i, "")
+                  .replace(/^Nữ\s+/i, "");
+              },
+              sortable: true,
+            } as TableColumn<AthleteRow>,
+          ]
+        : [
+            {
+              key: "detailSubCompetitionType",
+              title: "Nội dung",
+              className: "whitespace-nowrap",
+              render: (row: AthleteRow) =>
+                row.detailSubCompetitionType || row.subCompetitionType || "-",
+              sortable: true,
+            } as TableColumn<AthleteRow>,
+          ]),
       {
         key: "studentId",
         title: "MSSV",
@@ -386,7 +438,7 @@ export default function AthleteManagementPage({
         sortable: true,
       },
     ],
-    []
+    [activeTab]
   );
 
   // Load tournaments from database
