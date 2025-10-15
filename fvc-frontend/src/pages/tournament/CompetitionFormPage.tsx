@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { useCompetitionStore } from '../../stores/competition';
 import { useWeightClassStore } from '../../stores/weightClass';
 import { useFistContentStore } from '../../stores/fistContent';
@@ -11,6 +10,27 @@ import type {
 } from '../../types';
 import MultiSelect from '../../components/common/MultiSelect';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  Tabs,
+  Tab,
+  
+  Card,
+  CardContent,
+  TextField,
+  FormControlLabel,
+  Checkbox,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Alert,
+  Stack,
+} from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 const CompetitionFormPage: React.FC = () => {
   const navigate = useNavigate();
@@ -37,7 +57,6 @@ const CompetitionFormPage: React.FC = () => {
 
   const {
     fistConfigs,
-    fistItems,
     loading: fistContentLoading,
     fetchFistConfigs,
     fetchFistItems,
@@ -244,237 +263,175 @@ const CompetitionFormPage: React.FC = () => {
   const isLoading = creating || updating || weightClassesLoading || fistContentLoading || musicContentLoading;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={handleCancel}
-            className="flex items-center text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <ArrowLeftIcon className="h-5 w-5 mr-2" />
+    <Box minHeight="100vh" bgcolor={(t) => t.palette.background.default}>
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <Box mb={3}>
+          <Button onClick={handleCancel} startIcon={<ArrowBackIcon />} sx={{ mb: 1 }} color="inherit">
             Quay lại danh sách giải đấu
-          </button>
-          
-          <h1 className="text-3xl font-bold text-gray-900">
+          </Button>
+          <Typography variant="h4" fontWeight={700}>
             {isView ? 'Xem giải đấu' : isEdit ? 'Chỉnh sửa giải đấu' : 'Tạo giải đấu mới'}
-          </h1>
-        </div>
+          </Typography>
+        </Box>
 
-        {/* Tab Navigation */}
-        <div className="mb-6 border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-            <button
-              onClick={() => setActiveTab('general')}
-              className={`${
-                activeTab === 'general'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Thông tin chung
-            </button>
-            <button
-              onClick={() => setActiveTab('content')}
-              className={`${
-                activeTab === 'content'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Nội dung thi đấu
-            </button>
-          </nav>
-        </div>
+        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ mb: 2 }}>
+          <Tab value="general" label="Thông tin chung" />
+          <Tab value="content" label="Nội dung thi đấu" />
+        </Tabs>
 
         {isLoading ? (
-          <div className="flex justify-center items-center py-12">
+          <Box display="flex" justifyContent="center" alignItems="center" py={6}>
             <LoadingSpinner />
-          </div>
+          </Box>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-8">
+          <Box component="form" onSubmit={handleSubmit}>
             {activeTab === 'general' && (
-              <>
-                {/* Basic Information */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">
-                    Thông tin cơ bản
-                  </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tên giải đấu *
-                  </label>
-                  <input
-                    type="text"
+              <Stack spacing={3}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>Thông tin cơ bản</Typography>
+                    <Box display="grid" gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr' }} gap={2}>
+                      <Box>
+                        <TextField
+                          label="Tên giải đấu *"
                     value={formData.name}
                     onChange={(e) => handleFieldChange('name', e.target.value)}
                     disabled={isView}
-                    className={`input-field ${formErrors.name ? 'border-red-300' : ''}`}
                     placeholder="Nhập tên giải đấu"
-                  />
-                  {formErrors.name && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.name}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Địa điểm
-                  </label>
-                  <input
-                    type="text"
+                          error={!!formErrors.name}
+                          helperText={formErrors.name || ' '}
+                          fullWidth
+                        />
+                      </Box>
+                      <Box>
+                        <TextField
+                          label="Địa điểm"
                     value={formData.location}
                     onChange={(e) => handleFieldChange('location', e.target.value)}
                     disabled={isView}
-                    className="input-field"
                     placeholder="Nhập địa điểm tổ chức"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Mô tả
-                </label>
-                <textarea
+                          fullWidth
+                        />
+                      </Box>
+                      <Box gridColumn={{ xs: '1 / -1' }}>
+                        <TextField
+                          label="Mô tả"
                   value={formData.description}
                   onChange={(e) => handleFieldChange('description', e.target.value)}
                   disabled={isView}
+                          placeholder="Nhập mô tả về giải đấu"
+                          fullWidth
+                          multiline
                   rows={4}
-                  className="input-field"
-                  placeholder="Nhập mô tả về giải đấu"
-                />
-              </div>
-            </div>
+                        />
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
 
-            {/* Dates */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-6">
-                Các ngày quan trọng
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ngày bắt đầu đăng ký *
-                  </label>
-                  <input
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>Các ngày quan trọng</Typography>
+                    <Box display="grid" gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr' }} gap={2}>
+                      <Box>
+                        <TextField
+                          label="Ngày bắt đầu đăng ký *"
                     type="date"
                     value={formData.registrationStartDate}
                     onChange={(e) => handleFieldChange('registrationStartDate', e.target.value)}
                     disabled={isView}
-                    className={`input-field ${formErrors.registrationStartDate ? 'border-red-300' : ''}`}
-                  />
-                  {formErrors.registrationStartDate && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.registrationStartDate}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ngày kết thúc đăng ký *
-                  </label>
-                  <input
+                          fullWidth
+                          InputLabelProps={{ shrink: true }}
+                          error={!!formErrors.registrationStartDate}
+                          helperText={formErrors.registrationStartDate || ' '}
+                        />
+                      </Box>
+                      <Box>
+                        <TextField
+                          label="Ngày kết thúc đăng ký *"
                     type="date"
                     value={formData.registrationEndDate}
                     onChange={(e) => handleFieldChange('registrationEndDate', e.target.value)}
                     disabled={isView}
-                    className={`input-field ${formErrors.registrationEndDate ? 'border-red-300' : ''}`}
-                  />
-                  {formErrors.registrationEndDate && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.registrationEndDate}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ngày cân đo *
-                  </label>
-                  <input
+                          fullWidth
+                          InputLabelProps={{ shrink: true }}
+                          error={!!formErrors.registrationEndDate}
+                          helperText={formErrors.registrationEndDate || ' '}
+                        />
+                      </Box>
+                      <Box>
+                        <TextField
+                          label="Ngày cân đo *"
                     type="date"
                     value={formData.weighInDate}
                     onChange={(e) => handleFieldChange('weighInDate', e.target.value)}
                     disabled={isView}
-                    className={`input-field ${formErrors.weighInDate ? 'border-red-300' : ''}`}
-                  />
-                  {formErrors.weighInDate && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.weighInDate}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ngày bốc thăm
-                  </label>
-                  <input
+                          fullWidth
+                          InputLabelProps={{ shrink: true }}
+                          error={!!formErrors.weighInDate}
+                          helperText={formErrors.weighInDate || ' '}
+                        />
+                      </Box>
+                      <Box>
+                        <TextField
+                          label="Ngày bốc thăm"
                     type="date"
                     value={formData.drawDate}
                     onChange={(e) => handleFieldChange('drawDate', e.target.value)}
                     disabled={isView}
-                    className="input-field"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ngày bắt đầu *
-                  </label>
-                  <input
+                          fullWidth
+                          InputLabelProps={{ shrink: true }}
+                        />
+                      </Box>
+                      <Box>
+                        <TextField
+                          label="Ngày bắt đầu *"
                     type="date"
                     value={formData.startDate}
                     onChange={(e) => handleFieldChange('startDate', e.target.value)}
                     disabled={isView}
-                    className={`input-field ${formErrors.startDate ? 'border-red-300' : ''}`}
-                  />
-                  {formErrors.startDate && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.startDate}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ngày kết thúc *
-                  </label>
-                  <input
+                          fullWidth
+                          InputLabelProps={{ shrink: true }}
+                          error={!!formErrors.startDate}
+                          helperText={formErrors.startDate || ' '}
+                        />
+                      </Box>
+                      <Box>
+                        <TextField
+                          label="Ngày kết thúc *"
                     type="date"
                     value={formData.endDate}
                     onChange={(e) => handleFieldChange('endDate', e.target.value)}
                     disabled={isView}
-                    className={`input-field ${formErrors.endDate ? 'border-red-300' : ''}`}
-                  />
-                  {formErrors.endDate && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.endDate}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Giờ khai mạc
-                  </label>
-                  <input
+                          fullWidth
+                          InputLabelProps={{ shrink: true }}
+                          error={!!formErrors.endDate}
+                          helperText={formErrors.endDate || ' '}
+                        />
+                      </Box>
+                      <Box>
+                        <TextField
+                          label="Giờ khai mạc"
                     type="time"
                     value={formData.openingCeremonyTime}
                     onChange={(e) => handleFieldChange('openingCeremonyTime', e.target.value)}
                     disabled={isView}
-                    className="input-field"
-                  />
-                </div>
-              </div>
-            </div>
-              </>
+                          fullWidth
+                          InputLabelProps={{ shrink: true }}
+                        />
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Stack>
             )}
 
             {activeTab === 'content' && (
-              <>
-                {/* Đối kháng */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">
-                    Cấu hình đối kháng
-                  </h2>
-                  
-                  <div className="mb-6">
+              <Stack spacing={3}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>Cấu hình đối kháng</Typography>
+                    <Box sx={{ mb: 2 }}>
                     <MultiSelect
                       options={(weightClassesList?.content || []).map(wc => ({
                         value: wc.id,
@@ -486,226 +443,170 @@ const CompetitionFormPage: React.FC = () => {
                       placeholder="Chọn hạng cân..."
                       disabled={isView}
                     />
-                  </div>
-
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Ghi chú đối kháng
-                    </label>
-                    <textarea
-                      rows={3}
-                      className="input-field"
+                    </Box>
+                    <TextField
+                      label="Ghi chú đối kháng"
                       placeholder="Đối kháng theo luật Vovinam quốc tế 2025."
                       disabled={isView}
+                      fullWidth
+                      multiline
+                      rows={3}
+                      sx={{ mb: 2 }}
                     />
-                  </div>
 
-                  {/* Cấu hình đấu tập */}
-                  <div className="border-t pt-6">
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Số hiệp đấu
-                        </label>
-                        <input
+                    <Box display="grid" gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr 1fr' }} gap={2}>
+                      <Box>
+                        <TextField
+                          label="Số hiệp đấu"
                           type="number"
                           value={formData.numberOfRounds}
                           onChange={(e) => handleFieldChange('numberOfRounds', parseInt(e.target.value))}
                           disabled={isView}
-                          className="input-field"
+                          fullWidth
                         />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Thời gian mỗi hiệp (giây)
-                        </label>
-                        <input
+                      </Box>
+                      <Box>
+                        <TextField
+                          label="Thời gian mỗi hiệp (giây)"
                           type="number"
                           value={formData.roundDurationSeconds}
                           onChange={(e) => handleFieldChange('roundDurationSeconds', parseInt(e.target.value))}
                           disabled={isView}
-                          className="input-field"
+                          fullWidth
                         />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Số giám khảo
-                        </label>
-                        <input
+                      </Box>
+                      <Box>
+                        <TextField
+                          label="Số giám khảo"
                           type="number"
                           value={formData.assessorCount}
                           onChange={(e) => handleFieldChange('assessorCount', parseInt(e.target.value))}
                           disabled={isView}
-                          className="input-field"
+                          fullWidth
                         />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Thời gian nghỉ chấn thương (giây)
-                        </label>
-                        <input
+                      </Box>
+                      <Box>
+                        <TextField
+                          label="Thời gian nghỉ chấn thương (giây)"
                           type="number"
                           value={formData.injuryTimeoutSeconds}
                           onChange={(e) => handleFieldChange('injuryTimeoutSeconds', parseInt(e.target.value))}
                           disabled={isView}
-                          className="input-field"
+                          fullWidth
                         />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Số hiệp phụ tối đa
-                        </label>
-                        <input
+                      </Box>
+                      <Box>
+                        <TextField
+                          label="Số hiệp phụ tối đa"
                           type="number"
                           value={formData.maxExtraRounds}
                           onChange={(e) => handleFieldChange('maxExtraRounds', parseInt(e.target.value))}
                           disabled={isView}
-                          className="input-field"
+                          fullWidth
                         />
-                      </div>
-
-                      <div className="flex items-center pt-6">
-                        <input
-                          type="checkbox"
-                          id="allowExtraRound"
+                      </Box>
+                      <Box display="flex" alignItems="center">
+                        <FormControlLabel
+                          control={
+                            <Checkbox
                           checked={formData.allowExtraRound}
                           onChange={(e) => handleFieldChange('allowExtraRound', e.target.checked)}
                           disabled={isView}
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                            />
+                          }
+                          label="Cho phép hiệp phụ"
                         />
-                        <label htmlFor="allowExtraRound" className="ml-2 block text-sm text-gray-900">
-                          Cho phép hiệp phụ
-                        </label>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-6">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Quy tắc phân định thắng thua
-                      </label>
-                      <select
+                      </Box>
+                    </Box>
+
+                    <FormControl fullWidth sx={{ mt: 2 }}>
+                      <InputLabel id="tiebreak-label">Quy tắc phân định thắng thua</InputLabel>
+                      <Select
+                        labelId="tiebreak-label"
+                        label="Quy tắc phân định thắng thua"
                         value={formData.tieBreakRule}
                         onChange={(e) => handleFieldChange('tieBreakRule', e.target.value)}
                         disabled={isView}
-                        className="input-field"
                       >
-                        <option value="WEIGHT">Cân nặng</option>
-                        <option value="AGE">Tuổi</option>
-                        <option value="EXPERIENCE">Kinh nghiệm</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
+                        <MenuItem value="WEIGHT">Cân nặng</MenuItem>
+                        <MenuItem value="AGE">Tuổi</MenuItem>
+                        <MenuItem value="EXPERIENCE">Kinh nghiệm</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </CardContent>
+                </Card>
 
-                {/* Quyền */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">
-                    Quyền
-                  </h2>
-
-                  <div className="space-y-6">
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>Quyền</Typography>
+                    <Stack spacing={2}>
                     <MultiSelect
-                      options={fistConfigs.map(config => ({
-                        value: config.id,
-                        label: config.name,
-                      }))}
+                        options={fistConfigs.map(config => ({ value: config.id, label: config.name }))}
                       selectedValues={formData.vovinamFistConfigIds}
                       onChange={(selectedIds) => {
-                        const selectedItems = Object.fromEntries(
-                          selectedIds.map(configId => [configId, []])
-                        );
+                          const selectedItems = Object.fromEntries(selectedIds.map(configId => [configId, []]));
                         handleFistContentChange(selectedIds, selectedItems);
                       }}
                       label="Chọn nội dung quyền"
                       placeholder="Chọn nội dung quyền..."
                       disabled={isView}
                     />
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Ghi chú quyền
-                      </label>
-                      <textarea
-                        rows={3}
-                        className="input-field"
+                      <TextField
+                        label="Ghi chú quyền"
                         placeholder="Quyền được thực hiện theo chuẩn Vovinam Việt Nam."
                         disabled={isView}
+                        fullWidth
+                        multiline
+                        rows={3}
                       />
-                    </div>
-                  </div>
-                </div>
+                    </Stack>
+                  </CardContent>
+                </Card>
 
-                {/* Võ nhạc */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">
-                    Võ nhạc
-                  </h2>
-
-                  <div className="space-y-6">
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>Võ nhạc</Typography>
+                    <Stack spacing={2}>
                     <MultiSelect
-                      options={(musicContentsList?.content || []).map(music => ({
-                        value: music.id,
-                        label: music.name,
-                      }))}
+                        options={(musicContentsList?.content || []).map(music => ({ value: music.id, label: music.name }))}
                       selectedValues={formData.musicPerformanceIds}
                       onChange={handleMusicContentChange}
                       label="Chọn nội dung võ nhạc"
                       placeholder="Chọn nội dung võ nhạc..."
                       disabled={isView}
                     />
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Ghi chú võ nhạc
-                      </label>
-                      <textarea
-                        rows={3}
-                        className="input-field"
+                      <TextField
+                        label="Ghi chú võ nhạc"
                         placeholder="Võ nhạc sáng tạo cho phép tự do biểu diễn."
                         disabled={isView}
+                        fullWidth
+                        multiline
+                        rows={3}
                       />
-                    </div>
-                  </div>
-                </div>
-
-              </>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Stack>
             )}
 
-            {/* Error Display */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
+              <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
             )}
 
-            {/* Actions */}
             {!isView && (
-              <div className="flex justify-end space-x-4 pt-6">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                >
+              <Box display="flex" justifyContent="flex-end" gap={2} pt={3}>
+                <Button type="button" onClick={handleCancel} variant="outlined" color="inherit">
                   Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3"
-                >
+                </Button>
+                <Button type="submit" disabled={isLoading} variant="contained">
                   {isLoading ? 'Đang lưu...' : isEdit ? 'Cập nhật giải đấu' : 'Tạo giải đấu'}
-                </button>
-              </div>
+                </Button>
+              </Box>
             )}
-          </form>
+          </Box>
         )}
-      </div>
-    </div>
+      </Container>
+    </Box>
   );
 };
 

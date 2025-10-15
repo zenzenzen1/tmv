@@ -1,5 +1,18 @@
 import { useFistContentStore } from '../../stores/fistContent';
 import { useState, useEffect, useMemo } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  FormControlLabel,
+  Checkbox,
+  Alert,
+  Stack,
+  MenuItem,
+} from '@mui/material';
 
 export default function FistContentModal() {
   const { modalOpen, closeModal, isLoading, editing, create, update, error: storeError } = useFistContentStore();
@@ -90,48 +103,52 @@ export default function FistContentModal() {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Thêm nội dung Quyền</h2>
-          <button onClick={closeModal} className="input-field">×</button>
-        </div>
+    <Dialog open={modalOpen} onClose={closeModal} fullWidth maxWidth="sm">
+      <DialogTitle>{editing ? 'Chỉnh sửa nội dung Quyền' : 'Thêm nội dung Quyền'}</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2}>
+          <TextField
+            select
+            label="Loại nội dung"
+            value={contentType}
+            onChange={(e) => { setContentType(e.target.value as any); setError(null); }}
+          >
+            <MenuItem value="">Chọn kiểu thi đấu</MenuItem>
+            <MenuItem value="don-luyen">Đơn luyện</MenuItem>
+            <MenuItem value="da-luyen">Đa luyện</MenuItem>
+            <MenuItem value="dong-doi">Đồng đội</MenuItem>
+            <MenuItem value="song-luyen">Song luyện</MenuItem>
+          </TextField>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm mb-1">Loại nội dung</label>
-            <select className="input-field" value={contentType} onChange={(e) => { setContentType(e.target.value as any); setError(null); }}>
-            <option value="">Chọn kiểu thi đấu</option>
-            <option value="don-luyen">Đơn luyện</option>
-            <option value="da-luyen">Đa luyện</option>
-            <option value="dong-doi">Đồng đội</option>
-            <option value="song-luyen">Song luyện</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm mb-1">Nội dung Quyền</label>
-            <input className="input-field" value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="VD: Song Luyện quyền 1" />
-          </div>
-          <div>
-            <label className="block text-sm mb-1">Ghi chú</label>
-            <input className="input-field" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="VD: Áp dụng theo chuẩn Vovinam 2025" />
-          </div>
-          <div className="flex items-center gap-2">
-            <input id="status" type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-            <label htmlFor="status">Đang dùng</label>
-          </div>
-        </div>
+          <TextField
+            label="Nội dung Quyền"
+            value={name}
+            onChange={(e) => { setName(e.target.value); setError(null); }}
+            placeholder="VD: Song Luyện quyền 1"
+          />
 
-        {error && <div className="text-red-600 mt-3">{error}</div>}
-        {success && <div className="text-green-600 mt-3">{success}</div>}
+          <TextField
+            label="Ghi chú"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="VD: Áp dụng theo chuẩn Vovinam 2025"
+          />
 
-        <div className="flex justify-end gap-2 mt-6">
-          <button className="input-field" onClick={closeModal}>Hủy</button>
-          <button className="input-field" onClick={onSaveDraft} disabled={isLoading}>Lưu nháp</button>
-          <button className="btn-primary" onClick={onSave} disabled={isLoading}>Lưu</button>
-        </div>
-      </div>
-    </div>
+          <FormControlLabel
+            control={<Checkbox checked={active} onChange={(e) => setActive(e.target.checked)} />}
+            label="Đang dùng"
+          />
+
+          {error && <Alert severity="error">{error}</Alert>}
+          {success && <Alert severity="success">{success}</Alert>}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={closeModal} color="inherit">Hủy</Button>
+        <Button onClick={onSaveDraft} disabled={isLoading} variant="outlined">Lưu nháp</Button>
+        <Button onClick={onSave} disabled={isLoading} variant="contained">Lưu</Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 

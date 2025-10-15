@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronDownIcon, ChevronRightIcon, CheckIcon } from '@heroicons/react/24/outline';
+import React, { useState } from 'react';
 import type { FistConfigResponse, FistItemResponse } from '../../types';
+import { Box, TextField, Typography, Checkbox, Accordion, AccordionSummary, AccordionDetails, Divider } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 export interface FistContentSelectorProps {
   fistConfigs: FistConfigResponse[];
@@ -53,18 +54,8 @@ const FistContentSelector: React.FC<FistContentSelectorProps> = ({
     return acc;
   }, {} as Record<string, FistItemResponse[]>);
 
-  // Toggle config expansion
-  const toggleConfig = (configId: string) => {
-    if (disabled) return;
-    
-    const newExpanded = new Set(expandedConfigs);
-    if (newExpanded.has(configId)) {
-      newExpanded.delete(configId);
-    } else {
-      newExpanded.add(configId);
-    }
-    setExpandedConfigs(newExpanded);
-  };
+  // Toggle handled by Accordion onChange; helper to check expanded state
+  const isExpanded = (configId: string) => expandedConfigs.has(configId);
 
   // Handle config selection (select/deselect all items in config)
   const handleConfigSelection = (configId: string) => {
@@ -132,149 +123,128 @@ const FistContentSelector: React.FC<FistContentSelectorProps> = ({
   };
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <Box className={className} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700">
-          {label}
-        </label>
+        <Typography variant="body2" color="text.secondary">{label}</Typography>
       )}
 
-      {/* Search */}
-      <div className="relative">
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search fist content..."
-          disabled={disabled}
-          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-        />
-      </div>
+      <TextField
+        size="small"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder="Search fist content..."
+        disabled={disabled}
+      />
 
-      {/* Selection Summary */}
       {getTotalSelectedCount() > 0 && (
-        <div className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-md">
-          {getTotalSelectedCount()} item(s) selected across {Object.keys(selectedSelections).length} config(s)
-        </div>
+        <Box sx={{ bgcolor: 'grey.50', px: 1.5, py: 1, borderRadius: 1 }}>
+          <Typography variant="caption" color="text.secondary">
+            {getTotalSelectedCount()} item(s) selected across {Object.keys(selectedSelections).length} config(s)
+          </Typography>
+        </Box>
       )}
 
-      {/* Configs and Items */}
-      <div className="border border-gray-200 rounded-md max-h-96 overflow-auto">
+      <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, maxHeight: 384, overflow: 'auto' }}>
         {filteredConfigs.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-gray-500">
-            {searchTerm ? 'No fist content found' : 'No fist content available'}
-          </div>
+          <Box sx={{ px: 1.5, py: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              {searchTerm ? 'No fist content found' : 'No fist content available'}
+            </Typography>
+          </Box>
         ) : (
           filteredConfigs.map((config) => {
             const configId = config.id;
             const configItems = filteredItemsByConfig[configId] || [];
-            const isExpanded = expandedConfigs.has(configId);
-            const isFullySelected = isConfigFullySelected(configId);
-            const isPartiallySelected = isConfigPartiallySelected(configId);
+            const fullySelected = isConfigFullySelected(configId);
+            const partiallySelected = isConfigPartiallySelected(configId);
 
             return (
-              <div key={configId} className="border-b border-gray-100 last:border-b-0">
-                {/* Config Header */}
-                <div
-                  className={`
-                    flex items-center justify-between px-3 py-2 cursor-pointer
-                    ${disabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-50'}
-                  `}
-                  onClick={() => !disabled && toggleConfig(configId)}
-                >
-                  <div className="flex items-center space-x-2 flex-1 min-w-0">
-                    {configItems.length > 0 ? (
-                      isExpanded ? (
-                        <ChevronDownIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                      ) : (
-                        <ChevronRightIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                      )
-                    ) : (
-                      <div className="w-4 h-4 flex-shrink-0" />
-                    )}
-                    
-                    <input
-                      type="checkbox"
-                      checked={isFullySelected}
-                      ref={(input) => {
-                        if (input) input.indeterminate = isPartiallySelected;
-                      }}
+              <Accordion
+                key={configId}
+                disableGutters
+                expanded={isExpanded(configId)}
+                onChange={() => {
+                  if (disabled) return;
+                  const next = new Set(expandedConfigs);
+                  if (next.has(configId)) next.delete(configId); else next.add(configId);
+                  setExpandedConfigs(next);
+                }}
+                sx={{
+                  '&:before': { display: 'none' },
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 1.5, py: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
+                    <Checkbox
+                      size="small"
+                      checked={fullySelected}
+                      indeterminate={partiallySelected}
                       onChange={() => !disabled && handleConfigSelection(configId)}
                       disabled={disabled}
-                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                     />
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-gray-900 truncate">
-                        {config.name}
-                      </div>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body2" noWrap>{config.name}</Typography>
                       {config.description && (
-                        <div className="text-xs text-gray-500 truncate">
+                        <Typography variant="caption" color="text.secondary" noWrap>
                           {config.description}
-                        </div>
+                        </Typography>
                       )}
-                    </div>
-                  </div>
-                  
-                  {configItems.length > 0 && (
-                    <div className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                      {configItems.length} item(s)
-                    </div>
-                  )}
-                </div>
-
-                {/* Config Items */}
-                {isExpanded && configItems.length > 0 && (
-                  <div className="bg-gray-50 border-t border-gray-100">
+                    </Box>
+                    {configItems.length > 0 && (
+                      <Typography variant="caption" color="text.disabled">{configItems.length} item(s)</Typography>
+                    )}
+                  </Box>
+                </AccordionSummary>
+                {configItems.length > 0 && (
+                  <AccordionDetails sx={{ p: 0 }}>
+                    <Divider />
                     {configItems.map((item) => {
-                      const isSelected = isItemSelected(configId, item.id);
-                      
+                      const selected = isItemSelected(configId, item.id);
                       return (
-                        <div
+                        <Box
                           key={item.id}
-                          className={`
-                            flex items-center space-x-2 px-6 py-2 cursor-pointer
-                            ${disabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-100'}
-                          `}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            px: 3,
+                            py: 1,
+                            cursor: disabled ? 'not-allowed' : 'pointer',
+                            '&:hover': { bgcolor: disabled ? 'transparent' : 'action.hover' },
+                          }}
                           onClick={() => !disabled && handleItemSelection(configId, item.id)}
                         >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
+                          <Checkbox
+                            size="small"
+                            checked={selected}
                             onChange={() => !disabled && handleItemSelection(configId, item.id)}
                             disabled={disabled}
-                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                           />
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm text-gray-900 truncate">
-                              {item.name}
-                            </div>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="body2" noWrap>{item.name}</Typography>
                             {item.description && (
-                              <div className="text-xs text-gray-500 truncate">
+                              <Typography variant="caption" color="text.secondary" noWrap>
                                 {item.description}
-                              </div>
+                              </Typography>
                             )}
-                          </div>
-                          
-                          {isSelected && (
-                            <CheckIcon className="h-4 w-4 text-primary-600 flex-shrink-0" />
-                          )}
-                        </div>
+                          </Box>
+                        </Box>
                       );
                     })}
-                  </div>
+                  </AccordionDetails>
                 )}
-              </div>
+              </Accordion>
             );
           })
         )}
-      </div>
+      </Box>
 
       {error && (
-        <p className="text-sm text-red-600">{error}</p>
+        <Typography variant="caption" color="error">{error}</Typography>
       )}
-    </div>
+    </Box>
   );
 };
 
