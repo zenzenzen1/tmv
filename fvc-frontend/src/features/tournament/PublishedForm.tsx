@@ -369,6 +369,17 @@ export default function PublishedForm() {
     if (!studentId?.trim()) return "Vui lòng nhập MSSV";
     if (!club?.trim()) return "Vui lòng nhập CLB";
     if (!gender?.trim()) return "Vui lòng chọn Giới tính";
+
+    // Competition-specific required selections
+    if (competitionType === "fighting") {
+      if (!weightClass?.trim()) return "Vui lòng chọn Hạng cân";
+    } else if (competitionType === "quyen") {
+      if (!quyenCategory?.trim()) return "Vui lòng chọn Loại quyền";
+      if (!quyenContent?.trim()) return "Vui lòng chọn Nội dung quyền";
+    } else if (competitionType === "music") {
+      if (!musicCategory?.trim()) return "Vui lòng chọn Nội dung Võ nhạc";
+    }
+
     return null;
   };
 
@@ -515,7 +526,10 @@ export default function PublishedForm() {
                         name="gender"
                         value={g.value}
                         checked={gender === g.value}
-                        onChange={(e) => setGender(e.target.value)}
+                        onChange={(e) => {
+                          setGender(e.target.value);
+                          setWeightClass(""); // reset weight when gender changes
+                        }}
                       />
                       <span>{g.label}</span>
                     </label>
@@ -553,17 +567,23 @@ export default function PublishedForm() {
                         <option value="">Chọn hạng cân của bạn</option>
                         {weightClasses &&
                           weightClasses.length > 0 &&
-                          weightClasses.map((w) => {
-                            const weightDisplay =
-                              w.weightClass ||
-                              `${w.minWeight}-${w.maxWeight}kg`;
-                            return (
-                              <option key={w.id} value={weightDisplay}>
-                                {w.gender === "MALE" ? "Nam" : "Nữ"} -{" "}
-                                {weightDisplay}
-                              </option>
-                            );
-                          })}
+                          weightClasses
+                            .filter((w) => {
+                              if (gender === "male") return w.gender === "MALE";
+                              if (gender === "female")
+                                return w.gender === "FEMALE";
+                              return true; // 'other' shows all
+                            })
+                            .map((w) => {
+                              const weightDisplay =
+                                w.weightClass ||
+                                `${w.minWeight}-${w.maxWeight}kg`;
+                              return (
+                                <option key={w.id} value={weightDisplay}>
+                                  {weightDisplay}
+                                </option>
+                              );
+                            })}
                       </select>
                     </div>
                   </div>
