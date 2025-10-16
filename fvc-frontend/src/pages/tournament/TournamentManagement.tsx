@@ -19,10 +19,6 @@ export default function TournamentManage() {
   const contentMusic = <MusicContentListPage />;
   const contentSubmittedForms = <SubmittedFormsPage />;
 
-  const placeholder = (title: string) => (
-    <div className="px-6 py-10 text-sm text-gray-600">{title}</div>
-  );
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#F0F6FF] to-[#E0EAFF] grid grid-cols-[16rem_1fr] grid-rows-[1fr_auto] items-stretch">
       <div className="row-span-2 h-full">
@@ -33,7 +29,6 @@ export default function TournamentManage() {
         {activeMenu === "tournamentForm" && contentTournamentForm}
         {activeMenu === "tournaments" && contentTournament}
         {activeMenu === "athletes" && contentAthletes}
-        {activeMenu === "fighting" && placeholder("Đối kháng")}
         {activeMenu === "forms" && contentFist}
         {activeMenu === "music" && contentMusic}
         {activeMenu === "submittedForms" && contentSubmittedForms}
