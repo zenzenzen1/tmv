@@ -1,5 +1,6 @@
 import React from 'react';
 import type { TournamentStatus } from '../../types';
+import { Chip } from '@mui/material';
 
 interface StatusBadgeProps {
   status: TournamentStatus;
@@ -7,68 +8,29 @@ interface StatusBadgeProps {
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' }) => {
-  const getStatusConfig = (status: TournamentStatus) => {
-    switch (status) {
+  const getLabelAndColor = (
+    s: TournamentStatus
+  ): { label: string; color: 'default' | 'primary' | 'secondary' | 'success' | 'error' | 'warning' | 'info' } => {
+    switch (s) {
       case 'DRAFT':
-        return {
-          label: 'Draft',
-          className: 'bg-gray-100 text-gray-800',
-        };
+        return { label: 'Draft', color: 'default' };
       case 'OPEN_REGISTRATION':
-        return {
-          label: 'Open Registration',
-          className: 'bg-blue-100 text-blue-800',
-        };
+        return { label: 'Open Registration', color: 'info' };
       case 'IN_PROGRESS':
-        return {
-          label: 'In Progress',
-          className: 'bg-yellow-100 text-yellow-800',
-        };
+        return { label: 'In Progress', color: 'warning' };
       case 'FINISHED':
-        return {
-          label: 'Finished',
-          className: 'bg-green-100 text-green-800',
-        };
+        return { label: 'Finished', color: 'success' };
       case 'CANCELLED':
-        return {
-          label: 'Cancelled',
-          className: 'bg-red-100 text-red-800',
-        };
+        return { label: 'Cancelled', color: 'error' };
       default:
-        return {
-          label: status,
-          className: 'bg-gray-100 text-gray-800',
-        };
+        return { label: s, color: 'default' };
     }
   };
 
-  const getSizeClasses = (size: 'sm' | 'md' | 'lg') => {
-    switch (size) {
-      case 'sm':
-        return 'px-2 py-1 text-xs';
-      case 'md':
-        return 'px-2.5 py-0.5 text-sm';
-      case 'lg':
-        return 'px-3 py-1 text-base';
-      default:
-        return 'px-2.5 py-0.5 text-sm';
-    }
-  };
+  const { label, color } = getLabelAndColor(status);
+  const sizeProp = size === 'sm' ? 'small' : size === 'lg' ? 'medium' : 'medium';
 
-  const config = getStatusConfig(status);
-  const sizeClasses = getSizeClasses(size);
-
-  return (
-    <span
-      className={`
-        inline-flex items-center rounded-full font-medium
-        ${config.className}
-        ${sizeClasses}
-      `}
-    >
-      {config.label}
-    </span>
-  );
+  return <Chip label={label} color={color} size={sizeProp as any} variant={color === 'default' ? 'outlined' : 'filled'} />;
 };
 
 export default StatusBadge;

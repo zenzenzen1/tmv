@@ -1,36 +1,29 @@
 import React from 'react';
+import { Box, CircularProgress } from '@mui/material';
 
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
 
-const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ 
-  size = 'md', 
-  className = '' 
-}) => {
-  const getSizeClasses = (size: 'sm' | 'md' | 'lg') => {
-    switch (size) {
+const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ size = 'md', className = '' }) => {
+  const getPixelSize = (s: 'sm' | 'md' | 'lg') => {
+    switch (s) {
       case 'sm':
-        return 'h-4 w-4';
+        return 16;
       case 'md':
-        return 'h-8 w-8';
+        return 32;
       case 'lg':
-        return 'h-12 w-12';
+        return 48;
       default:
-        return 'h-8 w-8';
+        return 32;
     }
   };
 
   return (
-    <div className={`flex justify-center items-center ${className}`}>
-      <div
-        className={`
-          animate-spin rounded-full border-2 border-gray-300 border-t-primary-600
-          ${getSizeClasses(size)}
-        `}
-      />
-    </div>
+    <Box display="flex" alignItems="center" justifyContent="center" className={className}>
+      <CircularProgress size={getPixelSize(size)} color="primary" />
+    </Box>
   );
 };
 

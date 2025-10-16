@@ -11,10 +11,6 @@ export default function WeightClassListPage() {
     fetch();
   }, [fetch]);
 
-  // Debug logging
-  console.log('WeightClassListPage - list:', list);
-  console.log('WeightClassListPage - isLoading:', isLoading);
-  console.log('WeightClassListPage - error:', error);
 
   return (
     <div className="p-6">

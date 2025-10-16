@@ -52,7 +52,7 @@ const TournamentListPage: React.FC = () => {
 
   // Handle create competition
   const handleCreateCompetition = () => {
-    navigate('/tournaments/create');
+    navigate('/manage/tournaments/create');
   };
 
   // Handle edit competition
