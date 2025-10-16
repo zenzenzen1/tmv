@@ -42,17 +42,21 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
 
     List<ApplicationFormConfig> findByEndDateBeforeAndStatus(LocalDateTime endDate, FormStatus status);
 
-    // Simple search by name or description
+    // Simple search by name or description - ONLY CLUB_REGISTRATION
     @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
-           "LOWER(afc.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-           "LOWER(afc.description) LIKE LOWER(CONCAT('%', :search, '%'))")
+           "afc.formType = 'CLUB_REGISTRATION' AND " +
+           "(LOWER(afc.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "LOWER(afc.description) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<ApplicationFormConfig> findBySearch(@Param("search") String search, Pageable pageable);
     
-    // Filter by status
-    Page<ApplicationFormConfig> findByStatus(FormStatus status, Pageable pageable);
-    
-    // Filter by date range
+    // Filter by status - ONLY CLUB_REGISTRATION
     @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "afc.formType = 'CLUB_REGISTRATION' AND afc.status = :status")
+    Page<ApplicationFormConfig> findByStatus(@Param("status") FormStatus status, Pageable pageable);
+    
+    // Filter by date range - ONLY CLUB_REGISTRATION
+    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "afc.formType = 'CLUB_REGISTRATION' AND " +
            "afc.createdAt >= :dateFrom AND afc.createdAt <= :dateTo")
     Page<ApplicationFormConfig> findByDateRange(
         @Param("dateFrom") LocalDateTime dateFrom, 
@@ -60,8 +64,9 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
         Pageable pageable
     );
     
-    // Combined filters
+    // Combined filters - ONLY CLUB_REGISTRATION
     @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "afc.formType = 'CLUB_REGISTRATION' AND " +
            "LOWER(afc.name) LIKE LOWER(CONCAT('%', :search, '%')) AND " +
            "afc.status = :status")
     Page<ApplicationFormConfig> findBySearchAndStatus(
@@ -71,6 +76,7 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
     );
     
     @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "afc.formType = 'CLUB_REGISTRATION' AND " +
            "LOWER(afc.name) LIKE LOWER(CONCAT('%', :search, '%')) AND " +
            "afc.createdAt >= :dateFrom AND afc.createdAt <= :dateTo")
     Page<ApplicationFormConfig> findBySearchAndDateRange(
@@ -81,6 +87,7 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
     );
     
     @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "afc.formType = 'CLUB_REGISTRATION' AND " +
            "afc.status = :status AND " +
            "afc.createdAt >= :dateFrom AND afc.createdAt <= :dateTo")
     Page<ApplicationFormConfig> findByStatusAndDateRange(
@@ -91,6 +98,7 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
     );
     
     @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "afc.formType = 'CLUB_REGISTRATION' AND " +
            "LOWER(afc.name) LIKE LOWER(CONCAT('%', :search, '%')) AND " +
            "afc.status = :status AND " +
            "afc.createdAt >= :dateFrom AND afc.createdAt <= :dateTo")
@@ -101,4 +109,8 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
         @Param("dateTo") LocalDateTime dateTo, 
         Pageable pageable
     );
+    
+    // Get all CLUB_REGISTRATION forms
+    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE afc.formType = 'CLUB_REGISTRATION'")
+    Page<ApplicationFormConfig> findAllClubRegistration(Pageable pageable);
 }

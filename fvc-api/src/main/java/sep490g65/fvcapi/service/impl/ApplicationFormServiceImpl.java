@@ -278,14 +278,14 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
             System.out.println("Filter conditions - search: " + hasSearch + ", status: " + hasStatus + ", dateRange: " + hasDateRange);
             
             if (!hasSearch && !hasStatus && !hasDateRange) {
-                // No filters - get all
-                configs = applicationFormConfigRepository.findAll(pageable);
+                // No filters - get all CLUB_REGISTRATION forms only
+                configs = applicationFormConfigRepository.findAllClubRegistration(pageable);
                 
                 // If no data exists, create default form
                 if (configs.getContent().isEmpty()) {
                     try {
                         createDefaultClubRegistrationForm();
-                        configs = applicationFormConfigRepository.findAll(pageable);
+                        configs = applicationFormConfigRepository.findAllClubRegistration(pageable);
                     } catch (Exception e) {
                         System.err.println("Failed to create default form: " + e.getMessage());
                     }
@@ -312,16 +312,16 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
                 // Only date range
                 configs = applicationFormConfigRepository.findByDateRange(fromDate, toDate, pageable);
             } else {
-                // Fallback
-                configs = applicationFormConfigRepository.findAll(pageable);
+                // Fallback - get all CLUB_REGISTRATION forms only
+                configs = applicationFormConfigRepository.findAllClubRegistration(pageable);
             }
             
             System.out.println("Found " + configs.getContent().size() + " results");
             
         } catch (Exception e) {
-            System.err.println("Filter query failed, falling back to findAll: " + e.getMessage());
+            System.err.println("Filter query failed, falling back to findAllClubRegistration: " + e.getMessage());
             e.printStackTrace();
-            configs = applicationFormConfigRepository.findAll(pageable);
+            configs = applicationFormConfigRepository.findAllClubRegistration(pageable);
         }
         
         return configs.map(this::mapToResponse);
