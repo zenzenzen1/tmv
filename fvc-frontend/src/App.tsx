@@ -17,6 +17,7 @@ import CompetitionFormPage from "./pages/tournament/CompetitionFormPage";
 import FormResults from "./features/tournament/FormResults";
 // import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
+import TournamentFormList from "./features/tournament/TournamentFormList";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
 import MainLayout from "./components/layout/MainLayout";
 import WeightClassListPage from "./pages/weight-class/ListPage";
@@ -40,12 +41,17 @@ export default function App() {
       <Route
         path="/login"
         element={
-          isAuthenticated ? <Navigate to="/manage/tournaments" replace /> : <LoginPage />
+          isAuthenticated ? (
+            <Navigate to="/manage/tournaments" replace />
+          ) : (
+            <LoginPage />
+          )
         }
       />
 
-      {/* Landing redirect */}
-      <Route path="/" element={<Navigate to={isAuthenticated ? "/manage/tournaments" : "/login"} replace />} />
+      {/* Public Home */}
+      <Route path="/home" element={<Home />} />
+      <Route path="dashboard" element={<DashboardPage />} />
 
       {/* Protected app routes under /manage */}
       <Route
@@ -59,15 +65,16 @@ export default function App() {
         {/* default */}
         <Route index element={<Navigate to="tournaments" replace />} />
 
-        {/* Dashboard/Home (optional) */}
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="home" element={<Home />} />
+        {/* Dashboard (optional) */}
 
         {/* Tournaments */}
         <Route path="tournaments" element={<TournamentListPage />} />
         <Route path="tournaments/create" element={<CompetitionFormPage />} />
         <Route path="tournaments/edit/:id" element={<CompetitionFormPage />} />
         <Route path="tournaments/view/:id" element={<CompetitionFormPage />} />
+
+        {/* Tournament Forms */}
+        <Route path="tournament-forms" element={<TournamentFormList />} />
 
         {/* Forms */}
         <Route path="form-list" element={<FormListPage />} />
@@ -81,7 +88,10 @@ export default function App() {
 
         {/* Athletes */}
         <Route path="athletes" element={<AthleteManagementWrapper />} />
-        <Route path="athletes/fighting" element={<AthleteManagementWrapper />} />
+        <Route
+          path="athletes/fighting"
+          element={<AthleteManagementWrapper />}
+        />
         <Route path="athletes/quyen" element={<AthleteManagementWrapper />} />
         <Route path="athletes/music" element={<AthleteManagementWrapper />} />
 
@@ -92,11 +102,30 @@ export default function App() {
       </Route>
 
       {/* Legacy redirects to /manage */}
-      <Route path="/tournaments/*" element={<Navigate to="/manage/tournaments" replace />} />
-      <Route path="/athletes/*" element={<Navigate to="/manage/athletes" replace />} />
-      <Route path="/form-list" element={<Navigate to="/manage/form-list" replace />} />
-      <Route path="/submitted-forms" element={<Navigate to="/manage/submitted-forms" replace />} />
-      <Route path="/forms/*" element={<Navigate to="/manage/forms" replace />} />
+      <Route
+        path="/tournaments/*"
+        element={<Navigate to="/manage/tournaments" replace />}
+      />
+      <Route
+        path="/athletes/*"
+        element={<Navigate to="/manage/athletes" replace />}
+      />
+      <Route
+        path="/form-list"
+        element={<Navigate to="/manage/form-list" replace />}
+      />
+      <Route
+        path="/submitted-forms"
+        element={<Navigate to="/manage/submitted-forms" replace />}
+      />
+      <Route
+        path="/forms/*"
+        element={<Navigate to="/manage/forms" replace />}
+      />
+
+      {/* Direct access routes used by TournamentFormList and public links */}
+      <Route path="/results/:id" element={<FormResults />} />
+      <Route path="/published-form/:id" element={<PublishedForm />} />
 
       {/* 404 */}
       <Route path="*" element={<div>404 Not Found</div>} />
