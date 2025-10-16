@@ -313,6 +313,27 @@ export default function FormEditPage() {
         setSavingDraft(true);
       }
       
+      // Validate required fields
+      if (!title.trim()) {
+        alert("Tiêu đề là bắt buộc. Vui lòng nhập tiêu đề form.");
+        if (status === 'PUBLISH') {
+          setSaving(false);
+        } else {
+          setSavingDraft(false);
+        }
+        return;
+      }
+
+      if (!description.trim()) {
+        alert("Mô tả là bắt buộc. Vui lòng nhập mô tả form.");
+        if (status === 'PUBLISH') {
+          setSaving(false);
+        } else {
+          setSavingDraft(false);
+        }
+        return;
+      }
+
       // Validate that all fields have names
       const fieldsWithoutNames = fields.filter(field => !field.name || field.name.trim() === '');
       if (fieldsWithoutNames.length > 0) {
@@ -439,21 +460,50 @@ export default function FormEditPage() {
               {/* Title/Description */}
               <div className="space-y-3">
                 <div>
-                  <div className="mb-1 text-[13px] font-semibold text-gray-800">Tiêu đề</div>
+                  <div className="mb-1 text-[13px] font-semibold text-gray-800">
+                    Tiêu đề <span className="text-red-500">*</span>
+                  </div>
                   <input
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
+                    type="text"
+                    className={`w-full rounded-md border px-3 py-2 shadow-sm focus:outline-none transition-all duration-200 ${
+                      !title.trim() ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100' : 'border-gray-300 focus:border-[#2563eb] focus:ring-2 focus:ring-blue-100'
+                    }`}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Nhập tiêu đề form"
+                    required
                   />
+                  {!title.trim() && (
+                    <div className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      Tiêu đề là bắt buộc
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <div className="mb-1 text-[13px] font-semibold text-gray-800">Mô tả</div>
+                  <div className="mb-1 text-[13px] font-semibold text-gray-800">
+                    Mô tả <span className="text-red-500">*</span>
+                  </div>
                   <textarea
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
+                    className={`w-full rounded-md border px-3 py-2 shadow-sm focus:outline-none transition-all duration-200 ${
+                      !description.trim() ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100' : 'border-gray-300 focus:border-[#2563eb] focus:ring-2 focus:ring-blue-100'
+                    }`}
                     rows={3}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Nhập mô tả form"
+                    required
                   />
+                  {!description.trim() && (
+                    <div className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      Mô tả là bắt buộc
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="mb-1 text-[13px] font-semibold text-gray-800">

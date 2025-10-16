@@ -393,6 +393,21 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
      * Validates form creation business rules
      */
     private void validateFormCreation(CreateApplicationFormConfigRequest request) {
+        // Validate required fields
+        if (request.getName() == null || request.getName().trim().isEmpty()) {
+            throw new BusinessException(
+                "Form name is required",
+                "FORM_NAME_REQUIRED"
+            );
+        }
+        
+        if (request.getDescription() == null || request.getDescription().trim().isEmpty()) {
+            throw new BusinessException(
+                "Form description is required",
+                "FORM_DESCRIPTION_REQUIRED"
+            );
+        }
+        
         // Check if form name already exists
         if (applicationFormConfigRepository.existsByName(request.getName())) {
             throw new BusinessException(
@@ -414,6 +429,21 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
      * Validates form update business rules
      */
     private void validateFormUpdate(UpdateApplicationFormConfigRequest request, ApplicationFormConfig existingConfig) {
+        // Validate required fields
+        if (request.getName() == null || request.getName().trim().isEmpty()) {
+            throw new BusinessException(
+                "Form name is required",
+                "FORM_NAME_REQUIRED"
+            );
+        }
+        
+        if (request.getDescription() == null || request.getDescription().trim().isEmpty()) {
+            throw new BusinessException(
+                "Form description is required",
+                "FORM_DESCRIPTION_REQUIRED"
+            );
+        }
+        
         // Check if form name already exists (excluding current form)
         if (!request.getName().equals(existingConfig.getName()) && 
             applicationFormConfigRepository.existsByName(request.getName())) {
