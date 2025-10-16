@@ -92,25 +92,50 @@ export default function Pagination({
               </svg>
             </button>
             
-            {/* Page numbers */}
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
-              if (pageNum > totalPages) return null;
-              
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => onPageChange(pageNum)}
-                  className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
-                    pageNum === currentPage
-                      ? "z-10 bg-blue-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                      : "text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
+            {/* Page numbers with ellipsis */}
+            {(() => {
+              const items: (number | 'ellipsis')[] = [];
+              const maxButtons = 7; // including first/last if applicable
+              if (totalPages <= maxButtons) {
+                for (let p = 1; p <= totalPages; p++) items.push(p);
+              } else {
+                const windowSize = 3; // pages around current
+                const start = Math.max(2, currentPage - 1);
+                const end = Math.min(totalPages - 1, currentPage + 1);
+                items.push(1);
+                if (start > 2) items.push('ellipsis');
+                for (let p = start; p <= end; p++) items.push(p);
+                if (end < totalPages - 1) items.push('ellipsis');
+                items.push(totalPages);
+              }
+
+              return items.map((it, idx) => {
+                if (it === 'ellipsis') {
+                  return (
+                    <span
+                      key={`e-${idx}`}
+                      className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 select-none"
+                    >
+                      …
+                    </span>
+                  );
+                }
+                const pageNum = it as number;
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => onPageChange(pageNum)}
+                    className={`relative inline-flex items-center px-3 py-2 text-sm font-semibold ${
+                      pageNum === currentPage
+                        ? "z-10 bg-blue-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                        : "text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              });
+            })()}
             
             {/* Next button */}
             <button

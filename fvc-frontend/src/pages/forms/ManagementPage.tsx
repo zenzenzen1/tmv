@@ -268,18 +268,31 @@ export default function FormManagementPage() {
                         {formatDate(form.updatedAt)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => handleEdit(form.id)}
-                          className="text-blue-600 hover:text-blue-900 mr-4"
-                        >
-                          Chỉnh sửa
-                        </button>
-                        <button 
-                          onClick={() => handleView(form.id)}
-                          className="text-green-600 hover:text-green-900"
-                        >
-                          Xem
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handleEdit(form.id)}
+                            aria-label="Chỉnh sửa"
+                            title="Chỉnh sửa"
+                            className="text-blue-600 hover:text-blue-800 transition-colors"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                              <path d="M21.731 2.269a2.625 2.625 0 00-3.714 0l-1.157 1.157 3.714 3.714 1.157-1.157a2.625 2.625 0 000-3.714z" />
+                              <path d="M19.513 8.199l-3.714-3.714-9.193 9.193a5.25 5.25 0 00-1.32 2.214l-.8 2.684a.75.75 0 00.933.933l2.684-.8a5.25 5.25 0 002.214-1.32l9.193-9.193z" />
+                              <path d="M5.25 5.25a3 3 0 00-3 3v10.5A3 3 0 005.25 21.75H15.75a3 3 0 003-3V12a.75.75 0 00-1.5 0v6.75a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V8.25a1.5 1.5 0 011.5-1.5H12a.75.75 0 000-1.5H5.25z" />
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={() => handleView(form.id)}
+                            aria-label="Xem"
+                            title="Xem"
+                            className="text-green-600 hover:text-green-800 transition-colors"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                              <path d="M1.5 12s3.75-7.5 10.5-7.5S22.5 12 22.5 12 18.75 19.5 12 19.5 1.5 12 1.5 12z" />
+                              <path d="M12 15.75a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5z" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
