@@ -11,7 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
-import sep490g65.fvcapi.exception.custom.BusinessException;
+import sep490g65.fvcapi.exception.BusinessException;
 import sep490g65.fvcapi.exception.custom.ValidationException;
 
 @Slf4j

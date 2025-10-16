@@ -15,6 +15,7 @@ import sep490g65.fvcapi.entity.ApplicationFormConfig;
 import sep490g65.fvcapi.entity.ApplicationFormField;
 import sep490g65.fvcapi.enums.ApplicationFormType;
 import sep490g65.fvcapi.enums.FormStatus;
+import sep490g65.fvcapi.exception.BusinessException;
 import sep490g65.fvcapi.repository.ApplicationFormConfigRepository;
 import sep490g65.fvcapi.service.ApplicationFormService;
 
@@ -23,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import sep490g65.fvcapi.constants.MessageConstants;
 
 @Service
 @RequiredArgsConstructor
@@ -51,10 +53,15 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
     @Override
     @Transactional
     public ApplicationFormConfigResponse create(CreateApplicationFormConfigRequest request) {
+        // Validate business rules
+        validateFormCreation(request);
+        
         ApplicationFormConfig config = ApplicationFormConfig.builder()
                 .name(request.getName())
                 .description(request.getDescription())
                 .formType(request.getFormType())
+                .status(request.getStatus() != null ? request.getStatus() : FormStatus.DRAFT)
+                .endDate(request.getEndDate())
                 .build();
 
         if (request.getFields() != null) {
@@ -98,10 +105,16 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         
         ApplicationFormConfig config = configs.get(0); // Get the most recent one
 
+        // Validate business rules for update
+        validateFormUpdate(request, config);
+
         // Update basic info
         config.setName(request.getName());
         config.setDescription(request.getDescription());
         config.setEndDate(request.getEndDate());
+        if (request.getStatus() != null) {
+            config.setStatus(request.getStatus());
+        }
 
         // Clear existing fields and add new ones
         config.getFields().clear();
@@ -374,5 +387,48 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         }
         
         return configs.map(this::mapToResponse);
+    }
+
+    /**
+     * Validates form creation business rules
+     */
+    private void validateFormCreation(CreateApplicationFormConfigRequest request) {
+        // Check if form name already exists
+        if (applicationFormConfigRepository.existsByName(request.getName())) {
+            throw new BusinessException(
+                String.format(MessageConstants.APPLICATION_FORM_ALREADY_EXISTS, request.getName()),
+                "FORM_NAME_EXISTS"
+            );
+        }
+        
+        // Check if trying to publish without end date
+        if (request.getStatus() == FormStatus.PUBLISH && request.getEndDate() == null) {
+            throw new BusinessException(
+                MessageConstants.APPLICATION_FORM_PUBLISH_WITHOUT_END_DATE,
+                "PUBLISH_WITHOUT_END_DATE"
+            );
+        }
+    }
+
+    /**
+     * Validates form update business rules
+     */
+    private void validateFormUpdate(UpdateApplicationFormConfigRequest request, ApplicationFormConfig existingConfig) {
+        // Check if form name already exists (excluding current form)
+        if (!request.getName().equals(existingConfig.getName()) && 
+            applicationFormConfigRepository.existsByName(request.getName())) {
+            throw new BusinessException(
+                String.format(MessageConstants.APPLICATION_FORM_ALREADY_EXISTS, request.getName()),
+                "FORM_NAME_EXISTS"
+            );
+        }
+        
+        // Check if trying to publish without end date
+        if (request.getStatus() == FormStatus.PUBLISH && request.getEndDate() == null) {
+            throw new BusinessException(
+                MessageConstants.APPLICATION_FORM_PUBLISH_WITHOUT_END_DATE,
+                "PUBLISH_WITHOUT_END_DATE"
+            );
+        }
     }
 }

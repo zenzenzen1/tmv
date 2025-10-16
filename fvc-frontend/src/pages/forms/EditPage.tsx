@@ -30,6 +30,7 @@ export default function FormEditPage() {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -304,15 +305,23 @@ export default function FormEditPage() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (status: 'PUBLISH' | 'DRAFT' = 'PUBLISH') => {
     try {
-      setSaving(true);
+      if (status === 'PUBLISH') {
+        setSaving(true);
+      } else {
+        setSavingDraft(true);
+      }
       
       // Validate that all fields have names
       const fieldsWithoutNames = fields.filter(field => !field.name || field.name.trim() === '');
       if (fieldsWithoutNames.length > 0) {
         alert("Tất cả các trường phải có tên. Vui lòng kiểm tra lại các câu hỏi.");
-        setSaving(false);
+        if (status === 'PUBLISH') {
+          setSaving(false);
+        } else {
+          setSavingDraft(false);
+        }
         return;
       }
       
@@ -320,6 +329,7 @@ export default function FormEditPage() {
         name: title,
         description: description,
         formType: "CLUB_REGISTRATION",
+        status: status,
         endDate: endDate ? new Date(endDate).toISOString() : null,
         fields: fields.map(field => ({
           id: field.id,
@@ -342,7 +352,8 @@ export default function FormEditPage() {
       }
       
       if (response.success) {
-        alert("Đã lưu thành công!");
+        const message = status === 'PUBLISH' ? "Đã lưu và publish thành công!" : "Đã lưu bản nháp thành công!";
+        alert(message);
       } else {
         alert("Lỗi khi lưu: " + (response.message || "Unknown error"));
       }
@@ -350,7 +361,11 @@ export default function FormEditPage() {
       console.error("Error saving form:", error);
       alert("Lỗi khi lưu: " + (error?.message || "Network error"));
     } finally {
-      setSaving(false);
+      if (status === 'PUBLISH') {
+        setSaving(false);
+      } else {
+        setSavingDraft(false);
+      }
     }
   };
 
@@ -379,12 +394,19 @@ export default function FormEditPage() {
               Xem trước
             </button>
             <button 
-            onClick={handleSave} 
-            disabled={saving}
-            className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50"
-          >
-            {saving ? "Đang lưu..." : (id === 'new' ? "TẠO" : "SỬA")}
-          </button>
+              onClick={() => handleSave('DRAFT')} 
+              disabled={savingDraft || saving}
+              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[13px] font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+            >
+              {savingDraft ? "Đang lưu..." : "Save Draft"}
+            </button>
+            <button 
+              onClick={() => handleSave('PUBLISH')} 
+              disabled={saving || savingDraft}
+              className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50"
+            >
+              {saving ? "Đang lưu..." : (id === 'new' ? "TẠO & PUBLISH" : "SỬA & PUBLISH")}
+            </button>
           </div>
         </div>
 
@@ -645,8 +667,8 @@ export default function FormEditPage() {
                   <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                     Đăng ký câu lạc bộ
                   </span>
-                  <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
-                    Bản nháp
+                  <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
+                    Bản nháp (Draft)
                   </span>
                   {endDate && (
                     <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full">

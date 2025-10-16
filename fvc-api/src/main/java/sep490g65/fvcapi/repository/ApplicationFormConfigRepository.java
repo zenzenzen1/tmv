@@ -42,6 +42,8 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
 
     List<ApplicationFormConfig> findByEndDateBeforeAndStatus(LocalDateTime endDate, FormStatus status);
 
+    boolean existsByName(String name);
+
     // Simple search by name or description - ONLY CLUB_REGISTRATION
     @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
            "afc.formType = 'CLUB_REGISTRATION' AND " +

@@ -2,6 +2,7 @@ package sep490g65.fvcapi.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import sep490g65.fvcapi.constants.ApiConstants;
@@ -28,7 +29,8 @@ public class ApplicationFormController {
             @Valid @RequestBody CreateApplicationFormConfigRequest request
     ) {
         ApplicationFormConfigResponse data = applicationFormService.create(request);
-        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ResponseUtils.success(MessageConstants.APPLICATION_FORM_CREATED_SUCCESS, data));
     }
 
     @GetMapping
