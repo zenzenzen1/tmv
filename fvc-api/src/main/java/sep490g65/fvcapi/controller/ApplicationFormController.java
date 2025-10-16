@@ -67,7 +67,7 @@ public class ApplicationFormController {
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, data));
     }
 
-    @PutMapping("/{formType}")
+    @PutMapping("/type/{formType}")
     public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> update(
             @PathVariable ApplicationFormType formType,
             @Valid @RequestBody UpdateApplicationFormConfigRequest request

@@ -51,7 +51,9 @@ export default function FormEditPage() {
   }
 
   function handleAdd(type: FieldType) {
-    const newField = makeField("", "", "", type, false, (fields[fields.length - 1]?.sortOrder ?? 0) + 1, "");
+    const fieldCount = fields.length + 1;
+    const defaultName = `field_${fieldCount}`;
+    const newField = makeField("", defaultName, "", type, false, (fields[fields.length - 1]?.sortOrder ?? 0) + 1, "");
     setFields((prev) => [...prev, newField]);
     setShowAddMenu(false);
   }
@@ -184,6 +186,14 @@ export default function FormEditPage() {
   const handleSave = async () => {
     try {
       setSaving(true);
+      
+      // Validate that all fields have names
+      const fieldsWithoutNames = fields.filter(field => !field.name || field.name.trim() === '');
+      if (fieldsWithoutNames.length > 0) {
+        alert("Tất cả các trường phải có tên. Vui lòng kiểm tra lại các câu hỏi.");
+        setSaving(false);
+        return;
+      }
       
       const requestData = {
         name: title,
@@ -331,6 +341,15 @@ export default function FormEditPage() {
                                   value={f.label}
                                   onChange={(e) => handleChangeField(f.id, { label: e.target.value })}
                                   placeholder="Nhập câu hỏi"
+                                />
+                              </div>
+                              <div>
+                                <div className="mb-1 text-xs font-medium text-gray-700">Tên trường (Field Name)</div>
+                                <input
+                                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                                  value={f.name}
+                                  onChange={(e) => handleChangeField(f.id, { name: e.target.value })}
+                                  placeholder="Nhập tên trường (ví dụ: fullName, email)"
                                 />
                               </div>
                               <div>

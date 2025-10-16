@@ -28,6 +28,9 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
     Optional<ApplicationFormConfig> findByFormTypeWithFields(@Param("formType") ApplicationFormType formType);
 
     Optional<ApplicationFormConfig> findByFormType(ApplicationFormType formType);
+    
+    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE afc.formType = :formType ORDER BY afc.updatedAt DESC")
+    List<ApplicationFormConfig> findByFormTypeOrderByUpdatedAtDesc(@Param("formType") ApplicationFormType formType);
 
     @Query("SELECT f FROM ApplicationFormConfig f WHERE (:q IS NULL OR LOWER(f.name) LIKE :q)")
     Page<ApplicationFormConfig> search(@Param("q") String keyword, Pageable pageable);
@@ -39,23 +42,63 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
 
     List<ApplicationFormConfig> findByEndDateBeforeAndStatus(LocalDateTime endDate, FormStatus status);
 
-    @Query(value = "SELECT afc.* FROM application_form_configs afc WHERE " +
-           "(:search IS NULL OR LOWER(afc.name::text) LIKE :searchPattern OR LOWER(afc.description::text) LIKE :searchPattern) AND " +
-           "(:dateFrom IS NULL OR afc.created_at >= :dateFrom) AND " +
-           "(:dateTo IS NULL OR afc.created_at <= :dateTo) AND " +
-           "(:status IS NULL OR afc.status = :status)",
-           countQuery = "SELECT COUNT(*) FROM application_form_configs afc WHERE " +
-           "(:search IS NULL OR LOWER(afc.name::text) LIKE :searchPattern OR LOWER(afc.description::text) LIKE :searchPattern) AND " +
-           "(:dateFrom IS NULL OR afc.created_at >= :dateFrom) AND " +
-           "(:dateTo IS NULL OR afc.created_at <= :dateTo) AND " +
-           "(:status IS NULL OR afc.status = :status)",
-           nativeQuery = true)
-    Page<ApplicationFormConfig> findWithFilters(
+    // Simple search by name or description
+    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "LOWER(afc.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "LOWER(afc.description) LIKE LOWER(CONCAT('%', :search, '%'))")
+    Page<ApplicationFormConfig> findBySearch(@Param("search") String search, Pageable pageable);
+    
+    // Filter by status
+    Page<ApplicationFormConfig> findByStatus(FormStatus status, Pageable pageable);
+    
+    // Filter by date range
+    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "afc.createdAt >= :dateFrom AND afc.createdAt <= :dateTo")
+    Page<ApplicationFormConfig> findByDateRange(
+        @Param("dateFrom") LocalDateTime dateFrom, 
+        @Param("dateTo") LocalDateTime dateTo, 
+        Pageable pageable
+    );
+    
+    // Combined filters
+    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "LOWER(afc.name) LIKE LOWER(CONCAT('%', :search, '%')) AND " +
+           "afc.status = :status")
+    Page<ApplicationFormConfig> findBySearchAndStatus(
+        @Param("search") String search, 
+        @Param("status") FormStatus status, 
+        Pageable pageable
+    );
+    
+    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "LOWER(afc.name) LIKE LOWER(CONCAT('%', :search, '%')) AND " +
+           "afc.createdAt >= :dateFrom AND afc.createdAt <= :dateTo")
+    Page<ApplicationFormConfig> findBySearchAndDateRange(
         @Param("search") String search,
-        @Param("searchPattern") String searchPattern,
-        @Param("dateFrom") LocalDateTime dateFrom,
-        @Param("dateTo") LocalDateTime dateTo,
+        @Param("dateFrom") LocalDateTime dateFrom, 
+        @Param("dateTo") LocalDateTime dateTo, 
+        Pageable pageable
+    );
+    
+    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "afc.status = :status AND " +
+           "afc.createdAt >= :dateFrom AND afc.createdAt <= :dateTo")
+    Page<ApplicationFormConfig> findByStatusAndDateRange(
         @Param("status") FormStatus status,
+        @Param("dateFrom") LocalDateTime dateFrom, 
+        @Param("dateTo") LocalDateTime dateTo, 
+        Pageable pageable
+    );
+    
+    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "LOWER(afc.name) LIKE LOWER(CONCAT('%', :search, '%')) AND " +
+           "afc.status = :status AND " +
+           "afc.createdAt >= :dateFrom AND afc.createdAt <= :dateTo")
+    Page<ApplicationFormConfig> findByAllFilters(
+        @Param("search") String search,
+        @Param("status") FormStatus status,
+        @Param("dateFrom") LocalDateTime dateFrom, 
+        @Param("dateTo") LocalDateTime dateTo, 
         Pageable pageable
     );
 }

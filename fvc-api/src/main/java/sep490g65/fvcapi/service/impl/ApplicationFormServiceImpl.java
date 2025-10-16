@@ -88,9 +88,14 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
     @Override
     @Transactional
     public ApplicationFormConfigResponse update(ApplicationFormType formType, UpdateApplicationFormConfigRequest request) {
-        ApplicationFormConfig config = applicationFormConfigRepository
-                .findByFormTypeWithFields(formType)
-                .orElseThrow(() -> new RuntimeException("Form config not found for type: " + formType));
+        // Find the most recent form config for this type
+        List<ApplicationFormConfig> configs = applicationFormConfigRepository.findByFormTypeOrderByUpdatedAtDesc(formType);
+        
+        if (configs.isEmpty()) {
+            throw new RuntimeException("Form config not found for type: " + formType);
+        }
+        
+        ApplicationFormConfig config = configs.get(0); // Get the most recent one
 
         // Update basic info
         config.setName(request.getName());
@@ -262,37 +267,61 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
             }
         }
         
-        // Create search pattern
-        String searchPattern = null;
-        if (search != null && !search.trim().isEmpty()) {
-            searchPattern = "%" + search.toLowerCase() + "%";
-        }
-        
-        // Use repository method with filters
+        // Determine which filter method to use
         Page<ApplicationFormConfig> configs;
         
-        // If no filters, use simple findAll
-        if (search == null && fromDate == null && toDate == null && statusEnum == null) {
-            configs = applicationFormConfigRepository.findAll(pageable);
+        try {
+            boolean hasSearch = search != null && !search.trim().isEmpty();
+            boolean hasStatus = statusEnum != null;
+            boolean hasDateRange = fromDate != null && toDate != null;
             
-            // If no data exists, create default form
-            if (configs.getContent().isEmpty()) {
-                try {
-                    createDefaultClubRegistrationForm();
-                    configs = applicationFormConfigRepository.findAll(pageable);
-                } catch (Exception e) {
-                    System.err.println("Failed to create default form: " + e.getMessage());
+            System.out.println("Filter conditions - search: " + hasSearch + ", status: " + hasStatus + ", dateRange: " + hasDateRange);
+            
+            if (!hasSearch && !hasStatus && !hasDateRange) {
+                // No filters - get all
+                configs = applicationFormConfigRepository.findAll(pageable);
+                
+                // If no data exists, create default form
+                if (configs.getContent().isEmpty()) {
+                    try {
+                        createDefaultClubRegistrationForm();
+                        configs = applicationFormConfigRepository.findAll(pageable);
+                    } catch (Exception e) {
+                        System.err.println("Failed to create default form: " + e.getMessage());
+                    }
                 }
-            }
-        } else {
-            try {
-                configs = applicationFormConfigRepository.findWithFilters(
-                    search, searchPattern, fromDate, toDate, statusEnum, pageable);
-            } catch (Exception e) {
-                // Fallback to simple findAll if filter query fails
-                System.err.println("Filter query failed, falling back to findAll: " + e.getMessage());
+            } else if (hasSearch && hasStatus && hasDateRange) {
+                // All filters
+                configs = applicationFormConfigRepository.findByAllFilters(search, statusEnum, fromDate, toDate, pageable);
+            } else if (hasSearch && hasStatus) {
+                // Search + Status
+                configs = applicationFormConfigRepository.findBySearchAndStatus(search, statusEnum, pageable);
+            } else if (hasSearch && hasDateRange) {
+                // Search + Date Range
+                configs = applicationFormConfigRepository.findBySearchAndDateRange(search, fromDate, toDate, pageable);
+            } else if (hasStatus && hasDateRange) {
+                // Status + Date Range
+                configs = applicationFormConfigRepository.findByStatusAndDateRange(statusEnum, fromDate, toDate, pageable);
+            } else if (hasSearch) {
+                // Only search
+                configs = applicationFormConfigRepository.findBySearch(search, pageable);
+            } else if (hasStatus) {
+                // Only status
+                configs = applicationFormConfigRepository.findByStatus(statusEnum, pageable);
+            } else if (hasDateRange) {
+                // Only date range
+                configs = applicationFormConfigRepository.findByDateRange(fromDate, toDate, pageable);
+            } else {
+                // Fallback
                 configs = applicationFormConfigRepository.findAll(pageable);
             }
+            
+            System.out.println("Found " + configs.getContent().size() + " results");
+            
+        } catch (Exception e) {
+            System.err.println("Filter query failed, falling back to findAll: " + e.getMessage());
+            e.printStackTrace();
+            configs = applicationFormConfigRepository.findAll(pageable);
         }
         
         return configs.map(this::mapToResponse);

@@ -106,6 +106,17 @@ export default function FormManagementPage() {
     );
   };
 
+  const getFormTypeLabel = (formType: string) => {
+    const formTypeMap = {
+      CLUB_REGISTRATION: "Đăng ký câu lạc bộ",
+      COMPETITION_REGISTRATION: "Đăng ký giải đấu",
+      TOURNAMENT_REGISTRATION: "Đăng ký giải đấu",
+      MEMBER_REGISTRATION: "Đăng ký thành viên",
+    };
+    
+    return formTypeMap[formType as keyof typeof formTypeMap] || formType;
+  };
+
   const totalPages = Math.ceil(totalElements / pageSize);
 
   return (
@@ -244,7 +255,7 @@ export default function FormManagementPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-900">{form.formType}</span>
+                        <span className="text-sm text-gray-900">{getFormTypeLabel(form.formType)}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(form.status)}
