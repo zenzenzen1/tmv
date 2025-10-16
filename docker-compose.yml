@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fvc-db
+    environment:
+      POSTGRES_DB: fvc-db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fvc-db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./fvc-api
+      dockerfile: Dockerfile
+    container_name: fvc-api
+    environment:
+      # Spring Boot config overrides
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/fvc-db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SERVER_PORT: 8080
+      # 允许前端容器访问
+      APP_SECURITY_CORS_ALLOWED-ORIGINS: http://localhost:5173
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./fvc-frontend
+      dockerfile: Dockerfile
+    container_name: fvc-frontend
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - api
+    ports:
+      - "5173:5173"
+
+volumes:
+  db_data:
+
+
