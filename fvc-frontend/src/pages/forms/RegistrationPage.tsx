@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useToast } from '../../components/common/ToastContext';
 import apiService from '../../services/api';
 import { API_ENDPOINTS } from '../../config/endpoints';
 
@@ -23,7 +24,8 @@ type FormConfig = {
 
 export default function FormRegistrationPage() {
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
+  const { id, slug } = useParams<{ id?: string; slug?: string }>();
+  const toast = useToast();
   
   const [formConfig, setFormConfig] = useState<FormConfig | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -32,20 +34,28 @@ export default function FormRegistrationPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (id) {
+    if (id || slug) {
       loadFormConfig();
     }
-  }, [id]);
+  }, [id, slug]);
 
   const loadFormConfig = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id!));
+      let response;
+      if (slug) {
+        response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.PUBLIC_BY_SLUG(slug));
+      } else {
+        response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id!));
+      }
+      
+      console.log('API response:', response);
       
       if (response.success && response.data) {
         setFormConfig(response.data);
+        console.log('Form config loaded:', response.data);
         
         // Initialize form data with empty values
         const initialData: Record<string, any> = {};
@@ -57,7 +67,8 @@ export default function FormRegistrationPage() {
         setError('Không tìm thấy form');
       }
     } catch (err: any) {
-      setError(err?.message || 'Lỗi khi tải form');
+      console.error('Error loading form config:', err);
+      setError('Không thể tải cấu hình form: ' + (err?.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -85,14 +96,14 @@ export default function FormRegistrationPage() {
       });
 
       if (response.success) {
-        alert('Đăng ký thành công!');
+        toast.success('Đăng ký thành công!');
         navigate('/');
       } else {
-        alert('Lỗi khi đăng ký: ' + (response.message || 'Unknown error'));
+        toast.error('Lỗi khi đăng ký: ' + (response.message || 'Unknown error'));
       }
     } catch (error: any) {
       console.error('Error submitting form:', error);
-      alert('Lỗi khi đăng ký: ' + (error?.message || 'Network error'));
+      toast.error('Lỗi khi đăng ký: ' + (error?.message || 'Network error'));
     } finally {
       setSubmitting(false);
     }

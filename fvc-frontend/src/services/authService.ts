@@ -14,8 +14,13 @@ class AuthService {
       API_ENDPOINTS.AUTH.LOGIN,
       credentials
     );
-    // apiService returns BaseResponse<T>; we need the actual data payload
-    return (response as BaseResponse<any>).data;
+    
+    const data = (response as BaseResponse<any>).data;
+    
+    // JWT token is automatically stored in HttpOnly cookie by backend
+    // No need to manually store it
+    
+    return data;
   }
 
   /**
@@ -24,6 +29,7 @@ class AuthService {
    */
   async logout(): Promise<void> {
     await apiService.post(API_ENDPOINTS.AUTH.LOGOUT);
+    // JWT cookie is automatically cleared by backend
   }
 
   /**

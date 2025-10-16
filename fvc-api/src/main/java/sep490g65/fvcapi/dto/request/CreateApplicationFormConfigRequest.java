@@ -8,7 +8,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import sep490g65.fvcapi.enums.ApplicationFormType;
+import sep490g65.fvcapi.enums.FormStatus;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -25,6 +27,10 @@ public class CreateApplicationFormConfigRequest {
 
     @NotNull(message = "Form type is required")
     private ApplicationFormType formType;
+
+    private FormStatus status;
+
+    private LocalDateTime endDate;
 
     @Valid
     private List<ApplicationFormFieldRequest> fields;

@@ -36,6 +36,9 @@ apiClient.interceptors.request.use(
     // Add request timestamp
     config.metadata = { startTime: new Date() };
 
+    // JWT token is handled via HttpOnly cookies from backend
+    // No need to manually add Authorization header
+
     // Log request in development
     if (import.meta.env.DEV) {
       console.log(
@@ -150,8 +153,8 @@ apiClient.interceptors.response.use(
 
     // Handle specific status codes
     if (error.response?.status === 401) {
-      // Unauthorized - redirect to login
-      // You can add redirect logic here
+      // Unauthorized - JWT cookie will be cleared by backend
+      console.warn('🔒 Unauthorized access - please login again');
     }
 
     return Promise.reject(errorResponse);

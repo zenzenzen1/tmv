@@ -7,6 +7,7 @@ import sep490g65.fvcapi.enums.FormStatus;
 import sep490g65.fvcapi.enums.FormStatusConverter;
 import sep490g65.fvcapi.entity.Competition;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,7 +24,7 @@ public class ApplicationFormConfig extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = 100, columnDefinition = "VARCHAR(100)")
     private String name;
 
     @Enumerated(EnumType.STRING)
@@ -47,6 +48,12 @@ public class ApplicationFormConfig extends BaseEntity {
     @Convert(converter = FormStatusConverter.class)
     @Column(length = 20)
     private FormStatus status;
+
+    @Column(name = "end_date")
+    private LocalDateTime endDate;
+
+    @Column(name = "public_slug", length = 120, unique = true)
+    private String publicSlug;
 
 }
 

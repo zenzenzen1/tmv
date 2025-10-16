@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useToast } from "../../components/common/ToastContext";
 import FormPreviewModal from "./FormPreviewModal";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../services/api";
@@ -10,6 +11,7 @@ import {
   ChevronDownIcon,
   Bars3Icon,
 } from "@heroicons/react/24/outline";
+import { useToast } from "../../components/common/ToastContext";
 
 interface FormData {
   competitionType: string;
@@ -48,8 +50,10 @@ interface QuestionItem {
 }
 
 const FormBuilder: React.FC = () => {
+  const toast = useToast();
   const navigate = useNavigate();
   const { id: editingId } = useParams<{ id: string }>();
+  const toast = useToast();
   const [formData, setFormData] = useState<FormData>({
     competitionType: "competition",
     competitionName: "PVOUP 2025 - Spring",
@@ -519,7 +523,7 @@ const FormBuilder: React.FC = () => {
                 disabled={submitting}
                 onClick={async () => {
                   if (!competitionId) {
-                    alert("Vui lòng chọn giải đấu");
+                    toast.error("Vui lòng chọn giải đấu");
                     return;
                   }
 
@@ -536,7 +540,7 @@ const FormBuilder: React.FC = () => {
                         f.competitionId === competitionId
                     );
                     if (!editingId && hasForm) {
-                      alert(
+                      toast.error(
                         "Giải đấu này đã có form rồi. Không thể tạo thêm form mới."
                       );
                       return;
@@ -559,7 +563,7 @@ const FormBuilder: React.FC = () => {
                   });
 
                   if (invalidQuestions.length > 0) {
-                    alert(
+                    toast.error(
                       "Vui lòng điền đầy đủ nội dung cho tất cả câu hỏi tùy chỉnh."
                     );
                     return;
@@ -616,10 +620,11 @@ const FormBuilder: React.FC = () => {
                       sessionStorage.setItem(snapshotKey, snapNow);
                       window.dispatchEvent(new Event("forms:changed"));
                     }
+                    toast.success("Lưu thành công");
                     navigate(-1);
                   } catch (err) {
                     console.error(err);
-                    alert("Lưu nháp thất bại");
+                    toast.error("Lưu nháp thất bại");
                   } finally {
                     setSubmitting(false);
                   }
@@ -633,7 +638,7 @@ const FormBuilder: React.FC = () => {
                 disabled={submitting}
                 onClick={async () => {
                   if (!competitionId) {
-                    alert("Vui lòng chọn giải đấu");
+                    toast.error("Vui lòng chọn giải đấu");
                     return;
                   }
 
@@ -650,7 +655,7 @@ const FormBuilder: React.FC = () => {
                         f.competitionId === competitionId
                     );
                     if (!editingId && hasForm) {
-                      alert(
+                      toast.error(
                         "Giải đấu này đã có form rồi. Không thể tạo thêm form mới."
                       );
                       return;
@@ -673,7 +678,7 @@ const FormBuilder: React.FC = () => {
                   });
 
                   if (invalidQuestions.length > 0) {
-                    alert(
+                    toast.error(
                       "Vui lòng điền đầy đủ nội dung cho tất cả câu hỏi tùy chỉnh."
                     );
                     return;
@@ -730,10 +735,11 @@ const FormBuilder: React.FC = () => {
                       sessionStorage.setItem(snapshotKey, snapNow);
                       window.dispatchEvent(new Event("forms:changed"));
                     }
+                    toast.success("Lưu thành công");
                     navigate(-1);
                   } catch (err) {
                     console.error(err);
-                    alert("Lưu thất bại");
+                    toast.error("Lưu thất bại");
                   } finally {
                     setSubmitting(false);
                   }

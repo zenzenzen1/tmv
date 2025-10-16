@@ -1,5 +1,6 @@
 package sep490g65.fvcapi.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
@@ -57,6 +58,9 @@ public class FormDataValidationService {
             // Return cleaned and validated data
             return cleanAndValidateFormData(formDataMap, validationRequest);
             
+        } catch (JsonProcessingException e) {
+            log.error("Error parsing JSON form data: {}", e.getMessage());
+            throw new ValidationException("formData", "Invalid JSON format: " + e.getMessage());
         } catch (Exception e) {
             log.error("Error validating form data: {}", e.getMessage());
             if (e instanceof ValidationException) {

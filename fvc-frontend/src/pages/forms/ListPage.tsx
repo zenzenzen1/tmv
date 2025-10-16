@@ -128,7 +128,7 @@ export default function FormListPage() {
                             {form.name}
                           </h3>
                           <span className="rounded-md border px-2 py-1 text-[11px] font-semibold text-gray-600">
-                            {form.formType === 'CLUB_REGISTRATION' ? 'CLB' : 'GIẢI ĐẤU'}
+                            {form.formType === 'CLUB_REGISTRATION' ? 'Đăng ký câu lạc bộ' : 'Đăng ký giải đấu'}
                           </span>
                         </div>
                         <p className="text-[13px] text-gray-600 mb-2">

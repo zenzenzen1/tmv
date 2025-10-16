@@ -9,7 +9,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import sep490g65.fvcapi.enums.ApplicationFormType;
+import sep490g65.fvcapi.enums.FormStatus;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -22,11 +24,16 @@ public class UpdateApplicationFormConfigRequest {
     @Size(max = 100, message = "Name must not exceed 100 characters")
     private String name;
 
+    @NotBlank(message = "Description is required")
     @Size(max = 500, message = "Description must not exceed 500 characters")
     private String description;
 
     @NotNull(message = "Form type is required")
     private ApplicationFormType formType;
+
+    private FormStatus status;
+
+    private LocalDateTime endDate;
 
     @Valid
     private List<ApplicationFormFieldRequest> fields;
