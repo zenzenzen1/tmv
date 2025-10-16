@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { useToast } from "../../components/common/ToastContext";
 import FormPreviewModal from "./FormPreviewModal";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../services/api";
@@ -11,7 +10,6 @@ import {
   ChevronDownIcon,
   Bars3Icon,
 } from "@heroicons/react/24/outline";
-import { useToast } from "../../components/common/ToastContext";
 
 interface FormData {
   competitionType: string;
@@ -53,7 +51,6 @@ const FormBuilder: React.FC = () => {
   const toast = useToast();
   const navigate = useNavigate();
   const { id: editingId } = useParams<{ id: string }>();
-  const toast = useToast();
   const [formData, setFormData] = useState<FormData>({
     competitionType: "competition",
     competitionName: "PVOUP 2025 - Spring",

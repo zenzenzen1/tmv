@@ -28,7 +28,9 @@ type AthleteApi = {
   gender: "MALE" | "FEMALE";
   competitionType: "fighting" | "quyen" | "music";
   subCompetitionType?: string | null;
-  detailSubCompetitionType?: string | null;
+  detailSubCompetitionType?: string | null; // backward compat
+  detailSubId?: string | null; // new from backend DTO
+  detailSubLabel?: string | null; // new from backend DTO (resolved label)
   studentId?: string | null;
   club?: string | null;
   tournamentId?: string | null;
@@ -214,13 +216,11 @@ export default function AthleteManagementPage({
         const res = await api.get<PaginationResponse<AthleteApi>>(
           `${API_ENDPOINTS.ATHLETES.BASE}?${qs.toString()}`
         );
-        // Unwrap BaseResponse (handles data, or data.data)
-        const rootAny = res.data as unknown as Record<string, unknown>;
-        const outer = (rootAny?.data as Record<string, unknown>) ?? rootAny;
-        const inner =
-          (outer?.data as PaginationResponse<AthleteApi>) ??
-          (outer as unknown as PaginationResponse<AthleteApi>);
-        const pageData: PaginationResponse<AthleteApi> = inner;
+        // Unwrap BaseResponse: API returns { success, message, data: { content,... } }
+        const pageData: PaginationResponse<AthleteApi> =
+          ((res.data as unknown as { data?: PaginationResponse<AthleteApi> })
+            .data as PaginationResponse<AthleteApi>) ??
+          (res.data as unknown as PaginationResponse<AthleteApi>);
         const content: AthleteApi[] = pageData?.content ?? [];
         // Client-side safety filter in case backend ignores filters
         // Client-side filtering (fallback when backend doesn't support)
@@ -295,9 +295,9 @@ export default function AthleteManagementPage({
                 ? "Võ nhạc"
                 : "-",
             subCompetitionType: a.subCompetitionType || "-",
-            // For Quyền/Võ nhạc, prefer detail; if missing, fallback to subCompetitionType
+            // Always show detailed item if available; do not fallback to category like "Đơn luyện"
             detailSubCompetitionType:
-              a.detailSubCompetitionType || a.subCompetitionType || "-",
+              a.detailSubLabel || a.detailSubCompetitionType || "-",
             studentId: a.studentId ?? "",
             club: a.club ?? "",
             tournament:
@@ -396,8 +396,7 @@ export default function AthleteManagementPage({
               title: "Hạng cân",
               className: "whitespace-nowrap",
               render: (row: AthleteRow) => {
-                const value =
-                  row.detailSubCompetitionType || row.subCompetitionType || "-";
+                const value = row.detailSubCompetitionType || "-";
                 return String(value)
                   .replace(/^Nam\s+/i, "")
                   .replace(/^Nữ\s+/i, "");
@@ -411,7 +410,7 @@ export default function AthleteManagementPage({
               title: "Nội dung",
               className: "whitespace-nowrap",
               render: (row: AthleteRow) =>
-                row.detailSubCompetitionType || row.subCompetitionType || "-",
+                String(row.detailSubCompetitionType || "-"),
               sortable: true,
             } as TableColumn<AthleteRow>,
           ]),
