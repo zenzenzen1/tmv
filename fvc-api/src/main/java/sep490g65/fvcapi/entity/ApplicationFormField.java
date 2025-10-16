@@ -1,9 +1,7 @@
 package sep490g65.fvcapi.entity;
 
-import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.Type;
 
 @Entity
 @Table(name = "application_form_fields")
@@ -35,8 +33,7 @@ public class ApplicationFormField extends BaseEntity {
     @Builder.Default
     private Boolean required = true;
 
-    @Type(JsonType.class)
-    @Column(columnDefinition = "jsonb")
+    @Column(columnDefinition = "TEXT")
     private String options; // for options
 
     @Builder.Default

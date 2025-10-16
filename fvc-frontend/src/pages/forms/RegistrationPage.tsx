@@ -42,10 +42,16 @@ export default function FormRegistrationPage() {
       setLoading(true);
       setError(null);
       
+      console.log('Loading form config for ID:', id);
+      console.log('API endpoint:', API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id!));
+      
       const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id!));
+      
+      console.log('API response:', response);
       
       if (response.success && response.data) {
         setFormConfig(response.data);
+        console.log('Form config loaded:', response.data);
         
         // Initialize form data with empty values
         const initialData: Record<string, any> = {};
@@ -57,7 +63,8 @@ export default function FormRegistrationPage() {
         setError('Không tìm thấy form');
       }
     } catch (err: any) {
-      setError(err?.message || 'Lỗi khi tải form');
+      console.error('Error loading form config:', err);
+      setError('Không thể tải cấu hình form: ' + (err?.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }

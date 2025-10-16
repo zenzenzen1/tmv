@@ -36,7 +36,24 @@ export default function FormEditPage() {
       const copy = [...prev];
       const idx = copy.findIndex(f => f.id === fieldId);
       if (idx !== -1) {
-        copy[idx] = { ...copy[idx], ...patch } as FormField;
+        const updatedField = { ...copy[idx], ...patch } as FormField;
+        
+        // Tự động tạo tên trường từ nhãn câu hỏi nếu chưa có tên hoặc tên là mặc định
+        if (patch.label && (copy[idx].name.startsWith('cau_hoi_') || copy[idx].name.startsWith('field_'))) {
+          const autoName = patch.label
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Loại bỏ dấu
+            .replace(/[^a-z0-9\s]/g, '') // Chỉ giữ chữ cái, số và khoảng trắng
+            .replace(/\s+/g, '_') // Thay khoảng trắng bằng underscore
+            .substring(0, 30); // Giới hạn độ dài
+          
+          if (autoName.length > 0) {
+            updatedField.name = autoName;
+          }
+        }
+        
+        copy[idx] = updatedField;
       }
       return copy;
     });
@@ -52,7 +69,7 @@ export default function FormEditPage() {
 
   function handleAdd(type: FieldType) {
     const fieldCount = fields.length + 1;
-    const defaultName = `field_${fieldCount}`;
+    const defaultName = `cau_hoi_${fieldCount}`;
     const newField = makeField("", defaultName, "", type, false, (fields[fields.length - 1]?.sortOrder ?? 0) + 1, "");
     setFields((prev) => [...prev, newField]);
     setShowAddMenu(false);
@@ -349,8 +366,11 @@ export default function FormEditPage() {
                                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
                                   value={f.name}
                                   onChange={(e) => handleChangeField(f.id, { name: e.target.value })}
-                                  placeholder="Nhập tên trường (ví dụ: fullName, email)"
+                                  placeholder="Tên trường sẽ tự động tạo từ câu hỏi"
                                 />
+                                <p className="mt-1 text-xs text-gray-500">
+                                  Tên trường dùng để lưu dữ liệu (ví dụ: ho_ten, email, so_dien_thoai)
+                                </p>
                               </div>
                               <div>
                                 <div className="mb-1 text-xs font-medium text-gray-700">Phần nhập thông tin vào</div>

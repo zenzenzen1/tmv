@@ -3,6 +3,7 @@ import type { TableColumn } from "@/components/common/CommonTable";
 // Note: This page is rendered inside the management layout, so no standalone Footer here
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ErrorMessage from "@/components/common/ErrorMessage";
+import Pagination from "@/components/common/Pagination";
 import { useEffect, useMemo, useMemo as useReactMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";

@@ -20,6 +20,7 @@ import sep490g65.fvcapi.service.ApplicationFormService;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -188,6 +189,53 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         return mapToResponse(savedConfig);
     }
 
+    @Transactional
+    public void createTestClubRegistrationForms() {
+        // Create test forms with different statuses
+        String[] testNames = {
+            "Đăng ký CLB Vovinam 2025",
+            "Form đăng ký thành viên mới",
+            "Đăng ký tham gia câu lạc bộ",
+            "Form đăng ký CLB FALL 2025",
+            "Đăng ký câu lạc bộ Vovinam",
+            "Form thành viên CLB 2025"
+        };
+        
+        FormStatus[] statuses = {FormStatus.DRAFT, FormStatus.PUBLISH, FormStatus.ARCHIVED, FormStatus.POSTPONE};
+        
+        for (int i = 0; i < testNames.length; i++) {
+            ApplicationFormConfig config = ApplicationFormConfig.builder()
+                .name(testNames[i])
+                .description("Form đăng ký câu lạc bộ - " + (i + 1))
+                .formType(ApplicationFormType.CLUB_REGISTRATION)
+                .status(statuses[i % statuses.length])
+                .build();
+            
+            // Add some basic fields
+            List<ApplicationFormField> fields = Arrays.asList(
+                ApplicationFormField.builder()
+                    .label("Họ và tên")
+                    .name("fullName")
+                    .fieldType("TEXT")
+                    .required(true)
+                    .sortOrder(1)
+                    .applicationFormConfig(config)
+                    .build(),
+                ApplicationFormField.builder()
+                    .label("Email")
+                    .name("email")
+                    .fieldType("TEXT")
+                    .required(true)
+                    .sortOrder(2)
+                    .applicationFormConfig(config)
+                    .build()
+            );
+            
+            config.setFields(fields);
+            applicationFormConfigRepository.save(config);
+        }
+    }
+
     private ApplicationFormConfigResponse mapToResponse(ApplicationFormConfig config) {
         List<ApplicationFormConfigResponse.ApplicationFormFieldResponse> fieldResponses = config.getFields()
                 .stream()
@@ -281,10 +329,11 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
                 // No filters - get all CLUB_REGISTRATION forms only
                 configs = applicationFormConfigRepository.findAllClubRegistration(pageable);
                 
-                // If no data exists, create default form
+                // If no data exists, create default form and test data
                 if (configs.getContent().isEmpty()) {
                     try {
                         createDefaultClubRegistrationForm();
+                        createTestClubRegistrationForms();
                         configs = applicationFormConfigRepository.findAllClubRegistration(pageable);
                     } catch (Exception e) {
                         System.err.println("Failed to create default form: " + e.getMessage());

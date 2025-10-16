@@ -10,7 +10,7 @@ import FormListPage from "./pages/forms/ListPage";
 import FormManagementPage from "./pages/forms/ManagementPage";
 import FormBuilderPage from "./pages/forms/BuilderPage";
 import FormEditPage from "./pages/forms/EditPage";
-import FormRegistrationPage from "./pages/forms/RegistrationPage";
+import FormPreviewPage from "./pages/forms/FormPreviewPage";
 
 import Home from "./pages/Home";
 import TournamentListPage from "./pages/tournament/ListPage";
@@ -75,7 +75,7 @@ export default function App() {
         <Route path="forms" element={<FormManagementPage />} />
         <Route path="forms/new" element={<FormBuilderPage />} />
         <Route path="forms/edit/:id" element={<FormEditPage />} />
-        <Route path="forms/view/:id" element={<FormRegistrationPage />} />
+        <Route path="forms/view/:id" element={<FormPreviewPage />} />
         <Route path="forms/fill/:id" element={<PublishedForm />} />
         <Route path="submitted-forms" element={<SubmittedFormsPage />} />
         <Route path="results/:id" element={<FormResults />} />
