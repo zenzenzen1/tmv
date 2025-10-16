@@ -88,6 +88,12 @@ export const API_ENDPOINTS = {
     BASE: "/v1/athletes",
   },
 
+  // Club Members
+  CLUB_MEMBERS: {
+    BASE: "/v1/clubs/members",
+    BY_ID: (id: string) => `/v1/clubs/members/${id}`,
+  },
+
   // Common endpoints
   HEALTH: "/health",
   VERSION: "/version",
