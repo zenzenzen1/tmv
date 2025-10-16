@@ -165,6 +165,13 @@ export default function SubmittedFormsPage() {
   const [pageSize] = useState<number>(10); // fixed page size
   const [totalElements, setTotalElements] = useState<number>(0);
   const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
+  
+  // Filters
+  const [status, setStatus] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  // Search
+  const [query, setQuery] = useState<string>("");
 
   useEffect(() => {
     let ignore = false;
@@ -178,11 +185,16 @@ export default function SubmittedFormsPage() {
           size: number;
           totalElements: number;
         }>("/v1/submitted-forms", {
+          // fixed form type: club registration
           type: "CLUB_REGISTRATION",
           page: page - 1,
           size: pageSize,
           sortBy: "createdAt",
-          ascending: false,
+          sortDirection: "desc",
+          status: status || undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          search: query || undefined,
         });
         if (!ignore) {
           const mapped: SubmittedRow[] = (res.data?.content ?? []).map((s: any, idx: number) => {
@@ -229,7 +241,7 @@ export default function SubmittedFormsPage() {
     return () => {
       ignore = true;
     };
-  }, [page, pageSize]);
+  }, [page, pageSize, status, dateFrom, dateTo, query]);
 
   function safePick(jsonString: string, keys: string[]): string {
     try {
@@ -385,8 +397,6 @@ export default function SubmittedFormsPage() {
     ];
   }, [rows]);
 
-  // Search
-  const [query, setQuery] = useState<string>("");
   const filtered = useReactMemo(() => {
     if (!query.trim()) return rows;
     const q = query.toLowerCase();
@@ -423,38 +433,88 @@ export default function SubmittedFormsPage() {
           </button>
         </div>
 
-        <div>
-          <h2 className="mb-1 text-xl font-semibold">Kết quả đăng ký</h2>
-          <p className="mb-4 text-sm text-gray-600">
-            Đăng kí tham gia FPTU Vovinam Club FALL 2025
-          </p>
+        {/* Header */}
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Kết quả đăng ký</h2>
+          <p className="text-gray-600">Đăng kí tham gia FPTU Vovinam Club FALL 2025</p>
+        </div>
+
+        {/* Statistics Cards */}
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+            <div className="text-2xl font-bold text-blue-600">{totalElements}</div>
+            <div className="text-sm text-gray-600">Tổng số đăng ký</div>
+          </div>
+          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+            <div className="text-2xl font-bold text-green-600">{filtered.length}</div>
+            <div className="text-sm text-gray-600">Kết quả hiển thị</div>
+          </div>
+          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+            <div className="text-2xl font-bold text-purple-600">{page}</div>
+            <div className="text-sm text-gray-600">Trang hiện tại</div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Bộ lọc</h3>
+            <button
+              onClick={() => { setStatus(""); setDateFrom(""); setDateTo(""); setQuery(""); setPage(1); }}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Xóa tất cả bộ lọc
+            </button>
+          </div>
           
-          {/* Statistics Cards */}
-          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
-              <div className="text-2xl font-bold text-blue-600">{totalElements}</div>
-              <div className="text-sm text-gray-600">Tổng số đăng ký</div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+              <select
+                value={status}
+                onChange={(e) => { setPage(1); setStatus(e.target.value); }}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="PENDING">Đang chờ</option>
+                <option value="APPROVED">Đã duyệt</option>
+                <option value="REJECTED">Từ chối</option>
+              </select>
             </div>
-            <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
-              <div className="text-2xl font-bold text-green-600">{filtered.length}</div>
-              <div className="text-sm text-gray-600">Kết quả hiển thị</div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setPage(1); setDateFrom(e.target.value); }}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+              />
             </div>
-            <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
-              <div className="text-2xl font-bold text-purple-600">{page}</div>
-              <div className="text-sm text-gray-600">Trang hiện tại</div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Đến ngày</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setPage(1); setDateTo(e.target.value); }}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tìm kiếm</label>
+              <input
+                placeholder="Tên, email, MSSV..."
+                value={query}
+                onChange={(e) => { setPage(1); setQuery(e.target.value); }}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+              />
             </div>
           </div>
           
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-sm text-gray-600">
-              Hiển thị {filtered.length} trong {totalElements} kết quả
-            </div>
-            <input
-              placeholder="Tìm kiếm theo tên, email, MSSV..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="w-80 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
-            />
+          <div className="mt-4 text-sm text-gray-600">
+            Hiển thị {filtered.length} trong {totalElements} kết quả
           </div>
         </div>
 
