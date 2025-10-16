@@ -14,8 +14,9 @@ import sep490g65.fvcapi.dto.response.PaginationResponse;
 import org.springframework.web.bind.annotation.RequestParam;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.utils.ResponseUtils;
+import jakarta.validation.Valid;
+import sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest;
 
-import java.util.UUID;
 
 @RestController
 @RequestMapping(ApiConstants.API_BASE_PATH + "/athletes")
@@ -44,6 +45,12 @@ public class AthleteController {
         });
         PaginationResponse<sep490g65.fvcapi.dto.response.AthleteResolvedResponse> payload = ResponseUtils.createPaginatedResponse(mapped);
         return ResponseEntity.ok(ResponseUtils.success("Athletes retrieved", payload));
+    }
+
+    @PostMapping("/arrange-order")
+    public ResponseEntity<BaseResponse<Void>> arrangeOrder(@Valid @RequestBody ArrangeFistOrderRequest request) {
+        athleteService.arrangeOrder(request.getTournamentId(), request.getContentId(), request.getAthleteOrders());
+        return ResponseEntity.ok(ResponseUtils.success("Arrange order saved"));
     }
 }
 

@@ -14,6 +14,7 @@ import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
 
 import java.util.UUID;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -119,6 +120,18 @@ public class AthleteService {
             }
         } catch (Exception ignored) {}
         return null;
+    }
+    
+    @Transactional
+    public void arrangeOrder(String tournamentId, String contentId, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
+        // For now, ignore contentId and set order for provided athletes
+        for (sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder ao : orders) {
+            UUID id = UUID.fromString(ao.getAthleteId());
+            athleteRepository.findById(id).ifPresent(a -> {
+                a.setCompetitionOrder(ao.getOrder());
+                athleteRepository.save(a);
+            });
+        }
     }
 }
 

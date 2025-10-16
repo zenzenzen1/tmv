@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { fistContentService } from '../services/fistContent';
-import type { CreateFistContentRequest, FistContentFilters, FistContentResponse, UpdateFistContentRequest, FistConfigResponse, FistItemResponse } from '../types';
+import { fistContentService, fistTypeService } from '../services/fistContent';
+import type { CreateFistContentRequest, FistContentFilters, FistContentResponse, UpdateFistContentRequest, FistConfigResponse, FistItemResponse, FistTypeResponse } from '../types';
 import type { PaginationResponse } from '../types/api';
 import { globalErrorHandler } from '../utils/errorHandler';
 
@@ -17,6 +17,7 @@ interface State {
   fistConfigs: FistConfigResponse[];
   fistItems: FistItemResponse[];
   loading: boolean;
+  types: FistTypeResponse[];
 }
 
 interface Actions {
@@ -31,6 +32,7 @@ interface Actions {
   // Additional methods for CompetitionModal
   fetchFistConfigs: () => Promise<void>;
   fetchFistItems: () => Promise<void>;
+  fetchTypes: () => Promise<void>;
 }
 
 type Store = State & Actions;
@@ -54,6 +56,7 @@ export const useFistContentStore = create<Store>()(
     fistConfigs: [],
     fistItems: [],
     loading: false,
+    types: [],
 
     fetch: async (params) => {
       const current = { ...get().filters, ...(params || {}) };
@@ -125,11 +128,21 @@ export const useFistContentStore = create<Store>()(
     fetchFistItems: async () => {
       try {
         set({ loading: true, error: null });
-        const data = await fistContentService.listItems({ size: 100 }); // Get all items
-        set({ fistItems: data.content, loading: false });
+        const resp = await fistContentService.listItems({ size: 100 }); // Get all items
+        set({ fistItems: resp.data.content, loading: false });
       } catch (err) {
         const { message } = globalErrorHandler(err);
         set({ error: message, loading: false });
+      }
+    },
+
+    fetchTypes: async () => {
+      try {
+        const data = await fistTypeService.list({ size: 100 });
+        set({ types: data.content });
+      } catch (err) {
+        const { message } = globalErrorHandler(err);
+        set({ error: message });
       }
     },
   }))

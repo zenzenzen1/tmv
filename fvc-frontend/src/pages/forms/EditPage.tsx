@@ -5,7 +5,7 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import apiService from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 
-type FieldType = "TEXT" | "DATE" | "SELECT" | "CHECKBOX";
+type FieldType = "TEXT" | "EMAIL" | "TEXTAREA" | "DATE" | "SELECT" | "RADIO" | "CHECKBOX";
 
 type FormField = {
   id: string;
@@ -386,7 +386,7 @@ export default function FormEditPage() {
       let response;
       if (id === 'new') {
         // Tạo form mới
-        response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.CREATE, requestData);
+        response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE, requestData);
       } else {
         // Cập nhật form cũ
         response = await apiService.put<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_TYPE('CLUB_REGISTRATION'), requestData);

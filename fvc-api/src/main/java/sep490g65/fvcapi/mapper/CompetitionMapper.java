@@ -80,8 +80,8 @@ public class CompetitionMapper {
                                         .name(selection.getVovinamFistItem().getName())
                                         .description(selection.getVovinamFistItem().getDescription())
                                         .level(selection.getVovinamFistItem().getLevel())
-                                        .parentId(selection.getVovinamFistItem().getParent() != null ? 
-                                                selection.getVovinamFistItem().getParent().getId() : null)
+                                        .configId(selection.getVovinamFistConfig().getId())
+                                        .configName(selection.getVovinamFistConfig().getName())
                                         .build(),
                                 Collectors.toList()
                         )

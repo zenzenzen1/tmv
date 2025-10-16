@@ -1,3 +1,5 @@
+package sep490g65.fvcapi;
+
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 

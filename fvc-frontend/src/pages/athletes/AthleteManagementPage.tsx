@@ -192,7 +192,10 @@ export default function AthleteManagementPage({
         qs.set("page", String(page - 1));
         qs.set("size", String(pageSize));
         qs.set("competitionType", activeTab);
-        if (selectedTournament) qs.set("tournamentId", selectedTournament);
+        if (!selectedTournament) {
+          return;
+        }
+        qs.set("tournamentId", selectedTournament);
         if (debouncedName) qs.set("name", debouncedName);
         if (genderFilter) qs.set("gender", genderFilter);
         if (statusFilter) qs.set("status", statusFilter);
@@ -450,7 +453,13 @@ export default function AthleteManagementPage({
         );
         const list = res.data ?? [];
         setTournaments(list);
-        // Do not auto-select a tournament; default to no filter so data can load
+        // Auto-select default tournament (prefer name contains fvcup2025) to ensure correct initial scope
+        if (list.length > 0) {
+          const preferred = list.find((t) =>
+            (t.name || "").toLowerCase().includes("fvcup2025")
+          );
+          setSelectedTournament((preferred ? preferred.id : list[0].id) || "");
+        }
       } catch (error) {
         console.error("Failed to load tournaments:", error);
       }
