@@ -157,18 +157,22 @@ export interface FistContentResponse {
   name: string;
   description?: string | null;
   status: boolean;
+  typeId?: string;
+  typeName?: string;
 }
 
 export interface CreateFistContentRequest {
   name: string;
   description?: string;
   status?: boolean;
+  typeId?: string;
 }
 
 export interface UpdateFistContentRequest {
   name?: string;
   description?: string;
   status?: boolean;
+  typeId?: string;
 }
 
 export interface FistContentFilters {
@@ -177,6 +181,27 @@ export interface FistContentFilters {
   sort?: string;
   search?: string;
   status?: boolean;
+  typeId?: string;
+}
+
+// Fist Type domain (dynamic)
+export interface FistTypeResponse {
+  id: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+}
+
+export interface CreateFistTypeRequest {
+  name: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface UpdateFistTypeRequest {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
 }
 
 // ==========================
@@ -234,6 +259,16 @@ export interface FistItemResponse {
   description?: string;
   level?: number;
   parentId?: string;
+}
+
+export interface CreateFistItemRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateFistItemRequest {
+  name?: string;
+  description?: string;
 }
 
 export interface CompetitionResponse {
