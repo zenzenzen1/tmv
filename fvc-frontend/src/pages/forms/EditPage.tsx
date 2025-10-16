@@ -30,6 +30,23 @@ export default function FormEditPage() {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const openPreview = () => {
+    setShowPreview(true);
+    // Trigger animation sau khi DOM đã render
+    setTimeout(() => {
+      setIsAnimating(true);
+    }, 10);
+  };
+
+  const closePreview = () => {
+    setIsAnimating(false);
+    setTimeout(() => {
+      setShowPreview(false);
+    }, 300); // Đợi animation hoàn thành
+  };
 
   function handleChangeField(fieldId: string, patch: Partial<FormField>) {
     setFields((prev) => {
@@ -194,6 +211,99 @@ export default function FormEditPage() {
     setFields(defaultFields);
   };
 
+  const renderFieldPreview = (field: FormField) => {
+    const baseClasses = "w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 focus:outline-none";
+    
+    switch (field.fieldType) {
+      case 'TEXT':
+        return (
+          <input
+            type="text"
+            className={baseClasses}
+            placeholder={`Nhập ${field.label.toLowerCase()}`}
+            disabled
+            style={{ backgroundColor: '#f9fafb', color: '#6b7280' }}
+          />
+        );
+      case 'EMAIL':
+        return (
+          <input
+            type="email"
+            className={baseClasses}
+            placeholder="example@email.com"
+            disabled
+            style={{ backgroundColor: '#f9fafb', color: '#6b7280' }}
+          />
+        );
+      case 'TEXTAREA':
+        return (
+          <textarea
+            className={`${baseClasses} h-20 resize-none`}
+            placeholder={`Nhập ${field.label.toLowerCase()}`}
+            disabled
+            style={{ backgroundColor: '#f9fafb', color: '#6b7280' }}
+          />
+        );
+      case 'SELECT':
+        const options = field.options ? field.options.split(',').map(opt => opt.trim()) : [];
+        return (
+          <select 
+            className={`${baseClasses} bg-gray-50 text-gray-500`} 
+            disabled
+            style={{ backgroundColor: '#f9fafb', color: '#6b7280' }}
+          >
+            <option value="">Chọn {field.label.toLowerCase()}</option>
+            {options.map((option, index) => (
+              <option key={index} value={option}>{option}</option>
+            ))}
+          </select>
+        );
+      case 'RADIO':
+        const radioOptions = field.options ? field.options.split(',').map(opt => opt.trim()) : [];
+        return (
+          <div className="space-y-2">
+            {radioOptions.map((option, index) => (
+              <label key={index} className="flex items-center text-gray-500">
+                <input
+                  type="radio"
+                  name={field.name}
+                  className="mr-2"
+                  disabled
+                />
+                {option}
+              </label>
+            ))}
+          </div>
+        );
+      case 'CHECKBOX':
+        const checkboxOptions = field.options ? field.options.split(',').map(opt => opt.trim()) : [];
+        return (
+          <div className="space-y-2">
+            {checkboxOptions.map((option, index) => (
+              <label key={index} className="flex items-center text-gray-500">
+                <input
+                  type="checkbox"
+                  className="mr-2"
+                  disabled
+                />
+                {option}
+              </label>
+            ))}
+          </div>
+        );
+      default:
+        return (
+          <input
+            type="text"
+            className={baseClasses}
+            placeholder={`Nhập ${field.label.toLowerCase()}`}
+            disabled
+            style={{ backgroundColor: '#f9fafb', color: '#6b7280' }}
+          />
+        );
+    }
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -262,7 +372,12 @@ export default function FormEditPage() {
             <span className="rounded-md border px-2 py-1 text-[11px] font-semibold text-gray-600">CLB</span>
           </div>
           <div className="flex items-center gap-2">
-            <button className="rounded-md border px-3 py-2 text-[13px] text-gray-700 shadow-sm hover:bg-gray-50">Xem trước</button>
+            <button 
+              onClick={openPreview}
+              className="rounded-md border px-3 py-2 text-[13px] text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              Xem trước
+            </button>
             <button 
             onClick={handleSave} 
             disabled={saving}
@@ -484,6 +599,97 @@ export default function FormEditPage() {
           )}
         </div>
       </div>
+
+      {/* Preview Modal */}
+      {showPreview && (
+        <div 
+          className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-300 ${
+            isAnimating 
+              ? 'bg-black bg-opacity-50' 
+              : 'bg-black bg-opacity-0'
+          }`}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              closePreview();
+            }
+          }}
+        >
+          <div 
+            className={`w-full max-w-4xl max-h-[90vh] bg-white rounded-lg shadow-xl overflow-hidden mx-4 transition-all duration-300 transform ${
+              isAnimating 
+                ? 'translate-y-0 opacity-100 scale-100' 
+                : 'translate-y-8 opacity-0 scale-95'
+            }`}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white">
+              <h2 className="text-xl font-semibold text-gray-900">Xem trước form</h2>
+              <button
+                onClick={closePreview}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)] bg-white">
+              <div className="mb-6">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">{title || "Form đăng ký câu lạc bộ"}</h3>
+                {description && (
+                  <p className="text-gray-600 mb-4">{description}</p>
+                )}
+                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    Đăng ký câu lạc bộ
+                  </span>
+                  <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
+                    Bản nháp
+                  </span>
+                  {endDate && (
+                    <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
+                      Hết hạn: {new Date(endDate).toLocaleDateString('vi-VN')}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <form className="space-y-6">
+                {fields
+                  .sort((a, b) => a.sortOrder - b.sortOrder)
+                  .map((field, index) => (
+                    <div key={field.id} className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        {index + 1}. {field.label}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      {renderFieldPreview(field)}
+                      {field.required && (
+                        <p className="text-xs text-red-500">Trường bắt buộc</p>
+                      )}
+                    </div>
+                  ))}
+
+                {/* Submit Button Preview */}
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <button
+                    type="button"
+                    className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled
+                  >
+                    Gửi đăng ký
+                  </button>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Nút này sẽ hoạt động khi form được publish
+                  </p>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
