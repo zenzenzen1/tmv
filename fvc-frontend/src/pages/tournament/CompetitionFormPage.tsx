@@ -31,9 +31,11 @@ import {
   Stack,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { useToast } from '../../components/common/ToastContext';
 
 const CompetitionFormPage: React.FC = () => {
   const navigate = useNavigate();
+  const { success, error: toastError } = useToast();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
   const isView = false; // You can add view mode later if needed
@@ -234,8 +236,10 @@ const CompetitionFormPage: React.FC = () => {
         console.log('Update result:', result);
         if (result) {
           navigate('/tournaments');
+          success('Đã cập nhật giải đấu');
         } else {
           console.error('Update failed - result is null');
+          toastError('Cập nhật giải đấu thất bại');
         }
       } else {
         // Create new competition
@@ -245,12 +249,15 @@ const CompetitionFormPage: React.FC = () => {
         if (result) {
           console.log('Competition created successfully, navigating to /tournaments');
           navigate('/tournaments');
+          success('Đã tạo giải đấu');
         } else {
           console.error('Create failed - result is null');
+          toastError('Tạo giải đấu thất bại');
         }
       }
     } catch (err) {
       console.error('Error submitting form:', err);
+      toastError('Lưu giải đấu thất bại');
     }
   };
 

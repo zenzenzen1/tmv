@@ -22,6 +22,7 @@ import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper"
 import MemberManagementListPage from "./pages/member-management/ListPage";
 
 import MainLayout from "./components/layout/MainLayout";
+import { ToastProvider } from "./components/common/ToastProvider";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
@@ -69,7 +70,9 @@ export default function App() {
         path="/manage"
         element={
           <Protected>
-            <MainLayout />
+            <ToastProvider>
+              <MainLayout />
+            </ToastProvider>
           </Protected>
         }
       >

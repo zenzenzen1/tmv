@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useMusicContentStore } from '../../stores/musicContent';
 import type { MusicContentCreateRequest, MusicContentUpdateRequest } from '../../types';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Checkbox, FormControlLabel, Button, Alert, Stack } from '@mui/material';
+import { useToast } from '../../components/common/ToastContext';
 
 const NAME_MIN = 1;
 const NAME_MAX = 120;
@@ -9,13 +10,13 @@ const DESC_MAX = 500;
 
 export default function MusicContentModal() {
   const { modalOpen, editing, closeModal, create, update, error: storeError } = useMusicContentStore();
+  const { success, error: toastError } = useToast();
   const [name, setName] = useState<string>('');
   const [description, setDescription] = useState<string>('');
   const [isActive, setIsActive] = useState<boolean>(true);
 
   // UI state
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
@@ -29,7 +30,6 @@ export default function MusicContentModal() {
       setIsActive(true);
     }
     setError(null);
-    setSuccess(null);
     setSaving(false);
   }, [editing, modalOpen]);
 
@@ -58,9 +58,7 @@ export default function MusicContentModal() {
   if (!modalOpen) return null;
 
   const handleResultOk = (msg: string) => {
-    setSuccess(msg);
     setError(null);
-    setTimeout(() => setSuccess(null), 2000);
   };
 
   const handleResultErr = (e?: unknown) => {
@@ -79,7 +77,6 @@ export default function MusicContentModal() {
     }
     setSaving(true);
     setError(null);
-    setSuccess(null);
     try {
       const payload: MusicContentCreateRequest | MusicContentUpdateRequest = editing
         ? { name: name.trim(), description: description.trim(), isActive: false }
@@ -89,8 +86,10 @@ export default function MusicContentModal() {
       else await create(payload as MusicContentCreateRequest);
 
       handleResultOk('Đã lưu nháp thành công!');
+      success('Đã lưu nháp nội dung');
     } catch (e) {
       handleResultErr(e);
+      toastError('Lưu nháp thất bại');
     } finally {
       setSaving(false);
     }
@@ -104,7 +103,6 @@ export default function MusicContentModal() {
     }
     setSaving(true);
     setError(null);
-    setSuccess(null);
     try {
       const payload: MusicContentCreateRequest | MusicContentUpdateRequest = {
         name: name.trim(),
@@ -116,8 +114,10 @@ export default function MusicContentModal() {
       else await create(payload as MusicContentCreateRequest);
 
       handleResultOk(editing ? 'Đã cập nhật thành công!' : 'Đã tạo thành công!');
+      success(editing ? 'Đã cập nhật nội dung' : 'Đã tạo nội dung');
     } catch (e) {
       handleResultErr(e);
+      toastError('Lưu nội dung thất bại');
     } finally {
       setSaving(false);
     }
@@ -148,7 +148,6 @@ export default function MusicContentModal() {
           />
           <FormControlLabel control={<Checkbox checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />} label="Đang dùng" />
           {error && <Alert severity="error">{error}</Alert>}
-          {success && <Alert severity="success">{success}</Alert>}
         </Stack>
       </DialogContent>
       <DialogActions>
