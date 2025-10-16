@@ -42,6 +42,7 @@ export default function TournamentSidebar({
     music: "/manage/music-content",
     formList: "/manage/forms",
     submittedForms: "/manage/submitted-forms",
+    brackets: "/manage/brackets",
   };
 
   const isControlled =

@@ -24,6 +24,7 @@ import MainLayout from "./components/layout/MainLayout";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
+import BracketBuilder from "./pages/brackets/BracketBuilder";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -101,6 +102,7 @@ export default function App() {
         <Route path="weight-class" element={<WeightClassListPage />} />
         <Route path="fist-content" element={<FistContentListPage />} />
         <Route path="music-content" element={<MusicContentListPage />} />
+        <Route path="brackets" element={<BracketBuilder />} />
       </Route>
 
       {/* Legacy redirects to /manage */}
