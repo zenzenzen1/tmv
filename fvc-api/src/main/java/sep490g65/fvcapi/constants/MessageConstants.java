@@ -85,4 +85,17 @@ public final class MessageConstants {
     public static final String INVALID_FIST_ITEM_CONFIG = "Fist item %s does not belong to config %s";
     public static final String WEIGHT_CLASS_NOT_FOUND = "Weight class not found with id: %s";
     public static final String MUSIC_PERFORMANCE_NOT_FOUND = "Music performance not found with id: %s";
+
+    // Application Form Messages
+    public static final String APPLICATION_FORM_CREATED_SUCCESS = "Application form created successfully";
+    public static final String APPLICATION_FORM_UPDATED_SUCCESS = "Application form updated successfully";
+    public static final String APPLICATION_FORM_RETRIEVED_SUCCESS = "Application form retrieved successfully";
+    public static final String APPLICATION_FORMS_RETRIEVED_SUCCESS = "Application forms retrieved successfully";
+
+    // Application Form Error Messages
+    public static final String APPLICATION_FORM_NOT_FOUND = "Application form not found with id: %s";
+    public static final String APPLICATION_FORM_ALREADY_EXISTS = "Application form with name '%s' already exists";
+    public static final String APPLICATION_FORM_PUBLISH_WITHOUT_END_DATE = "Cannot publish form without end date";
+    public static final String APPLICATION_FORM_CREATE_ERROR = "Failed to create application form";
+    public static final String APPLICATION_FORM_UPDATE_ERROR = "Failed to update application form";
 }

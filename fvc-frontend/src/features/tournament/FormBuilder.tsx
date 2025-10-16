@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useToast } from "../../components/common/ToastContext";
 import FormPreviewModal from "./FormPreviewModal";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../services/api";
@@ -49,6 +50,7 @@ interface QuestionItem {
 }
 
 const FormBuilder: React.FC = () => {
+  const toast = useToast();
   const navigate = useNavigate();
   const { id: editingId } = useParams<{ id: string }>();
   const toast = useToast();

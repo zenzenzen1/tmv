@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import apiService from "../../services/api";
+import { useToast } from "../../components/common/ToastContext";
 import { API_ENDPOINTS } from "../../config/endpoints";
 
 type FieldType = "TEXT" | "DATE" | "SELECT" | "CHECKBOX" | "FILE";
@@ -20,6 +21,7 @@ type FormField = {
 
 export default function FormBuilderPage() {
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -110,14 +112,14 @@ export default function FormBuilderPage() {
       const response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE, requestData);
 
       if (response.success) {
-        alert("Đã tạo form thành công!");
+        toast.success("Đã tạo form thành công!");
         navigate('/formList');
       } else {
-        alert("Lỗi khi tạo form: " + (response.message || "Unknown error"));
+        toast.error("Lỗi khi tạo form: " + (response.message || "Unknown error"));
       }
     } catch (error: any) {
       console.error("Error creating form:", error);
-      alert("Lỗi khi tạo form: " + (error?.message || "Network error"));
+      toast.error("Lỗi khi tạo form: " + (error?.message || "Network error"));
     } finally {
       setSaving(false);
     }

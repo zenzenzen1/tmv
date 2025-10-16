@@ -3,6 +3,7 @@ import type { TableColumn } from "@/components/common/CommonTable";
 // Note: This page is rendered inside the management layout, so no standalone Footer here
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ErrorMessage from "@/components/common/ErrorMessage";
+import Pagination from "@/components/common/Pagination";
 import { useEffect, useMemo, useMemo as useReactMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
@@ -616,7 +617,9 @@ export default function SubmittedFormsPage() {
 
 function exportCsv(rows: SubmittedRow[]) {
   if (!rows || rows.length === 0) {
-    alert("Không có dữ liệu để xuất");
+    // Replace alert with toast once toast context is available here
+    // For now, keep minimal UX change if toast not wired in this file
+    console.warn("Không có dữ liệu để xuất");
     return;
   }
   
