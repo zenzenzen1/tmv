@@ -638,7 +638,7 @@ export default function ArrangeOrderPage({
       {/* Tournament Selection */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-blue-600 mb-4">
-          Danh sách vận động viên
+        Sắp xếp vận động viên
         </h1>
 
         <div className="flex items-center gap-2">
