@@ -7,6 +7,7 @@ import {
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { PaginationResponse } from "../../types/api";
+import { useToast } from "../../components/common/ToastContext";
 
 type FormRow = {
   id: string;
@@ -30,6 +31,7 @@ export default function TournamentFormList() {
   const [statusFilter, setStatusFilter] = useState<
     "ALL" | "DRAFT" | "PUBLISH" | "ARCHIVED" | "POSTPONE"
   >("ALL");
+  const toast = useToast();
 
   const columns: Array<TableColumn<FormRow>> = useMemo(
     () => [
@@ -93,6 +95,7 @@ export default function TournamentFormList() {
                   window.dispatchEvent(new Event("forms:changed"));
                   // hard refresh to reflect backend truth
                   setPage((p) => p);
+                  toast.success("Cập nhật trạng thái thành công");
                 } catch (err) {
                   console.error("Failed to update status", err);
                   // rollback optimistic update on failure
@@ -101,6 +104,7 @@ export default function TournamentFormList() {
                       row.id === r.id ? { ...row, status: r.status } : row
                     )
                   );
+                  toast.error("Cập nhật trạng thái thất bại");
                 }
               }}
             >
