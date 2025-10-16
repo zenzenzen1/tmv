@@ -128,8 +128,8 @@ export const useFistContentStore = create<Store>()(
     fetchFistItems: async () => {
       try {
         set({ loading: true, error: null });
-        const data = await fistContentService.listItems({ size: 100 }); // Get all items
-        set({ fistItems: data.content, loading: false });
+        const resp = await fistContentService.listItems({ size: 100 }); // Get all items
+        set({ fistItems: resp.data.content, loading: false });
       } catch (err) {
         const { message } = globalErrorHandler(err);
         set({ error: message, loading: false });

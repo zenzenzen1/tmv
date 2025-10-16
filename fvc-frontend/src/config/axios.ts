@@ -39,17 +39,6 @@ apiClient.interceptors.request.use(
     // JWT token is handled via HttpOnly cookies from backend
     // No need to manually add Authorization header
 
-    // Log request in development
-    if (import.meta.env.DEV) {
-      console.log(
-        `🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`,
-        {
-          data: config.data,
-          params: config.params,
-        }
-      );
-    }
-
     return config;
   },
   (error) => {

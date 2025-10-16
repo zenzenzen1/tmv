@@ -11,7 +11,6 @@ export const fistContentService = {
       console.error('FistContentService - response.data is undefined!');
       throw new Error('Invalid API response structure');
     }
-    console.log('FistContentService - returning:', res.data);
     return res.data;
   },
 
@@ -36,8 +35,8 @@ export const fistContentService = {
 
   // FistItem methods
   async listItems(params: FistContentFilters = {}): Promise<PaginationResponse<FistItemResponse>> {
-    const res = await apiService.get<BaseResponse<PaginationResponse<FistItemResponse>>>(API_ENDPOINTS.FIST_CONTENTS.ITEMS, params);
-    return res.data.data;
+    const res = await apiService.get<PaginationResponse<FistItemResponse>>(API_ENDPOINTS.FIST_CONTENTS.ITEMS, params);
+    return res.data;
   },
 
   async getItem(id: string): Promise<FistItemResponse> {

@@ -3,13 +3,14 @@ import { CommonTable, type TableColumn } from '../../components/common/CommonTab
 import { useFistContentStore } from '../../stores/fistContent';
 import FistContentModal from './FistContentModal';
 import { Box, Chip, Stack, Typography, Button, Tabs, Tab, TextField, Autocomplete, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { fistContentService } from '../../services/fistContent';
 
 export default function FistContentListPage() {
   const { list, isLoading, error, fetch, openCreate, openEdit, setPage, remove, fistConfigs, fetchFistConfigs } = useFistContentStore();
   const [tab, setTab] = useState<'items' | 'types'>('items');
   const [allItems, setAllItems] = useState<any[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
-  const [selectedType, setSelectedType] = useState<string | null>(null);
+  // Removed selectedType logic per request
   const [openItemModal, setOpenItemModal] = useState(false);
   const [itemName, setItemName] = useState('');
   const [itemDescription, setItemDescription] = useState('');
@@ -22,12 +23,14 @@ export default function FistContentListPage() {
     fetchFistConfigs();
   }, [fetch, fetchFistConfigs]);
 
+  // No auto-select; load all items instead
+
   useEffect(() => {
     const load = async () => {
       setItemsLoading(true);
       try {
-        const svc = (await import('../../services/fistContent')).fistContentService;
-        const res = await svc.listItems({ size: 100 });
+        const res = await fistContentService.listItems({ size: 100 });
+        console.log(res);
         setAllItems(res?.content ?? []);
       } finally {
         setItemsLoading(false);
@@ -35,13 +38,7 @@ export default function FistContentListPage() {
     };
     load();
   }, []);
-
-  const filteredItems = useMemo(() => {
-    let data = allItems;
-    if (selectedType) data = data.filter((it) => it.parentId === selectedType);
-    if (search.trim()) data = data.filter((it) => it.name.toLowerCase().includes(search.toLowerCase()));
-    return data;
-  }, [allItems, selectedType, search]);
+  console.log(allItems);
 
   return (
     <Box p={3}>
@@ -56,15 +53,7 @@ export default function FistContentListPage() {
         <>
           <Stack direction="row" spacing={2} mb={2}>
             <TextField size="small" placeholder="Tìm kiếm nội dung..." value={search} onChange={(e) => setSearch(e.target.value)} fullWidth />
-            <Autocomplete
-              size="small"
-              options={fistConfigs}
-              getOptionLabel={(o) => o.name}
-              value={fistConfigs.find(c => c.id === selectedType) || null}
-              onChange={(_, v) => setSelectedType(v?.id || null)}
-              renderInput={(params) => <TextField {...params} label="Loại" />}
-              sx={{ width: 260 }}
-            />
+            {/* Type filter removed */}
             <Button variant="contained" onClick={() => setOpenItemModal(true)}>+ Tạo nội dung</Button>
           </Stack>
 
@@ -75,10 +64,7 @@ export default function FistContentListPage() {
               className="card"
               columns={([
                 { key: 'name', title: 'Tên' } as TableColumn<any>,
-                { key: 'type', title: 'Loại', render: (r) => {
-                  const cfg = fistConfigs.find((c) => c.id === r.parentId);
-                  return cfg ? <Chip label={cfg.name} size="small" /> : '—';
-                } },
+                { key: 'configName', title: 'Loại', render: (r) => r.configName ? <Chip label={r.configName} size="small" /> : '—' },
                 { key: 'description', title: 'Mô tả', render: (r) => r.description || '—' },
                 { key: 'status', title: 'Trạng thái', render: () => <Chip label="Hoạt động" size="small" color="success" /> },
                 { key: 'actions', title: 'Thao tác', render: (row) => (
@@ -87,25 +73,26 @@ export default function FistContentListPage() {
                       setEditingItemId(row.id);
                       setItemName(row.name);
                       setItemDescription(row.description || '');
-                      setItemTypeId(row.parentId || null);
+                      setItemTypeId(row.configId || null);
                       setOpenItemModal(true);
                     }}>Sửa</Button>
                     <Button size="small" color="error" onClick={async () => {
-                      if (!row.parentId) return;
+                      const configId = row.configId;
+                      if (!configId) return;
                       if (!confirm('Xóa mục này?')) return;
                       const svc = (await import('../../services/fistContent')).fistContentService;
-                      await svc.deleteItem(row.parentId, row.id);
-                      const res = await svc.listItems({ size: 200 });
-                      setAllItems(res.content);
+                      await svc.deleteItem(configId, row.id);
+                      const res = await svc.listItems({ size: 100 });
+                      setAllItems(res?.content ?? []);
                     }}>Xóa</Button>
                   </Stack>
                 ), sortable: false },
               ])}
-              data={filteredItems}
+              data={allItems}
               keyField={'id'}
               page={1}
-              pageSize={filteredItems.length}
-              total={filteredItems.length}
+              pageSize={allItems.length}
+              total={allItems.length}
               onPageChange={() => {}}
             />
           )}
@@ -157,14 +144,14 @@ export default function FistContentListPage() {
             <TextField size="small" placeholder="Tìm kiếm loại nội dung..." fullWidth />
             <Button variant="contained" onClick={openCreate}>+ Tạo loại</Button>
           </Stack>
-          {isLoading && <div>Loading...</div>}
-          {error && <div className="text-red-600">{error}</div>}
-          {list && (
+      {isLoading && <div>Loading...</div>}
+      {error && <div className="text-red-600">{error}</div>}
+      {list && (
         <CommonTable<any>
           className="card"
           columns={([
             { key: 'name', title: 'Nội dung thi đấu' } as TableColumn<any>,
-                { key: 'description', title: 'Ghi chú', render: (r) => r.description || '—' },
+            { key: 'description', title: 'Ghi chú', render: (r) => r.description || '—' },
             {
               key: 'status',
               title: 'Trạng thái',
@@ -178,7 +165,7 @@ export default function FistContentListPage() {
               render: (row) => (
                 <div className="flex gap-2">
                 <button className="input-field" onClick={() => openEdit(row)}>Chi tiết</button>
-                <button className="input-field" onClick={() => { setTab('items'); setSelectedType(row.id); }}>Quản lý mục</button>
+                <button className="input-field" onClick={() => { setTab('items'); }}>Quản lý mục</button>
                 {!row.status && (
                   <button
                     className="input-field text-red-600 hover:underline"

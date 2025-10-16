@@ -164,7 +164,8 @@ public class VovinamFistConfigServiceImpl implements VovinamFistConfigService {
                 .name(item.getName())
                 .description(item.getDescription())
                 .level(item.getLevel())
-                .parentId(item.getParent() != null ? item.getParent().getId() : null)
+                .configId(item.getVovinamFistConfig() != null ? item.getVovinamFistConfig().getId() : null)
+                .configName(item.getVovinamFistConfig() != null ? item.getVovinamFistConfig().getName() : null)
                 .build();
     }
 

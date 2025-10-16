@@ -7,10 +7,9 @@ import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import SubmittedFormsPage from "./pages/submitted-forms/ListPage";
 import FormListPage from "./pages/forms/ListPage";
-import FormManagementPage from "./pages/forms/ManagementPage";
 import FormBuilderPage from "./pages/forms/BuilderPage";
 import FormEditPage from "./pages/forms/EditPage";
-import FormPreviewPage from "./pages/forms/FormPreviewPage";
+import FormRegistrationPage from "./pages/forms/RegistrationPage";
 
 import Home from "./pages/Home";
 import TournamentListPage from "./pages/tournament/ListPage";
@@ -18,8 +17,6 @@ import CompetitionFormPage from "./pages/tournament/CompetitionFormPage";
 import FormResults from "./features/tournament/FormResults";
 // import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
-import TournamentFormBuilder from "./features/tournament/FormBuilder";
-import TournamentFormList from "./features/tournament/TournamentFormList";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
 import MainLayout from "./components/layout/MainLayout";
 import WeightClassListPage from "./pages/weight-class/ListPage";
@@ -44,17 +41,12 @@ export default function App() {
       <Route
         path="/login"
         element={
-          isAuthenticated ? (
-            <Navigate to="/manage/tournaments" replace />
-          ) : (
-            <LoginPage />
-          )
+          isAuthenticated ? <Navigate to="/manage/tournaments" replace /> : <LoginPage />
         }
       />
 
-      {/* Public Home */}
-      <Route path="/home" element={<Home />} />
-      <Route path="dashboard" element={<DashboardPage />} />
+      {/* Landing redirect */}
+      <Route path="/" element={<Navigate to={isAuthenticated ? "/manage/tournaments" : "/login"} replace />} />
 
       {/* Protected app routes under /manage */}
       <Route
@@ -68,7 +60,9 @@ export default function App() {
         {/* default */}
         <Route index element={<Navigate to="tournaments" replace />} />
 
-        {/* Dashboard (optional) */}
+        {/* Dashboard/Home (optional) */}
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="home" element={<Home />} />
 
         {/* Tournaments */}
         <Route path="tournaments" element={<TournamentListPage />} />
@@ -76,26 +70,19 @@ export default function App() {
         <Route path="tournaments/edit/:id" element={<CompetitionFormPage />} />
         <Route path="tournaments/view/:id" element={<CompetitionFormPage />} />
 
-        {/* Tournament Forms */}
-        <Route path="tournament-forms" element={<TournamentFormList />} />
-
         {/* Forms */}
         <Route path="form-list" element={<FormListPage />} />
-        <Route path="forms" element={<FormManagementPage />} />
+        <Route path="forms" element={<FormListPage />} />
         <Route path="forms/new" element={<FormBuilderPage />} />
-        <Route path="forms/edit/:id" element={<FormEditPage />} />
-        <Route path="forms/view/:id" element={<FormPreviewPage />} />
-        <Route path="forms/fill/:id" element={<PublishedForm />} />
-        <Route path="forms/fill/slug/:slug" element={<PublishedForm />} />
+        <Route path="forms/:id/edit" element={<FormEditPage />} />
+        <Route path="forms/:id/view" element={<FormRegistrationPage />} />
+        <Route path="forms/:id/fill" element={<PublishedForm />} />
         <Route path="submitted-forms" element={<SubmittedFormsPage />} />
         <Route path="results/:id" element={<FormResults />} />
 
         {/* Athletes */}
         <Route path="athletes" element={<AthleteManagementWrapper />} />
-        <Route
-          path="athletes/fighting"
-          element={<AthleteManagementWrapper />}
-        />
+        <Route path="athletes/fighting" element={<AthleteManagementWrapper />} />
         <Route path="athletes/quyen" element={<AthleteManagementWrapper />} />
         <Route path="athletes/music" element={<AthleteManagementWrapper />} />
 
@@ -107,32 +94,11 @@ export default function App() {
       </Route>
 
       {/* Legacy redirects to /manage */}
-      <Route
-        path="/tournaments/*"
-        element={<Navigate to="/manage/tournaments" replace />}
-      />
-      <Route
-        path="/athletes/*"
-        element={<Navigate to="/manage/athletes" replace />}
-      />
-      <Route
-        path="/form-list"
-        element={<Navigate to="/manage/form-list" replace />}
-      />
-      <Route
-        path="/submitted-forms"
-        element={<Navigate to="/manage/submitted-forms" replace />}
-      />
-      <Route
-        path="/forms/*"
-        element={<Navigate to="/manage/forms" replace />}
-      />
-
-      {/* Direct access routes used by TournamentFormList and public links */}
-      <Route path="/form-builder" element={<TournamentFormBuilder />} />
-      <Route path="/form-builder/:id" element={<TournamentFormBuilder />} />
-      <Route path="/results/:id" element={<FormResults />} />
-      <Route path="/published-form/:id" element={<PublishedForm />} />
+      <Route path="/tournaments/*" element={<Navigate to="/manage/tournaments" replace />} />
+      <Route path="/athletes/*" element={<Navigate to="/manage/athletes" replace />} />
+      <Route path="/form-list" element={<Navigate to="/manage/form-list" replace />} />
+      <Route path="/submitted-forms" element={<Navigate to="/manage/submitted-forms" replace />} />
+      <Route path="/forms/*" element={<Navigate to="/manage/forms" replace />} />
 
       {/* 404 */}
       <Route path="*" element={<div>404 Not Found</div>} />
