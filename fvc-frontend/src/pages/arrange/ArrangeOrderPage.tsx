@@ -628,6 +628,11 @@ export default function ArrangeOrderPage({
     }
   };
 
+  const handleArrangeOrderClick = () => {
+    // TODO: implement arrange order action (e.g., open modal or navigate)
+    console.log("Arrange order clicked");
+  };
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
       {/* Tournament Selection */}
@@ -954,13 +959,21 @@ export default function ArrangeOrderPage({
           </div>
         </div>
 
-        {/* Export Button */}
-        <button
-          onClick={handleExportExcel}
-          className="rounded-md bg-emerald-500 px-3 py-2 text-white text-sm shadow hover:bg-emerald-600"
-        >
-          Xuất Excel
-        </button>
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleArrangeOrderClick}
+            className="rounded-md bg-blue-600 px-3 py-2 text-white text-sm shadow hover:bg-blue-700"
+          >
+            Sắp xếp
+          </button>
+          <button
+            onClick={handleExportExcel}
+            className="rounded-md bg-emerald-500 px-3 py-2 text-white text-sm shadow hover:bg-emerald-600"
+          >
+            Xuất Excel
+          </button>
+        </div>
       </div>
 
       {/* Table */}
