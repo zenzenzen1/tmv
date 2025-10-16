@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import sep490g65.fvcapi.enums.ApplicationFormType;
+import sep490g65.fvcapi.enums.FormStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +22,7 @@ public class ApplicationFormConfigResponse {
     private ApplicationFormType formType;
     private List<ApplicationFormFieldResponse> fields;
     private LocalDateTime endDate;
+    private FormStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

@@ -24,7 +24,7 @@ public class ApplicationFormConfig extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = 100, columnDefinition = "VARCHAR(100)")
     private String name;
 
     @Enumerated(EnumType.STRING)

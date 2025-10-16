@@ -39,13 +39,20 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
 
     List<ApplicationFormConfig> findByEndDateBeforeAndStatus(LocalDateTime endDate, FormStatus status);
 
-    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
-           "(:search IS NULL OR LOWER(afc.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(afc.description) LIKE LOWER(CONCAT('%', :search, '%'))) AND " +
-           "(:dateFrom IS NULL OR afc.createdAt >= :dateFrom) AND " +
-           "(:dateTo IS NULL OR afc.createdAt <= :dateTo) AND " +
-           "(:status IS NULL OR afc.status = :status)")
+    @Query(value = "SELECT afc.* FROM application_form_configs afc WHERE " +
+           "(:search IS NULL OR LOWER(afc.name::text) LIKE :searchPattern OR LOWER(afc.description::text) LIKE :searchPattern) AND " +
+           "(:dateFrom IS NULL OR afc.created_at >= :dateFrom) AND " +
+           "(:dateTo IS NULL OR afc.created_at <= :dateTo) AND " +
+           "(:status IS NULL OR afc.status = :status)",
+           countQuery = "SELECT COUNT(*) FROM application_form_configs afc WHERE " +
+           "(:search IS NULL OR LOWER(afc.name::text) LIKE :searchPattern OR LOWER(afc.description::text) LIKE :searchPattern) AND " +
+           "(:dateFrom IS NULL OR afc.created_at >= :dateFrom) AND " +
+           "(:dateTo IS NULL OR afc.created_at <= :dateTo) AND " +
+           "(:status IS NULL OR afc.status = :status)",
+           nativeQuery = true)
     Page<ApplicationFormConfig> findWithFilters(
         @Param("search") String search,
+        @Param("searchPattern") String searchPattern,
         @Param("dateFrom") LocalDateTime dateFrom,
         @Param("dateTo") LocalDateTime dateTo,
         @Param("status") FormStatus status,

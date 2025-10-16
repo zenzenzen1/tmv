@@ -204,6 +204,7 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
                 .formType(config.getFormType())
                 .fields(fieldResponses)
                 .endDate(config.getEndDate())
+                .status(config.getStatus())
                 .createdAt(config.getCreatedAt())
                 .updatedAt(config.getUpdatedAt())
                 .build();
@@ -261,9 +262,38 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
             }
         }
         
+        // Create search pattern
+        String searchPattern = null;
+        if (search != null && !search.trim().isEmpty()) {
+            searchPattern = "%" + search.toLowerCase() + "%";
+        }
+        
         // Use repository method with filters
-        Page<ApplicationFormConfig> configs = applicationFormConfigRepository.findWithFilters(
-            search, fromDate, toDate, statusEnum, pageable);
+        Page<ApplicationFormConfig> configs;
+        
+        // If no filters, use simple findAll
+        if (search == null && fromDate == null && toDate == null && statusEnum == null) {
+            configs = applicationFormConfigRepository.findAll(pageable);
+            
+            // If no data exists, create default form
+            if (configs.getContent().isEmpty()) {
+                try {
+                    createDefaultClubRegistrationForm();
+                    configs = applicationFormConfigRepository.findAll(pageable);
+                } catch (Exception e) {
+                    System.err.println("Failed to create default form: " + e.getMessage());
+                }
+            }
+        } else {
+            try {
+                configs = applicationFormConfigRepository.findWithFilters(
+                    search, searchPattern, fromDate, toDate, statusEnum, pageable);
+            } catch (Exception e) {
+                // Fallback to simple findAll if filter query fails
+                System.err.println("Filter query failed, falling back to findAll: " + e.getMessage());
+                configs = applicationFormConfigRepository.findAll(pageable);
+            }
+        }
         
         return configs.map(this::mapToResponse);
     }
