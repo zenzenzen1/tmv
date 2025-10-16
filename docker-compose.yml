@@ -23,14 +23,16 @@ services:
       context: ./fvc-api
       dockerfile: Dockerfile
     container_name: fvc-api
+    env_file:
+      - fvc-api/.env
     environment:
       # Spring Boot config overrides
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/fvc-db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: 123
       SERVER_PORT: 8080
-      # 允许前端容器访问
-      APP_SECURITY_CORS_ALLOWED-ORIGINS: http://localhost:5173
+      # 允许前端容器访问（注意使用下划线）
+      APP_SECURITY_CORS_ALLOWED_ORIGINS: http://localhost:5173
     depends_on:
       db:
         condition: service_healthy
