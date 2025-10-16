@@ -6,6 +6,7 @@ import {
   type TableColumn,
 } from "../../components/common/CommonTable";
 import api from "../../services/api";
+import { useToast } from "../../components/common/ToastContext";
 // import type { PaginationResponse } from "../../types/api";
 
 type ResultRow = {
@@ -31,6 +32,7 @@ const STATUS_MAP: Record<string, ResultRow["status"]> = {
 
 export default function FormResults() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [page, setPage] = useState<number>(1);
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -128,8 +130,10 @@ export default function FormResults() {
                   if (next === "ĐÃ DUYỆT") {
                     window.dispatchEvent(new Event("athletes:refetch"));
                   }
+                  toast.success("Cập nhật trạng thái thành công");
                 } catch (err) {
                   console.error("Update submission status failed", err);
+                  toast.error("Cập nhật trạng thái thất bại");
                 }
               }}
             >
