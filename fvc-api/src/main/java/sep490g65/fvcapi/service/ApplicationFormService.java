@@ -4,6 +4,7 @@ import sep490g65.fvcapi.dto.request.CreateApplicationFormConfigRequest;
 import sep490g65.fvcapi.dto.request.UpdateApplicationFormConfigRequest;
 import sep490g65.fvcapi.dto.response.ApplicationFormConfigResponse;
 import sep490g65.fvcapi.enums.ApplicationFormType;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 
@@ -20,4 +21,6 @@ public interface ApplicationFormService {
     ApplicationFormConfigResponse update(ApplicationFormType formType, UpdateApplicationFormConfigRequest request);
 
     ApplicationFormConfigResponse createDefaultClubRegistrationForm();
+
+    Page<ApplicationFormConfigResponse> listPaginated(int page, int size, String search, String dateFrom, String dateTo, String status);
 }

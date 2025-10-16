@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import sep490g65.fvcapi.dto.request.CreateFistConfigRequest;
 import sep490g65.fvcapi.dto.request.RequestParam;
+import sep490g65.fvcapi.dto.request.CreateFistItemRequest;
+import sep490g65.fvcapi.dto.request.UpdateFistItemRequest;
 import sep490g65.fvcapi.dto.request.UpdateFistConfigRequest;
 import sep490g65.fvcapi.dto.response.FistConfigResponse;
 import sep490g65.fvcapi.dto.response.FistItemResponse;
@@ -162,8 +164,61 @@ public class VovinamFistConfigServiceImpl implements VovinamFistConfigService {
                 .name(item.getName())
                 .description(item.getDescription())
                 .level(item.getLevel())
-                .parentId(item.getParent() != null ? item.getParent().getId() : null)
+                .configId(item.getVovinamFistConfig() != null ? item.getVovinamFistConfig().getId() : null)
+                .configName(item.getVovinamFistConfig() != null ? item.getVovinamFistConfig().getName() : null)
                 .build();
+    }
+
+    @Override
+    public FistItemResponse createItem(String configId, CreateFistItemRequest request) {
+        VovinamFistConfig config = repository.findById(configId)
+                .orElseThrow(() -> new ResourceNotFoundException("FistConfig not found: " + configId));
+
+        VovinamFistItem parent = null;
+        if (request.getParentId() != null) {
+            parent = fistItemRepository.findById(request.getParentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("FistItem not found: " + request.getParentId()));
+        }
+
+        VovinamFistItem entity = VovinamFistItem.builder()
+                .vovinamFistConfig(config)
+                .parent(parent)
+                .name(request.getName())
+                .description(request.getDescription())
+                .level(parent == null ? 1 : (parent.getLevel() == null ? 2 : parent.getLevel() + 1))
+                .build();
+        VovinamFistItem saved = fistItemRepository.save(entity);
+        return mapItemToResponse(saved);
+    }
+
+    @Override
+    public FistItemResponse updateItem(String configId, String itemId, UpdateFistItemRequest request) {
+        // validate config
+        repository.findById(configId)
+                .orElseThrow(() -> new ResourceNotFoundException("FistConfig not found: " + configId));
+
+        VovinamFistItem entity = fistItemRepository.findById(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("FistItem not found: " + itemId));
+
+        if (request.getName() != null) entity.setName(request.getName());
+        if (request.getDescription() != null) entity.setDescription(request.getDescription());
+        if (request.getParentId() != null) {
+            VovinamFistItem parent = fistItemRepository.findById(request.getParentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("FistItem not found: " + request.getParentId()));
+            entity.setParent(parent);
+        }
+        VovinamFistItem saved = fistItemRepository.save(entity);
+        return mapItemToResponse(saved);
+    }
+
+    @Override
+    public void deleteItem(String configId, String itemId) {
+        // validate config
+        repository.findById(configId)
+                .orElseThrow(() -> new ResourceNotFoundException("FistConfig not found: " + configId));
+        VovinamFistItem entity = fistItemRepository.findById(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("FistItem not found: " + itemId));
+        fistItemRepository.delete(entity);
     }
 }
 

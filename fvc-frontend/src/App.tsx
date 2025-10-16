@@ -18,10 +18,14 @@ import FormResults from "./features/tournament/FormResults";
 // import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
+
+import MemberManagementListPage from "./pages/member-management/ListPage";
+
 import MainLayout from "./components/layout/MainLayout";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
+import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
 
 export default function App() {
@@ -47,6 +51,18 @@ export default function App() {
 
       {/* Landing redirect */}
       <Route path="/" element={<Navigate to={isAuthenticated ? "/manage/tournaments" : "/login"} replace />} />
+      {/* Member Management */}
+      <Route path="/member-management" element={<MemberManagementListPage />} />
+      {/* Tournaments */}
+      <Route path="/tournaments" element={<TournamentListPage />} />
+      <Route path="/tournaments/create" element={<CompetitionFormPage />} />
+      <Route path="/tournaments/edit/:id" element={<CompetitionFormPage />} />
+      <Route path="/tournaments/view/:id" element={<CompetitionFormPage />} />
+
+      {/* Public Home */}
+      <Route path="/home" element={<Home />} />
+      <Route path="dashboard" element={<DashboardPage />} />
+
 
       {/* Protected app routes under /manage */}
       <Route
@@ -89,6 +105,7 @@ export default function App() {
         {/* Content mgmt */}
         <Route path="weight-class" element={<WeightClassListPage />} />
         <Route path="fist-content" element={<FistContentListPage />} />
+        <Route path="fist-content/:id/items" element={<FistItemsPage />} />
         <Route path="music-content" element={<MusicContentListPage />} />
 
         {/* Arrange */}

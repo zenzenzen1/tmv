@@ -1,5 +1,9 @@
 import CommonTable from "@/components/common/CommonTable";
 import type { TableColumn } from "@/components/common/CommonTable";
+// Note: This page is rendered inside the management layout, so no standalone Footer here
+import LoadingSpinner from "@/components/common/LoadingSpinner";
+import ErrorMessage from "@/components/common/ErrorMessage";
+import Pagination from "@/components/common/Pagination";
 import { useEffect, useMemo, useMemo as useReactMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
@@ -162,6 +166,13 @@ export default function SubmittedFormsPage() {
   const [pageSize] = useState<number>(10); // fixed page size
   const [totalElements, setTotalElements] = useState<number>(0);
   const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
+  
+  // Filters
+  const [status, setStatus] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  // Search
+  const [query, setQuery] = useState<string>("");
 
   useEffect(() => {
     let ignore = false;
@@ -175,11 +186,16 @@ export default function SubmittedFormsPage() {
           size: number;
           totalElements: number;
         }>("/v1/submitted-forms", {
+          // fixed form type: club registration
           type: "CLUB_REGISTRATION",
           page: page - 1,
           size: pageSize,
           sortBy: "createdAt",
-          ascending: false,
+          sortDirection: "desc",
+          status: status || undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          search: query || undefined,
         });
         if (!ignore) {
           const mapped: SubmittedRow[] = (res.data?.content ?? []).map((s: any, idx: number) => {
@@ -226,7 +242,7 @@ export default function SubmittedFormsPage() {
     return () => {
       ignore = true;
     };
-  }, [page, pageSize]);
+  }, [page, pageSize, status, dateFrom, dateTo, query]);
 
   function safePick(jsonString: string, keys: string[]): string {
     try {
@@ -382,8 +398,6 @@ export default function SubmittedFormsPage() {
     ];
   }, [rows]);
 
-  // Search
-  const [query, setQuery] = useState<string>("");
   const filtered = useReactMemo(() => {
     if (!query.trim()) return rows;
     const q = query.toLowerCase();
@@ -404,92 +418,208 @@ export default function SubmittedFormsPage() {
   }, [rows, query]);
 
   return (
-    <>
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => navigate(-1)}
-          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-        >
-          ⟵ Quay lại
-        </button>
-        <button
-          onClick={() => exportCsv(filtered)}
-          className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
-        >
-          Xuất Excel
-        </button>
-      </div>
-
-      <div>
-        <h2 className="mb-1 text-xl font-semibold">Kết quả</h2>
-        <p className="mb-4 text-sm text-gray-600">
-          Đăng kí tham gia FPTU Vovinam Club FALL 2025
-        </p>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="text-sm text-gray-600">Lượt điền: {totalElements}</div>
-          <input
-            placeholder="Tìm kiếm..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-64 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
-          />
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate(-1)}
+            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            ⟵ Quay lại
+          </button>
+          <button
+            onClick={() => exportCsv(filtered)}
+            className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
+          >
+            Xuất Excel
+          </button>
         </div>
-      </div>
 
-      {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
+        {/* Header */}
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Kết quả đăng ký</h2>
+          <p className="text-gray-600">Đăng kí tham gia FPTU Vovinam Club FALL 2025</p>
+        </div>
+
+        {/* Statistics Cards */}
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+            <div className="text-2xl font-bold text-blue-600">{totalElements}</div>
+            <div className="text-sm text-gray-600">Tổng số đăng ký</div>
+          </div>
+          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+            <div className="text-2xl font-bold text-green-600">{filtered.length}</div>
+            <div className="text-sm text-gray-600">Kết quả hiển thị</div>
+          </div>
+          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+            <div className="text-2xl font-bold text-purple-600">{page}</div>
+            <div className="text-sm text-gray-600">Trang hiện tại</div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Bộ lọc</h3>
+            <button
+              onClick={() => { setStatus(""); setDateFrom(""); setDateTo(""); setQuery(""); setPage(1); }}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Xóa tất cả bộ lọc
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+              <select
+                value={status}
+                onChange={(e) => { setPage(1); setStatus(e.target.value); }}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="PENDING">Đang chờ</option>
+                <option value="APPROVED">Đã duyệt</option>
+                <option value="REJECTED">Từ chối</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setPage(1); setDateFrom(e.target.value); }}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Đến ngày</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setPage(1); setDateTo(e.target.value); }}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tìm kiếm</label>
+              <input
+                placeholder="Tên, email, MSSV..."
+                value={query}
+                onChange={(e) => { setPage(1); setQuery(e.target.value); }}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+              />
+            </div>
+          </div>
+          
+          <div className="mt-4 text-sm text-gray-600">
+            Hiển thị {filtered.length} trong {totalElements} kết quả
+          </div>
+        </div>
+
+        {error && <ErrorMessage error={error} />}
+        
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <LoadingSpinner />
+          </div>
+        ) : (
+          <CommonTable
+            data={
+              filtered.map((r, idx) => ({
+                ...r,
+                stt: (page - 1) * pageSize + idx + 1,
+              })) as any
+            }
+            columns={columns as any}
+            page={page}
+            pageSize={pageSize}
+            total={totalElements}
+            onPageChange={(p) => setPage(p)}
+          />
+        )}
+
+      {/* View Form Modal */}
+      {viewingRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-4xl rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Chi tiết form đăng ký #{viewingRow.id}
+              </h3>
+              <button 
+                onClick={() => setViewingRow(null)} 
+                className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="max-h-[70vh] overflow-auto p-6">
+              {/* Basic Information */}
+              <div className="mb-6">
+                <h4 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Thông tin cơ bản
+                </h4>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="rounded-md bg-gray-50 p-3">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Họ và tên</div>
+                    <div className="mt-1 text-sm text-gray-900">{viewingRow.fullName || "-"}</div>
+                  </div>
+                  <div className="rounded-md bg-gray-50 p-3">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</div>
+                    <div className="mt-1 text-sm text-gray-900">{viewingRow.email || "-"}</div>
+                  </div>
+                  <div className="rounded-md bg-gray-50 p-3">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">MSSV</div>
+                    <div className="mt-1 text-sm text-gray-900">{viewingRow.studentCode || "-"}</div>
+                  </div>
+                  <div className="rounded-md bg-gray-50 p-3">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Thời gian nộp</div>
+                    <div className="mt-1 text-sm text-gray-900">
+                      {new Date(viewingRow.submittedAt).toLocaleString("vi-VN")}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Data */}
+              <div>
+                <h4 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Dữ liệu form
+                </h4>
+                <div className="rounded-md bg-gray-50 p-4">
+                  <pre className="whitespace-pre-wrap text-xs leading-relaxed text-gray-800">
+{typeof viewingRow.formData === 'string' ? viewingRow.formData : JSON.stringify(viewingRow.formData, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-end gap-3 border-t px-6 py-4">
+              <button 
+                onClick={() => setViewingRow(null)} 
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
         </div>
       )}
-      <CommonTable
-        data={
-          filtered.map((r, idx) => ({
-            ...r,
-            stt: (page - 1) * pageSize + idx + 1,
-          })) as any
-        }
-        columns={columns as any}
-        page={page}
-        pageSize={pageSize}
-        total={totalElements}
-        onPageChange={(p) => setPage(p)}
-        className={loading ? "opacity-60" : undefined}
-      />
     </div>
-
-    {/* View Form Modal */}
-    {viewingRow && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-        <div className="w-[720px] max-w-full rounded-lg bg-white shadow-xl">
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <h3 className="text-base font-semibold">Chi tiết form #{viewingRow.id}</h3>
-            <button onClick={() => setViewingRow(null)} className="text-gray-500 hover:text-gray-700">✕</button>
-          </div>
-          <div className="max-h-[70vh] overflow-auto p-4 text-sm">
-            <div className="mb-3 grid grid-cols-2 gap-3">
-              <div><span className="text-gray-500">Họ và tên:</span> {viewingRow.fullName || "-"}</div>
-              <div><span className="text-gray-500">Email:</span> {viewingRow.email || "-"}</div>
-              <div><span className="text-gray-500">MSSV:</span> {viewingRow.studentCode || "-"}</div>
-              <div><span className="text-gray-500">Thời gian nộp:</span> {new Date(viewingRow.submittedAt).toLocaleString("vi-VN")}</div>
-            </div>
-            <pre className="whitespace-pre-wrap rounded-md bg-gray-50 p-3 text-[12px] leading-relaxed">
-{typeof viewingRow.formData === 'string' ? viewingRow.formData : JSON.stringify(viewingRow.formData, null, 2)}
-            </pre>
-          </div>
-          <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
-            <button onClick={() => setViewingRow(null)} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] text-gray-700 hover:bg-gray-50">Đóng</button>
-          </div>
-        </div>
-      </div>
-    )}
-    </>
   );
 }
 
 function exportCsv(rows: SubmittedRow[]) {
   if (!rows || rows.length === 0) {
-    alert("Không có dữ liệu để xuất");
+    // Replace alert with toast once toast context is available here
+    // For now, keep minimal UX change if toast not wired in this file
+    console.warn("Không có dữ liệu để xuất");
     return;
   }
   

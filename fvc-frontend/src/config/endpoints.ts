@@ -75,6 +75,10 @@ export const API_ENDPOINTS = {
     ITEMS: "/v1/fist-configs/items",
     ITEM_BY_ID: (id: string) => `/v1/fist-configs/items/${id}`,
     ITEMS_BY_CONFIG: (configId: string) => `/v1/fist-configs/${configId}/items`,
+    TYPES: {
+      BASE: "/v1/fist-types",
+      BY_ID: (id: string) => `/v1/fist-types/${id}`,
+    },
   },
 
   // Music contents
@@ -87,6 +91,12 @@ export const API_ENDPOINTS = {
   ATHLETES: {
     BASE: "/v1/athletes",
     ARRANGE_ORDER: "/v1/athletes/arrange-order",
+  },
+
+  // Club Members
+  CLUB_MEMBERS: {
+    BASE: "/v1/clubs/members",
+    BY_ID: (id: string) => `/v1/clubs/members/${id}`,
   },
 
   // Common endpoints

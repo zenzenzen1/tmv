@@ -6,6 +6,7 @@ import {
   type TableColumn,
 } from "../../components/common/CommonTable";
 import api from "../../services/api";
+import { useToast } from "../../components/common/ToastContext";
 // import type { PaginationResponse } from "../../types/api";
 
 type ResultRow = {
@@ -31,6 +32,7 @@ const STATUS_MAP: Record<string, ResultRow["status"]> = {
 
 export default function FormResults() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [page, setPage] = useState<number>(1);
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -128,8 +130,10 @@ export default function FormResults() {
                   if (next === "ĐÃ DUYỆT") {
                     window.dispatchEvent(new Event("athletes:refetch"));
                   }
+                  toast.success("Cập nhật trạng thái thành công");
                 } catch (err) {
                   console.error("Update submission status failed", err);
+                  toast.error("Cập nhật trạng thái thất bại");
                 }
               }}
             >
@@ -146,17 +150,27 @@ export default function FormResults() {
   );
 
   const pageSize = 5;
+  const [searchText, setSearchText] = useState<string>("");
+  const [typeFilter, setTypeFilter] = useState<
+    "ALL" | "Đối kháng" | "Quyền" | "Võ nhạc"
+  >("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | ResultRow["status"]>(
+    "ALL"
+  );
 
   useEffect(() => {
     const fetchData = async () => {
       if (!id) return;
       try {
         setLoading(true);
-        // Force backend to paginate 5 per page
+        const applyingFilter =
+          searchText.trim().length > 0 ||
+          typeFilter !== "ALL" ||
+          statusFilter !== "ALL";
+        const targetPage = applyingFilter ? 0 : page - 1;
+        const targetSize = applyingFilter ? 100 : pageSize; // backend max 100
         const resp = await api.get(
-          `/v1/tournament-forms/${id}/submissions?page=${
-            page - 1
-          }&size=${pageSize}`
+          `/v1/tournament-forms/${id}/submissions?page=${targetPage}&size=${targetSize}`
         );
         const root = resp.data as Record<string, unknown>;
         const pageData = (root["data"] as Record<string, unknown>) ?? root;
@@ -300,10 +314,26 @@ export default function FormResults() {
             status,
           } as ResultRow;
         });
-        // Show at most 5 rows on a single page (no extra pages)
-        // Use backend pagination: keep total from server
-        setRows(mapped);
-        setTotal(totalElements);
+        // Client-side filter by name, type, and status when applied
+        const filtered = mapped.filter((r) => {
+          const matchesName = searchText
+            ? r.fullName.toLowerCase().includes(searchText.toLowerCase())
+            : true;
+          const matchesType =
+            typeFilter === "ALL" ? true : r.competitionType === typeFilter;
+          const matchesStatus =
+            statusFilter === "ALL" ? true : r.status === statusFilter;
+          return matchesName && matchesType && matchesStatus;
+        });
+
+        const finalRows = applyingFilter ? filtered : mapped;
+        const effectiveTotal = applyingFilter
+          ? finalRows.length
+          : totalElements;
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        setRows(applyingFilter ? finalRows.slice(start, end) : finalRows);
+        setTotal(effectiveTotal);
       } catch (e: unknown) {
         console.error("Load submissions failed", e);
         if (typeof e === "object" && e && "message" in e) {
@@ -317,7 +347,7 @@ export default function FormResults() {
       }
     };
     fetchData();
-  }, [id, page, reloadKey]);
+  }, [id, page, reloadKey, searchText, typeFilter, statusFilter]);
 
   // Listen for form submissions elsewhere to refresh results
   useEffect(() => {
@@ -349,39 +379,44 @@ export default function FormResults() {
               <button className="rounded-md bg-emerald-500 px-3 py-2 text-white text-sm shadow hover:bg-emerald-600">
                 Xuất Excel
               </button>
-              <button className="rounded-md bg-[#377CFB] px-3 py-2 text-white text-sm shadow hover:bg-[#2f6ae0]">
-                Lưu
-              </button>
             </div>
           </div>
 
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <input
-              placeholder="Tìm kiếm theo Họ và tên, Email, MSSV, CLB..."
-              className="w-[28rem] max-w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+              value={searchText}
+              onChange={(e) => {
+                setPage(1);
+                setSearchText(e.target.value);
+              }}
+              placeholder="Tìm theo Họ và tên"
+              className="w-[20rem] max-w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
-            <select className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white">
-              <option>Giới tính</option>
-              <option>Nam</option>
-              <option>Nữ</option>
+            <select
+              value={typeFilter}
+              onChange={(e) => {
+                setPage(1);
+                setTypeFilter(e.target.value as any);
+              }}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+            >
+              <option value="ALL">Tất cả thể thức</option>
+              <option value="Đối kháng">Đối kháng</option>
+              <option value="Quyền">Quyền</option>
+              <option value="Võ nhạc">Võ nhạc</option>
             </select>
-            <select className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white">
-              <option>Thể thức thi đấu</option>
-              <option>Đối kháng</option>
-              <option>Quyền</option>
-              <option>Võ nhạc</option>
-            </select>
-            <select className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white">
-              <option>CLB</option>
-              <option>FPTU HN</option>
-              <option>FPTU HCM</option>
-              <option>FPTU ĐN</option>
-            </select>
-            <select className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white">
-              <option>Trạng thái</option>
-              <option>DUYỆT ĐẦU</option>
-              <option>CHỜ DUYỆT</option>
-              <option>TỪ CHỐI</option>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setPage(1);
+                setStatusFilter(e.target.value as any);
+              }}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="ĐÃ DUYỆT">Đã duyệt</option>
+              <option value="CHỜ DUYỆT">Chờ duyệt</option>
+              <option value="TỪ CHỐI">Từ chối</option>
             </select>
           </div>
 
