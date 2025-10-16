@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState, useEffect } from "react";
+import { useToast } from "../../components/common/ToastContext";
 import { useNavigate, useParams } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import apiService from "../../services/api";
@@ -19,6 +20,7 @@ type FormField = {
 };
 
 export default function FormEditPage() {
+  const toast = useToast();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
@@ -315,7 +317,7 @@ export default function FormEditPage() {
       
       // Validate required fields
       if (!title.trim()) {
-        alert("Tiêu đề là bắt buộc. Vui lòng nhập tiêu đề form.");
+        toast.warning("Tiêu đề là bắt buộc. Vui lòng nhập tiêu đề form.");
         if (status === 'PUBLISH') {
           setSaving(false);
         } else {
@@ -325,7 +327,7 @@ export default function FormEditPage() {
       }
 
       if (!description.trim()) {
-        alert("Mô tả là bắt buộc. Vui lòng nhập mô tả form.");
+        toast.warning("Mô tả là bắt buộc. Vui lòng nhập mô tả form.");
         if (status === 'PUBLISH') {
           setSaving(false);
         } else {
@@ -337,7 +339,7 @@ export default function FormEditPage() {
       // Validate that all fields have names
       const fieldsWithoutNames = fields.filter(field => !field.name || field.name.trim() === '');
       if (fieldsWithoutNames.length > 0) {
-        alert("Tất cả các trường phải có tên. Vui lòng kiểm tra lại các câu hỏi.");
+        toast.warning("Tất cả các trường phải có tên. Vui lòng kiểm tra lại các câu hỏi.");
         if (status === 'PUBLISH') {
           setSaving(false);
         } else {
@@ -348,14 +350,14 @@ export default function FormEditPage() {
 
       // Validate end date when publishing
       if (status === 'PUBLISH' && (!endDate || endDate.trim() === '')) {
-        alert("Không thể publish form mà chưa có ngày kết thúc. Vui lòng chọn ngày kết thúc.");
+        toast.warning("Không thể publish form mà chưa có ngày kết thúc. Vui lòng chọn ngày kết thúc.");
         setSaving(false);
         return;
       }
 
       // Validate end date is in the future
       if (endDate && new Date(endDate) <= new Date()) {
-        alert("Ngày kết thúc phải là ngày trong tương lai. Vui lòng chọn ngày khác.");
+        toast.warning("Ngày kết thúc phải là ngày trong tương lai. Vui lòng chọn ngày khác.");
         if (status === 'PUBLISH') {
           setSaving(false);
         } else {
@@ -392,13 +394,13 @@ export default function FormEditPage() {
       
       if (response.success) {
         const message = status === 'PUBLISH' ? "Đã lưu và publish thành công!" : "Đã lưu bản nháp thành công!";
-        alert(message);
+        toast.success(message);
       } else {
-        alert("Lỗi khi lưu: " + (response.message || "Unknown error"));
+        toast.error("Lỗi khi lưu: " + (response.message || "Unknown error"));
       }
     } catch (error: any) {
       console.error("Error saving form:", error);
-      alert("Lỗi khi lưu: " + (error?.message || "Network error"));
+      toast.error("Lỗi khi lưu: " + (error?.message || "Network error"));
     } finally {
       if (status === 'PUBLISH') {
       setSaving(false);

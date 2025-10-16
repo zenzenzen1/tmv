@@ -5,6 +5,7 @@ import { API_ENDPOINTS } from "../../config/endpoints";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import ErrorMessage from "../../components/common/ErrorMessage";
 import Pagination from "../../components/common/Pagination";
+import { useToast } from "../../components/common/ToastContext";
 
 interface FormConfig {
   id: string;
@@ -20,6 +21,7 @@ interface FormConfig {
 
 export default function FormManagementPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   
   // State
   const [forms, setForms] = useState<FormConfig[]>([]);
@@ -124,11 +126,10 @@ export default function FormManagementPage() {
       if (form.status !== 'PUBLISH' || !form.publicLink) return;
       const absoluteUrl = `${window.location.origin}${form.publicLink}`;
       await navigator.clipboard.writeText(absoluteUrl);
-      // Optional simple feedback
-      alert('Đã copy link công khai');
+      toast.success('Đã copy link công khai');
     } catch (e) {
       console.error('Copy link failed', e);
-      alert('Không thể copy link');
+      toast.error('Không thể copy link');
     }
   };
 

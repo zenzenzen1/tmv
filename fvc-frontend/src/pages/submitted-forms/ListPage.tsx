@@ -617,7 +617,9 @@ export default function SubmittedFormsPage() {
 
 function exportCsv(rows: SubmittedRow[]) {
   if (!rows || rows.length === 0) {
-    alert("Không có dữ liệu để xuất");
+    // Replace alert with toast once toast context is available here
+    // For now, keep minimal UX change if toast not wired in this file
+    console.warn("Không có dữ liệu để xuất");
     return;
   }
   

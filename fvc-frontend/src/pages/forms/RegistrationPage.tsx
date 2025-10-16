@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useToast } from '../../components/common/ToastContext';
 import apiService from '../../services/api';
 import { API_ENDPOINTS } from '../../config/endpoints';
 
@@ -24,6 +25,7 @@ type FormConfig = {
 export default function FormRegistrationPage() {
   const navigate = useNavigate();
   const { id, slug } = useParams<{ id?: string; slug?: string }>();
+  const toast = useToast();
   
   const [formConfig, setFormConfig] = useState<FormConfig | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -94,14 +96,14 @@ export default function FormRegistrationPage() {
       });
 
       if (response.success) {
-        alert('Đăng ký thành công!');
+        toast.success('Đăng ký thành công!');
         navigate('/');
       } else {
-        alert('Lỗi khi đăng ký: ' + (response.message || 'Unknown error'));
+        toast.error('Lỗi khi đăng ký: ' + (response.message || 'Unknown error'));
       }
     } catch (error: any) {
       console.error('Error submitting form:', error);
-      alert('Lỗi khi đăng ký: ' + (error?.message || 'Network error'));
+      toast.error('Lỗi khi đăng ký: ' + (error?.message || 'Network error'));
     } finally {
       setSubmitting(false);
     }
