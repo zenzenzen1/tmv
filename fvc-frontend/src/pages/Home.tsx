@@ -35,7 +35,7 @@ export default function Home() {
         .map((i) => ({
           id: i.id,
           formTitle: i.formTitle,
-          description: (i as any).description,
+          description: (i as { description?: string }).description,
           status: (i.status as FormRow["status"]) || "draft",
         }))
         .filter((i) => i.status === "publish");
@@ -106,7 +106,7 @@ export default function Home() {
                     ĐANG MỞ
                   </span>
                   <button
-                    onClick={() => navigate(`/forms/${f.id}/fill`)}
+                    onClick={() => navigate(`/published-form/${f.id}`)}
                     className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-sm hover:bg-[#2e6de0]"
                   >
                     Điền form
