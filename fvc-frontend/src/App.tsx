@@ -18,6 +18,7 @@ import CompetitionFormPage from "./pages/tournament/CompetitionFormPage";
 import FormResults from "./features/tournament/FormResults";
 // import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
+import TournamentFormBuilder from "./features/tournament/FormBuilder";
 import TournamentFormList from "./features/tournament/TournamentFormList";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
 import MainLayout from "./components/layout/MainLayout";
@@ -126,6 +127,8 @@ export default function App() {
       />
 
       {/* Direct access routes used by TournamentFormList and public links */}
+      <Route path="/form-builder" element={<TournamentFormBuilder />} />
+      <Route path="/form-builder/:id" element={<TournamentFormBuilder />} />
       <Route path="/results/:id" element={<FormResults />} />
       <Route path="/published-form/:id" element={<PublishedForm />} />
 

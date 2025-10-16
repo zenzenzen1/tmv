@@ -11,6 +11,7 @@ import {
   ChevronDownIcon,
   Bars3Icon,
 } from "@heroicons/react/24/outline";
+import { useToast } from "../../components/common/ToastContext";
 
 interface FormData {
   competitionType: string;
@@ -52,6 +53,7 @@ const FormBuilder: React.FC = () => {
   const toast = useToast();
   const navigate = useNavigate();
   const { id: editingId } = useParams<{ id: string }>();
+  const toast = useToast();
   const [formData, setFormData] = useState<FormData>({
     competitionType: "competition",
     competitionName: "PVOUP 2025 - Spring",
@@ -521,7 +523,7 @@ const FormBuilder: React.FC = () => {
                 disabled={submitting}
                 onClick={async () => {
                   if (!competitionId) {
-                    toast.warning("Vui lòng chọn giải đấu");
+                    toast.error("Vui lòng chọn giải đấu");
                     return;
                   }
 
@@ -538,7 +540,9 @@ const FormBuilder: React.FC = () => {
                         f.competitionId === competitionId
                     );
                     if (!editingId && hasForm) {
-                      toast.error("Giải đấu này đã có form rồi. Không thể tạo thêm form mới.");
+                      toast.error(
+                        "Giải đấu này đã có form rồi. Không thể tạo thêm form mới."
+                      );
                       return;
                     }
                   } catch {
@@ -559,7 +563,9 @@ const FormBuilder: React.FC = () => {
                   });
 
                   if (invalidQuestions.length > 0) {
-                    toast.warning("Vui lòng điền đầy đủ nội dung cho tất cả câu hỏi tùy chỉnh.");
+                    toast.error(
+                      "Vui lòng điền đầy đủ nội dung cho tất cả câu hỏi tùy chỉnh."
+                    );
                     return;
                   }
 
@@ -614,6 +620,7 @@ const FormBuilder: React.FC = () => {
                       sessionStorage.setItem(snapshotKey, snapNow);
                       window.dispatchEvent(new Event("forms:changed"));
                     }
+                    toast.success("Lưu thành công");
                     navigate(-1);
                   } catch (err) {
                     console.error(err);
@@ -631,7 +638,7 @@ const FormBuilder: React.FC = () => {
                 disabled={submitting}
                 onClick={async () => {
                   if (!competitionId) {
-                    toast.warning("Vui lòng chọn giải đấu");
+                    toast.error("Vui lòng chọn giải đấu");
                     return;
                   }
 
@@ -648,7 +655,9 @@ const FormBuilder: React.FC = () => {
                         f.competitionId === competitionId
                     );
                     if (!editingId && hasForm) {
-                      toast.error("Giải đấu này đã có form rồi. Không thể tạo thêm form mới.");
+                      toast.error(
+                        "Giải đấu này đã có form rồi. Không thể tạo thêm form mới."
+                      );
                       return;
                     }
                   } catch {
@@ -669,7 +678,9 @@ const FormBuilder: React.FC = () => {
                   });
 
                   if (invalidQuestions.length > 0) {
-                    toast.warning("Vui lòng điền đầy đủ nội dung cho tất cả câu hỏi tùy chỉnh.");
+                    toast.error(
+                      "Vui lòng điền đầy đủ nội dung cho tất cả câu hỏi tùy chỉnh."
+                    );
                     return;
                   }
 
@@ -724,6 +735,7 @@ const FormBuilder: React.FC = () => {
                       sessionStorage.setItem(snapshotKey, snapNow);
                       window.dispatchEvent(new Event("forms:changed"));
                     }
+                    toast.success("Lưu thành công");
                     navigate(-1);
                   } catch (err) {
                     console.error(err);
