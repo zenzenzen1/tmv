@@ -1,0 +1,21 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+MSG_FILE=$1
+MSG=$(cat "$MSG_FILE")
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$BRANCH" = "master" ]; then
+  echo "[husky] skip commit message check on master"
+  exit 0
+fi
+
+# Allowed: feat(FVC-123): description OR fix(FVC-123): description
+if echo "$MSG" | grep -Eq "^(feat|fix)\(FVC-[0-9]+\): .+"; then
+  echo "[husky] commit message OK"
+  exit 0
+else
+  echo "[husky] invalid commit message: $MSG" >&2
+  echo "Expected: feat(FVC-XXX): short description" >&2
+  exit 1
+fi

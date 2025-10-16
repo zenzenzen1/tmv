@@ -99,6 +99,12 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/v1/clubs/members/${id}`,
   },
 
+  // Club Members
+  CLUB_MEMBERS: {
+    BASE: "/v1/clubs/members",
+    BY_ID: (id: string) => `/v1/clubs/members/${id}`,
+  },
+
   // Common endpoints
   HEALTH: "/health",
   VERSION: "/version",

@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+
+import { useEffect, useState } from 'react';
 import { CommonTable, type TableColumn } from '../../components/common/CommonTable';
 import { useFistContentStore } from '../../stores/fistContent';
 import FistContentModal from './FistContentModal';
 import { Box, Chip, Stack, Typography, Button, Tabs, Tab, TextField, Autocomplete, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { fistContentService } from '../../services/fistContent';
+import { useToast } from '../../components/common/ToastContext';
 
 export default function FistContentListPage() {
   const { list, isLoading, error, fetch, openCreate, openEdit, setPage, remove, fistConfigs, fetchFistConfigs } = useFistContentStore();
+  const { success, error: toastError } = useToast();
   const [tab, setTab] = useState<'items' | 'types'>('items');
   const [allItems, setAllItems] = useState<any[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
@@ -81,9 +84,15 @@ export default function FistContentListPage() {
                       if (!configId) return;
                       if (!confirm('Xóa mục này?')) return;
                       const svc = (await import('../../services/fistContent')).fistContentService;
-                      await svc.deleteItem(configId, row.id);
-                      const res = await svc.listItems({ size: 100 });
-                      setAllItems(res?.content ?? []);
+                      try {
+                        await svc.deleteItem(configId, row.id);
+                        success('Đã xóa nội dung');
+                        const res = await svc.listItems({ size: 100 });
+                        setAllItems(res.content ?? []);
+                      } catch (e) {
+                        console.error(e);
+                        toastError('Xóa nội dung thất bại');
+                      }
                     }}>Xóa</Button>
                   </Stack>
                 ), sortable: false },
@@ -128,9 +137,11 @@ export default function FistContentListPage() {
                 setItemDescription('');
                 try {
                   const res = await svc.listItems({ size: 100 });
-                  setAllItems(res?.content ?? []);
-                } catch {
-                  setAllItems([]);
+                  setAllItems(res.content ?? []);
+                  success(editingItemId ? 'Đã cập nhật nội dung' : 'Đã tạo nội dung');
+                } catch (e) {
+                  console.error(e);
+                  toastError(editingItemId ? 'Cập nhật nội dung thất bại' : 'Tạo nội dung thất bại');
                 }
               }} variant="contained">Lưu</Button>
             </DialogActions>
