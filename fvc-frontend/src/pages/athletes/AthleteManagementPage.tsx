@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import CommonTable, {
   type TableColumn,
 } from "../../components/common/CommonTable";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import api from "../../services/api";
 import type { PaginationResponse } from "../../types/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
@@ -97,6 +98,7 @@ export default function AthleteManagementPage({
 
   const [selectedTournament, setSelectedTournament] = useState<string>(""); // tournamentId
   const [rows, setRows] = useState<AthleteRow[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [tournaments, setTournaments] = useState<
     Array<{ id: string; name: string }>
@@ -188,6 +190,9 @@ export default function AthleteManagementPage({
   useEffect(() => {
     (async () => {
       try {
+        // Avoid initial flicker: only fetch when a tournament is selected
+        if (!selectedTournament) return;
+        setIsLoading(true);
         const qs = new URLSearchParams();
         qs.set("page", String(page - 1));
         qs.set("size", String(pageSize));
@@ -196,22 +201,7 @@ export default function AthleteManagementPage({
         if (debouncedName) qs.set("name", debouncedName);
         if (genderFilter) qs.set("gender", genderFilter);
         if (statusFilter) qs.set("status", statusFilter);
-        // Standard handling by type
-        if (activeTab === "fighting") {
-          // Do NOT send weight to backend; fetch all then filter client-side
-        } else if (activeTab === "music") {
-          // Music: send selected content as detail, and optionally label the sub type
-          if (subCompetitionFilter) {
-            qs.set("subCompetitionType", "Tiết mục");
-            qs.set("detailSubCompetitionType", subCompetitionFilter);
-          }
-        } else {
-          // Quyền: category -> subCompetitionType, detail -> detailSubCompetitionType
-          if (subCompetitionFilter)
-            qs.set("subCompetitionType", subCompetitionFilter);
-          if (detailCompetitionFilter)
-            qs.set("detailSubCompetitionType", detailCompetitionFilter);
-        }
+        // Always fetch broadly; apply all competition-specific filters on client
 
         const res = await api.get<PaginationResponse<AthleteApi>>(
           `${API_ENDPOINTS.ATHLETES.BASE}?${qs.toString()}`
@@ -250,14 +240,13 @@ export default function AthleteManagementPage({
             : true;
           // Client-side filtering for competition-specific filters
           const rawSub = a.subCompetitionType || "";
-          const rawDetail = a.detailSubCompetitionType || "";
+          const rawDetail =
+            (a as any).detailSubLabel || a.detailSubCompetitionType || "";
           let okSubDetail = true;
           if (activeTab === "fighting") {
             if (subCompetitionFilter) {
               const want = normalizeWeight(subCompetitionFilter);
-              okSubDetail =
-                normalizeWeight(rawDetail) === want ||
-                normalizeWeight(rawSub) === want;
+              okSubDetail = normalizeWeight(rawDetail) === want;
             }
           } else if (activeTab === "music") {
             // Match by selected content name in detail
@@ -319,8 +308,9 @@ export default function AthleteManagementPage({
         setTotal(totalElements);
       } catch (e) {
         console.error("Failed to load athletes", e);
-        setRows([]);
-        setTotal(0);
+        // keep previous rows to avoid flicker
+      } finally {
+        setIsLoading(false);
       }
     })();
   }, [
@@ -331,7 +321,7 @@ export default function AthleteManagementPage({
     genderFilter,
     activeTab,
     statusFilter,
-    tournaments,
+    // do not refetch just because tournaments array changes (prevents flicker)
     reloadKey,
     subCompetitionFilter,
     detailCompetitionFilter,
@@ -450,7 +440,12 @@ export default function AthleteManagementPage({
         );
         const list = res.data ?? [];
         setTournaments(list);
-        // Do not auto-select a tournament; default to no filter so data can load
+        // Auto-select first tournament to avoid fetching cross-tournament data
+        if (list.length > 0) {
+          setSelectedTournament(list[0].id);
+        } else {
+          setSelectedTournament("");
+        }
       } catch (error) {
         console.error("Failed to load tournaments:", error);
       }
@@ -802,29 +797,32 @@ export default function AthleteManagementPage({
                         />
                         <span className="text-sm text-gray-700">Tất cả</span>
                       </label>
-                      {weightClasses.map((wc) => {
-                        const weightDisplay =
-                          wc.weightClass || `${wc.minWeight}-${wc.maxWeight}kg`;
-                        return (
-                          <label
-                            key={wc.id}
-                            className="flex items-center cursor-pointer"
-                          >
-                            <input
-                              type="radio"
-                              name="subCompetitionFilter"
-                              className="mr-2 h-3 w-3 text-blue-600"
-                              checked={subCompetitionFilter === weightDisplay}
-                              onChange={() =>
-                                setSubCompetitionFilter(weightDisplay)
-                              }
-                            />
-                            <span className="text-sm text-gray-700">
-                              {weightDisplay}
-                            </span>
-                          </label>
-                        );
-                      })}
+                      {[...weightClasses]
+                        .sort((a, b) => (a.minWeight ?? 0) - (b.minWeight ?? 0))
+                        .map((wc) => {
+                          const weightDisplay =
+                            wc.weightClass ||
+                            `${wc.minWeight}-${wc.maxWeight}kg`;
+                          return (
+                            <label
+                              key={wc.id}
+                              className="flex items-center cursor-pointer"
+                            >
+                              <input
+                                type="radio"
+                                name="subCompetitionFilter"
+                                className="mr-2 h-3 w-3 text-blue-600"
+                                checked={subCompetitionFilter === weightDisplay}
+                                onChange={() =>
+                                  setSubCompetitionFilter(weightDisplay)
+                                }
+                              />
+                              <span className="text-sm text-gray-700">
+                                {weightDisplay}
+                              </span>
+                            </label>
+                          );
+                        })}
                     </div>
                   </div>
                 )}
@@ -963,24 +961,29 @@ export default function AthleteManagementPage({
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow pb-6">
+      <div className="bg-white rounded-lg shadow pb-6 min-h-[300px]">
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">
             {COMPETITION_TYPES[activeTab]}
           </h2>
         </div>
-
-        <CommonTable
-          data={rows.map((row, index) => ({
-            ...row,
-            stt: (page - 1) * pageSize + index + 1,
-          }))}
-          columns={columns}
-          page={page}
-          pageSize={pageSize}
-          total={total}
-          onPageChange={setPage}
-        />
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <LoadingSpinner />
+          </div>
+        ) : (
+          <CommonTable
+            data={rows.map((row, index) => ({
+              ...row,
+              stt: (page - 1) * pageSize + index + 1,
+            }))}
+            columns={columns}
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+          />
+        )}
       </div>
     </div>
   );
