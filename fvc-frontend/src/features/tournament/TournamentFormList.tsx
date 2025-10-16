@@ -32,27 +32,27 @@ export default function TournamentFormList() {
       {
         key: "tournament",
         title: "Giải đấu",
-        className: "whitespace-nowrap text-[15px]",
+        className: "text-[15px] w-64",
       },
       {
         key: "formTitle",
         title: "Tiêu đề Form",
-        className: "whitespace-nowrap text-[15px]",
+        className: "text-[15px] w-96",
       },
       {
         key: "participants",
         title: "Số người tham gia",
-        className: "whitespace-nowrap text-[15px]",
+        className: "text-[15px] w-24 text-center",
       },
       {
         key: "createdAt",
         title: "Ngày tạo",
-        className: "whitespace-nowrap text-[15px]",
+        className: "text-[15px] w-36",
       },
       {
         key: "status",
         title: "Trạng thái",
-        className: "whitespace-nowrap text-[15px]",
+        className: "text-[15px] w-40",
         render: (r: FormRow) => (
           <div className="flex items-center gap-2">
             <select
@@ -112,7 +112,7 @@ export default function TournamentFormList() {
       {
         key: "actions",
         title: "Thao tác",
-        className: "whitespace-nowrap text-[15px]",
+        className: "text-[15px] whitespace-nowrap w-40",
         render: (r: FormRow) => (
           <div className="flex items-center gap-2">
             <button

@@ -4,8 +4,8 @@ import { Gender, WeightClassStatus } from "../../types";
 import type {
   CreateWeightClassRequest,
   UpdateWeightClassRequest,
-  WeightClassResponse,
 } from "../../types";
+import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem, Button, Alert, Stack, InputLabel, FormControl } from '@mui/material';
 
 export default function WeightClassModal() {
   const { modalOpen, editing, closeModal, create, update } =
@@ -95,76 +95,58 @@ export default function WeightClassModal() {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">
-            {editing ? "Chỉnh sửa hạng cân" : "Thêm hạng cân"}
-          </h2>
-          <button onClick={closeModal} className="input-field">
-            ×
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm mb-1">Hạng cân (kg) - Min</label>
-            <input
-              className="input-field"
+    <Dialog open={modalOpen} onClose={closeModal} fullWidth maxWidth="sm">
+      <DialogTitle>{editing ? "Chỉnh sửa hạng cân" : "Thêm hạng cân"}</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2}>
+          <Stack direction="row" spacing={2}>
+            <TextField
+              label="Hạng cân (kg) - Min"
               value={minWeight}
               onChange={(e) => setMinWeight(e.target.value)}
               placeholder="45"
+              fullWidth
             />
-          </div>
-          <div>
-            <label className="block text-sm mb-1">Hạng cân (kg) - Max</label>
-            <input
-              className="input-field"
+            <TextField
+              label="Hạng cân (kg) - Max"
               value={maxWeight}
               onChange={(e) => setMaxWeight(e.target.value)}
               placeholder="50"
+              fullWidth
             />
-          </div>
+          </Stack>
 
           {!editing && (
-            <div className="col-span-2">
-              <label className="block text-sm mb-1">Giới tính</label>
-              <select
-                className="input-field"
+            <FormControl fullWidth>
+              <InputLabel id="gender-label">Giới tính</InputLabel>
+              <Select
+                labelId="gender-label"
+                label="Giới tính"
                 value={gender}
                 onChange={(e) => setGender(e.target.value as Gender)}
               >
-                <option value={Gender.MALE}>Nam</option>
-                <option value={Gender.FEMALE}>Nữ</option>
-              </select>
-            </div>
+                <MenuItem value={Gender.MALE}>Nam</MenuItem>
+                <MenuItem value={Gender.FEMALE}>Nữ</MenuItem>
+              </Select>
+            </FormControl>
           )}
 
-          <div className="col-span-2">
-            <label className="block text-sm mb-1">Ghi chú</label>
-            <input
-              className="input-field"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="VD: Chuẩn quốc gia / Áp dụng 2025"
-            />
-          </div>
-        </div>
+          <TextField
+            label="Ghi chú"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="VD: Chuẩn quốc gia / Áp dụng 2025"
+            fullWidth
+          />
 
-        {error && <div className="text-red-600 mt-3">{error}</div>}
-
-        <div className="flex justify-end gap-2 mt-6">
-          <button className="input-field" onClick={closeModal}>
-            Hủy
-          </button>
-          <button className="input-field" onClick={onSaveDraft}>
-            Lưu nháp
-          </button>
-          <button className="btn-primary" onClick={onSave}>
-            Lưu
-          </button>
-        </div>
-      </div>
-    </div>
+          {error && <Alert severity="error">{error}</Alert>}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={closeModal} color="inherit">Hủy</Button>
+        <Button onClick={onSaveDraft} variant="outlined">Lưu nháp</Button>
+        <Button onClick={onSave} variant="contained">Lưu</Button>
+      </DialogActions>
+    </Dialog>
   );
 }
