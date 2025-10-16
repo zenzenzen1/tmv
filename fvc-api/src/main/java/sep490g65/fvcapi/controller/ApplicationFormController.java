@@ -37,7 +37,21 @@ public class ApplicationFormController {
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, data));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/paginated")
+    public ResponseEntity<BaseResponse<org.springframework.data.domain.Page<ApplicationFormConfigResponse>>> listPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String dateFrom,
+            @RequestParam(required = false) String dateTo,
+            @RequestParam(required = false) String status
+    ) {
+        org.springframework.data.domain.Page<ApplicationFormConfigResponse> data = applicationFormService.listPaginated(
+                page, size, search, dateFrom, dateTo, status);
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, data));
+    }
+
+    @GetMapping("/id/{id}")
     public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> getById(
             @PathVariable String id
     ) {
@@ -45,7 +59,7 @@ public class ApplicationFormController {
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, data));
     }
 
-    @GetMapping("/{formType}")
+    @GetMapping("/type/{formType}")
     public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> getByFormType(
             @PathVariable ApplicationFormType formType
     ) {

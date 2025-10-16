@@ -7,6 +7,7 @@ import sep490g65.fvcapi.enums.FormStatus;
 import sep490g65.fvcapi.enums.FormStatusConverter;
 import sep490g65.fvcapi.entity.Competition;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,6 +48,9 @@ public class ApplicationFormConfig extends BaseEntity {
     @Convert(converter = FormStatusConverter.class)
     @Column(length = 20)
     private FormStatus status;
+
+    @Column(name = "end_date")
+    private LocalDateTime endDate;
 
 }
 

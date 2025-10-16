@@ -31,7 +31,7 @@ export default function TournamentSidebar({
     fighting: "/manage/athletes/fighting",
     forms: "/manage/fist-content",
     music: "/manage/music-content",
-    formList: "/manage/form-list",
+    formList: "/manage/forms",
     submittedForms: "/manage/submitted-forms",
   };
 

@@ -1,6 +1,11 @@
 package sep490g65.fvcapi.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.request.CreateApplicationFormConfigRequest;
@@ -9,9 +14,12 @@ import sep490g65.fvcapi.dto.response.ApplicationFormConfigResponse;
 import sep490g65.fvcapi.entity.ApplicationFormConfig;
 import sep490g65.fvcapi.entity.ApplicationFormField;
 import sep490g65.fvcapi.enums.ApplicationFormType;
+import sep490g65.fvcapi.enums.FormStatus;
 import sep490g65.fvcapi.repository.ApplicationFormConfigRepository;
 import sep490g65.fvcapi.service.ApplicationFormService;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -87,6 +95,7 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         // Update basic info
         config.setName(request.getName());
         config.setDescription(request.getDescription());
+        config.setEndDate(request.getEndDate());
 
         // Clear existing fields and add new ones
         config.getFields().clear();
@@ -194,8 +203,68 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
                 .description(config.getDescription())
                 .formType(config.getFormType())
                 .fields(fieldResponses)
+                .endDate(config.getEndDate())
                 .createdAt(config.getCreatedAt())
                 .updatedAt(config.getUpdatedAt())
                 .build();
+    }
+
+    @Scheduled(fixedRate = 300000) // Run every 5 minutes
+    @Transactional
+    public void autoUnpublishExpiredForms() {
+        LocalDateTime now = LocalDateTime.now();
+        List<ApplicationFormConfig> expiredForms = applicationFormConfigRepository
+                .findByEndDateBeforeAndStatus(now, FormStatus.PUBLISH);
+        
+        for (ApplicationFormConfig form : expiredForms) {
+            form.setStatus(FormStatus.DRAFT);
+            applicationFormConfigRepository.save(form);
+        }
+        
+        if (!expiredForms.isEmpty()) {
+            System.out.println("Auto-unpublished " + expiredForms.size() + " expired forms");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ApplicationFormConfigResponse> listPaginated(int page, int size, String search, String dateFrom, String dateTo, String status) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        
+        // Parse dates
+        LocalDateTime fromDate = null;
+        LocalDateTime toDate = null;
+        
+        if (dateFrom != null && !dateFrom.trim().isEmpty()) {
+            try {
+                fromDate = LocalDateTime.parse(dateFrom + "T00:00:00");
+            } catch (Exception e) {
+                // Invalid date format, ignore
+            }
+        }
+        
+        if (dateTo != null && !dateTo.trim().isEmpty()) {
+            try {
+                toDate = LocalDateTime.parse(dateTo + "T23:59:59");
+            } catch (Exception e) {
+                // Invalid date format, ignore
+            }
+        }
+        
+        // Parse status
+        FormStatus statusEnum = null;
+        if (status != null && !status.trim().isEmpty()) {
+            try {
+                statusEnum = FormStatus.valueOf(status.toUpperCase());
+            } catch (Exception e) {
+                // Invalid status, ignore
+            }
+        }
+        
+        // Use repository method with filters
+        Page<ApplicationFormConfig> configs = applicationFormConfigRepository.findWithFilters(
+            search, fromDate, toDate, statusEnum, pageable);
+        
+        return configs.map(this::mapToResponse);
     }
 }

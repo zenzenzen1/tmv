@@ -7,6 +7,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import SubmittedFormsPage from "./pages/submitted-forms/ListPage";
 import FormListPage from "./pages/forms/ListPage";
+import FormManagementPage from "./pages/forms/ManagementPage";
 import FormBuilderPage from "./pages/forms/BuilderPage";
 import FormEditPage from "./pages/forms/EditPage";
 import FormRegistrationPage from "./pages/forms/RegistrationPage";
@@ -71,11 +72,11 @@ export default function App() {
 
         {/* Forms */}
         <Route path="form-list" element={<FormListPage />} />
-        <Route path="forms" element={<FormListPage />} />
+        <Route path="forms" element={<FormManagementPage />} />
         <Route path="forms/new" element={<FormBuilderPage />} />
-        <Route path="forms/:id/edit" element={<FormEditPage />} />
-        <Route path="forms/:id/view" element={<FormRegistrationPage />} />
-        <Route path="forms/:id/fill" element={<PublishedForm />} />
+        <Route path="forms/edit/:id" element={<FormEditPage />} />
+        <Route path="forms/view/:id" element={<FormRegistrationPage />} />
+        <Route path="forms/fill/:id" element={<PublishedForm />} />
         <Route path="submitted-forms" element={<SubmittedFormsPage />} />
         <Route path="results/:id" element={<FormResults />} />
 

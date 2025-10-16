@@ -15,6 +15,7 @@ type FormField = {
   required: boolean;
   note?: string;
   sortOrder: number;
+  options?: string;
 };
 
 export default function FormEditPage() {
@@ -23,49 +24,42 @@ export default function FormEditPage() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [fields, setFields] = useState<FormField[]>([]);
-  const [customFields, setCustomFields] = useState<FormField[]>([]);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  function handleChangeField(idx: number, patch: Partial<FormField>, isCustom = false) {
-    if (isCustom) {
-      setCustomFields((prev) => {
-        const copy = [...prev];
+  function handleChangeField(fieldId: string, patch: Partial<FormField>) {
+    setFields((prev) => {
+      const copy = [...prev];
+      const idx = copy.findIndex(f => f.id === fieldId);
+      if (idx !== -1) {
         copy[idx] = { ...copy[idx], ...patch } as FormField;
-        return copy;
-      });
-    } else {
-      setFields((prev) => {
-        const copy = [...prev];
-        copy[idx] = { ...copy[idx], ...patch } as FormField;
-        return copy;
-      });
-    }
+      }
+      return copy;
+    });
   }
 
-  function handleDeleteCustom(idx: number) {
-    setCustomFields((prev) => prev.filter((_, i) => i !== idx));
+  function handleDelete(fieldId: string) {
+    setFields((prev) => prev.filter((f) => f.id !== fieldId));
   }
 
-  function findFieldIndex(fieldId: string, isCustom = false): number {
-    return (isCustom ? customFields : fields).findIndex(f => f.id === fieldId);
+  function findFieldIndex(fieldId: string): number {
+    return fields.findIndex(f => f.id === fieldId);
   }
 
   function handleAdd(type: FieldType) {
-    setCustomFields((prev) => [
-      ...prev,
-      makeField("", "", "", type, false, (prev[prev.length - 1]?.sortOrder ?? fields.length + prev.length + 1)),
-    ]);
+    const newField = makeField("", "", "", type, false, (fields[fields.length - 1]?.sortOrder ?? 0) + 1, "");
+    setFields((prev) => [...prev, newField]);
     setShowAddMenu(false);
   }
 
   function handleDragEnd(result: any) {
     if (!result.destination) return;
 
-    const items = Array.from(customFields);
+    const items = Array.from(fields);
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
 
@@ -75,7 +69,7 @@ export default function FormEditPage() {
       sortOrder: index + 1,
     }));
 
-    setCustomFields(updatedItems);
+    setFields(updatedItems);
   }
 
   useEffect(() => {
@@ -84,13 +78,13 @@ export default function FormEditPage() {
 
   // Fallback: if BE không trả fields, hiển thị 5 trường bắt buộc mặc định
   useEffect(() => {
-    if (!loading && fields.length === 0 && customFields.length === 0) {
+    if (!loading && fields.length === 0) {
       const base = [
-        makeField("Họ và tên", "fullName", "", "TEXT", true, 1),
-        makeField("Email", "email", "", "TEXT", true, 2),
-        makeField("MSSV", "studentCode", "", "TEXT", true, 3),
-        makeField("SDT liên lạc", "phone", "", "TEXT", false, 4),
-        makeField("Mô tả ngắn về bản thân", "bio", "", "TEXT", false, 5),
+        makeField("Họ và tên", "fullName", "", "TEXT", true, 1, ""),
+        makeField("Email", "email", "", "TEXT", true, 2, ""),
+        makeField("MSSV", "studentCode", "", "TEXT", true, 3, ""),
+        makeField("SDT liên lạc", "phone", "", "TEXT", false, 4, ""),
+        makeField("Mô tả ngắn về bản thân", "bio", "", "TEXT", false, 5, ""),
       ];
       setFields(base);
     }
@@ -108,11 +102,12 @@ export default function FormEditPage() {
       
       if (id) {
         // Load form theo ID
-        const response = await apiService.get<any>(`${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${id}`);
+        const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id));
         
         if (response.success && response.data) {
           setTitle(response.data.name || "");
           setDescription(response.data.description || "");
+          setEndDate(response.data.endDate ? new Date(response.data.endDate).toISOString().split('T')[0] : "");
           
           const formFields = response.data.fields?.map((field: any) => ({
             id: field.id || crypto.randomUUID(),
@@ -121,6 +116,7 @@ export default function FormEditPage() {
             fieldType: field.fieldType || "TEXT",
             required: field.required || false,
             sortOrder: field.sortOrder || 0,
+            options: field.options || "",
           })) || [];
           
           setFields(formFields);
@@ -135,6 +131,7 @@ export default function FormEditPage() {
         if (response.success && response.data) {
           setTitle(response.data.name || "");
           setDescription(response.data.description || "");
+          setEndDate(response.data.endDate ? new Date(response.data.endDate).toISOString().split('T')[0] : "");
           
           const formFields = response.data.fields?.map((field: any) => ({
             id: field.id || crypto.randomUUID(),
@@ -143,6 +140,7 @@ export default function FormEditPage() {
             fieldType: field.fieldType || "TEXT",
             required: field.required || false,
             sortOrder: field.sortOrder || 0,
+            options: field.options || "",
           })) || [];
           
           setFields(formFields);
@@ -191,6 +189,7 @@ export default function FormEditPage() {
         name: title,
         description: description,
         formType: "CLUB_REGISTRATION",
+        endDate: endDate ? new Date(endDate).toISOString() : null,
         fields: fields.map(field => ({
           id: field.id,
           label: field.label,
@@ -273,6 +272,19 @@ export default function FormEditPage() {
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
+                <div>
+                  <div className="mb-1 text-[13px] font-semibold text-gray-800">Ngày kết thúc</div>
+                  <input
+                    type="datetime-local"
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    placeholder="Chọn ngày kết thúc"
+                  />
+                  <div className="mt-1 text-xs text-gray-500">
+                    Form sẽ tự động hết public khi đến ngày này
+                  </div>
+                </div>
               </div>
 
           {/* Fields */}
@@ -298,14 +310,14 @@ export default function FormEditPage() {
                                   <input
                                     type="checkbox"
                                     checked={f.required}
-                                    onChange={(e) => handleChangeField(findFieldIndex(f.id), { required: e.target.checked })}
+                                    onChange={(e) => handleChangeField(f.id, { required: e.target.checked })}
                                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                   />
                                   Required
                                 </label>
                                 <button 
                                   className="text-red-500 hover:text-red-700 text-sm"
-                                  onClick={() => handleDelete(findFieldIndex(f.id))}
+                                  onClick={() => handleDelete(f.id)}
                                 >
                                   ×
                                 </button>
@@ -317,7 +329,7 @@ export default function FormEditPage() {
                                 <input
                                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
                                   value={f.label}
-                                  onChange={(e) => handleChangeField(findFieldIndex(f.id), { label: e.target.value })}
+                                  onChange={(e) => handleChangeField(f.id, { label: e.target.value })}
                                   placeholder="Nhập câu hỏi"
                                 />
                               </div>
@@ -357,6 +369,18 @@ export default function FormEditPage() {
                                   )}
                                 </div>
                               </div>
+                              {(f.fieldType === "SELECT" || f.fieldType === "CHECKBOX") && (
+                                <div>
+                                  <div className="mb-1 text-xs font-medium text-gray-700">Tùy chọn (mỗi dòng một tùy chọn)</div>
+                                  <textarea
+                                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                                    value={f.options || ""}
+                                    onChange={(e) => handleChangeField(f.id, { options: e.target.value })}
+                                    placeholder="Tùy chọn 1&#10;Tùy chọn 2&#10;Tùy chọn 3"
+                                    rows={3}
+                                  />
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -430,7 +454,8 @@ function makeField(
   placeholder: string,
   fieldType: FieldType,
   required: boolean,
-  sortOrder: number
+  sortOrder: number,
+  options?: string
 ): FormField {
   return {
     id: crypto.randomUUID(),
@@ -440,6 +465,7 @@ function makeField(
     fieldType,
     required,
     sortOrder,
+    options: options || "",
   };
 }
 

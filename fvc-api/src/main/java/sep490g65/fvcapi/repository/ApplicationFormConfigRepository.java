@@ -9,7 +9,9 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import sep490g65.fvcapi.entity.ApplicationFormConfig;
 import sep490g65.fvcapi.enums.ApplicationFormType;
+import sep490g65.fvcapi.enums.FormStatus;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,4 +36,19 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
 
     @EntityGraph(attributePaths = {"fields", "competition"})
     Optional<ApplicationFormConfig> findWithFieldsById(String id);
+
+    List<ApplicationFormConfig> findByEndDateBeforeAndStatus(LocalDateTime endDate, FormStatus status);
+
+    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE " +
+           "(:search IS NULL OR LOWER(afc.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(afc.description) LIKE LOWER(CONCAT('%', :search, '%'))) AND " +
+           "(:dateFrom IS NULL OR afc.createdAt >= :dateFrom) AND " +
+           "(:dateTo IS NULL OR afc.createdAt <= :dateTo) AND " +
+           "(:status IS NULL OR afc.status = :status)")
+    Page<ApplicationFormConfig> findWithFilters(
+        @Param("search") String search,
+        @Param("dateFrom") LocalDateTime dateFrom,
+        @Param("dateTo") LocalDateTime dateTo,
+        @Param("status") FormStatus status,
+        Pageable pageable
+    );
 }

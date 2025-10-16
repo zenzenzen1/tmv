@@ -20,6 +20,7 @@ public class ApplicationFormConfigResponse {
     private String description;
     private ApplicationFormType formType;
     private List<ApplicationFormFieldResponse> fields;
+    private LocalDateTime endDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
