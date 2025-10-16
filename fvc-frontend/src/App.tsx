@@ -21,10 +21,14 @@ import PublishedForm from "./features/tournament/PublishedForm";
 import TournamentFormBuilder from "./features/tournament/FormBuilder";
 import TournamentFormList from "./features/tournament/TournamentFormList";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
+
+import MemberManagementListPage from "./pages/member-management/ListPage";
+
 import MainLayout from "./components/layout/MainLayout";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
+
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -51,9 +55,21 @@ export default function App() {
         }
       />
 
+
+      {/* Member Management */}
+      <Route path="/member-management" element={<MemberManagementListPage />} />
+
+      {/* Tournaments */}
+      <Route path="/tournaments" element={<TournamentListPage />} />
+      <Route path="/tournaments/create" element={<CompetitionFormPage />} />
+      <Route path="/tournaments/edit/:id" element={<CompetitionFormPage />} />
+      <Route path="/tournaments/view/:id" element={<CompetitionFormPage />} />
+     
+
       {/* Public Home */}
       <Route path="/home" element={<Home />} />
       <Route path="dashboard" element={<DashboardPage />} />
+
 
       {/* Protected app routes under /manage */}
       <Route
