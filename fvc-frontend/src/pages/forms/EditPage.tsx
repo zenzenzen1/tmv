@@ -178,26 +178,20 @@ export default function FormEditPage() {
   };
 
   const createDefaultForm = async () => {
-    try {
-      const response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.INIT_CLUB);
-      if (response.success && response.data) {
-        setTitle(response.data.name || "");
-        setDescription(response.data.description || "");
-        
-        const formFields = response.data.fields?.map((field: any) => ({
-          id: field.id || crypto.randomUUID(),
-          label: field.label || "",
-          name: field.name || "",
-          fieldType: field.fieldType || "TEXT",
-          required: field.required || false,
-          sortOrder: field.sortOrder || 0,
-        })) || [];
-        
-        setFields(formFields);
-      }
-    } catch (error) {
-      console.error("Error creating default form:", error);
-    }
+    // Tạo form hoàn toàn mới với các trường mặc định
+    setTitle("Form đăng ký câu lạc bộ");
+    setDescription("Điền thông tin để đăng ký tham gia câu lạc bộ");
+    setEndDate("");
+    
+    const defaultFields = [
+      makeField("Họ và tên", "ho_ten", "", "TEXT", true, 1, ""),
+      makeField("Email", "email", "", "EMAIL", true, 2, ""),
+      makeField("MSSV", "mssv", "", "TEXT", true, 3, ""),
+      makeField("Số điện thoại", "so_dien_thoai", "", "TEXT", false, 4, ""),
+      makeField("Mô tả ngắn về bản thân", "mo_ta_ban_than", "", "TEXTAREA", false, 5, ""),
+    ];
+    
+    setFields(defaultFields);
   };
 
   const handleSave = async () => {
@@ -228,7 +222,14 @@ export default function FormEditPage() {
         }))
       };
 
-      const response = await apiService.put<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_TYPE('CLUB_REGISTRATION'), requestData);
+      let response;
+      if (id === 'new') {
+        // Tạo form mới
+        response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.CREATE, requestData);
+      } else {
+        // Cập nhật form cũ
+        response = await apiService.put<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_TYPE('CLUB_REGISTRATION'), requestData);
+      }
       
       if (response.success) {
         alert("Đã lưu thành công!");
