@@ -10,6 +10,7 @@ import sep490g65.fvcapi.entity.Athlete;
 import sep490g65.fvcapi.repository.AthleteRepository;
 
 import java.util.UUID;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -68,6 +69,18 @@ public class AthleteService {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("status"), status));
         }
         return athleteRepository.findAll(spec, pageable);
+    }
+
+    @Transactional
+    public void arrangeOrder(String tournamentId, String contentId, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
+        // For now, ignore contentId and set order for provided athletes
+        for (sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder ao : orders) {
+            UUID id = UUID.fromString(ao.getAthleteId());
+            athleteRepository.findById(id).ifPresent(a -> {
+                a.setCompetitionOrder(ao.getOrder());
+                athleteRepository.save(a);
+            });
+        }
     }
 }
 

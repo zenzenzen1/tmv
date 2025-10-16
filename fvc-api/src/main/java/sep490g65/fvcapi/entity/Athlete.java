@@ -55,6 +55,9 @@ public class Athlete extends BaseEntity {
     @Column(nullable = false)
     private AthleteStatus status; // NOT_STARTED / IN_PROGRESS / DONE / VIOLATED
 
+    @Column(name = "competition_order")
+    private Integer competitionOrder;
+
     public enum Gender { MALE, FEMALE }
 
     public enum CompetitionType { fighting, quyen, music }

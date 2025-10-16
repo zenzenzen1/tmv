@@ -27,17 +27,17 @@ import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
-
+import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
 
-  const Protected = ({ children }: { children: React.ReactElement }) => {
+  function Protected({ children }: { children: React.ReactElement }) {
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
     }
     return children;
-  };
+  }
 
   // Nếu đã login → hiển thị layout chính
   return (
@@ -110,11 +110,16 @@ export default function App() {
         <Route path="fist-content" element={<FistContentListPage />} />
         <Route path="fist-content/:id/items" element={<FistItemsPage />} />
         <Route path="music-content" element={<MusicContentListPage />} />
+
+        {/* Arrange */}
+        <Route path="arrange" element={<ArrangeOrderWrapper />} />
+        <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
       </Route>
 
       {/* Legacy redirects to /manage */}
       <Route path="/tournaments/*" element={<Navigate to="/manage/tournaments" replace />} />
       <Route path="/athletes/*" element={<Navigate to="/manage/athletes" replace />} />
+      <Route path="/arrange/*" element={<Navigate to="/manage/arrange" replace />} />
       <Route path="/form-list" element={<Navigate to="/manage/form-list" replace />} />
       <Route path="/submitted-forms" element={<Navigate to="/manage/submitted-forms" replace />} />
       <Route path="/forms/*" element={<Navigate to="/manage/forms" replace />} />

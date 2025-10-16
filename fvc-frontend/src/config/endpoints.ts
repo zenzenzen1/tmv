@@ -90,6 +90,13 @@ export const API_ENDPOINTS = {
   // Athletes
   ATHLETES: {
     BASE: "/v1/athletes",
+    ARRANGE_ORDER: "/v1/athletes/arrange-order",
+  },
+
+  // Club Members
+  CLUB_MEMBERS: {
+    BASE: "/v1/clubs/members",
+    BY_ID: (id: string) => `/v1/clubs/members/${id}`,
   },
 
   // Club Members
