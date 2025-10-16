@@ -324,6 +324,24 @@ export default function FormEditPage() {
         }
         return;
       }
+
+      // Validate end date when publishing
+      if (status === 'PUBLISH' && (!endDate || endDate.trim() === '')) {
+        alert("Không thể publish form mà chưa có ngày kết thúc. Vui lòng chọn ngày kết thúc.");
+        setSaving(false);
+        return;
+      }
+
+      // Validate end date is in the future
+      if (endDate && new Date(endDate) <= new Date()) {
+        alert("Ngày kết thúc phải là ngày trong tương lai. Vui lòng chọn ngày khác.");
+        if (status === 'PUBLISH') {
+          setSaving(false);
+        } else {
+          setSavingDraft(false);
+        }
+        return;
+      }
       
       const requestData = {
         name: title,
@@ -438,16 +456,99 @@ export default function FormEditPage() {
                   />
                 </div>
                 <div>
-                  <div className="mb-1 text-[13px] font-semibold text-gray-800">Ngày kết thúc</div>
-                  <input
-                    type="datetime-local"
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    placeholder="Chọn ngày kết thúc"
-                  />
+                  <div className="mb-1 text-[13px] font-semibold text-gray-800">
+                    Ngày kết thúc <span className="text-red-500">*</span>
+                  </div>
+                  <div className="space-y-2">
+                    {/* Quick date selection buttons */}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          tomorrow.setHours(23, 59, 0, 0);
+                          setEndDate(tomorrow.toISOString().slice(0, 16));
+                        }}
+                        className="px-3 py-1 text-xs bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors"
+                      >
+                        Ngày mai 23:59
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextWeek = new Date();
+                          nextWeek.setDate(nextWeek.getDate() + 7);
+                          nextWeek.setHours(23, 59, 0, 0);
+                          setEndDate(nextWeek.toISOString().slice(0, 16));
+                        }}
+                        className="px-3 py-1 text-xs bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors"
+                      >
+                        Tuần sau
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextMonth = new Date();
+                          nextMonth.setMonth(nextMonth.getMonth() + 1);
+                          nextMonth.setHours(23, 59, 0, 0);
+                          setEndDate(nextMonth.toISOString().slice(0, 16));
+                        }}
+                        className="px-3 py-1 text-xs bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 transition-colors"
+                      >
+                        Tháng sau
+                      </button>
+                    </div>
+                    
+                    <div className="relative">
+                      <input
+                        type="datetime-local"
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-[#2563eb] focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        placeholder="Chọn ngày và giờ kết thúc"
+                        min={new Date().toISOString().slice(0, 16)}
+                        required
+                      />
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
                   <div className="mt-1 text-xs text-gray-500">
-                    Form sẽ tự động hết public khi đến ngày này
+                    <div className="flex items-center gap-1">
+                      <svg className="w-3 h-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      Form sẽ tự động hết public khi đến ngày này
+                    </div>
+                    {endDate && (
+                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          <div className="text-sm text-green-800">
+                            <div className="font-medium">Ngày kết thúc đã chọn:</div>
+                            <div className="text-green-700">
+                              {new Date(endDate).toLocaleString('vi-VN', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-1 text-xs text-green-600">
+                          Còn lại: {Math.ceil((new Date(endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} ngày
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
