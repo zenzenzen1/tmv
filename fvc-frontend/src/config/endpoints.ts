@@ -86,6 +86,7 @@ export const API_ENDPOINTS = {
   // Athletes
   ATHLETES: {
     BASE: "/v1/athletes",
+    ARRANGE_ORDER: "/v1/athletes/arrange-order",
   },
 
   // Common endpoints

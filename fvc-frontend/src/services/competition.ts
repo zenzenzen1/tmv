@@ -13,6 +13,7 @@ import type { BaseResponse } from '../types/api';
 // Tournament/Competition API service
 class CompetitionService {
   private readonly baseEndpoint = API_ENDPOINTS.COMPETITIONS.BASE;
+  private readonly arrangeOrderEndpoint = API_ENDPOINTS.ATHLETES.ARRANGE_ORDER;
 
   // Get all competitions with filters and pagination
   async getCompetitions(filters: CompetitionFilters = {}): Promise<PaginationResponse<CompetitionResponse>> {
@@ -76,6 +77,14 @@ class CompetitionService {
     // This would typically be a separate endpoint, but for now we'll extract from competitions
     const response = await apiService.get<CompetitionResponse[]>(`${this.baseEndpoint}/locations`);
     return response.data.map(comp => comp.location).filter(Boolean) as string[];
+  }
+
+  async arrangeOrder(payload: {
+    tournamentId: string;
+    contentId: string;
+    athleteOrders: Array<{ athleteId: string; order: number }>;
+  }): Promise<void> {
+    await apiService.post(this.arrangeOrderEndpoint, payload);
   }
 }
 
