@@ -13,6 +13,8 @@ import sep490g65.fvcapi.dto.response.ApplicationFormConfigResponse;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.enums.ApplicationFormType;
 import sep490g65.fvcapi.service.ApplicationFormService;
+import sep490g65.fvcapi.entity.ApplicationFormConfig;
+import sep490g65.fvcapi.repository.ApplicationFormConfigRepository;
 import sep490g65.fvcapi.utils.ResponseUtils;
 
 import java.util.List;
@@ -23,6 +25,7 @@ import java.util.List;
 public class ApplicationFormController {
 
     private final ApplicationFormService applicationFormService;
+    private final ApplicationFormConfigRepository applicationFormConfigRepository;
 
     @PostMapping
     public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> create(
@@ -82,5 +85,18 @@ public class ApplicationFormController {
     public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> initClubRegistrationForm() {
         ApplicationFormConfigResponse data = applicationFormService.createDefaultClubRegistrationForm();
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
+    }
+
+    // Public endpoint to get form by slug
+    @GetMapping("/public/{slug}")
+    public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> getPublicBySlug(@PathVariable String slug) {
+        ApplicationFormConfig config = applicationFormConfigRepository.findByPublicSlug(slug)
+                .orElseThrow(() -> new RuntimeException("Public form not found"));
+        // Only allow published forms
+        if (config.getStatus() == null || !config.getStatus().name().equals("PUBLISH")) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ResponseUtils.error("Form is not public", "FORM_NOT_PUBLIC"));
+        }
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, applicationFormService.getById(config.getId())));
     }
 }

@@ -115,4 +115,7 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
     // Get all CLUB_REGISTRATION forms
     @Query("SELECT afc FROM ApplicationFormConfig afc WHERE afc.formType = 'CLUB_REGISTRATION'")
     Page<ApplicationFormConfig> findAllClubRegistration(Pageable pageable);
+
+    Optional<ApplicationFormConfig> findByPublicSlug(String publicSlug);
+    boolean existsByPublicSlug(String publicSlug);
 }

@@ -50,8 +50,8 @@ export default function FormEditPage() {
   };
 
   function handleChangeField(fieldId: string, patch: Partial<FormField>) {
-    setFields((prev) => {
-      const copy = [...prev];
+      setFields((prev) => {
+        const copy = [...prev];
       const idx = copy.findIndex(f => f.id === fieldId);
       if (idx !== -1) {
         const updatedField = { ...copy[idx], ...patch } as FormField;
@@ -73,8 +73,8 @@ export default function FormEditPage() {
         
         copy[idx] = updatedField;
       }
-      return copy;
-    });
+        return copy;
+      });
   }
 
   function handleDelete(fieldId: string) {
@@ -308,7 +308,7 @@ export default function FormEditPage() {
   const handleSave = async (status: 'PUBLISH' | 'DRAFT' = 'PUBLISH') => {
     try {
       if (status === 'PUBLISH') {
-        setSaving(true);
+      setSaving(true);
       } else {
         setSavingDraft(true);
       }
@@ -401,7 +401,7 @@ export default function FormEditPage() {
       alert("Lỗi khi lưu: " + (error?.message || "Network error"));
     } finally {
       if (status === 'PUBLISH') {
-        setSaving(false);
+      setSaving(false);
       } else {
         setSavingDraft(false);
       }
@@ -460,10 +460,10 @@ export default function FormEditPage() {
             <button 
               onClick={requestPublish} 
               disabled={saving || savingDraft}
-              className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50"
-            >
+            className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50"
+          >
               {saving ? "Đang lưu..." : (id === 'new' ? "TẠO & PUBLISH" : "SỬA & PUBLISH")}
-            </button>
+          </button>
           </div>
         </div>
 

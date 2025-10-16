@@ -52,5 +52,8 @@ public class ApplicationFormConfig extends BaseEntity {
     @Column(name = "end_date")
     private LocalDateTime endDate;
 
+    @Column(name = "public_slug", length = 120, unique = true)
+    private String publicSlug;
+
 }
 

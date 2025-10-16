@@ -50,6 +50,7 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/v1/application-forms/id/${id}`,
     BY_TYPE: (type: string) => `/v1/application-forms/type/${type}`,
     INIT_CLUB: "/v1/application-forms/init-club-registration",
+    PUBLIC_BY_SLUG: (slug: string) => `/v1/application-forms/public/${slug}`,
   },
 
   // Tournament forms

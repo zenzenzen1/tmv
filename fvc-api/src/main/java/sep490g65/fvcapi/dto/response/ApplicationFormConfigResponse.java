@@ -25,6 +25,7 @@ public class ApplicationFormConfigResponse {
     private FormStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String publicLink;
 
     @Data
     @Builder

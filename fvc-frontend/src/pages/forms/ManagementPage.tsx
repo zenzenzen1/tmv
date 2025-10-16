@@ -15,6 +15,7 @@ interface FormConfig {
   status: string;
   createdAt: string;
   updatedAt: string;
+  publicLink?: string;
 }
 
 export default function FormManagementPage() {
@@ -116,6 +117,19 @@ export default function FormManagementPage() {
     };
     
     return formTypeMap[formType as keyof typeof formTypeMap] || formType;
+  };
+
+  const copyPublicLink = async (form: FormConfig) => {
+    try {
+      if (form.status !== 'PUBLISH' || !form.publicLink) return;
+      const absoluteUrl = `${window.location.origin}${form.publicLink}`;
+      await navigator.clipboard.writeText(absoluteUrl);
+      // Optional simple feedback
+      alert('Đã copy link công khai');
+    } catch (e) {
+      console.error('Copy link failed', e);
+      alert('Không thể copy link');
+    }
   };
 
   const totalPages = Math.ceil(totalElements / pageSize);
@@ -290,6 +304,18 @@ export default function FormManagementPage() {
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
                               <path d="M1.5 12s3.75-7.5 10.5-7.5S22.5 12 22.5 12 18.75 19.5 12 19.5 1.5 12 1.5 12z" />
                               <path d="M12 15.75a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => copyPublicLink(form)}
+                            aria-label="Copy link công khai"
+                            title={form.status === 'PUBLISH' && form.publicLink ? 'Copy link công khai' : 'Chỉ khả dụng khi đã xuất bản'}
+                            disabled={form.status !== 'PUBLISH' || !form.publicLink}
+                            className={`transition-colors ${form.status === 'PUBLISH' && form.publicLink ? 'text-gray-700 hover:text-gray-900' : 'text-gray-300 cursor-not-allowed'}`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                              <path d="M15.75 6a3.75 3.75 0 013.75 3.75v6.75A3.75 3.75 0 0115.75 20.25H9a3.75 3.75 0 01-3.75-3.75V9.75A3.75 3.75 0 019 6h6.75z"/>
+                              <path d="M7.5 3.75A3.75 3.75 0 003.75 7.5V15a.75.75 0 001.5 0V7.5a2.25 2.25 0 012.25-2.25H15a.75.75 0 000-1.5H7.5z"/>
                             </svg>
                           </button>
                         </div>

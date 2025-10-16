@@ -77,6 +77,7 @@ export default function App() {
         <Route path="forms/edit/:id" element={<FormEditPage />} />
         <Route path="forms/view/:id" element={<FormPreviewPage />} />
         <Route path="forms/fill/:id" element={<PublishedForm />} />
+        <Route path="forms/fill/slug/:slug" element={<PublishedForm />} />
         <Route path="submitted-forms" element={<SubmittedFormsPage />} />
         <Route path="results/:id" element={<FormResults />} />
 

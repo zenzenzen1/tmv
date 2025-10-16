@@ -23,7 +23,7 @@ type FormConfig = {
 
 export default function FormRegistrationPage() {
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
+  const { id, slug } = useParams<{ id?: string; slug?: string }>();
   
   const [formConfig, setFormConfig] = useState<FormConfig | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -32,20 +32,22 @@ export default function FormRegistrationPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (id) {
+    if (id || slug) {
       loadFormConfig();
     }
-  }, [id]);
+  }, [id, slug]);
 
   const loadFormConfig = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      console.log('Loading form config for ID:', id);
-      console.log('API endpoint:', API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id!));
-      
-      const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id!));
+      let response;
+      if (slug) {
+        response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.PUBLIC_BY_SLUG(slug));
+      } else {
+        response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id!));
+      }
       
       console.log('API response:', response);
       

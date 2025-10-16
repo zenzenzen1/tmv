@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import sep490g65.fvcapi.constants.MessageConstants;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -80,6 +81,11 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
             config.setFields(fields);
         }
 
+        // Generate public slug if published
+        if (config.getStatus() == FormStatus.PUBLISH && config.getPublicSlug() == null) {
+            config.setPublicSlug(generateUniqueSlug(config.getName()));
+        }
+
         ApplicationFormConfig savedConfig = applicationFormConfigRepository.save(config);
         return mapToResponse(savedConfig);
     }
@@ -114,6 +120,11 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         config.setEndDate(request.getEndDate());
         if (request.getStatus() != null) {
             config.setStatus(request.getStatus());
+        }
+
+        // Ensure slug exists when publishing
+        if (config.getStatus() == FormStatus.PUBLISH && config.getPublicSlug() == null) {
+            config.setPublicSlug(generateUniqueSlug(config.getName()));
         }
 
         // Clear existing fields and add new ones
@@ -273,7 +284,17 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
                 .status(config.getStatus())
                 .createdAt(config.getCreatedAt())
                 .updatedAt(config.getUpdatedAt())
+                .publicLink(config.getPublicSlug() != null ? "/public/forms/" + config.getPublicSlug() : null)
                 .build();
+    }
+
+    private String generateUniqueSlug(String base) {
+        String normalized = base == null ? "form" : base.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
+        String candidate = normalized + "-" + UUID.randomUUID().toString().substring(0, 8);
+        while (applicationFormConfigRepository.existsByPublicSlug(candidate)) {
+            candidate = normalized + "-" + UUID.randomUUID().toString().substring(0, 8);
+        }
+        return candidate;
     }
 
     @Scheduled(fixedRate = 300000) // Run every 5 minutes
