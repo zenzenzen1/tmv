@@ -3,12 +3,10 @@ import MultiSelect from "@/components/common/MultiSelect";
 import { useCompetitionStore } from "@/stores/competition";
 import { useWeightClassStore } from "@/stores/weightClass";
 import * as htmlToImage from 'html-to-image';
-import { useToast } from "@/components/common/ToastContext";
 
 export default function BracketBuilder() {
   const { competitions, fetchCompetitions } = useCompetitionStore();
   const { list: wcList, fetch: fetchWc } = useWeightClassStore();
-  const toast = useToast();
 
   const [competitionId, setCompetitionId] = useState<string[]>([]);
   const [weightClassId, setWeightClassId] = useState<string[]>([]);
@@ -16,14 +14,7 @@ export default function BracketBuilder() {
   const [athleteCount, setAthleteCount] = useState<number>(0);
   const [athleteFile, setAthleteFile] = useState<File | null>(null);
   
-  // Mock athlete names for demo
-  const mockAthletes = [
-    "Nguyễn Văn A", "Trần Thị B", "Lê Văn C", "Phạm Thị D", "Hoàng Văn E",
-    "Vũ Thị F", "Đặng Văn G", "Bùi Thị H", "Phan Văn I", "Ngô Thị J",
-    "Dương Văn K", "Lý Thị L", "Đinh Văn M", "Võ Thị N", "Tôn Văn O",
-    "Hồ Thị P", "Lương Văn Q", "Chu Thị R", "Đỗ Văn S", "Cao Thị T",
-    "Lưu Văn U", "Mai Thị V", "Đào Văn X", "Lâm Thị Y", "Hà Văn Z"
-  ];
+  const [seedNames, setSeedNames] = useState<string[]>([]);
   const [pairings, setPairings] = useState<Array<[string, string]>>([]); // preliminary round pairs
   const [roundPairs, setRoundPairs] = useState<Array<Array<[string, string]>>>([]); // all rounds including prelim
   const [baseSize, setBaseSize] = useState<number>(0); // largest power of two <= N (e.g., 16)
@@ -63,11 +54,11 @@ export default function BracketBuilder() {
 
   const handleImport = () => {
     if (!athleteFile) {
-      toast.warning("Hãy chọn file danh sách VĐV (.csv/.xlsx)");
+      alert("Hãy chọn file danh sách VĐV (.csv/.xlsx)");
       return;
     }
     // Placeholder: parse file here later
-    toast.info(`Đã chọn file: ${athleteFile.name}. Chức năng import sẽ được cài đặt sau.`);
+    alert(`Đã chọn file: ${athleteFile.name}. Chức năng import sẽ được cài đặt sau.`);
   };
 
   // --- Bracket algorithm (power-of-two with balanced seeding and BYEs) ---
@@ -99,8 +90,8 @@ export default function BracketBuilder() {
       for (let i = 1; i <= extra; i++) {
         const leftSeed = i;
         const rightSeed = base + i;
-        const leftName = leftSeed <= mockAthletes.length ? mockAthletes[leftSeed - 1] : `VĐV ${leftSeed}`;
-        const rightName = rightSeed <= mockAthletes.length ? mockAthletes[rightSeed - 1] : `VĐV ${rightSeed}`;
+        const leftName = leftSeed <= seedNames.length ? seedNames[leftSeed - 1] : `VĐV ${leftSeed}`;
+        const rightName = rightSeed <= seedNames.length ? seedNames[rightSeed - 1] : `VĐV ${rightSeed}`;
         prelimPairs.push([`#${leftSeed} - ${leftName}`, `#${rightSeed} - ${rightName}`]);
       }
       allRounds.push(prelimPairs);
@@ -109,7 +100,7 @@ export default function BracketBuilder() {
       const winnersLabels = prelimPairs.map((_, idx) => `W${idx + 1}`); // W1..Wextra
       const byeSeeds = Array.from({ length: byes }, (_, i) => {
         const seed = extra + 1 + i;
-        const name = seed <= mockAthletes.length ? mockAthletes[seed - 1] : `VĐV ${seed}`;
+        const name = seed <= seedNames.length ? seedNames[seed - 1] : `VĐV ${seed}`;
         return `#${seed} - ${name}`;
       }); // extra+1 .. base
       const baseParticipants: string[] = [...winnersLabels, ...byeSeeds];
@@ -141,8 +132,8 @@ export default function BracketBuilder() {
       // Perfect power of 2 - no preliminary round needed
       const firstRoundPairs: Array<[string, string]> = [];
       for (let i = 1; i <= base; i += 2) {
-        const leftName = i <= mockAthletes.length ? mockAthletes[i - 1] : `VĐV ${i}`;
-        const rightName = (i + 1) <= mockAthletes.length ? mockAthletes[i] : `VĐV ${i + 1}`;
+        const leftName = i <= seedNames.length ? seedNames[i - 1] : `VĐV ${i}`;
+        const rightName = (i + 1) <= seedNames.length ? seedNames[i] : `VĐV ${i + 1}`;
         firstRoundPairs.push([`#${i} - ${leftName}`, `#${i + 1} - ${rightName}`]);
       }
       allRounds.push(firstRoundPairs);
@@ -171,13 +162,21 @@ export default function BracketBuilder() {
 
   const handleGenerate = () => {
     const n = Math.max(0, athleteCount);
+    if (n <= 0) {
+      alert("Vui lòng nhập số VĐV");
+      return;
+    }
+    // Generate mock athlete names
+    const names = Array.from({ length: n }, (_, i) => `VĐV ${i + 1}`);
+    setSeedNames(names);
     const pairs = computePairings(n);
     setPairings(pairs);
   };
 
+
   const generateBracketImage = async () => {
     if (!bracketRef.current) {
-      toast.warning('Chưa có bracket để xuất. Vui lòng tạo bracket trước.');
+      alert('Chưa có bracket để xuất. Vui lòng tạo bracket trước.');
       return;
     }
     
@@ -201,7 +200,7 @@ export default function BracketBuilder() {
       setShowPreviewModal(true);
     } catch (error) {
       console.error('Error generating image:', error);
-      toast.error('Không thể tạo ảnh. Vui lòng thử lại.');
+      alert('Không thể tạo ảnh. Vui lòng thử lại.');
     }
   };
 
@@ -276,6 +275,7 @@ export default function BracketBuilder() {
           </div>
         </div>
 
+
         <div className="grid grid-cols-1 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Import danh sách VĐV</label>
@@ -303,7 +303,7 @@ export default function BracketBuilder() {
             <button 
               className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
               onClick={handleGenerate}
-              disabled={!competitionId.length || !weightClassId.length || athleteCount <= 0}
+              disabled={athleteCount <= 0}
             >
               Tính nhánh
             </button>
