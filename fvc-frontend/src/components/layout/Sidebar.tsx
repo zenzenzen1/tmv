@@ -2,7 +2,15 @@ import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { defaultMenuItems } from "@/components/layout/sidebarMenu.ts";
 import type { MenuItem } from "@/components/layout/sidebarMenu.ts";
-import { Drawer, Box, List, ListItemButton, ListItemText, Divider, Typography } from "@mui/material";
+import {
+  Drawer,
+  Box,
+  List,
+  ListItemButton,
+  ListItemText,
+  Divider,
+  Typography,
+} from "@mui/material";
 
 type ActiveMenu = string;
 
@@ -27,6 +35,7 @@ export default function TournamentSidebar({
 
   const keyToPath: Record<string, string> = {
     tournaments: "/manage/tournaments",
+    tournamentForm: "/manage/tournament-forms",
     weightClassPage: "/manage/weight-class",
     athletes: "/manage/athletes",
     fighting: "/manage/athletes/fighting",
@@ -34,8 +43,7 @@ export default function TournamentSidebar({
     music: "/manage/music-content",
     formList: "/manage/form-list",
     submittedForms: "/manage/submitted-forms",
-     memberManagement: "/member-management",
-
+    memberManagement: "/member-management",
   };
 
   const isControlled =
@@ -45,8 +53,12 @@ export default function TournamentSidebar({
 
   // derive active from location if uncontrolled
   const path = location.pathname;
-  const derivedKey = Object.entries(keyToPath).find(([, p]) => path.startsWith(p))?.[0];
-  const activeMenu = isControlled ? (controlledActiveMenu as ActiveMenu) : (derivedKey ?? uncontrolledActiveMenu);
+  const derivedKey = Object.entries(keyToPath).find(([, p]) =>
+    path.startsWith(p)
+  )?.[0];
+  const activeMenu = isControlled
+    ? (controlledActiveMenu as ActiveMenu)
+    : derivedKey ?? uncontrolledActiveMenu;
 
   const handleChange = (next: ActiveMenu) => {
     if (isControlled) {
@@ -71,9 +83,16 @@ export default function TournamentSidebar({
   }, [items]);
 
   return (
-    <Drawer variant="permanent" PaperProps={{ sx: { width: 256, borderRight: 1, borderColor: 'divider' } }}>
+    <Drawer
+      variant="permanent"
+      PaperProps={{
+        sx: { width: 256, borderRight: 1, borderColor: "divider" },
+      }}
+    >
       <Box sx={{ px: 2, py: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>{title}</Typography>
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+          {title}
+        </Typography>
         <List dense>
           {topLevelItems.map((item: MenuItem) => (
             <ListItemButton
@@ -81,27 +100,37 @@ export default function TournamentSidebar({
               selected={activeMenu === item.key}
               onClick={() => handleChange(item.key)}
             >
-              <ListItemText primaryTypographyProps={{ fontSize: 13, fontWeight: 500 }} primary={item.label} />
+              <ListItemText
+                primaryTypographyProps={{ fontSize: 13, fontWeight: 500 }}
+                primary={item.label}
+              />
             </ListItemButton>
           ))}
         </List>
-        {[...sectionToItems.entries()].map(([section, sectionItems]: [string, MenuItem[]]) => (
-          <Box key={section} sx={{ pt: 1 }}>
-            <Divider sx={{ mb: 1 }} />
-            <Typography variant="overline" sx={{ px: 1 }}>{section}</Typography>
-            <List dense sx={{ ml: 1 }}>
-              {sectionItems.map((item: MenuItem) => (
-                <ListItemButton
-                  key={item.key}
-                  selected={activeMenu === item.key}
-                  onClick={() => handleChange(item.key)}
-                >
-                  <ListItemText primaryTypographyProps={{ fontSize: 13, fontWeight: 500 }} primary={item.label} />
-                </ListItemButton>
-              ))}
-            </List>
-          </Box>
-        ))}
+        {[...sectionToItems.entries()].map(
+          ([section, sectionItems]: [string, MenuItem[]]) => (
+            <Box key={section} sx={{ pt: 1 }}>
+              <Divider sx={{ mb: 1 }} />
+              <Typography variant="overline" sx={{ px: 1 }}>
+                {section}
+              </Typography>
+              <List dense sx={{ ml: 1 }}>
+                {sectionItems.map((item: MenuItem) => (
+                  <ListItemButton
+                    key={item.key}
+                    selected={activeMenu === item.key}
+                    onClick={() => handleChange(item.key)}
+                  >
+                    <ListItemText
+                      primaryTypographyProps={{ fontSize: 13, fontWeight: 500 }}
+                      primary={item.label}
+                    />
+                  </ListItemButton>
+                ))}
+              </List>
+            </Box>
+          )
+        )}
       </Box>
     </Drawer>
   );

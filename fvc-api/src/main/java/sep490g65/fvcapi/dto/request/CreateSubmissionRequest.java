@@ -25,6 +25,12 @@ public class CreateSubmissionRequest {
     // Entire submission payload as JSON string (includes dynamic fields)
     @NotBlank
     private String formDataJson;
+
+    // New optional IDs for tight linking (preferred over names)
+    private String weightClassId;     // for fighting
+    private String fistConfigId;      // for quyen (config/group)
+    private String fistItemId;        // for quyen (specific item)
+    private String musicContentId;    // for music
 }
 
 

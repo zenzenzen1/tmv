@@ -42,9 +42,12 @@ export default function PublishedForm() {
     "fighting" | "quyen" | "music"
   >("fighting");
   const [weightClass, setWeightClass] = useState("");
+  const [weightClassId, setWeightClassId] = useState<string>("");
   const [quyenCategory, setQuyenCategory] = useState("");
   const [quyenContent, setQuyenContent] = useState("");
   const [musicCategory, setMusicCategory] = useState("");
+  const [fistConfigId, setFistConfigId] = useState<string>("");
+  const [musicContentId, setMusicContentId] = useState<string>("");
   const [coachName, setCoachName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   // const [studentCardFile, setStudentCardFile] = useState<File | null>(null);
@@ -351,9 +354,13 @@ export default function PublishedForm() {
       gender: gender.toUpperCase(),
       competitionType,
       weightClass,
+      // Embed IDs for tight backend linking
+      weightClassId: weightClassId || undefined,
       quyenCategory,
       quyenContent,
+      fistConfigId: fistConfigId || undefined,
       musicCategory,
+      musicContentId: musicContentId || undefined,
       coachName,
       phoneNumber,
       // client-side submission timestamp fallback when backend doesn't persist createdAt
@@ -403,6 +410,10 @@ export default function PublishedForm() {
           club,
           gender: gender.toUpperCase(),
           formDataJson,
+          // Preferred ID fields for tight linking
+          weightClassId: weightClassId || undefined,
+          fistConfigId: fistConfigId || undefined,
+          musicContentId: musicContentId || undefined,
         }
       );
       window.dispatchEvent(new Event("forms:changed"));
@@ -562,8 +573,17 @@ export default function PublishedForm() {
                     </label>
                     <div className="relative mb-3">
                       <select
-                        value={weightClass}
-                        onChange={(e) => setWeightClass(e.target.value)}
+                        value={weightClassId}
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          setWeightClassId(id);
+                          const wc = weightClasses.find((w) => w.id === id);
+                          const display = wc
+                            ? wc.weightClass ||
+                              `${wc.minWeight}-${wc.maxWeight}kg`
+                            : "";
+                          setWeightClass(display);
+                        }}
                         className="w-full appearance-none bg-white border border-gray-400 rounded-full px-4 h-9 text-sm text-gray-700"
                       >
                         <option value="">Chọn hạng cân của bạn</option>
@@ -581,7 +601,7 @@ export default function PublishedForm() {
                                 w.weightClass ||
                                 `${w.minWeight}-${w.maxWeight}kg`;
                               return (
-                                <option key={w.id} value={weightDisplay}>
+                                <option key={w.id} value={w.id}>
                                   {weightDisplay}
                                 </option>
                               );
@@ -634,8 +654,13 @@ export default function PublishedForm() {
                         Nội dung thi đấu
                       </label>
                       <select
-                        value={quyenContent}
-                        onChange={(e) => setQuyenContent(e.target.value)}
+                        value={fistConfigId}
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          setFistConfigId(id);
+                          const item = quyenContents.find((q) => q.id === id);
+                          setQuyenContent(item?.name || "");
+                        }}
                         className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
                       >
                         <option value="">Chọn nội dung thi đấu</option>
@@ -648,7 +673,7 @@ export default function PublishedForm() {
                             quyenContents &&
                             quyenContents.length > 0 &&
                             quyenContents.map((content) => (
-                              <option key={content.id} value={content.name}>
+                              <option key={content.id} value={content.id}>
                                 {content.name}
                               </option>
                             ))
@@ -679,15 +704,20 @@ export default function PublishedForm() {
                       </label>
                     </div>
                     <select
-                      value={musicCategory}
-                      onChange={(e) => setMusicCategory(e.target.value)}
+                      value={musicContentId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setMusicContentId(id);
+                        const item = musicContents.find((m) => m.id === id);
+                        setMusicCategory(item?.name || "");
+                      }}
                       className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
                     >
                       <option value="">Chọn nội dung thi đấu</option>
                       {musicContents &&
                         musicContents.length > 0 &&
                         musicContents.map((content) => (
-                          <option key={content.id} value={content.name}>
+                          <option key={content.id} value={content.id}>
                             {content.name}
                           </option>
                         ))}
