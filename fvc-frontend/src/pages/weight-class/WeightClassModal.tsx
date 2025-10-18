@@ -6,10 +6,12 @@ import type {
   UpdateWeightClassRequest,
 } from "../../types";
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem, Button, Alert, Stack, InputLabel, FormControl } from '@mui/material';
+import { useToast } from '../../components/common/ToastContext';
 
 export default function WeightClassModal() {
   const { modalOpen, editing, closeModal, create, update } =
     useWeightClassStore();
+  const { success, error: toastError } = useToast();
   const [gender, setGender] = useState<Gender>(Gender.MALE);
   const [minWeight, setMinWeight] = useState<string>("");
   const [maxWeight, setMaxWeight] = useState<string>("");
@@ -63,8 +65,10 @@ export default function WeightClassModal() {
         };
         await create(payload);
       }
+      success('Đã lưu nháp hạng cân');
     } catch (e) {
       // error handled in store
+      toastError('Lưu nháp hạng cân thất bại');
     }
   };
 
@@ -91,6 +95,7 @@ export default function WeightClassModal() {
         };
         await create(payload);
       }
+      success(editing ? 'Đã cập nhật hạng cân' : 'Đã tạo hạng cân');
     } catch {}
   };
 

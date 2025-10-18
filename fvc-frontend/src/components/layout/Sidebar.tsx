@@ -32,6 +32,7 @@ export default function TournamentSidebar({
   const location = useLocation();
 
   // Map menu keys to routes
+
   const keyToPath: Record<string, string> = {
     tournaments: "/manage/tournaments",
     tournamentForm: "/manage/tournament-forms",
@@ -40,9 +41,13 @@ export default function TournamentSidebar({
     fighting: "/manage/athletes/fighting",
     forms: "/manage/fist-content",
     music: "/manage/music-content",
-    formList: "/manage/forms",
+    formList: "/manage/form-list",
     submittedForms: "/manage/submitted-forms",
+<<<<<<< HEAD
     brackets: "/manage/brackets",
+=======
+    memberManagement: "/member-management",
+>>>>>>> 611c04f200b84b52f99d2c7f04be71873076ba05
   };
 
   const isControlled =

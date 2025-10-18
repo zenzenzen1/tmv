@@ -46,11 +46,9 @@ export const API_ENDPOINTS = {
   // Application Form Configs
   APPLICATION_FORMS: {
     BASE: "/v1/application-forms",
-    CREATE: "/v1/application-forms",
-    BY_ID: (id: string) => `/v1/application-forms/id/${id}`,
-    BY_TYPE: (type: string) => `/v1/application-forms/type/${type}`,
+    BY_ID: (id: string) => `/v1/application-forms/${id}`,
+    BY_TYPE: (type: string) => `/v1/application-forms/${type}`,
     INIT_CLUB: "/v1/application-forms/init-club-registration",
-    PUBLIC_BY_SLUG: (slug: string) => `/v1/application-forms/public/${slug}`,
   },
 
   // Tournament forms
@@ -77,6 +75,10 @@ export const API_ENDPOINTS = {
     ITEMS: "/v1/fist-configs/items",
     ITEM_BY_ID: (id: string) => `/v1/fist-configs/items/${id}`,
     ITEMS_BY_CONFIG: (configId: string) => `/v1/fist-configs/${configId}/items`,
+    TYPES: {
+      BASE: "/v1/fist-types",
+      BY_ID: (id: string) => `/v1/fist-types/${id}`,
+    },
   },
 
   // Music contents
@@ -88,6 +90,19 @@ export const API_ENDPOINTS = {
   // Athletes
   ATHLETES: {
     BASE: "/v1/athletes",
+    ARRANGE_ORDER: "/v1/athletes/arrange-order",
+  },
+
+  // Club Members
+  CLUB_MEMBERS: {
+    BASE: "/v1/clubs/members",
+    BY_ID: (id: string) => `/v1/clubs/members/${id}`,
+  },
+
+  // Club Members
+  CLUB_MEMBERS: {
+    BASE: "/v1/clubs/members",
+    BY_ID: (id: string) => `/v1/clubs/members/${id}`,
   },
 
   // Common endpoints

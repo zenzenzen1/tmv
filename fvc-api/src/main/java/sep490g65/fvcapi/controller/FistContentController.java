@@ -9,6 +9,8 @@ import sep490g65.fvcapi.constants.ApiConstants;
 import sep490g65.fvcapi.dto.request.CreateFistConfigRequest;
 import sep490g65.fvcapi.dto.request.RequestParam;
 import sep490g65.fvcapi.dto.request.UpdateFistConfigRequest;
+import sep490g65.fvcapi.dto.request.CreateFistItemRequest;
+import sep490g65.fvcapi.dto.request.UpdateFistItemRequest;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.FistConfigResponse;
 import sep490g65.fvcapi.dto.response.FistItemResponse;
@@ -67,6 +69,27 @@ public class FistContentController {
     public ResponseEntity<BaseResponse<PaginationResponse<FistItemResponse>>> getItemsByConfigId(@PathVariable String configId) {
         PaginationResponse<FistItemResponse> data = service.getItemsByConfigId(configId);
         return ResponseEntity.ok(ResponseUtils.success("Fist items by config retrieved", data));
+    }
+
+    @PostMapping("/{configId}/items")
+    public ResponseEntity<BaseResponse<FistItemResponse>> createItem(@PathVariable String configId,
+                                                                     @Valid @RequestBody CreateFistItemRequest request) {
+        FistItemResponse created = service.createItem(configId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ResponseUtils.success("Fist item created", created));
+    }
+
+    @PutMapping("/{configId}/items/{itemId}")
+    public ResponseEntity<BaseResponse<FistItemResponse>> updateItem(@PathVariable String configId,
+                                                                     @PathVariable String itemId,
+                                                                     @Valid @RequestBody UpdateFistItemRequest request) {
+        return ResponseEntity.ok(ResponseUtils.success("Fist item updated", service.updateItem(configId, itemId, request)));
+    }
+
+    @DeleteMapping("/{configId}/items/{itemId}")
+    public ResponseEntity<BaseResponse<Void>> deleteItem(@PathVariable String configId,
+                                                         @PathVariable String itemId) {
+        service.deleteItem(configId, itemId);
+        return ResponseEntity.ok(ResponseUtils.success("Fist item deleted"));
     }
 }
 

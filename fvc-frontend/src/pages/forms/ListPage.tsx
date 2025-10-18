@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../../services/api';
 import { API_ENDPOINTS } from '../../config/endpoints';
+import { useToast } from '../../components/common/ToastContext';
 
 type FormConfig = {
   id: string;
@@ -15,6 +16,7 @@ type FormConfig = {
 
 export default function FormListPage() {
   const navigate = useNavigate();
+  const { error: toastError } = useToast();
   const [forms, setForms] = useState<FormConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +46,11 @@ export default function FormListPage() {
         setForms(formsData);
       } else {
         setError(response.message || 'Failed to fetch forms');
+        toastError(response.message || 'Tải danh sách form thất bại');
       }
     } catch (err: any) {
       setError(err?.message || 'Lỗi khi tải danh sách form');
+      toastError(err?.message || 'Tải danh sách form thất bại');
     } finally {
       setLoading(false);
     }

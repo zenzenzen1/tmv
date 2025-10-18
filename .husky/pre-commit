@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$BRANCH" = "master" ]; then
+  echo "[husky] skip branch name check on master"
+  exit 0
+fi
+
+if echo "$BRANCH" | grep -Eq "^(feat|fix)/FVC-[0-9]+-[a-z0-9-]+$"; then
+  echo "[husky] branch name OK: $BRANCH"
+  exit 0
+else
+  echo "[husky] invalid branch name: $BRANCH" >&2
+  echo "Expected: feat|fix/FVC-XXX-kebab-case-name (e.g., feat/FVC-105-view-member-list)" >&2
+  exit 1
+fi

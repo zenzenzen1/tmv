@@ -7,10 +7,9 @@ import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import SubmittedFormsPage from "./pages/submitted-forms/ListPage";
 import FormListPage from "./pages/forms/ListPage";
-import FormManagementPage from "./pages/forms/ManagementPage";
 import FormBuilderPage from "./pages/forms/BuilderPage";
 import FormEditPage from "./pages/forms/EditPage";
-import FormPreviewPage from "./pages/forms/FormPreviewPage";
+import FormRegistrationPage from "./pages/forms/RegistrationPage";
 
 import Home from "./pages/Home";
 import TournamentListPage from "./pages/tournament/ListPage";
@@ -20,21 +19,28 @@ import FormResults from "./features/tournament/FormResults";
 import PublishedForm from "./features/tournament/PublishedForm";
 import TournamentFormList from "./features/tournament/TournamentFormList";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
+
+import MemberManagementListPage from "./pages/member-management/ListPage";
+
 import MainLayout from "./components/layout/MainLayout";
+import { ToastProvider } from "./components/common/ToastProvider";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
 import BracketBuilder from "./pages/brackets/BracketBuilder";
+import FistItemsPage from "./pages/fist-content/ItemsPage";
+import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
+import FormBuilder from "./features/tournament/FormBuilder";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
 
-  const Protected = ({ children }: { children: React.ReactElement }) => {
+  function Protected({ children }: { children: React.ReactElement }) {
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
     }
     return children;
-  };
+  }
 
   // Nếu đã login → hiển thị layout chính
   return (
@@ -51,6 +57,24 @@ export default function App() {
         }
       />
 
+      {/* Landing redirect */}
+      <Route
+        path="/"
+        element={
+          <Navigate
+            to={isAuthenticated ? "/manage/tournaments" : "/login"}
+            replace
+          />
+        }
+      />
+      {/* Member Management */}
+      <Route path="/member-management" element={<MemberManagementListPage />} />
+      {/* Tournaments */}
+      <Route path="/tournaments" element={<TournamentListPage />} />
+      <Route path="/tournaments/create" element={<CompetitionFormPage />} />
+      <Route path="/tournaments/edit/:id" element={<CompetitionFormPage />} />
+      <Route path="/tournaments/view/:id" element={<CompetitionFormPage />} />
+
       {/* Public Home */}
       <Route path="/home" element={<Home />} />
       <Route path="dashboard" element={<DashboardPage />} />
@@ -60,14 +84,18 @@ export default function App() {
         path="/manage"
         element={
           <Protected>
-            <MainLayout />
+            <ToastProvider>
+              <MainLayout />
+            </ToastProvider>
           </Protected>
         }
       >
         {/* default */}
         <Route index element={<Navigate to="tournaments" replace />} />
 
-        {/* Dashboard (optional) */}
+        {/* Dashboard/Home (optional) */}
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="home" element={<Home />} />
 
         {/* Tournaments */}
         <Route path="tournaments" element={<TournamentListPage />} />
@@ -75,19 +103,16 @@ export default function App() {
         <Route path="tournaments/edit/:id" element={<CompetitionFormPage />} />
         <Route path="tournaments/view/:id" element={<CompetitionFormPage />} />
 
-        {/* Tournament Forms */}
-        <Route path="tournament-forms" element={<TournamentFormList />} />
-
         {/* Forms */}
         <Route path="form-list" element={<FormListPage />} />
-        <Route path="forms" element={<FormManagementPage />} />
+        <Route path="forms" element={<FormListPage />} />
         <Route path="forms/new" element={<FormBuilderPage />} />
-        <Route path="forms/edit/:id" element={<FormEditPage />} />
-        <Route path="forms/view/:id" element={<FormPreviewPage />} />
-        <Route path="forms/fill/:id" element={<PublishedForm />} />
-        <Route path="forms/fill/slug/:slug" element={<PublishedForm />} />
+        <Route path="forms/:id/edit" element={<FormEditPage />} />
+        <Route path="forms/:id/view" element={<FormRegistrationPage />} />
+        <Route path="forms/:id/fill" element={<PublishedForm />} />
         <Route path="submitted-forms" element={<SubmittedFormsPage />} />
         <Route path="results/:id" element={<FormResults />} />
+        <Route path="tournament-forms" element={<TournamentFormList />} />
 
         {/* Athletes */}
         <Route path="athletes" element={<AthleteManagementWrapper />} />
@@ -101,8 +126,13 @@ export default function App() {
         {/* Content mgmt */}
         <Route path="weight-class" element={<WeightClassListPage />} />
         <Route path="fist-content" element={<FistContentListPage />} />
+        <Route path="fist-content/:id/items" element={<FistItemsPage />} />
         <Route path="music-content" element={<MusicContentListPage />} />
         <Route path="brackets" element={<BracketBuilder />} />
+
+        {/* Arrange */}
+        <Route path="arrange" element={<ArrangeOrderWrapper />} />
+        <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
       </Route>
 
       {/* Legacy redirects to /manage */}
@@ -113,6 +143,10 @@ export default function App() {
       <Route
         path="/athletes/*"
         element={<Navigate to="/manage/athletes" replace />}
+      />
+      <Route
+        path="/arrange/*"
+        element={<Navigate to="/manage/arrange" replace />}
       />
       <Route
         path="/form-list"
@@ -126,8 +160,8 @@ export default function App() {
         path="/forms/*"
         element={<Navigate to="/manage/forms" replace />}
       />
-
-      {/* Direct access routes used by TournamentFormList and public links */}
+      <Route path="/form-builder" element={<FormBuilder />} />
+      <Route path="/form-builder/:id" element={<FormBuilder />} />
       <Route path="/results/:id" element={<FormResults />} />
       <Route path="/published-form/:id" element={<PublishedForm />} />
 
