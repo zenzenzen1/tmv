@@ -5,6 +5,7 @@ import CommonTable, {
 import api from "../../services/api";
 import type { PaginationResponse } from "../../types/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
+import type { CompetitionType } from "./ArrangeOrderWrapper";
 
 type AthleteRow = {
   id: string;
@@ -26,7 +27,7 @@ type AthleteApi = {
   fullName: string;
   email: string;
   gender: "MALE" | "FEMALE";
-  competitionType: "fighting" | "quyen" | "music";
+  competitionType: CompetitionType;
   subCompetitionType?: string | null;
   detailSubCompetitionType?: string | null;
   studentId?: string | null;
@@ -36,7 +37,6 @@ type AthleteApi = {
   status: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "VIOLATED" | string;
 };
 
-type CompetitionType = "fighting" | "quyen" | "music";
 
 const STATUS_COLORS = {
   "ĐÃ ĐẤU": "bg-green-100 text-green-800 border-green-200",
@@ -48,7 +48,6 @@ const STATUS_COLORS = {
 };
 
 const COMPETITION_TYPES = {
-  fighting: "Đối kháng",
   quyen: "Quyền",
   music: "Võ nhạc",
 };
@@ -195,9 +194,10 @@ export default function ArrangeOrderPage({
         if (genderFilter) qs.set("gender", genderFilter);
         if (statusFilter) qs.set("status", statusFilter);
         // Standard handling by type
-        if (activeTab === "fighting") {
-          // Do NOT send weight to backend; fetch all then filter client-side
-        } else if (activeTab === "music") {
+        // if (activeTab === "fighting") {
+        //   // Do NOT send weight to backend; fetch all then filter client-side
+        // } else
+         if (activeTab === "music") {
           // Music: send selected content as detail, and optionally label the sub type
           if (subCompetitionFilter) {
             qs.set("subCompetitionType", "Tiết mục");
@@ -252,14 +252,7 @@ export default function ArrangeOrderPage({
           const rawSub = a.subCompetitionType || "";
           const rawDetail = a.detailSubCompetitionType || "";
           let okSubDetail = true;
-          if (activeTab === "fighting") {
-            if (subCompetitionFilter) {
-              const want = normalizeWeight(subCompetitionFilter);
-              okSubDetail =
-                normalizeWeight(rawDetail) === want ||
-                normalizeWeight(rawSub) === want;
-            }
-          } else if (activeTab === "music") {
+          if (activeTab === "music") {
             // Match by selected content name in detail
             const okDetail = subCompetitionFilter
               ? strip(rawDetail) === strip(subCompetitionFilter)
@@ -287,9 +280,7 @@ export default function ArrangeOrderPage({
             email: a.email,
             gender: a.gender === "FEMALE" ? "Nữ" : "Nam",
             competitionType:
-              a.competitionType === "fighting"
-                ? "Đối kháng"
-                : a.competitionType === "quyen"
+              a.competitionType === "quyen"
                 ? "Quyền"
                 : a.competitionType === "music"
                 ? "Võ nhạc"
@@ -389,23 +380,24 @@ export default function ArrangeOrderPage({
         className: "whitespace-nowrap",
         sortable: true,
       },
-      ...(activeTab === "fighting"
-        ? [
-            {
-              key: "detailSubCompetitionType",
-              title: "Hạng cân",
-              className: "whitespace-nowrap",
-              render: (row: AthleteRow) => {
-                const value =
-                  row.detailSubCompetitionType || row.subCompetitionType || "-";
-                return String(value)
-                  .replace(/^Nam\s+/i, "")
-                  .replace(/^Nữ\s+/i, "");
-              },
-              sortable: true,
-            } as TableColumn<AthleteRow>,
-          ]
-        : [
+      // ...(activeTab === "fighting"
+      //   ? [
+      //       {
+      //         key: "detailSubCompetitionType",
+      //         title: "Hạng cân",
+      //         className: "whitespace-nowrap",
+      //         render: (row: AthleteRow) => {
+      //           const value =
+      //             row.detailSubCompetitionType || row.subCompetitionType || "-";
+      //           return String(value)
+      //             .replace(/^Nam\s+/i, "")
+      //             .replace(/^Nữ\s+/i, "");
+      //         },
+      //         sortable: true,
+      //       } as TableColumn<AthleteRow>,
+      //     ]
+      //   : 
+        ...([
             {
               key: "detailSubCompetitionType",
               title: "Nội dung",
@@ -785,58 +777,6 @@ export default function ArrangeOrderPage({
             </div>
 
             {/* Dynamic Competition Filter */}
-            {activeTab === "fighting" && (
-              <div className="relative filter-dropdown">
-                <button
-                  onClick={() =>
-                    setShowCompetitionFilter(!showCompetitionFilter)
-                  }
-                  className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  Hạng cân
-                </button>
-                {showCompetitionFilter && (
-                  <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-300 rounded shadow-lg z-20">
-                    <div className="p-2 space-y-1">
-                      <label className="flex items-center cursor-pointer">
-                        <input
-                          type="radio"
-                          name="subCompetitionFilter"
-                          className="mr-2 h-3 w-3 text-blue-600"
-                          checked={subCompetitionFilter === ""}
-                          onChange={() => setSubCompetitionFilter("")}
-                        />
-                        <span className="text-sm text-gray-700">Tất cả</span>
-                      </label>
-                      {weightClasses.map((wc) => {
-                        const weightDisplay =
-                          wc.weightClass || `${wc.minWeight}-${wc.maxWeight}kg`;
-                        return (
-                          <label
-                            key={wc.id}
-                            className="flex items-center cursor-pointer"
-                          >
-                            <input
-                              type="radio"
-                              name="subCompetitionFilter"
-                              className="mr-2 h-3 w-3 text-blue-600"
-                              checked={subCompetitionFilter === weightDisplay}
-                              onChange={() =>
-                                setSubCompetitionFilter(weightDisplay)
-                              }
-                            />
-                            <span className="text-sm text-gray-700">
-                              {weightDisplay}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {activeTab === "quyen" && (
               <div className="flex items-center flex-wrap gap-2">
                 {FIXED_QUYEN_CATEGORIES.map((c) => (

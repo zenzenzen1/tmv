@@ -58,6 +58,15 @@ public class Athlete extends BaseEntity {
     @Column(name = "competition_order")
     private Integer competitionOrder;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "competition_order_id")
+    private CompetitionOrder competitionOrderObject;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "competition_id")
+    private Competition competition;
+
+
     public enum Gender { MALE, FEMALE }
 
     public enum CompetitionType { fighting, quyen, music }

@@ -43,8 +43,7 @@ public class AthleteService {
             String name,
             Athlete.Gender gender,
             Athlete.AthleteStatus status,
-            Pageable pageable
-    ) {
+            Pageable pageable) {
         Specification<Athlete> spec = Specification.where(null);
         if (tournamentId != null && !tournamentId.isBlank()) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("tournamentId"), tournamentId));
@@ -72,16 +71,14 @@ public class AthleteService {
     }
 
     @Transactional
-    public void arrangeOrder(String tournamentId, String contentId, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
+    public void arrangeOrder(String competitionId, Athlete.CompetitionType competitionType) {
         // For now, ignore contentId and set order for provided athletes
-        for (sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder ao : orders) {
-            UUID id = UUID.fromString(ao.getAthleteId());
-            athleteRepository.findById(id).ifPresent(a -> {
-                a.setCompetitionOrder(ao.getOrder());
-                athleteRepository.save(a);
-            });
-        }
+        List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(competitionType, competitionId);
+        // int order = 1;
+        // for (Athlete athlete : athletes) {
+        //     athlete.setCompetitionOrder(order);
+        //     athleteRepository.save(athlete);
+        //     order++;
+        // }
     }
 }
-
-

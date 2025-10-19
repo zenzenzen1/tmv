@@ -1,10 +1,10 @@
 import { useState } from "react";
 import ArrangeOrderPage from "./ArrangeOrderPage";
 
-type CompetitionType = "fighting" | "quyen" | "music";
+export type CompetitionType = "quyen" | "music";
 
 export default function ArrangeOrderWrapper() {
-  const [activeTab, setActiveTab] = useState<CompetitionType>("quyen"); // Set to 'quyen' as default
+  const [activeTab, setActiveTab] = useState<CompetitionType>("quyen");
 
   const handleTabChange = (tab: CompetitionType) => {
     setActiveTab(tab);
