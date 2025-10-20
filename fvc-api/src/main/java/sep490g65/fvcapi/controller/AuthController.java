@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -29,6 +31,9 @@ public class AuthController {
     private final AuthService authService;
     private final JwtUtils jwtUtils;
     private final UserRepository userRepository;
+    
+    @Value("${spring.security.jwt.expiration}")
+    private int tokenValidityInSeconds;
 
     @PostMapping("/login")
     public ResponseEntity<BaseResponse<LoginResponse>> login(
@@ -48,7 +53,7 @@ public class AuthController {
             cookie.setHttpOnly(true);
             cookie.setSecure(false); // Set to true in production with HTTPS
             cookie.setPath("/");
-            cookie.setMaxAge(30 * 60); // 30 minutes
+            cookie.setMaxAge(tokenValidityInSeconds); // in application.properties
             response.addCookie(cookie);
             
             log.info("Login successful for user: {}", request.getEmail());

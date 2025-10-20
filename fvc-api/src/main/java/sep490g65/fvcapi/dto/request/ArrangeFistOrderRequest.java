@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import sep490g65.fvcapi.entity.Athlete;
 
 @Data
 @Builder
@@ -17,7 +16,7 @@ public class ArrangeFistOrderRequest {
     private String competitionId;
     
     @NotBlank(message = "Competition Type is required")
-    private Athlete.CompetitionType competitionType;
+    private String competitionType;
     
 
 }

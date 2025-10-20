@@ -14,8 +14,7 @@ import lombok.Setter;
                 @UniqueConstraint(columnNames = {"competition_id", "content_selection_id", "order_index"})
         },
         indexes = {
-                @Index(name = "idx_competition_orders_competition", columnList = "competition_id"),
-                @Index(name = "idx_competition_orders_athlete", columnList = "athlete_id")
+                @Index(name = "idx_competition_orders_competition", columnList = "competition_id")
         }
 )
 @Getter
