@@ -140,7 +140,7 @@ export default function BracketBuilder() {
       
       // Subsequent rounds: pair winners consecutively
       let prevRoundWinnersCount = firstRoundPairs.length;
-      let winnerOffset = 1;
+      let winnerOffset = base + 1; // Start from base+1 for winners
       while (prevRoundWinnersCount > 1) {
         const nextRound: Array<[string, string]> = [];
         for (let i = 0; i < prevRoundWinnersCount; i += 2) {
@@ -176,11 +176,19 @@ export default function BracketBuilder() {
 
   const generateBracketImage = async () => {
     if (!bracketRef.current) {
-      alert('Chưa có bracket để xuất. Vui lòng tạo bracket trước.');
+      alert('Chưa có nhánh đấu để xuất. Vui lòng tạo nhánh đấu trước.');
       return;
     }
     
     try {
+      // Add export class to disable animations
+      if (bracketRef.current) {
+        bracketRef.current.classList.add('bracket-export-container');
+      }
+      
+      // Wait a bit for CSS to apply
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const dataUrl = await htmlToImage.toPng(bracketRef.current, {
         quality: 1,
         backgroundColor: '#f5f5f5',
@@ -190,16 +198,29 @@ export default function BracketBuilder() {
           transformOrigin: 'top left'
         },
         filter: (node) => {
-          // Skip elements that might cause issues
+          // Skip elements that might cause issues with image generation
           return !node.classList?.contains('animate-pulse') && 
-                 !node.classList?.contains('animate-bounce');
+                 !node.classList?.contains('animate-bounce') &&
+                 !node.classList?.contains('group') &&
+                 !node.classList?.contains('cursor-help') &&
+                 !node.classList?.contains('opacity-0') &&
+                 !node.classList?.contains('group-hover:opacity-100');
         }
       });
+      
+      // Remove export class
+      if (bracketRef.current) {
+        bracketRef.current.classList.remove('bracket-export-container');
+      }
       
       setPreviewImage(dataUrl);
       setShowPreviewModal(true);
     } catch (error) {
       console.error('Error generating image:', error);
+      // Make sure to remove export class even if error occurs
+      if (bracketRef.current) {
+        bracketRef.current.classList.remove('bracket-export-container');
+      }
       alert('Không thể tạo ảnh. Vui lòng thử lại.');
     }
   };
@@ -208,14 +229,14 @@ export default function BracketBuilder() {
     if (!previewImage) return;
     
     const link = document.createElement('a');
-    link.download = `bracket-${competitionId[0] || 'tournament'}-${weightClassId[0] || 'weightclass'}.png`;
+    link.download = `nhanh-dau-${competitionId[0] || 'tournament'}-${weightClassId[0] || 'weightclass'}.png`;
     link.href = previewImage;
     link.click();
   };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Chia Bracket</h1>
+      <h1 className="text-2xl font-bold">Chia nhánh đấu</h1>
 
       <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4 relative">
         {/* Icon thông tin */}
@@ -329,7 +350,7 @@ export default function BracketBuilder() {
       </div>
 
       {roundsCount > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-0 overflow-x-auto max-w-full" ref={bracketRef}>
+        <div className="bg-white rounded-lg border border-gray-200 p-0 overflow-x-auto max-w-full bracket-export-container" ref={bracketRef}>
         {/* Tournament Banner */}
         <div className="relative bg-gradient-to-r from-blue-50 via-blue-100 to-blue-200 text-gray-800 px-6 py-6 overflow-hidden">
           {/* Background pattern */}
@@ -354,7 +375,7 @@ export default function BracketBuilder() {
                 />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-gray-800 drop-shadow-lg">Sơ đồ thi đấu</h2>
+                <h2 className="text-2xl font-bold text-gray-800 drop-shadow-lg">Sơ đồ nhánh đấu</h2>
                 <p className="text-gray-600 text-sm mt-1 font-medium">
                   {competitionId.length > 0 ? (
                     competitionOptions.find(c => c.value === competitionId[0])?.label || "Chưa chọn giải đấu"
@@ -385,31 +406,145 @@ export default function BracketBuilder() {
         {/* Scoped styles for the new playoff-table template */}
         <style>{`
           .playoff-table *{box-sizing:border-box}
-          .playoff-table{font-family:sans-serif;font-size:15px;line-height:1.42857143;font-weight:400;width:100%;max-width:100vw;overflow-x:auto;-webkit-overflow-scrolling:touch;background-color:#f5f5f5}
-          .playoff-table .playoff-table-content{display:flex;padding:20px;justify-content:center}
+          .playoff-table{font-family:sans-serif;font-size:15px;line-height:1.42857143;font-weight:400;width:100%;max-width:100vw;overflow-x:auto;-webkit-overflow-scrolling:touch;background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);position:relative;border-radius:12px;box-shadow: 0 8px 32px rgba(0,0,0,0.1)}
+          .playoff-table::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");border-radius:12px;pointer-events:none}
+          .playoff-table .playoff-table-content{display:flex;padding:40px 60px;justify-content:center;position:relative;z-index:1;gap:40px}
           .playoff-table .playoff-table-tour{display:flex;align-items:center;flex-direction:column;justify-content:flex-start;position:relative}
           .playoff-table .playoff-table-round-title{width:100%;margin-bottom:15px}
           .playoff-table .playoff-table-round-title div{font-size:14px;font-weight:600;color:#374151}
-          .playoff-table .playoff-table-pair{position:relative;margin-bottom:25px}
-          .playoff-table .playoff-table-pair:before{content:'';position:absolute;top:50%;right:-20px;width:20px;height:2px;background-color:#2563eb;transform:translateY(-50%)}
-          .playoff-table .playoff-table-pair:after{content:'';position:absolute;top:50%;right:-20px;width:2px;height:25px;background-color:#2563eb;transform:translateY(-50%)}
-          .playoff-table .playoff-table-pair-style{border:1px solid #ccc;background:#fff;width:180px;margin-bottom:0;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
-          .playoff-table .playoff-table-group{padding-right:20px;padding-left:15px;margin-bottom:25px;position:relative;overflow:visible;height:100%;display:flex;align-items:center;flex-direction:column;justify-content:space-around;min-width:220px}
+          .playoff-table .playoff-table-pair{position:relative;margin-bottom:35px}
+          .playoff-table .playoff-table-pair:before{content:'';position:absolute;top:50%;right:-30px;width:30px;height:2px;background-color:#2563eb;transform:translateY(-50%)}
+          .playoff-table .playoff-table-pair:after{content:'';position:absolute;top:50%;right:-30px;width:2px;height:35px;background-color:#2563eb;transform:translateY(-50%)}
+          .playoff-table .playoff-table-pair-style{border:1px solid #e2e8f0;background:linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);width:220px;margin-bottom:0;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.1);position:relative;overflow:hidden}
+          .playoff-table .playoff-table-pair-style::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);transition:left 0.5s}
+          .playoff-table .playoff-table-group{padding-right:40px;padding-left:40px;margin-bottom:25px;position:relative;overflow:visible;height:100%;display:flex;align-items:center;flex-direction:column;justify-content:space-around;min-width:280px}
           .playoff-table .playoff-table-group .playoff-table-pair-style:last-child{margin-bottom:0}
           .playoff-table .playoff-table-group:after{content:'';position:absolute;top:50%;right:0;width:2px;height:100%;background-color:#2563eb;transform:translateY(-50%)}
           .playoff-table .playoff-table-group:last-child{margin-bottom:0}
           .playoff-table .playoff-table-left-player,.playoff-table .playoff-table-right-player{min-height:38px;padding:6px 10px;position:relative;font-size:13px;line-height:1.3;font-weight:500}
           .playoff-table .playoff-table-left-player{border-bottom:1px solid #e5e7eb}
-          .playoff-table .playoff-table-left-player:before{content:'';position:absolute;top:50%;left:-20px;width:20px;height:2px;background-color:#2563eb;transform:translateY(-50%)}
+          .playoff-table .playoff-table-left-player:before{content:'';position:absolute;top:50%;left:-30px;width:30px;height:2px;background-color:#2563eb;transform:translateY(-50%)}
           .playoff-table .playoff-table-right-player{margin-top:-1px;border-top:1px solid #e5e7eb}
           .playoff-table .playoff-table-tour:first-child .playoff-table-group{padding-left:0}
           .playoff-table .playoff-table-tour:first-child .playoff-table-left-player:before{display:none}
           .playoff-table .playoff-table-tour:last-child .playoff-table-group:after{display:none}
           .playoff-table .playoff-table-tour:last-child .playoff-table-pair:after,.playoff-table .playoff-table-tour:last-child .playoff-table-pair:before{display:none}
+          
+          /* Animation Effects */
+          .playoff-table .playoff-table-pair-style {
+            transition: all 0.3s ease;
+            transform: translateY(0);
+          }
+          .playoff-table .playoff-table-pair-style:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border-color: #3b82f6;
+          }
+          .playoff-table .playoff-table-pair-style:hover::before {
+            left: 100%;
+          }
+          
+          .playoff-table .playoff-table-left-player,
+          .playoff-table .playoff-table-right-player {
+            transition: all 0.2s ease;
+          }
+          .playoff-table .playoff-table-pair-style:hover .playoff-table-left-player,
+          .playoff-table .playoff-table-pair-style:hover .playoff-table-right-player {
+            background-color: #f8fafc;
+            color: #1e40af;
+            font-weight: 600;
+          }
+          
+          /* Keep connecting lines static - no hover effects */
+          
+          .playoff-table .playoff-table-round-title div {
+            transition: all 0.3s ease;
+            position: relative;
+            background: linear-gradient(135deg, #374151, #1f2937);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background-color: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+          }
+          .playoff-table .playoff-table-round-title div:hover {
+            transform: scale(1.05);
+            background-color: rgba(59, 130, 246, 0.1);
+            border-color: rgba(59, 130, 246, 0.3);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
+          }
+          
+          @keyframes pulse {
+            0%, 100% { opacity: 0.5; transform: translateX(-50%) scaleX(1); }
+            50% { opacity: 1; transform: translateX(-50%) scaleX(1.2); }
+          }
+          
+          .playoff-table .playoff-table-tour {
+            animation: slideInFromLeft 0.6s ease-out;
+          }
+          .playoff-table .playoff-table-tour:nth-child(1) { animation-delay: 0.1s; }
+          .playoff-table .playoff-table-tour:nth-child(2) { animation-delay: 0.2s; }
+          .playoff-table .playoff-table-tour:nth-child(3) { animation-delay: 0.3s; }
+          .playoff-table .playoff-table-tour:nth-child(4) { animation-delay: 0.4s; }
+          .playoff-table .playoff-table-tour:nth-child(5) { animation-delay: 0.5s; }
+          
+          @keyframes slideInFromLeft {
+            0% {
+              opacity: 0;
+              transform: translateX(-30px);
+            }
+            100% {
+              opacity: 1;
+              transform: translateX(0);
+            }
+          }
+          
+          .playoff-table .playoff-table-pair {
+            animation: fadeInUp 0.4s ease-out;
+          }
+          .playoff-table .playoff-table-pair:nth-child(1) { animation-delay: 0.1s; }
+          .playoff-table .playoff-table-pair:nth-child(2) { animation-delay: 0.2s; }
+          .playoff-table .playoff-table-pair:nth-child(3) { animation-delay: 0.3s; }
+          .playoff-table .playoff-table-pair:nth-child(4) { animation-delay: 0.4s; }
+          
+          @keyframes fadeInUp {
+            0% {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            100% {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          
+          /* Disable animations and effects for image export */
+          .bracket-export-container * {
+            animation: none !important;
+            transition: none !important;
+          }
+          .bracket-export-container .playoff-table-pair-style::before {
+            display: none !important;
+          }
+          .bracket-export-container .playoff-table-round-title div {
+            background: #374151 !important;
+            -webkit-background-clip: unset !important;
+            -webkit-text-fill-color: unset !important;
+            background-clip: unset !important;
+            color: #374151 !important;
+            background-color: transparent !important;
+            backdrop-filter: none !important;
+            border: none !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+          }
         `}</style>
 
         {roundsCount === 0 || baseSize === 0 ? (
-          <div className="p-6 text-gray-500">Nhập số VĐV và bấm "Tính nhánh" để xem khung playoff.</div>
+          <div className="p-6 text-gray-500">Nhập số VĐV và bấm "Tính nhánh" để xem sơ đồ nhánh đấu.</div>
         ) : (
           <div className="playoff-table">
             <div className="playoff-table-content">
@@ -473,7 +608,7 @@ export default function BracketBuilder() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[90vh] overflow-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Xem trước ảnh bracket</h3>
+              <h3 className="text-xl font-bold">Xem trước ảnh nhánh đấu</h3>
               <button
                 onClick={() => setShowPreviewModal(false)}
                 className="text-gray-500 hover:text-gray-700 text-2xl"
@@ -486,12 +621,12 @@ export default function BracketBuilder() {
               {previewImage ? (
                 <img 
                   src={previewImage} 
-                  alt="Bracket Preview" 
+                  alt="Nhánh đấu Preview" 
                   className="max-w-full h-auto border rounded"
                 />
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-gray-600 mb-4">Đang tạo ảnh bracket...</p>
+                  <p className="text-gray-600 mb-4">Đang tạo ảnh nhánh đấu...</p>
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                 </div>
               )}
