@@ -27,6 +27,7 @@ import { ToastProvider } from "./components/common/ToastProvider";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
+import BracketBuilder from "./pages/brackets/BracketBuilder";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
 import FormBuilder from "./features/tournament/FormBuilder";
@@ -127,6 +128,7 @@ export default function App() {
         <Route path="fist-content" element={<FistContentListPage />} />
         <Route path="fist-content/:id/items" element={<FistItemsPage />} />
         <Route path="music-content" element={<MusicContentListPage />} />
+        <Route path="brackets" element={<BracketBuilder />} />
 
         {/* Arrange */}
         <Route path="arrange" element={<ArrangeOrderWrapper />} />
