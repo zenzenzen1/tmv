@@ -1,8 +1,11 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import MultiSelect from "@/components/common/MultiSelect";
 import { useCompetitionStore } from "@/stores/competition";
 import { useWeightClassStore } from "@/stores/weightClass";
 import * as htmlToImage from 'html-to-image';
+import api from "../../services/api";
+import { API_ENDPOINTS } from "../../config/endpoints";
+import type { PaginationResponse } from "../../types/api";
 
 export default function BracketBuilder() {
   const { competitions, fetchCompetitions } = useCompetitionStore();
@@ -13,6 +16,11 @@ export default function BracketBuilder() {
   const [competitionType, setCompetitionType] = useState<string>('individual');
   const [athleteCount, setAthleteCount] = useState<number>(0);
   const [athleteFile, setAthleteFile] = useState<File | null>(null);
+  
+  // New states for athlete list
+  const [athletes, setAthletes] = useState<any[]>([]);
+  const [loadingAthletes, setLoadingAthletes] = useState<boolean>(false);
+  const [selectedAthletes, setSelectedAthletes] = useState<string[]>([]);
   
   const [seedNames, setSeedNames] = useState<string[]>([]);
   const [pairings, setPairings] = useState<Array<[string, string]>>([]); // preliminary round pairs
@@ -52,6 +60,40 @@ export default function BracketBuilder() {
   );
   const weightClassOptions = useMemo(() => (wcList?.content || []).map(wc => ({ value: wc.id, label: `${wc.gender} - ${wc.minWeight}-${wc.maxWeight}kg` })), [wcList]);
 
+  // Fetch athletes based on competition and weight class
+  const fetchAthletes = async () => {
+    if (competitionId.length === 0 || weightClassId.length === 0) {
+      setAthletes([]);
+      return;
+    }
+
+    setLoadingAthletes(true);
+    try {
+      const response = await api.get<PaginationResponse<any>>(API_ENDPOINTS.ATHLETES.BASE, {
+        tournamentId: competitionId[0],
+        competitionType: 'fighting', // Only fighting athletes for brackets
+        weightClassId: weightClassId[0],
+        page: 0,
+        size: 100
+      });
+      
+      console.log('Athletes API response:', response);
+      setAthletes(response.data?.content || []);
+    } catch (error) {
+      console.error('Error fetching athletes:', error);
+      setAthletes([]);
+    } finally {
+      setLoadingAthletes(false);
+    }
+  };
+
+  // Fetch athletes when competition or weight class changes
+  useEffect(() => {
+    fetchAthletes();
+    // Reset selected athletes when competition or weight class changes
+    setSelectedAthletes([]);
+  }, [competitionId, weightClassId]);
+
   const handleImport = () => {
     if (!athleteFile) {
       alert("Hãy chọn file danh sách VĐV (.csv/.xlsx)");
@@ -66,97 +108,114 @@ export default function BracketBuilder() {
   // Compute according to user's rule:
   // base = 2^k <= N, extra = N - base, bye seeds = (base - extra) i.e., seeds (extra+1..base) get byes
   // Round 1 pairs: (1..extra) vs (base+1 .. base+extra)
-  function computePairings(n: number): Array<[string, string]> {
+  function computePairings(n: number, athleteNames?: string[]): Array<[string, string]> {
+    console.log('Computing pairings for', n, 'athletes');
+    console.log('Athlete names passed:', athleteNames);
+    
+    // Use passed athleteNames or fallback to seedNames state
+    const names = athleteNames || seedNames;
+    
     if (n <= 1) {
       setBaseSize(1);
-      setRoundsCount(1); // only final column
+      setRoundsCount(1);
       setByeCount(0);
       setRoundPairs([]);
       return [];
     }
-    const base = prevPowerOfTwo(n); // e.g., 16 for 25
-    const extra = n - base; // e.g., 9
-    const byes = base - extra; // e.g., 7 (seeds extra+1..base)
-    const size = extra > 0 ? base * 2 : base; // overall bracket size
+    
+    // Calculate bracket structure
+    const base = prevPowerOfTwo(n);
+    const extra = n - base;
+    const byes = base - extra;
+    const size = extra > 0 ? base * 2 : base;
+    
     setBaseSize(base);
     setByeCount(byes);
     setBracketSize(size);
     
     const allRounds: Array<Array<[string, string]>> = [];
     
-    // Only create preliminary round if there are extra athletes (not a perfect power of 2)
     if (extra > 0) {
+      // Has preliminary round
       const prelimPairs: Array<[string, string]> = [];
-      for (let i = 1; i <= extra; i++) {
-        const leftSeed = i;
-        const rightSeed = base + i;
-        const leftName = leftSeed <= seedNames.length ? seedNames[leftSeed - 1] : `VĐV ${leftSeed}`;
-        const rightName = rightSeed <= seedNames.length ? seedNames[rightSeed - 1] : `VĐV ${rightSeed}`;
-        prelimPairs.push([`#${leftSeed} - ${leftName}`, `#${rightSeed} - ${rightName}`]);
+      for (let i = 0; i < extra; i++) {
+        const leftName = names[i] || `VĐV ${i + 1}`;
+        const rightName = names[base + i] || `VĐV ${base + i + 1}`;
+        prelimPairs.push([`#${i + 1} - ${leftName}`, `#${base + i + 1} - ${rightName}`]);
       }
       allRounds.push(prelimPairs);
       
-      // Build base round from winners and byes
-      const winnersLabels = prelimPairs.map((_, idx) => `W${idx + 1}`); // W1..Wextra
-      const byeSeeds = Array.from({ length: byes }, (_, i) => {
-        const seed = extra + 1 + i;
-        const name = seed <= seedNames.length ? seedNames[seed - 1] : `VĐV ${seed}`;
-        return `#${seed} - ${name}`;
-      }); // extra+1 .. base
-      const baseParticipants: string[] = [...winnersLabels, ...byeSeeds];
+      // Main bracket: combine winners from prelim with byes
+      const mainBracketPairs: Array<[string, string]> = [];
       
-      // Form base round pairs by adjacent
-      const basePairs: Array<[string, string]> = [];
-      for (let i = 0; i < baseParticipants.length; i += 2) {
-        basePairs.push([baseParticipants[i] || "", baseParticipants[i + 1] || ""]);
+      // Add winners from preliminary round (pairs of 2)
+      for (let i = 0; i < extra; i += 2) {
+        if (i + 1 < extra) {
+          mainBracketPairs.push([`W${i + 1}`, `W${i + 2}`]);
+        } else {
+          // Single winner from prelim, pair with a bye
+          const byeName = names[extra] || `VĐV ${extra + 1}`;
+          mainBracketPairs.push([`W${i + 1}`, `#${extra + 1} - ${byeName}`]);
+        }
       }
-      allRounds.push(basePairs);
       
-      // Subsequent rounds: pair winners consecutively
-      let prevRoundWinnersCount = basePairs.length;
-      let winnerOffset = winnersLabels.length + 1;
-      while (prevRoundWinnersCount > 1) {
+      // Add remaining byes (athletes who get direct entry to main bracket)
+      for (let i = extra + 1; i < base; i += 2) {
+        if (i + 1 < base) {
+          const leftName = names[i] || `VĐV ${i + 1}`;
+          const rightName = names[i + 1] || `VĐV ${i + 2}`;
+          mainBracketPairs.push([`#${i + 1} - ${leftName}`, `#${i + 2} - ${rightName}`]);
+        }
+      }
+      
+      allRounds.push(mainBracketPairs);
+      
+      // Create subsequent rounds
+      let currentRound = mainBracketPairs;
+      let winnerCounter = 1;
+      while (currentRound.length > 1) {
         const nextRound: Array<[string, string]> = [];
-        for (let i = 0; i < prevRoundWinnersCount; i += 2) {
-          const left = `W${winnerOffset + i}`;
-          const right = `W${winnerOffset + i + 1}`;
-          nextRound.push([left, right]);
+        for (let i = 0; i < currentRound.length; i += 2) {
+          if (i + 1 < currentRound.length) {
+            nextRound.push([`W${winnerCounter}`, `W${winnerCounter + 1}`]);
+            winnerCounter += 2;
+          }
         }
         allRounds.push(nextRound);
-        winnerOffset += prevRoundWinnersCount;
-        prevRoundWinnersCount = nextRound.length;
+        currentRound = nextRound;
       }
       
-      setRoundsCount(1 + Math.log2(base)); // prelim + full bracket rounds
+      setRoundsCount(allRounds.length);
     } else {
-      // Perfect power of 2 - no preliminary round needed
+      // Perfect power of 2 - no preliminary round
       const firstRoundPairs: Array<[string, string]> = [];
-      for (let i = 1; i <= base; i += 2) {
-        const leftName = i <= seedNames.length ? seedNames[i - 1] : `VĐV ${i}`;
-        const rightName = (i + 1) <= seedNames.length ? seedNames[i] : `VĐV ${i + 1}`;
-        firstRoundPairs.push([`#${i} - ${leftName}`, `#${i + 1} - ${rightName}`]);
+      for (let i = 0; i < base; i += 2) {
+        const leftName = names[i] || `VĐV ${i + 1}`;
+        const rightName = names[i + 1] || `VĐV ${i + 2}`;
+        firstRoundPairs.push([`#${i + 1} - ${leftName}`, `#${i + 2} - ${rightName}`]);
       }
       allRounds.push(firstRoundPairs);
       
-      // Subsequent rounds: pair winners consecutively
-      let prevRoundWinnersCount = firstRoundPairs.length;
-      let winnerOffset = base + 1; // Start from base+1 for winners
-      while (prevRoundWinnersCount > 1) {
+      // Create subsequent rounds
+      let currentRound = firstRoundPairs;
+      let winnerCounter = 1;
+      while (currentRound.length > 1) {
         const nextRound: Array<[string, string]> = [];
-        for (let i = 0; i < prevRoundWinnersCount; i += 2) {
-          const left = `W${winnerOffset + i}`;
-          const right = `W${winnerOffset + i + 1}`;
-          nextRound.push([left, right]);
+        for (let i = 0; i < currentRound.length; i += 2) {
+          if (i + 1 < currentRound.length) {
+            nextRound.push([`W${winnerCounter}`, `W${winnerCounter + 1}`]);
+            winnerCounter += 2;
+          }
         }
         allRounds.push(nextRound);
-        winnerOffset += prevRoundWinnersCount;
-        prevRoundWinnersCount = nextRound.length;
+        currentRound = nextRound;
       }
       
-      setRoundsCount(Math.log2(base)); // only main bracket rounds
+      setRoundsCount(allRounds.length);
     }
     
     setRoundPairs(allRounds);
+    console.log('All rounds generated:', allRounds);
     return allRounds[0] || [];
   }
 
@@ -166,10 +225,15 @@ export default function BracketBuilder() {
       alert("Vui lòng nhập số VĐV");
       return;
     }
-    // Generate mock athlete names
-    const names = Array.from({ length: n }, (_, i) => `VĐV ${i + 1}`);
+    // Use actual athlete names if available, otherwise generate mock names
+    const names = selectedAthletes.length > 0 
+      ? selectedAthletes.map(id => {
+          const athlete = athletes.find(a => a.id === id);
+          return athlete ? athlete.fullName : `VĐV ${id}`;
+        })
+      : Array.from({ length: n }, (_, i) => `VĐV ${i + 1}`);
     setSeedNames(names);
-    const pairs = computePairings(n);
+    const pairs = computePairings(n, names);
     setPairings(pairs);
   };
 
@@ -284,22 +348,121 @@ export default function BracketBuilder() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Số vận động viên</label>
-            <input
-              type="number"
-              min={0}
-              value={athleteCount}
-              onChange={(e) => setAthleteCount(Number.isNaN(parseInt(e.target.value)) ? 0 : Math.max(0, parseInt(e.target.value)))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Nhập số VĐV (VD: 16)"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Số vận động viên đã chọn</label>
+            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+              {selectedAthletes.length} / {athletes.length} vận động viên
+            </div>
           </div>
         </div>
 
 
+        {/* Athletes List */}
+        {competitionId.length > 0 && weightClassId.length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <h3 className="text-lg font-semibold mb-4">Danh sách vận động viên</h3>
+            
+            {loadingAthletes ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-2 text-gray-600">Đang tải danh sách vận động viên...</p>
+              </div>
+            ) : athletes.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>Không có vận động viên nào trong hạng cân này</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {athletes.map((athlete) => (
+                  <div key={athlete.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedAthletes.includes(athlete.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedAthletes([...selectedAthletes, athlete.id]);
+                          } else {
+                            setSelectedAthletes(selectedAthletes.filter(id => id !== athlete.id));
+                          }
+                        }}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <div>
+                        <p className="font-medium text-gray-900">{athlete.fullName}</p>
+                        <p className="text-sm text-gray-500">
+                          {athlete.studentId} • {athlete.club} • {athlete.gender === 'MALE' ? 'Nam' : 'Nữ'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {athlete.status === 'NOT_STARTED' ? 'Chưa bắt đầu' : 
+                       athlete.status === 'IN_PROGRESS' ? 'Đang thi đấu' :
+                       athlete.status === 'DONE' ? 'Hoàn thành' : 'Vi phạm'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {athletes.length > 0 && (
+              <div className="mt-4 flex justify-between items-center">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setSelectedAthletes(athletes.map(a => a.id))}
+                    className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                  >
+                    Chọn tất cả
+                  </button>
+                  <button
+                    onClick={() => setSelectedAthletes([])}
+                    className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                  >
+                    Bỏ chọn tất cả
+                  </button>
+                </div>
+                <button
+                  onClick={() => {
+                    if (selectedAthletes.length === 0) {
+                      alert("Vui lòng chọn ít nhất 1 vận động viên");
+                      return;
+                    }
+                    
+                    // Set athlete count and names
+                    setAthleteCount(selectedAthletes.length);
+                    const selectedAthleteNames = selectedAthletes.map(id => {
+                      const athlete = athletes.find(a => a.id === id);
+                      return athlete ? athlete.fullName : `VĐV ${id}`;
+                    });
+                    
+                    // Set seed names first, then generate bracket
+                    setSeedNames(selectedAthleteNames);
+                    
+                    // Generate bracket with athlete names
+                    const pairs = computePairings(selectedAthletes.length, selectedAthleteNames);
+                    setPairings(pairs);
+                    
+                    console.log('Generated bracket for', selectedAthletes.length, 'athletes');
+                    console.log('Athlete names:', selectedAthleteNames);
+                    console.log('Pairs:', pairs);
+                    console.log('All rounds:', roundPairs);
+                    console.log('Rounds count:', roundsCount);
+                    
+                    // Show success message
+                    alert(`Đã tạo nhánh đấu cho ${selectedAthletes.length} vận động viên!`);
+                  }}
+                  disabled={selectedAthletes.length === 0}
+                  className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+                >
+                  Chia nhánh đấu ({selectedAthletes.length} VĐV)
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Import danh sách VĐV</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Import danh sách VĐV (Tùy chọn)</label>
             <div className="relative">
               <input
                 type="file"
@@ -349,7 +512,7 @@ export default function BracketBuilder() {
         </div>
       </div>
 
-      {roundsCount > 0 && (
+      {roundsCount > 0 && selectedAthletes.length > 0 && (
         <div className="bg-white rounded-lg border border-gray-200 p-0 overflow-x-auto max-w-full bracket-export-container" ref={bracketRef}>
         {/* Tournament Banner */}
         <div className="relative bg-gradient-to-r from-blue-50 via-blue-100 to-blue-200 text-gray-800 px-6 py-6 overflow-hidden">
