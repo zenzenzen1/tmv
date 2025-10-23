@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../../components/common/ToastContext';
 import apiService from '../../services/api';
 import { API_ENDPOINTS } from '../../config/endpoints';
+import { validateEmail, validatePhoneNumber, validateStudentId, validateRequired } from '../../utils/validation';
 
 type FormField = {
   id: string;
@@ -32,6 +33,7 @@ export default function FormRegistrationPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (id || slug) {
@@ -46,7 +48,7 @@ export default function FormRegistrationPage() {
       
       let response;
       if (slug) {
-        response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.PUBLIC_BY_SLUG(slug));
+        response = await apiService.get<any>(`${API_ENDPOINTS.APPLICATION_FORMS.BASE}/public/${slug}`);
       } else {
         response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id!));
       }
@@ -79,12 +81,85 @@ export default function FormRegistrationPage() {
       ...prev,
       [fieldName]: value
     }));
+    
+    // Clear field error when user starts typing
+    if (fieldErrors[fieldName]) {
+      setFieldErrors(prev => ({
+        ...prev,
+        [fieldName]: ''
+      }));
+    }
+  };
+
+  // Validation function for individual fields
+  const validateField = (field: FormField, value: any): string | null => {
+    if (field.required && (!value || (typeof value === 'string' && value.trim() === ''))) {
+      return `${field.label} là bắt buộc`;
+    }
+
+    // Skip validation if field is not required and empty
+    if (!field.required && (!value || (typeof value === 'string' && value.trim() === ''))) {
+      return null;
+    }
+
+    const stringValue = String(value).trim();
+
+    // Email validation
+    if (field.name.toLowerCase().includes('email') || field.label.toLowerCase().includes('email')) {
+      const emailValidation = validateEmail(stringValue, { required: field.required });
+      return emailValidation.isValid ? null : emailValidation.errorMessage || null;
+    }
+
+    // Phone validation
+    if (field.name.toLowerCase().includes('phone') || 
+        field.name.toLowerCase().includes('sdt') ||
+        field.label.toLowerCase().includes('phone') ||
+        field.label.toLowerCase().includes('số điện thoại')) {
+      const phoneValidation = validatePhoneNumber(stringValue, { required: field.required });
+      return phoneValidation.isValid ? null : phoneValidation.errorMessage || null;
+    }
+
+    // Student ID validation
+    if (field.name.toLowerCase().includes('mssv') || 
+        field.name.toLowerCase().includes('student') ||
+        field.label.toLowerCase().includes('mssv') ||
+        field.label.toLowerCase().includes('mã số sinh viên')) {
+      const studentIdValidation = validateStudentId(stringValue, { required: field.required });
+      return studentIdValidation.isValid ? null : studentIdValidation.errorMessage || null;
+    }
+
+    return null;
+  };
+
+  // Validate all fields
+  const validateForm = (): boolean => {
+    if (!formConfig) return false;
+
+    const errors: Record<string, string> = {};
+    let isValid = true;
+
+    formConfig.fields.forEach(field => {
+      const fieldError = validateField(field, formData[field.name]);
+      if (fieldError) {
+        errors[field.name] = fieldError;
+        isValid = false;
+      }
+    });
+
+    setFieldErrors(errors);
+    return isValid;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formConfig) return;
+
+    // Validate form before submission
+    if (!validateForm()) {
+      toast.error('Vui lòng kiểm tra lại thông tin đã nhập');
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -111,92 +186,141 @@ export default function FormRegistrationPage() {
 
   const renderField = (field: FormField) => {
     const value = formData[field.name] || '';
+    const hasError = fieldErrors[field.name];
+    const errorClass = hasError ? 'border-red-500 focus:border-red-500' : 'border-gray-300 focus:border-blue-500';
 
     switch (field.fieldType) {
       case 'TEXT':
         return (
-          <input
-            type="text"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-            value={value}
-            onChange={(e) => handleInputChange(field.name, e.target.value)}
-            placeholder={`Nhập ${field.label.toLowerCase()}`}
-            required={field.required}
-          />
+          <div>
+            <input
+              type="text"
+              className={`w-full rounded-md border px-3 py-2 focus:outline-none ${errorClass}`}
+              value={value}
+              onChange={(e) => handleInputChange(field.name, e.target.value)}
+              placeholder={`Nhập ${field.label.toLowerCase()}`}
+              required={field.required}
+            />
+            {hasError && (
+              <p className="text-red-500 text-xs mt-1">{hasError}</p>
+            )}
+          </div>
+        );
+      
+      case 'EMAIL':
+        return (
+          <div>
+            <input
+              type="email"
+              className={`w-full rounded-md border px-3 py-2 focus:outline-none ${errorClass}`}
+              value={value}
+              onChange={(e) => handleInputChange(field.name, e.target.value)}
+              placeholder={`Nhập ${field.label.toLowerCase()}`}
+              required={field.required}
+            />
+            {hasError && (
+              <p className="text-red-500 text-xs mt-1">{hasError}</p>
+            )}
+          </div>
         );
       
       case 'DATE':
         return (
-          <input
-            type="date"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-            value={value}
-            onChange={(e) => handleInputChange(field.name, e.target.value)}
-            required={field.required}
-          />
+          <div>
+            <input
+              type="date"
+              className={`w-full rounded-md border px-3 py-2 focus:outline-none ${errorClass}`}
+              value={value}
+              onChange={(e) => handleInputChange(field.name, e.target.value)}
+              required={field.required}
+            />
+            {hasError && (
+              <p className="text-red-500 text-xs mt-1">{hasError}</p>
+            )}
+          </div>
         );
       
       case 'SELECT':
         return (
-          <select
-            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-            value={value}
-            onChange={(e) => handleInputChange(field.name, e.target.value)}
-            required={field.required}
-          >
-            <option value="">Chọn một tùy chọn</option>
-            {field.options?.split(',').map((option, index) => (
-              <option key={index} value={option.trim()}>
-                {option.trim()}
-              </option>
-            ))}
-          </select>
+          <div>
+            <select
+              className={`w-full rounded-md border px-3 py-2 focus:outline-none ${errorClass}`}
+              value={value}
+              onChange={(e) => handleInputChange(field.name, e.target.value)}
+              required={field.required}
+            >
+              <option value="">Chọn một tùy chọn</option>
+              {field.options?.split(',').map((option, index) => (
+                <option key={index} value={option.trim()}>
+                  {option.trim()}
+                </option>
+              ))}
+            </select>
+            {hasError && (
+              <p className="text-red-500 text-xs mt-1">{hasError}</p>
+            )}
+          </div>
         );
       
       case 'CHECKBOX':
         return (
-          <div className="space-y-2">
-            {field.options?.split(',').map((option, index) => (
-              <label key={index} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  checked={value.includes(option.trim())}
-                  onChange={(e) => {
-                    const currentValues = value || [];
-                    if (e.target.checked) {
-                      handleInputChange(field.name, [...currentValues, option.trim()]);
-                    } else {
-                      handleInputChange(field.name, currentValues.filter((v: string) => v !== option.trim()));
-                    }
-                  }}
-                />
-                <span className="text-sm text-gray-700">{option.trim()}</span>
-              </label>
-            ))}
+          <div>
+            <div className="space-y-2">
+              {field.options?.split(',').map((option, index) => (
+                <label key={index} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={value.includes(option.trim())}
+                    onChange={(e) => {
+                      const currentValues = value || [];
+                      if (e.target.checked) {
+                        handleInputChange(field.name, [...currentValues, option.trim()]);
+                      } else {
+                        handleInputChange(field.name, currentValues.filter((v: string) => v !== option.trim()));
+                      }
+                    }}
+                  />
+                  <span className="text-sm text-gray-700">{option.trim()}</span>
+                </label>
+              ))}
+            </div>
+            {hasError && (
+              <p className="text-red-500 text-xs mt-1">{hasError}</p>
+            )}
           </div>
         );
       
       case 'FILE':
         return (
-          <input
-            type="file"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-            onChange={(e) => handleInputChange(field.name, e.target.files?.[0])}
-            required={field.required}
-          />
+          <div>
+            <input
+              type="file"
+              className={`w-full rounded-md border px-3 py-2 focus:outline-none ${errorClass}`}
+              onChange={(e) => handleInputChange(field.name, e.target.files?.[0])}
+              required={field.required}
+            />
+            {hasError && (
+              <p className="text-red-500 text-xs mt-1">{hasError}</p>
+            )}
+          </div>
         );
       
       default:
         return (
-          <input
-            type="text"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-            value={value}
-            onChange={(e) => handleInputChange(field.name, e.target.value)}
-            placeholder={`Nhập ${field.label.toLowerCase()}`}
-            required={field.required}
-          />
+          <div>
+            <input
+              type="text"
+              className={`w-full rounded-md border px-3 py-2 focus:outline-none ${errorClass}`}
+              value={value}
+              onChange={(e) => handleInputChange(field.name, e.target.value)}
+              placeholder={`Nhập ${field.label.toLowerCase()}`}
+              required={field.required}
+            />
+            {hasError && (
+              <p className="text-red-500 text-xs mt-1">{hasError}</p>
+            )}
+          </div>
         );
     }
   };

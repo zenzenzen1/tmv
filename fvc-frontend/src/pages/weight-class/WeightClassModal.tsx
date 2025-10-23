@@ -7,6 +7,7 @@ import type {
 } from "../../types";
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem, Button, Alert, Stack, InputLabel, FormControl } from '@mui/material';
 import { useToast } from '../../components/common/ToastContext';
+import { validateNonNegative, validateNumericRange } from '../../utils/validation';
 
 export default function WeightClassModal() {
   const { modalOpen, editing, closeModal, create, update } =
@@ -33,18 +34,58 @@ export default function WeightClassModal() {
     setError(null);
   }, [editing, modalOpen]);
 
+  // Validation for min weight
+  const minWeightValidation = useMemo(() => {
+    if (!minWeight || minWeight.trim() === '') {
+      return { isValid: false, errorMessage: 'Cân nặng tối thiểu là bắt buộc' };
+    }
+    
+    const nonNegativeValidation = validateNonNegative(minWeight, 'Cân nặng tối thiểu');
+    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
+    
+    const rangeValidation = validateNumericRange(minWeight, 0, 200, 'Cân nặng tối thiểu');
+    if (!rangeValidation.isValid) return rangeValidation;
+    
+    return { isValid: true };
+  }, [minWeight]);
+
+  // Validation for max weight
+  const maxWeightValidation = useMemo(() => {
+    if (!maxWeight || maxWeight.trim() === '') {
+      return { isValid: false, errorMessage: 'Cân nặng tối đa là bắt buộc' };
+    }
+    
+    const nonNegativeValidation = validateNonNegative(maxWeight, 'Cân nặng tối đa');
+    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
+    
+    const rangeValidation = validateNumericRange(maxWeight, 0, 200, 'Cân nặng tối đa');
+    if (!rangeValidation.isValid) return rangeValidation;
+    
+    return { isValid: true };
+  }, [maxWeight]);
+
+  // Validation for weight range (min < max)
+  const weightRangeValidation = useMemo(() => {
+    if (minWeightValidation.isValid && maxWeightValidation.isValid) {
+      const min = Number(minWeight);
+      const max = Number(maxWeight);
+      if (min >= max) {
+        return { isValid: false, errorMessage: 'Cân nặng tối đa phải lớn hơn cân nặng tối thiểu' };
+      }
+    }
+    return { isValid: true };
+  }, [minWeightValidation, maxWeightValidation, minWeight, maxWeight]);
+
   const isValid = useMemo(() => {
-    const min = Number(minWeight);
-    const max = Number(maxWeight);
-    if (Number.isNaN(min) || Number.isNaN(max)) return false;
-    return min > 0 && max > 0 && min < max;
-  }, [minWeight, maxWeight]);
+    return minWeightValidation.isValid && maxWeightValidation.isValid && weightRangeValidation.isValid;
+  }, [minWeightValidation.isValid, maxWeightValidation.isValid, weightRangeValidation.isValid]);
 
   if (!modalOpen) return null;
 
   const onSaveDraft = async () => {
     if (!isValid) {
-      setError("Vui lòng nhập cân nặng hợp lệ (min < max).");
+      const firstError = minWeightValidation.errorMessage || maxWeightValidation.errorMessage || weightRangeValidation.errorMessage;
+      setError(firstError || "Vui lòng nhập cân nặng hợp lệ.");
       return;
     }
     try {
@@ -74,7 +115,8 @@ export default function WeightClassModal() {
 
   const onSave = async () => {
     if (!isValid) {
-      setError("Vui lòng nhập cân nặng hợp lệ (min < max).");
+      const firstError = minWeightValidation.errorMessage || maxWeightValidation.errorMessage || weightRangeValidation.errorMessage;
+      setError(firstError || "Vui lòng nhập cân nặng hợp lệ.");
       return;
     }
     try {
@@ -111,6 +153,10 @@ export default function WeightClassModal() {
               onChange={(e) => setMinWeight(e.target.value)}
               placeholder="45"
               fullWidth
+              type="number"
+              inputProps={{ min: 0, max: 200, step: 0.1 }}
+              error={!minWeightValidation.isValid && minWeight !== ''}
+              helperText={!minWeightValidation.isValid && minWeight !== '' ? minWeightValidation.errorMessage : ''}
             />
             <TextField
               label="Hạng cân (kg) - Max"
@@ -118,8 +164,17 @@ export default function WeightClassModal() {
               onChange={(e) => setMaxWeight(e.target.value)}
               placeholder="50"
               fullWidth
+              type="number"
+              inputProps={{ min: 0, max: 200, step: 0.1 }}
+              error={!maxWeightValidation.isValid && maxWeight !== ''}
+              helperText={!maxWeightValidation.isValid && maxWeight !== '' ? maxWeightValidation.errorMessage : ''}
             />
           </Stack>
+
+          {/* Weight range validation error */}
+          {!weightRangeValidation.isValid && minWeight !== '' && maxWeight !== '' && (
+            <Alert severity="error">{weightRangeValidation.errorMessage}</Alert>
+          )}
 
           {!editing && (
             <FormControl fullWidth>

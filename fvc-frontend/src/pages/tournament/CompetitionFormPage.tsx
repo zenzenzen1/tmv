@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCompetitionStore } from '../../stores/competition';
 import { useWeightClassStore } from '../../stores/weightClass';
@@ -10,6 +10,7 @@ import type {
 } from '../../types';
 import MultiSelect from '../../components/common/MultiSelect';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { validateLength, validateNonNegative, validateNumericRange } from '../../utils/validation';
 import {
   Box,
   Container,
@@ -173,14 +174,73 @@ const CompetitionFormPage: React.FC = () => {
     handleFieldChange('fistConfigItemSelections', selectedFistItems);
   };
 
+  // Name validation
+  const nameValidation = useMemo(() => {
+    if (!formData.name.trim()) {
+      return { isValid: false, errorMessage: 'Tên giải đấu là bắt buộc' };
+    }
+    return validateLength(formData.name, { min: 1, max: 100, fieldName: 'Tên giải đấu' });
+  }, [formData.name]);
+
+  // Description validation
+  const descriptionValidation = useMemo(() => {
+    if (!formData.description || formData.description.trim() === '') {
+      return { isValid: true }; // Description is optional
+    }
+    return validateLength(formData.description, { max: 1000, fieldName: 'Mô tả' });
+  }, [formData.description]);
+
+  // Numeric field validations
+  const numberOfRoundsValidation = useMemo(() => {
+    const value = formData.numberOfRounds ?? 0;
+    const nonNegativeValidation = validateNonNegative(value, 'Số hiệp đấu');
+    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
+    return validateNumericRange(value, 1, 10, 'Số hiệp đấu');
+  }, [formData.numberOfRounds]);
+
+  const roundDurationValidation = useMemo(() => {
+    const value = formData.roundDurationSeconds ?? 0;
+    const nonNegativeValidation = validateNonNegative(value, 'Thời gian mỗi hiệp');
+    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
+    return validateNumericRange(value, 30, 300, 'Thời gian mỗi hiệp');
+  }, [formData.roundDurationSeconds]);
+
+  const assessorCountValidation = useMemo(() => {
+    const value = formData.assessorCount ?? 0;
+    const nonNegativeValidation = validateNonNegative(value, 'Số giám khảo');
+    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
+    return validateNumericRange(value, 1, 10, 'Số giám khảo');
+  }, [formData.assessorCount]);
+
+  const injuryTimeoutValidation = useMemo(() => {
+    const value = formData.injuryTimeoutSeconds ?? 0;
+    const nonNegativeValidation = validateNonNegative(value, 'Thời gian nghỉ chấn thương');
+    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
+    return validateNumericRange(value, 10, 300, 'Thời gian nghỉ chấn thương');
+  }, [formData.injuryTimeoutSeconds]);
+
+  const maxExtraRoundsValidation = useMemo(() => {
+    const value = formData.maxExtraRounds ?? 0;
+    const nonNegativeValidation = validateNonNegative(value, 'Số hiệp phụ tối đa');
+    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
+    return validateNumericRange(value, 0, 5, 'Số hiệp phụ tối đa');
+  }, [formData.maxExtraRounds]);
+
   // Validate form
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
 
-    if (!formData.name.trim()) {
-      errors.name = 'Tên giải đấu là bắt buộc';
+    // Name validation
+    if (!nameValidation.isValid) {
+      errors.name = nameValidation.errorMessage || 'Tên giải đấu không hợp lệ';
     }
 
+    // Description validation
+    if (!descriptionValidation.isValid) {
+      errors.description = descriptionValidation.errorMessage || 'Mô tả không hợp lệ';
+    }
+
+    // Required date fields
     if (!formData.registrationStartDate) {
       errors.registrationStartDate = 'Ngày bắt đầu đăng ký là bắt buộc';
     }
@@ -199,6 +259,27 @@ const CompetitionFormPage: React.FC = () => {
 
     if (!formData.endDate) {
       errors.endDate = 'Ngày kết thúc là bắt buộc';
+    }
+
+    // Numeric field validations
+    if (!numberOfRoundsValidation.isValid) {
+      errors.numberOfRounds = numberOfRoundsValidation.errorMessage || 'Số hiệp đấu không hợp lệ';
+    }
+
+    if (!roundDurationValidation.isValid) {
+      errors.roundDurationSeconds = roundDurationValidation.errorMessage || 'Thời gian mỗi hiệp không hợp lệ';
+    }
+
+    if (!assessorCountValidation.isValid) {
+      errors.assessorCount = assessorCountValidation.errorMessage || 'Số giám khảo không hợp lệ';
+    }
+
+    if (!injuryTimeoutValidation.isValid) {
+      errors.injuryTimeoutSeconds = injuryTimeoutValidation.errorMessage || 'Thời gian nghỉ chấn thương không hợp lệ';
+    }
+
+    if (!maxExtraRoundsValidation.isValid) {
+      errors.maxExtraRounds = maxExtraRoundsValidation.errorMessage || 'Số hiệp phụ tối đa không hợp lệ';
     }
 
     // Date validation
@@ -301,13 +382,14 @@ const CompetitionFormPage: React.FC = () => {
                       <Box>
                         <TextField
                           label="Tên giải đấu *"
-                    value={formData.name}
-                    onChange={(e) => handleFieldChange('name', e.target.value)}
-                    disabled={isView}
-                    placeholder="Nhập tên giải đấu"
+                          value={formData.name}
+                          onChange={(e) => handleFieldChange('name', e.target.value)}
+                          disabled={isView}
+                          placeholder="Nhập tên giải đấu"
                           error={!!formErrors.name}
                           helperText={formErrors.name || ' '}
                           fullWidth
+                          inputProps={{ maxLength: 100 }}
                         />
                       </Box>
                       <Box>
@@ -323,13 +405,16 @@ const CompetitionFormPage: React.FC = () => {
                       <Box gridColumn={{ xs: '1 / -1' }}>
                         <TextField
                           label="Mô tả"
-                  value={formData.description}
-                  onChange={(e) => handleFieldChange('description', e.target.value)}
-                  disabled={isView}
+                          value={formData.description}
+                          onChange={(e) => handleFieldChange('description', e.target.value)}
+                          disabled={isView}
                           placeholder="Nhập mô tả về giải đấu"
                           fullWidth
                           multiline
-                  rows={4}
+                          rows={4}
+                          error={!!formErrors.description}
+                          helperText={formErrors.description || ' '}
+                          inputProps={{ maxLength: 1000 }}
                         />
                       </Box>
                     </Box>
@@ -470,6 +555,9 @@ const CompetitionFormPage: React.FC = () => {
                           onChange={(e) => handleFieldChange('numberOfRounds', parseInt(e.target.value))}
                           disabled={isView}
                           fullWidth
+                          error={!!formErrors.numberOfRounds}
+                          helperText={formErrors.numberOfRounds || ' '}
+                          inputProps={{ min: 1, max: 10 }}
                         />
                       </Box>
                       <Box>
@@ -480,6 +568,9 @@ const CompetitionFormPage: React.FC = () => {
                           onChange={(e) => handleFieldChange('roundDurationSeconds', parseInt(e.target.value))}
                           disabled={isView}
                           fullWidth
+                          error={!!formErrors.roundDurationSeconds}
+                          helperText={formErrors.roundDurationSeconds || ' '}
+                          inputProps={{ min: 30, max: 300 }}
                         />
                       </Box>
                       <Box>
@@ -490,6 +581,9 @@ const CompetitionFormPage: React.FC = () => {
                           onChange={(e) => handleFieldChange('assessorCount', parseInt(e.target.value))}
                           disabled={isView}
                           fullWidth
+                          error={!!formErrors.assessorCount}
+                          helperText={formErrors.assessorCount || ' '}
+                          inputProps={{ min: 1, max: 10 }}
                         />
                       </Box>
                       <Box>
@@ -500,6 +594,9 @@ const CompetitionFormPage: React.FC = () => {
                           onChange={(e) => handleFieldChange('injuryTimeoutSeconds', parseInt(e.target.value))}
                           disabled={isView}
                           fullWidth
+                          error={!!formErrors.injuryTimeoutSeconds}
+                          helperText={formErrors.injuryTimeoutSeconds || ' '}
+                          inputProps={{ min: 10, max: 300 }}
                         />
                       </Box>
                       <Box>
@@ -510,6 +607,9 @@ const CompetitionFormPage: React.FC = () => {
                           onChange={(e) => handleFieldChange('maxExtraRounds', parseInt(e.target.value))}
                           disabled={isView}
                           fullWidth
+                          error={!!formErrors.maxExtraRounds}
+                          helperText={formErrors.maxExtraRounds || ' '}
+                          inputProps={{ min: 0, max: 5 }}
                         />
                       </Box>
                       <Box display="flex" alignItems="center">

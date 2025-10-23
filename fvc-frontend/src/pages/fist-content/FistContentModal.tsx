@@ -1,6 +1,7 @@
 import { useFistContentStore } from '../../stores/fistContent';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../../components/common/ToastContext';
+import { validateLength, validateRequired } from '../../utils/validation';
 import {
   Dialog,
   DialogTitle,
@@ -48,11 +49,35 @@ export default function FistContentModal() {
     }
   }, [storeError]);
 
-  // remove unused variable to satisfy linter
+  // Name validation
+  const nameValidation = useMemo(() => {
+    const requiredValidation = validateRequired(name, 'Nội dung Quyền');
+    if (!requiredValidation.isValid) return requiredValidation;
+    
+    const lengthValidation = validateLength(name, { min: 1, max: 100, fieldName: 'Nội dung Quyền' });
+    if (!lengthValidation.isValid) return lengthValidation;
+    
+    return { isValid: true };
+  }, [name]);
+
+  // Description validation
+  const descriptionValidation = useMemo(() => {
+    if (!description || description.trim() === '') {
+      return { isValid: true }; // Description is optional
+    }
+    
+    const lengthValidation = validateLength(description, { max: 500, fieldName: 'Ghi chú' });
+    return lengthValidation;
+  }, [description]);
+
+  // Overall form validation
+  const isFormValid = useMemo(() => {
+    return nameValidation.isValid && descriptionValidation.isValid;
+  }, [nameValidation.isValid, descriptionValidation.isValid]);
 
   const getValidationError = () => {
-    if (name.trim().length === 0) return 'Vui lòng nhập nội dung quyền!';
-    // parent has no type in this model
+    if (!nameValidation.isValid) return nameValidation.errorMessage;
+    if (!descriptionValidation.isValid) return descriptionValidation.errorMessage;
     return null;
   };
 
@@ -120,6 +145,9 @@ export default function FistContentModal() {
             value={name}
             onChange={(e) => { setName(e.target.value); setError(null); }}
             placeholder="VD: Song Luyện quyền 1"
+            error={!nameValidation.isValid && name !== ''}
+            helperText={!nameValidation.isValid && name !== '' ? nameValidation.errorMessage : ''}
+            inputProps={{ maxLength: 100 }}
           />
 
           <TextField
@@ -127,6 +155,11 @@ export default function FistContentModal() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="VD: Áp dụng theo chuẩn Vovinam 2025"
+            multiline
+            rows={3}
+            error={!descriptionValidation.isValid && description !== ''}
+            helperText={!descriptionValidation.isValid && description !== '' ? descriptionValidation.errorMessage : ''}
+            inputProps={{ maxLength: 500 }}
           />
 
           <FormControlLabel
@@ -140,8 +173,8 @@ export default function FistContentModal() {
       </DialogContent>
       <DialogActions>
         <Button onClick={closeModal} color="inherit">Hủy</Button>
-        <Button onClick={onSaveDraft} disabled={isLoading} variant="outlined">Lưu nháp</Button>
-        <Button onClick={onSave} disabled={isLoading} variant="contained">Lưu</Button>
+        <Button onClick={onSaveDraft} disabled={isLoading || !isFormValid} variant="outlined">Lưu nháp</Button>
+        <Button onClick={onSave} disabled={isLoading || !isFormValid} variant="contained">Lưu</Button>
       </DialogActions>
     </Dialog>
   );
