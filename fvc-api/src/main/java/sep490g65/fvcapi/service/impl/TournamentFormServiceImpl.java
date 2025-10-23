@@ -272,8 +272,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 Athlete.CompetitionType competitionType = parseCompetitionType(competitionTypeStr);
                 
                 // Extract hierarchical competition structure
-        String subCompetitionType = resolveSubCompetitionType(root, competitionTypeStr);
-        String detailSubCompetitionType = resolveDetailSubCompetitionType(root, competitionTypeStr);
+                String subCompetitionType = resolveSubCompetitionType(root, competitionTypeStr);
 
                 String tournamentId = null;
                 if (s.getApplicationFormConfig() != null && s.getApplicationFormConfig().getCompetition() != null) {
@@ -284,7 +283,12 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 }
 
                 if (tournamentId != null && fullName != null && email != null && gender != null && competitionType != null) {
-                Athlete prototype = Athlete.builder()
+                // Extract preferred IDs for tight linking and storing into detail_sub
+                String weightClassId = textOrNull(root, "weightClassId");
+                String fistItemId    = textOrNull(root, "fistItemId");
+                String musicContentId= textOrNull(root, "musicContentId");
+
+                Athlete.AthleteBuilder builder = Athlete.builder()
                         .tournamentId(tournamentId)
                         .fullName(fullName)
                         .email(email)
@@ -293,10 +297,17 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                         .club(club)
                         .competitionType(competitionType)
                         .subCompetitionType(subCompetitionType)
-                        .detailSubCompetitionType(detailSubCompetitionType)
-                        .status(Athlete.AthleteStatus.NOT_STARTED)
-                        .build();
-                    athleteService.upsert(prototype);
+                        .status(Athlete.AthleteStatus.NOT_STARTED);
+
+                    // Prefer IDs from submission formData for FK columns
+                    String fistConfigId  = textOrNull(root, "fistConfigId");
+
+                    if (weightClassId != null && !weightClassId.isBlank()) builder.weightClassId(weightClassId);
+                    if (fistConfigId  != null && !fistConfigId.isBlank())  builder.fistConfigId(fistConfigId);
+                    // Stop persisting fistItemId per requirement; rely on fistConfigId only for Quyền labels
+                    if (musicContentId!= null && !musicContentId.isBlank()) builder.musicContentId(musicContentId);
+
+                    athleteService.upsert(builder.build());
                 }
             } catch (Exception ignored) {
                 // Intentionally ignore to avoid breaking approval flow; consider logging if needed
@@ -383,6 +394,9 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 .status(sep490g65.fvcapi.enums.ApplicationFormStatus.PENDING)
                 .build();
         submittedRepository.save(s);
+
+        // Optionally pre-create/update an Athlete record with tight linking IDs (pending approval)
+        // We keep existing approval flow; IDs will be used on approval to upsert athlete.
     }
 
     private TournamentFormResponse toDtoFromForm(ApplicationFormConfig f) {

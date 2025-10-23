@@ -4,13 +4,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { PaginationResponse } from "../../types/api";
+import { useToast } from "../../components/common/ToastContext";
 import {
   XMarkIcon,
   PlusIcon,
   ChevronDownIcon,
   Bars3Icon,
 } from "@heroicons/react/24/outline";
-import { useToast } from "../../components/common/ToastContext";
 
 interface FormData {
   competitionType: string;

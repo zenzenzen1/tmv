@@ -45,12 +45,9 @@ public class Athlete extends BaseEntity {
     @Column(name = "competition_type", nullable = false)
     private CompetitionType competitionType;
 
-    // Hierarchical competition structure
+    // Hierarchical competition structure (logical labels only)
     @Column(name = "sub_competition_type")
     private String subCompetitionType; // e.g. "Song luyện", "Đa luyện", "Hạng cân"
-
-    @Column(name = "detail_sub_competition_type")
-    private String detailSubCompetitionType; // e.g. "Song luyện 1", "Võ nhạc 1", "Đa luyện 2"
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -75,6 +72,19 @@ public class Athlete extends BaseEntity {
     public enum CompetitionType { fighting, quyen, music }
 
     public enum AthleteStatus { NOT_STARTED, IN_PROGRESS, DONE, VIOLATED }
+
+    // Tight linking IDs (optional FKs)
+    @Column(name = "weight_class_id")
+    private String weightClassId;
+
+    @Column(name = "fist_config_id")
+    private String fistConfigId;
+
+    @Column(name = "fist_item_id")
+    private String fistItemId;
+
+    @Column(name = "music_content_id")
+    private String musicContentId;
 }
 
 

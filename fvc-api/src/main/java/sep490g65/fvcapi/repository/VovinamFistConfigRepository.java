@@ -15,6 +15,9 @@ public interface VovinamFistConfigRepository extends JpaRepository<VovinamFistCo
     Page<VovinamFistConfig> search(@Param("searchPattern") String searchPattern,
                                    @Param("status") Boolean status,
                                    Pageable pageable);
+
+    // Fallback lookup: find a config by name prefix (e.g., "Song luyện" -> "Song luyện 1")
+    java.util.Optional<VovinamFistConfig> findFirstByNameStartingWithIgnoreCase(String namePrefix);
 }
 
 
