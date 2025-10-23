@@ -6,14 +6,20 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaContext;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
+import sep490g65.fvcapi.dto.request.CreateCompetitionOrderRequest;
 import sep490g65.fvcapi.entity.Athlete;
+import sep490g65.fvcapi.entity.CompetitionOrder;
 import sep490g65.fvcapi.repository.AthleteRepository;
 import sep490g65.fvcapi.repository.WeightClassRepository;
 import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
 
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -55,8 +61,7 @@ public class AthleteService {
             String name,
             Athlete.Gender gender,
             Athlete.AthleteStatus status,
-            Pageable pageable
-    ) {
+            Pageable pageable) {
         Specification<Athlete> spec = Specification.where(null);
         if (tournamentId != null && !tournamentId.isBlank()) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("tournamentId"), tournamentId));
@@ -125,14 +130,24 @@ public class AthleteService {
     @Transactional
     public void arrangeOrder(String tournamentId, String contentId, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
         // For now, ignore contentId and set order for provided athletes
-        for (sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder ao : orders) {
-            UUID id = UUID.fromString(ao.getAthleteId());
-            athleteRepository.findById(id).ifPresent(a -> {
-                a.setCompetitionOrder(ao.getOrder());
-                athleteRepository.save(a);
-            });
+        List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(competitionType, competitionId);
+        Collections.shuffle(athletes);
+        for (int i = 0; i < athletes.size(); i++) {
+            // CompetitionOrder
+            CompetitionOrder competitionOrder = competitionOrderService.create(CreateCompetitionOrderRequest.builder()
+                    .orderIndex(i + 1)
+                    .competitionId(competitionId)
+                    .contentSelectionId(null)
+                    .build());
+            var athlete = athletes.get(i);
+            athlete.setCompetitionOrderObject(competitionOrder);
+            athleteRepository.save(athlete);
         }
+        // int order = 1;
+        // for (Athlete athlete : athletes) {
+        //     athlete.setCompetitionOrder(order);
+        //     athleteRepository.save(athlete);
+        //     order++;
+        // }
     }
 }
-
-

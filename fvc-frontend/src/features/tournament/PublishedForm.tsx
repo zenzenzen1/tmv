@@ -26,7 +26,6 @@ type FormMeta = {
 export default function PublishedForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const toast = useToast();
   const [meta, setMeta] = useState<FormMeta | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [dynamicValues, setDynamicValues] = useState<
@@ -424,7 +423,7 @@ export default function PublishedForm() {
   const handleSubmit = async (): Promise<void> => {
     const err = validate();
     if (err) {
-      toast.error(err);
+      alert(err);
       return;
     }
     if (!id) return;
@@ -446,7 +445,7 @@ export default function PublishedForm() {
         }
       );
       window.dispatchEvent(new Event("forms:changed"));
-      toast.success("Đăng ký thành công!");
+      alert("Đăng ký thành công!");
       navigate(-1);
     } catch (e: unknown) {
       console.error(e);
@@ -461,7 +460,7 @@ export default function PublishedForm() {
         (typeof serverMsg === "string" &&
           serverMsg.toLowerCase().includes("email"))
       ) {
-        toast.error(
+        alert(
           "Email này đã đăng ký cho form này. Mỗi email chỉ được đăng ký một lần."
         );
         return;
@@ -471,13 +470,13 @@ export default function PublishedForm() {
         (typeof serverMsg === "string" &&
           serverMsg.toLowerCase().includes("mssv"))
       ) {
-        toast.error(
+        alert(
           "MSSV này đã được đăng ký cho form này. Mỗi MSSV chỉ được đăng ký một lần."
         );
         return;
       }
       const msg = err?.message;
-      toast.error(serverMsg || msg || "Gửi đăng ký thất bại");
+      alert(serverMsg || msg || "Gửi đăng ký thất bại");
     }
   };
 

@@ -13,6 +13,7 @@ export const defaultMenuItems: MenuItem[] = [
   },
   { key: "weightClassPage", label: "Quản lí hạng cân" },
   { key: "athletes", label: "Quản lí VĐV" },
+  { key: "brackets", label: "Chia nhánh đấu" },
   { section: "Quản lí nội dung", key: "forms", label: "Quyền" },
   { section: "Quản lí nội dung", key: "music", label: "Võ nhạc" },
   { section: "Quản lí form", key: "formList", label: "Form đăng ký CLB" },

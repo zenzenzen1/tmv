@@ -645,7 +645,7 @@ const FormBuilder: React.FC = () => {
                     navigate(-1);
                   } catch (err) {
                     console.error(err);
-                    toast.error("Lưu nháp thất bại");
+                    alert("Lưu nháp thất bại");
                   } finally {
                     setSubmitting(false);
                   }
@@ -765,7 +765,7 @@ const FormBuilder: React.FC = () => {
                     navigate(-1);
                   } catch (err) {
                     console.error(err);
-                    toast.error("Lưu thất bại");
+                    alert("Lưu thất bại");
                   } finally {
                     setSubmitting(false);
                   }
