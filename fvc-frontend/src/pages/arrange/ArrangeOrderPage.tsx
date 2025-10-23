@@ -5,6 +5,8 @@ import CommonTable, {
 import api from "../../services/api";
 import type { PaginationResponse } from "../../types/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
+import type { CompetitionType } from "./ArrangeOrderWrapper";
+import { competitionOrderService, type CreateCompetitionOrderRequest } from "../../services/competitionOrderService";
 
 type AthleteRow = {
   id: string;
@@ -26,7 +28,7 @@ type AthleteApi = {
   fullName: string;
   email: string;
   gender: "MALE" | "FEMALE";
-  competitionType: "fighting" | "quyen" | "music";
+  competitionType: CompetitionType;
   subCompetitionType?: string | null;
   detailSubCompetitionType?: string | null;
   studentId?: string | null;
@@ -36,7 +38,6 @@ type AthleteApi = {
   status: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "VIOLATED" | string;
 };
 
-type CompetitionType = "fighting" | "quyen" | "music";
 
 const STATUS_COLORS = {
   "ĐÃ ĐẤU": "bg-green-100 text-green-800 border-green-200",
@@ -48,7 +49,6 @@ const STATUS_COLORS = {
 };
 
 const COMPETITION_TYPES = {
-  fighting: "Đối kháng",
   quyen: "Quyền",
   music: "Võ nhạc",
 };
@@ -99,17 +99,18 @@ export default function ArrangeOrderPage({
   const [tournaments, setTournaments] = useState<
     Array<{ id: string; name: string }>
   >([]);
+  const [isArranging, setIsArranging] = useState(false);
 
   // API data for dynamic filters
-  const [weightClasses, setWeightClasses] = useState<
-    Array<{
-      id: string;
-      weightClass: string;
-      gender: string;
-      minWeight: number;
-      maxWeight: number;
-    }>
-  >([]);
+  // const [weightClasses, setWeightClasses] = useState<
+  //   Array<{
+  //     id: string;
+  //     weightClass: string;
+  //     gender: string;
+  //     minWeight: number;
+  //     maxWeight: number;
+  //   }>
+  // >([]);
   // Derived categories no longer needed for fixed buttons UI
   // Keeping state removed to avoid unused warnings
   const [quyenContents, setQuyenContents] = useState<
@@ -195,9 +196,10 @@ export default function ArrangeOrderPage({
         if (genderFilter) qs.set("gender", genderFilter);
         if (statusFilter) qs.set("status", statusFilter);
         // Standard handling by type
-        if (activeTab === "fighting") {
-          // Do NOT send weight to backend; fetch all then filter client-side
-        } else if (activeTab === "music") {
+        // if (activeTab === "fighting") {
+        //   // Do NOT send weight to backend; fetch all then filter client-side
+        // } else
+         if (activeTab === "music") {
           // Music: send selected content as detail, and optionally label the sub type
           if (subCompetitionFilter) {
             qs.set("subCompetitionType", "Tiết mục");
@@ -229,8 +231,8 @@ export default function ArrangeOrderPage({
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "")
             .toLowerCase();
-        const normalizeWeight = (s: string) =>
-          (s || "").replace(/[^0-9]+/g, "");
+        // const normalizeWeight = (s: string) =>
+        //   (s || "").replace(/[^0-9]+/g, "");
         const filteredRaw: AthleteApi[] = content.filter((a: AthleteApi) => {
           const okName = debouncedName
             ? (a.fullName || "")
@@ -252,14 +254,7 @@ export default function ArrangeOrderPage({
           const rawSub = a.subCompetitionType || "";
           const rawDetail = a.detailSubCompetitionType || "";
           let okSubDetail = true;
-          if (activeTab === "fighting") {
-            if (subCompetitionFilter) {
-              const want = normalizeWeight(subCompetitionFilter);
-              okSubDetail =
-                normalizeWeight(rawDetail) === want ||
-                normalizeWeight(rawSub) === want;
-            }
-          } else if (activeTab === "music") {
+          if (activeTab === "music") {
             // Match by selected content name in detail
             const okDetail = subCompetitionFilter
               ? strip(rawDetail) === strip(subCompetitionFilter)
@@ -287,9 +282,7 @@ export default function ArrangeOrderPage({
             email: a.email,
             gender: a.gender === "FEMALE" ? "Nữ" : "Nam",
             competitionType:
-              a.competitionType === "fighting"
-                ? "Đối kháng"
-                : a.competitionType === "quyen"
+              a.competitionType === "quyen"
                 ? "Quyền"
                 : a.competitionType === "music"
                 ? "Võ nhạc"
@@ -389,23 +382,24 @@ export default function ArrangeOrderPage({
         className: "whitespace-nowrap",
         sortable: true,
       },
-      ...(activeTab === "fighting"
-        ? [
-            {
-              key: "detailSubCompetitionType",
-              title: "Hạng cân",
-              className: "whitespace-nowrap",
-              render: (row: AthleteRow) => {
-                const value =
-                  row.detailSubCompetitionType || row.subCompetitionType || "-";
-                return String(value)
-                  .replace(/^Nam\s+/i, "")
-                  .replace(/^Nữ\s+/i, "");
-              },
-              sortable: true,
-            } as TableColumn<AthleteRow>,
-          ]
-        : [
+      // ...(activeTab === "fighting"
+      //   ? [
+      //       {
+      //         key: "detailSubCompetitionType",
+      //         title: "Hạng cân",
+      //         className: "whitespace-nowrap",
+      //         render: (row: AthleteRow) => {
+      //           const value =
+      //             row.detailSubCompetitionType || row.subCompetitionType || "-";
+      //           return String(value)
+      //             .replace(/^Nam\s+/i, "")
+      //             .replace(/^Nữ\s+/i, "");
+      //         },
+      //         sortable: true,
+      //       } as TableColumn<AthleteRow>,
+      //     ]
+      //   : 
+        ...([
             {
               key: "detailSubCompetitionType",
               title: "Nội dung",
@@ -465,17 +459,17 @@ export default function ArrangeOrderPage({
     const loadFilterData = async () => {
       try {
         // Load weight classes
-        const weightClassesRes = await api.get<{
-          content: Array<{
-            id: string;
-            weightClass: string;
-            gender: string;
-            minWeight: number;
-            maxWeight: number;
-          }>;
-          totalElements: number;
-        }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
-        setWeightClasses(weightClassesRes.data?.content || []);
+        // const weightClassesRes = await api.get<{
+        //   content: Array<{
+        //     id: string;
+        //     weightClass: string;
+        //     gender: string;
+        //     minWeight: number;
+        //     maxWeight: number;
+        //   }>;
+        //   totalElements: number;
+        // }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
+        // setWeightClasses(weightClassesRes.data?.content || []);
 
         // Load quyền contents and derive categories
         const quyenContentsRes = await api.get(
@@ -628,9 +622,81 @@ export default function ArrangeOrderPage({
     }
   };
 
-  const handleArrangeOrderClick = () => {
-    // TODO: implement arrange order action (e.g., open modal or navigate)
-    console.log("Arrange order clicked");
+  const handleArrangeOrderClick = async () => {
+    if (!selectedTournament) {
+      alert("Vui lòng chọn giải đấu trước khi sắp xếp thứ tự");
+      return;
+    }
+
+    if (rows.length === 0) {
+      alert("Không có vận động viên nào để sắp xếp");
+      return;
+    }
+
+    setIsArranging(true);
+    try {
+      // Group athletes by competition type and content for proper ordering
+      const groupedAthletes = new Map<string, AthleteRow[]>();
+      
+      rows.forEach((athlete) => {
+        const key = `${athlete.competitionType}-${athlete.subCompetitionType}-${athlete.detailSubCompetitionType}`;
+        if (!groupedAthletes.has(key)) {
+          groupedAthletes.set(key, []);
+        }
+        groupedAthletes.get(key)!.push(athlete);
+      });
+
+      // Create competition order requests
+      const orderRequests: CreateCompetitionOrderRequest[] = [];
+      let orderIndex = 1;
+
+      for (const [, athletes] of groupedAthletes) {
+        // For now, we'll create one order per group
+        // In a more sophisticated implementation, you might want to create separate orders for each athlete
+        const firstAthlete = athletes[0];
+        
+        // Find the content selection ID if it's a quyền competition
+        let contentSelectionId: string | undefined;
+        if (activeTab === "quyen" && firstAthlete.detailSubCompetitionType !== "-") {
+          // Try to find the content selection ID from the quyền contents
+          const matchingContent = quyenContents.find(
+            content => content.name === firstAthlete.detailSubCompetitionType
+          );
+          contentSelectionId = matchingContent?.id;
+        } else if (activeTab === "music" && firstAthlete.detailSubCompetitionType !== "-") {
+          // Try to find the content selection ID from the music contents
+          const matchingContent = musicContents.find(
+            content => content.name === firstAthlete.detailSubCompetitionType
+          );
+          contentSelectionId = matchingContent?.id;
+        }
+
+        orderRequests.push({
+          competitionId: selectedTournament,
+          orderIndex: orderIndex++,
+          contentSelectionId: contentSelectionId,
+        });
+      }
+
+      if (orderRequests.length === 0) {
+        alert("Không thể tạo thứ tự thi đấu. Vui lòng kiểm tra dữ liệu vận động viên.");
+        return;
+      }
+
+      // Call the API to create competition orders
+      await competitionOrderService.createBulkOrders(orderRequests);
+      
+      alert(`Đã sắp xếp thứ tự thi đấu thành công cho ${orderRequests.length} nhóm vận động viên`);
+      
+      // Optionally refresh the data
+      setReloadKey(prev => prev + 1);
+      
+    } catch (error) {
+      console.error("Failed to arrange order:", error);
+      alert("Có lỗi xảy ra khi sắp xếp thứ tự thi đấu. Vui lòng thử lại.");
+    } finally {
+      setIsArranging(false);
+    }
   };
 
   return (
@@ -785,58 +851,6 @@ export default function ArrangeOrderPage({
             </div>
 
             {/* Dynamic Competition Filter */}
-            {activeTab === "fighting" && (
-              <div className="relative filter-dropdown">
-                <button
-                  onClick={() =>
-                    setShowCompetitionFilter(!showCompetitionFilter)
-                  }
-                  className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  Hạng cân
-                </button>
-                {showCompetitionFilter && (
-                  <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-300 rounded shadow-lg z-20">
-                    <div className="p-2 space-y-1">
-                      <label className="flex items-center cursor-pointer">
-                        <input
-                          type="radio"
-                          name="subCompetitionFilter"
-                          className="mr-2 h-3 w-3 text-blue-600"
-                          checked={subCompetitionFilter === ""}
-                          onChange={() => setSubCompetitionFilter("")}
-                        />
-                        <span className="text-sm text-gray-700">Tất cả</span>
-                      </label>
-                      {weightClasses.map((wc) => {
-                        const weightDisplay =
-                          wc.weightClass || `${wc.minWeight}-${wc.maxWeight}kg`;
-                        return (
-                          <label
-                            key={wc.id}
-                            className="flex items-center cursor-pointer"
-                          >
-                            <input
-                              type="radio"
-                              name="subCompetitionFilter"
-                              className="mr-2 h-3 w-3 text-blue-600"
-                              checked={subCompetitionFilter === weightDisplay}
-                              onChange={() =>
-                                setSubCompetitionFilter(weightDisplay)
-                              }
-                            />
-                            <span className="text-sm text-gray-700">
-                              {weightDisplay}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {activeTab === "quyen" && (
               <div className="flex items-center flex-wrap gap-2">
                 {FIXED_QUYEN_CATEGORIES.map((c) => (
@@ -963,9 +977,14 @@ export default function ArrangeOrderPage({
         <div className="flex items-center gap-2">
           <button
             onClick={handleArrangeOrderClick}
-            className="rounded-md bg-blue-600 px-3 py-2 text-white text-sm shadow hover:bg-blue-700"
+            disabled={isArranging}
+            className={`rounded-md px-3 py-2 text-white text-sm shadow ${
+              isArranging 
+                ? "bg-gray-400 cursor-not-allowed" 
+                : "bg-blue-600 hover:bg-blue-700"
+            }`}
           >
-            Sắp xếp
+            {isArranging ? "Đang sắp xếp..." : "Sắp xếp"}
           </button>
           <button
             onClick={handleExportExcel}

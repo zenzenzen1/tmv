@@ -1,5 +1,7 @@
 package sep490g65.fvcapi.entity;
 
+import java.util.List;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -12,8 +14,7 @@ import lombok.Setter;
                 @UniqueConstraint(columnNames = {"competition_id", "content_selection_id", "order_index"})
         },
         indexes = {
-                @Index(name = "idx_competition_orders_competition", columnList = "competition_id"),
-                @Index(name = "idx_competition_orders_athlete", columnList = "athlete_id")
+                @Index(name = "idx_competition_orders_competition", columnList = "competition_id")
         }
 )
 @Getter
@@ -30,9 +31,8 @@ public class CompetitionOrder extends BaseEntity {
     @JoinColumn(name = "competition_id", nullable = false)
     private Competition competition;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "athlete_id", nullable = false)
-    private Athlete athlete;
+    @OneToMany(fetch = FetchType.LAZY, mappedBy = "competitionOrderObject")
+    private List<Athlete> athletes;
 
     // Optional: scope order by a specific selected content (e.g., fist item)
     @ManyToOne(fetch = FetchType.LAZY)

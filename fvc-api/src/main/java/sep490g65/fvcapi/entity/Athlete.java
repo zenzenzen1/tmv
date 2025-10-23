@@ -1,5 +1,6 @@
 package sep490g65.fvcapi.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -54,6 +55,17 @@ public class Athlete extends BaseEntity {
 
     @Column(name = "competition_order")
     private Integer competitionOrder;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "competition_order_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private CompetitionOrder competitionOrderObject;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "competition_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private Competition competition;
+
 
     public enum Gender { MALE, FEMALE }
 

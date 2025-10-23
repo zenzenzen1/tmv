@@ -86,6 +86,11 @@ public final class MessageConstants {
     public static final String WEIGHT_CLASS_NOT_FOUND = "Weight class not found with id: %s";
     public static final String MUSIC_PERFORMANCE_NOT_FOUND = "Music performance not found with id: %s";
 
+    // Competition Order Messages
+    public static final String COMPETITION_ORDER_NOT_FOUND = "Competition order not found with id: %s";
+    public static final String COMPETITION_ORDER_DUPLICATE_INDEX = "Order index %d already exists for competition %s";
+    public static final String CONTENT_SELECTION_NOT_FOUND = "Content selection not found with id: %s";
+
     // Application Form Messages
     public static final String APPLICATION_FORM_CREATED_SUCCESS = "Application form created successfully";
     public static final String APPLICATION_FORM_UPDATED_SUCCESS = "Application form updated successfully";
