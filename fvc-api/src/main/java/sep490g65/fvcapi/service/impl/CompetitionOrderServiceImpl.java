@@ -25,7 +25,7 @@ import sep490g65.fvcapi.repository.CompetitionFistItemSelectionRepository;
 import sep490g65.fvcapi.service.CompetitionOrderService;
 import sep490g65.fvcapi.utils.ResponseUtils;
 
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -121,6 +121,79 @@ public class CompetitionOrderServiceImpl implements CompetitionOrderService {
 
         CompetitionOrder saved = competitionOrderRepository.save(order);
         return saved;
+    }
+
+    @Override
+    public List<CompetitionOrder> createBulk(List<CreateCompetitionOrderRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return List.of();
+        }
+
+        // Validate all competitions exist
+        List<String> competitionIds = requests.stream()
+                .map(CreateCompetitionOrderRequest::getCompetitionId)
+                .distinct()
+                .collect(Collectors.toList());
+        
+        List<Competition> competitions = competitionRepository.findAllById(competitionIds);
+        if (competitions.size() != competitionIds.size()) {
+            throw new BusinessException("One or more competitions not found", ErrorCode.OPERATION_FAILED.getCode());
+        }
+
+        // Validate all content selections exist if provided
+        List<String> contentSelectionIds = requests.stream()
+                .map(CreateCompetitionOrderRequest::getContentSelectionId)
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+        
+        if (!contentSelectionIds.isEmpty()) {
+            List<CompetitionFistItemSelection> contentSelections = contentSelectionRepository.findAllById(contentSelectionIds);
+            if (contentSelections.size() != contentSelectionIds.size()) {
+                throw new BusinessException("One or more content selections not found", ErrorCode.OPERATION_FAILED.getCode());
+            }
+        }
+
+        // Check for duplicate order indices within the same competition
+        Map<String, List<CreateCompetitionOrderRequest>> requestsByCompetition = requests.stream()
+                .collect(Collectors.groupingBy(CreateCompetitionOrderRequest::getCompetitionId));
+        
+        for (Map.Entry<String, List<CreateCompetitionOrderRequest>> entry : requestsByCompetition.entrySet()) {
+            List<Integer> orderIndices = entry.getValue().stream()
+                    .map(CreateCompetitionOrderRequest::getOrderIndex)
+                    .collect(Collectors.toList());
+            
+            Set<Integer> uniqueIndices = new HashSet<>(orderIndices);
+            if (uniqueIndices.size() != orderIndices.size()) {
+                throw new BusinessException(
+                        String.format("Duplicate order indices found for competition %s", entry.getKey()),
+                        ErrorCode.OPERATION_FAILED.getCode());
+            }
+        }
+
+        // Create competition orders
+        List<CompetitionOrder> orders = new ArrayList<>();
+        Map<String, Competition> competitionMap = competitions.stream()
+                .collect(Collectors.toMap(Competition::getId, c -> c));
+        
+        Map<String, CompetitionFistItemSelection> contentSelectionMap = contentSelectionIds.isEmpty() 
+                ? Map.of() 
+                : contentSelectionRepository.findAllById(contentSelectionIds).stream()
+                        .collect(Collectors.toMap(CompetitionFistItemSelection::getId, cs -> cs));
+
+        for (CreateCompetitionOrderRequest request : requests) {
+            CompetitionOrder order = new CompetitionOrder();
+            order.setCompetition(competitionMap.get(request.getCompetitionId()));
+            order.setOrderIndex(request.getOrderIndex());
+            
+            if (request.getContentSelectionId() != null) {
+                order.setContentSelection(contentSelectionMap.get(request.getContentSelectionId()));
+            }
+            
+            orders.add(order);
+        }
+
+        return competitionOrderRepository.saveAll(orders);
     }
 
     @Override

@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,9 +15,11 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sep490g65.fvcapi.constants.ApiConstants;
+import sep490g65.fvcapi.dto.request.CreateCompetitionOrderRequest;
 import sep490g65.fvcapi.dto.request.UpdateCompetitionOrderRequest;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.CompetitionOrderResponse;
+import sep490g65.fvcapi.entity.CompetitionOrder;
 import sep490g65.fvcapi.service.CompetitionOrderService;
 import sep490g65.fvcapi.utils.ResponseUtils;
 
@@ -48,6 +51,56 @@ public class CompetitionOrderController {
     public ResponseEntity<BaseResponse<CompetitionOrderResponse>> getById(@PathVariable String id) {
         CompetitionOrderResponse order = competitionOrderService.getById(id);
         return ResponseEntity.ok(ResponseUtils.success("Competition order retrieved successfully", order));
+    }
+
+    @PostMapping
+    public ResponseEntity<BaseResponse<CompetitionOrderResponse>> create(
+            @Valid @RequestBody CreateCompetitionOrderRequest request) {
+        
+        CompetitionOrder created = competitionOrderService.create(request);
+        // Convert entity to response DTO
+        CompetitionOrderResponse response = CompetitionOrderResponse.builder()
+                .id(created.getId())
+                .competitionId(created.getCompetition() != null ? created.getCompetition().getId() : null)
+                .competitionName(created.getCompetition() != null ? created.getCompetition().getName() : null)
+                .orderIndex(created.getOrderIndex())
+                .contentSelectionId(created.getContentSelection() != null ? created.getContentSelection().getId() : null)
+                .athleteCount(created.getAthletes() != null ? created.getAthletes().size() : 0)
+                .athleteIds(created.getAthletes() != null 
+                        ? created.getAthletes().stream()
+                                .map(athlete -> athlete.getId().toString())
+                                .collect(java.util.stream.Collectors.toList())
+                        : java.util.List.of())
+                .createdAt(created.getCreatedAt())
+                .updatedAt(created.getUpdatedAt())
+                .build();
+        return ResponseEntity.ok(ResponseUtils.success("Competition order created successfully", response));
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<BaseResponse<List<CompetitionOrderResponse>>> createBulk(
+            @Valid @RequestBody List<CreateCompetitionOrderRequest> requests) {
+        
+        List<CompetitionOrder> created = competitionOrderService.createBulk(requests);
+        // Convert entities to response DTOs
+        List<CompetitionOrderResponse> responses = created.stream()
+                .map(order -> CompetitionOrderResponse.builder()
+                        .id(order.getId())
+                        .competitionId(order.getCompetition() != null ? order.getCompetition().getId() : null)
+                        .competitionName(order.getCompetition() != null ? order.getCompetition().getName() : null)
+                        .orderIndex(order.getOrderIndex())
+                        .contentSelectionId(order.getContentSelection() != null ? order.getContentSelection().getId() : null)
+                        .athleteCount(order.getAthletes() != null ? order.getAthletes().size() : 0)
+                        .athleteIds(order.getAthletes() != null 
+                                ? order.getAthletes().stream()
+                                        .map(athlete -> athlete.getId().toString())
+                                        .collect(java.util.stream.Collectors.toList())
+                                : java.util.List.of())
+                        .createdAt(order.getCreatedAt())
+                        .updatedAt(order.getUpdatedAt())
+                        .build())
+                .collect(java.util.stream.Collectors.toList());
+        return ResponseEntity.ok(ResponseUtils.success("Competition orders created successfully", responses));
     }
 
     @PutMapping("/{id}")

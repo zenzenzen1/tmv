@@ -23,6 +23,8 @@ public interface CompetitionOrderService {
 
     CompetitionOrder create(CreateCompetitionOrderRequest request);
 
+    List<CompetitionOrder> createBulk(List<CreateCompetitionOrderRequest> requests);
+
     CompetitionOrderResponse update(String id, UpdateCompetitionOrderRequest request);
 
     void delete(String id);

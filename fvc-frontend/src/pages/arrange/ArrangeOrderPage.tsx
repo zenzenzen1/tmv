@@ -6,6 +6,7 @@ import api from "../../services/api";
 import type { PaginationResponse } from "../../types/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { CompetitionType } from "./ArrangeOrderWrapper";
+import { competitionOrderService, type CreateCompetitionOrderRequest } from "../../services/competitionOrderService";
 
 type AthleteRow = {
   id: string;
@@ -98,17 +99,18 @@ export default function ArrangeOrderPage({
   const [tournaments, setTournaments] = useState<
     Array<{ id: string; name: string }>
   >([]);
+  const [isArranging, setIsArranging] = useState(false);
 
   // API data for dynamic filters
-  const [weightClasses, setWeightClasses] = useState<
-    Array<{
-      id: string;
-      weightClass: string;
-      gender: string;
-      minWeight: number;
-      maxWeight: number;
-    }>
-  >([]);
+  // const [weightClasses, setWeightClasses] = useState<
+  //   Array<{
+  //     id: string;
+  //     weightClass: string;
+  //     gender: string;
+  //     minWeight: number;
+  //     maxWeight: number;
+  //   }>
+  // >([]);
   // Derived categories no longer needed for fixed buttons UI
   // Keeping state removed to avoid unused warnings
   const [quyenContents, setQuyenContents] = useState<
@@ -229,8 +231,8 @@ export default function ArrangeOrderPage({
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "")
             .toLowerCase();
-        const normalizeWeight = (s: string) =>
-          (s || "").replace(/[^0-9]+/g, "");
+        // const normalizeWeight = (s: string) =>
+        //   (s || "").replace(/[^0-9]+/g, "");
         const filteredRaw: AthleteApi[] = content.filter((a: AthleteApi) => {
           const okName = debouncedName
             ? (a.fullName || "")
@@ -457,17 +459,17 @@ export default function ArrangeOrderPage({
     const loadFilterData = async () => {
       try {
         // Load weight classes
-        const weightClassesRes = await api.get<{
-          content: Array<{
-            id: string;
-            weightClass: string;
-            gender: string;
-            minWeight: number;
-            maxWeight: number;
-          }>;
-          totalElements: number;
-        }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
-        setWeightClasses(weightClassesRes.data?.content || []);
+        // const weightClassesRes = await api.get<{
+        //   content: Array<{
+        //     id: string;
+        //     weightClass: string;
+        //     gender: string;
+        //     minWeight: number;
+        //     maxWeight: number;
+        //   }>;
+        //   totalElements: number;
+        // }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
+        // setWeightClasses(weightClassesRes.data?.content || []);
 
         // Load quyền contents and derive categories
         const quyenContentsRes = await api.get(
@@ -620,9 +622,81 @@ export default function ArrangeOrderPage({
     }
   };
 
-  const handleArrangeOrderClick = () => {
-    // TODO: implement arrange order action (e.g., open modal or navigate)
-    console.log("Arrange order clicked");
+  const handleArrangeOrderClick = async () => {
+    if (!selectedTournament) {
+      alert("Vui lòng chọn giải đấu trước khi sắp xếp thứ tự");
+      return;
+    }
+
+    if (rows.length === 0) {
+      alert("Không có vận động viên nào để sắp xếp");
+      return;
+    }
+
+    setIsArranging(true);
+    try {
+      // Group athletes by competition type and content for proper ordering
+      const groupedAthletes = new Map<string, AthleteRow[]>();
+      
+      rows.forEach((athlete) => {
+        const key = `${athlete.competitionType}-${athlete.subCompetitionType}-${athlete.detailSubCompetitionType}`;
+        if (!groupedAthletes.has(key)) {
+          groupedAthletes.set(key, []);
+        }
+        groupedAthletes.get(key)!.push(athlete);
+      });
+
+      // Create competition order requests
+      const orderRequests: CreateCompetitionOrderRequest[] = [];
+      let orderIndex = 1;
+
+      for (const [, athletes] of groupedAthletes) {
+        // For now, we'll create one order per group
+        // In a more sophisticated implementation, you might want to create separate orders for each athlete
+        const firstAthlete = athletes[0];
+        
+        // Find the content selection ID if it's a quyền competition
+        let contentSelectionId: string | undefined;
+        if (activeTab === "quyen" && firstAthlete.detailSubCompetitionType !== "-") {
+          // Try to find the content selection ID from the quyền contents
+          const matchingContent = quyenContents.find(
+            content => content.name === firstAthlete.detailSubCompetitionType
+          );
+          contentSelectionId = matchingContent?.id;
+        } else if (activeTab === "music" && firstAthlete.detailSubCompetitionType !== "-") {
+          // Try to find the content selection ID from the music contents
+          const matchingContent = musicContents.find(
+            content => content.name === firstAthlete.detailSubCompetitionType
+          );
+          contentSelectionId = matchingContent?.id;
+        }
+
+        orderRequests.push({
+          competitionId: selectedTournament,
+          orderIndex: orderIndex++,
+          contentSelectionId: contentSelectionId,
+        });
+      }
+
+      if (orderRequests.length === 0) {
+        alert("Không thể tạo thứ tự thi đấu. Vui lòng kiểm tra dữ liệu vận động viên.");
+        return;
+      }
+
+      // Call the API to create competition orders
+      await competitionOrderService.createBulkOrders(orderRequests);
+      
+      alert(`Đã sắp xếp thứ tự thi đấu thành công cho ${orderRequests.length} nhóm vận động viên`);
+      
+      // Optionally refresh the data
+      setReloadKey(prev => prev + 1);
+      
+    } catch (error) {
+      console.error("Failed to arrange order:", error);
+      alert("Có lỗi xảy ra khi sắp xếp thứ tự thi đấu. Vui lòng thử lại.");
+    } finally {
+      setIsArranging(false);
+    }
   };
 
   return (
@@ -903,9 +977,14 @@ export default function ArrangeOrderPage({
         <div className="flex items-center gap-2">
           <button
             onClick={handleArrangeOrderClick}
-            className="rounded-md bg-blue-600 px-3 py-2 text-white text-sm shadow hover:bg-blue-700"
+            disabled={isArranging}
+            className={`rounded-md px-3 py-2 text-white text-sm shadow ${
+              isArranging 
+                ? "bg-gray-400 cursor-not-allowed" 
+                : "bg-blue-600 hover:bg-blue-700"
+            }`}
           >
-            Sắp xếp
+            {isArranging ? "Đang sắp xếp..." : "Sắp xếp"}
           </button>
           <button
             onClick={handleExportExcel}
