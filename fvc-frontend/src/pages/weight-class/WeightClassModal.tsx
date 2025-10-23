@@ -7,7 +7,7 @@ import type {
 } from "../../types";
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem, Button, Alert, Stack, InputLabel, FormControl } from '@mui/material';
 import { useToast } from '../../components/common/ToastContext';
-import { validateNonNegative, validateNumericRange } from '../../utils/validation';
+import { validateNonNegative, validateNumericRange, validateDecimalPrecision } from '../../utils/validation';
 
 export default function WeightClassModal() {
   const { modalOpen, editing, closeModal, create, update } =
@@ -46,6 +46,9 @@ export default function WeightClassModal() {
     const rangeValidation = validateNumericRange(minWeight, 0, 200, 'Cân nặng tối thiểu');
     if (!rangeValidation.isValid) return rangeValidation;
     
+    const decimalValidation = validateDecimalPrecision(minWeight, 1, 'Cân nặng tối thiểu');
+    if (!decimalValidation.isValid) return decimalValidation;
+    
     return { isValid: true };
   }, [minWeight]);
 
@@ -60,6 +63,9 @@ export default function WeightClassModal() {
     
     const rangeValidation = validateNumericRange(maxWeight, 0, 200, 'Cân nặng tối đa');
     if (!rangeValidation.isValid) return rangeValidation;
+    
+    const decimalValidation = validateDecimalPrecision(maxWeight, 1, 'Cân nặng tối đa');
+    if (!decimalValidation.isValid) return decimalValidation;
     
     return { isValid: true };
   }, [maxWeight]);

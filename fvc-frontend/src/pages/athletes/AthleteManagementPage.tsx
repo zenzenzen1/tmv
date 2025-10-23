@@ -5,6 +5,7 @@ import CommonTable, {
 import api from "../../services/api";
 import type { PaginationResponse } from "../../types/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
+import { validateSearchInput } from "../../utils/validation";
 
 type AthleteRow = {
   id: string;
@@ -77,6 +78,12 @@ export default function AthleteManagementPage({
   const [total, setTotal] = useState(0);
   const [nameQuery, setNameQuery] = useState("");
   const [debouncedName, setDebouncedName] = useState("");
+  
+  // Search input validation
+  const searchValidation = useMemo(() => {
+    return validateSearchInput(nameQuery, 'Tìm kiếm');
+  }, [nameQuery]);
+  
   // Debounce name search to reduce request volume
   useEffect(() => {
     const t = setTimeout(() => setDebouncedName(nameQuery.trim()), 300);
@@ -711,8 +718,17 @@ export default function AthleteManagementPage({
               placeholder="Tìm theo tên vận động viên..."
               value={nameQuery}
               onChange={(e) => setNameQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-80"
+              className={`pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 w-80 ${
+                !searchValidation.isValid && nameQuery !== ''
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-300 focus:ring-blue-500'
+              }`}
             />
+            {!searchValidation.isValid && nameQuery !== '' && (
+              <p className="text-red-500 text-xs mt-1">
+                {searchValidation.errorMessage}
+              </p>
+            )}
           </div>
 
           {/* Filter Buttons (removed CLB, Sân đấu) */}

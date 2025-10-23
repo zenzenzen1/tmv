@@ -10,7 +10,7 @@ import type {
 } from '../../types';
 import MultiSelect from '../../components/common/MultiSelect';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { validateLength, validateNonNegative, validateNumericRange } from '../../utils/validation';
+import { validateLength, validateNonNegative, validateNumericRange, validateDateRange, validateRoundCountRange, validateDurationRange, validateAssessorCountRange } from '../../utils/validation';
 import {
   Box,
   Container,
@@ -193,23 +193,17 @@ const CompetitionFormPage: React.FC = () => {
   // Numeric field validations
   const numberOfRoundsValidation = useMemo(() => {
     const value = formData.numberOfRounds ?? 0;
-    const nonNegativeValidation = validateNonNegative(value, 'Số hiệp đấu');
-    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
-    return validateNumericRange(value, 1, 10, 'Số hiệp đấu');
+    return validateRoundCountRange(value, 'Số hiệp đấu');
   }, [formData.numberOfRounds]);
 
   const roundDurationValidation = useMemo(() => {
     const value = formData.roundDurationSeconds ?? 0;
-    const nonNegativeValidation = validateNonNegative(value, 'Thời gian mỗi hiệp');
-    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
-    return validateNumericRange(value, 30, 300, 'Thời gian mỗi hiệp');
+    return validateDurationRange(value, 'Thời gian mỗi hiệp');
   }, [formData.roundDurationSeconds]);
 
   const assessorCountValidation = useMemo(() => {
     const value = formData.assessorCount ?? 0;
-    const nonNegativeValidation = validateNonNegative(value, 'Số giám khảo');
-    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
-    return validateNumericRange(value, 1, 10, 'Số giám khảo');
+    return validateAssessorCountRange(value, 'Số giám khảo');
   }, [formData.assessorCount]);
 
   const injuryTimeoutValidation = useMemo(() => {
@@ -226,6 +220,64 @@ const CompetitionFormPage: React.FC = () => {
     return validateNumericRange(value, 0, 5, 'Số hiệp phụ tối đa');
   }, [formData.maxExtraRounds]);
 
+  const locationValidation = useMemo(() => {
+    if (!formData.location || !formData.location.trim()) {
+      return { isValid: false, errorMessage: 'Địa điểm là bắt buộc' };
+    }
+    return validateLength(formData.location, { min: 1, max: 200, fieldName: 'Địa điểm' });
+  }, [formData.location]);
+
+  // Date validations - simplified to avoid missing validateDate function
+  const registrationStartDateValidation = useMemo(() => {
+    if (!formData.registrationStartDate) {
+      return { isValid: false, errorMessage: 'Ngày bắt đầu đăng ký là bắt buộc' };
+    }
+    return { isValid: true };
+  }, [formData.registrationStartDate]);
+
+  const registrationEndDateValidation = useMemo(() => {
+    if (!formData.registrationEndDate) {
+      return { isValid: false, errorMessage: 'Ngày kết thúc đăng ký là bắt buộc' };
+    }
+    return { isValid: true };
+  }, [formData.registrationEndDate]);
+
+  const weighInDateValidation = useMemo(() => {
+    if (!formData.weighInDate) {
+      return { isValid: false, errorMessage: 'Ngày cân đo là bắt buộc' };
+    }
+    return { isValid: true };
+  }, [formData.weighInDate]);
+
+  const startDateValidation = useMemo(() => {
+    if (!formData.startDate) {
+      return { isValid: false, errorMessage: 'Ngày bắt đầu là bắt buộc' };
+    }
+    return { isValid: true };
+  }, [formData.startDate]);
+
+  const endDateValidation = useMemo(() => {
+    if (!formData.endDate) {
+      return { isValid: false, errorMessage: 'Ngày kết thúc là bắt buộc' };
+    }
+    return { isValid: true };
+  }, [formData.endDate]);
+
+  // Date range validations
+  const registrationDateRangeValidation = useMemo(() => {
+    if (registrationStartDateValidation.isValid && registrationEndDateValidation.isValid) {
+      return validateDateRange(formData.registrationStartDate, formData.registrationEndDate, 'Ngày bắt đầu đăng ký', 'Ngày kết thúc đăng ký');
+    }
+    return { isValid: true };
+  }, [formData.registrationStartDate, formData.registrationEndDate, registrationStartDateValidation.isValid, registrationEndDateValidation.isValid]);
+
+  const competitionDateRangeValidation = useMemo(() => {
+    if (startDateValidation.isValid && endDateValidation.isValid) {
+      return validateDateRange(formData.startDate, formData.endDate, 'Ngày bắt đầu', 'Ngày kết thúc');
+    }
+    return { isValid: true };
+  }, [formData.startDate, formData.endDate, startDateValidation.isValid, endDateValidation.isValid]);
+
   // Validate form
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -240,25 +292,39 @@ const CompetitionFormPage: React.FC = () => {
       errors.description = descriptionValidation.errorMessage || 'Mô tả không hợp lệ';
     }
 
-    // Required date fields
-    if (!formData.registrationStartDate) {
-      errors.registrationStartDate = 'Ngày bắt đầu đăng ký là bắt buộc';
+    // Location validation
+    if (!locationValidation.isValid) {
+      errors.location = locationValidation.errorMessage || 'Địa điểm không hợp lệ';
     }
 
-    if (!formData.registrationEndDate) {
-      errors.registrationEndDate = 'Ngày kết thúc đăng ký là bắt buộc';
+    // Date validations
+    if (!registrationStartDateValidation.isValid) {
+      errors.registrationStartDate = registrationStartDateValidation.errorMessage || 'Ngày bắt đầu đăng ký không hợp lệ';
     }
 
-    if (!formData.weighInDate) {
-      errors.weighInDate = 'Ngày cân đo là bắt buộc';
+    if (!registrationEndDateValidation.isValid) {
+      errors.registrationEndDate = registrationEndDateValidation.errorMessage || 'Ngày kết thúc đăng ký không hợp lệ';
     }
 
-    if (!formData.startDate) {
-      errors.startDate = 'Ngày bắt đầu là bắt buộc';
+    if (!weighInDateValidation.isValid) {
+      errors.weighInDate = weighInDateValidation.errorMessage || 'Ngày cân đo không hợp lệ';
     }
 
-    if (!formData.endDate) {
-      errors.endDate = 'Ngày kết thúc là bắt buộc';
+    if (!startDateValidation.isValid) {
+      errors.startDate = startDateValidation.errorMessage || 'Ngày bắt đầu không hợp lệ';
+    }
+
+    if (!endDateValidation.isValid) {
+      errors.endDate = endDateValidation.errorMessage || 'Ngày kết thúc không hợp lệ';
+    }
+
+    // Date range validations
+    if (!registrationDateRangeValidation.isValid) {
+      errors.registrationEndDate = registrationDateRangeValidation.errorMessage || 'Ngày kết thúc đăng ký phải sau ngày bắt đầu';
+    }
+
+    if (!competitionDateRangeValidation.isValid) {
+      errors.endDate = competitionDateRangeValidation.errorMessage || 'Ngày kết thúc phải sau ngày bắt đầu';
     }
 
     // Numeric field validations
@@ -382,10 +448,10 @@ const CompetitionFormPage: React.FC = () => {
                       <Box>
                         <TextField
                           label="Tên giải đấu *"
-                          value={formData.name}
-                          onChange={(e) => handleFieldChange('name', e.target.value)}
-                          disabled={isView}
-                          placeholder="Nhập tên giải đấu"
+                    value={formData.name}
+                    onChange={(e) => handleFieldChange('name', e.target.value)}
+                    disabled={isView}
+                    placeholder="Nhập tên giải đấu"
                           error={!!formErrors.name}
                           helperText={formErrors.name || ' '}
                           fullWidth
@@ -394,24 +460,27 @@ const CompetitionFormPage: React.FC = () => {
                       </Box>
                       <Box>
                         <TextField
-                          label="Địa điểm"
+                          label="Địa điểm *"
                     value={formData.location}
                     onChange={(e) => handleFieldChange('location', e.target.value)}
                     disabled={isView}
                     placeholder="Nhập địa điểm tổ chức"
+                          error={!!formErrors.location}
+                          helperText={formErrors.location || ' '}
                           fullWidth
+                          inputProps={{ maxLength: 200 }}
                         />
                       </Box>
                       <Box gridColumn={{ xs: '1 / -1' }}>
                         <TextField
                           label="Mô tả"
-                          value={formData.description}
-                          onChange={(e) => handleFieldChange('description', e.target.value)}
-                          disabled={isView}
+                  value={formData.description}
+                  onChange={(e) => handleFieldChange('description', e.target.value)}
+                  disabled={isView}
                           placeholder="Nhập mô tả về giải đấu"
                           fullWidth
                           multiline
-                          rows={4}
+                  rows={4}
                           error={!!formErrors.description}
                           helperText={formErrors.description || ' '}
                           inputProps={{ maxLength: 1000 }}

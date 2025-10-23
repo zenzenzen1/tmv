@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import FormPreviewModal from "./FormPreviewModal";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { PaginationResponse } from "../../types/api";
 import { useToast } from "../../components/common/ToastContext";
+import { validateLength, validateRequired } from "../../utils/validation";
 import {
   XMarkIcon,
   PlusIcon,
@@ -145,6 +146,23 @@ const FormBuilder: React.FC = () => {
   // no baseline state kept; we read snapshot from sessionStorage when needed
   // Preview-only local select state
   // Removed local preview musicCategory state after extracting modal
+
+  // Validation logic
+  const titleValidation = useMemo(() => {
+    const requiredValidation = validateRequired(formData.title, 'Tiêu đề');
+    if (!requiredValidation.isValid) return requiredValidation;
+    return validateLength(formData.title, { min: 1, max: 200, fieldName: 'Tiêu đề' });
+  }, [formData.title]);
+
+  const descriptionValidation = useMemo(() => {
+    const requiredValidation = validateRequired(formData.description, 'Mô tả');
+    if (!requiredValidation.isValid) return requiredValidation;
+    return validateLength(formData.description, { min: 1, max: 1000, fieldName: 'Mô tả' });
+  }, [formData.description]);
+
+  const isFormValid = useMemo(() => {
+    return titleValidation.isValid && descriptionValidation.isValid;
+  }, [titleValidation.isValid, descriptionValidation.isValid]);
 
   const handleInputChange = (
     field: keyof FormData,
@@ -525,6 +543,11 @@ const FormBuilder: React.FC = () => {
                     return;
                   }
 
+                  if (!isFormValid) {
+                    toast.error("Vui lòng kiểm tra lại thông tin tiêu đề và mô tả");
+                    return;
+                  }
+
                   // Enforce one form per competition on client (best-effort); server also checks
                   try {
                     const check = await api.get<
@@ -637,6 +660,11 @@ const FormBuilder: React.FC = () => {
                 onClick={async () => {
                   if (!competitionId) {
                     toast.error("Vui lòng chọn giải đấu");
+                    return;
+                  }
+
+                  if (!isFormValid) {
+                    toast.error("Vui lòng kiểm tra lại thông tin tiêu đề và mô tả");
                     return;
                   }
 
@@ -778,19 +806,27 @@ const FormBuilder: React.FC = () => {
 
             <div className="bg-white rounded-lg shadow-sm border border-[#EEF2FF] p-3">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Tiêu đề
+                Tiêu đề *
               </label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => handleInputChange("title", e.target.value)}
-                className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
+                className={`w-full bg-white border rounded-md px-3 py-2 text-sm ${
+                  !titleValidation.isValid && formData.title !== '' 
+                    ? 'border-red-500 focus:border-red-500' 
+                    : 'border-gray-400 focus:border-blue-500'
+                }`}
+                maxLength={200}
               />
+              {!titleValidation.isValid && formData.title !== '' && (
+                <p className="text-red-500 text-xs mt-1">{titleValidation.errorMessage}</p>
+              )}
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border border-[#EEF2FF] p-3">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Mô tả
+                Mô tả *
               </label>
               <textarea
                 value={formData.description}
@@ -798,8 +834,16 @@ const FormBuilder: React.FC = () => {
                   handleInputChange("description", e.target.value)
                 }
                 rows={3}
-                className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
+                className={`w-full bg-white border rounded-md px-3 py-2 text-sm ${
+                  !descriptionValidation.isValid && formData.description !== '' 
+                    ? 'border-red-500 focus:border-red-500' 
+                    : 'border-gray-400 focus:border-blue-500'
+                }`}
+                maxLength={1000}
               />
+              {!descriptionValidation.isValid && formData.description !== '' && (
+                <p className="text-red-500 text-xs mt-1">{descriptionValidation.errorMessage}</p>
+              )}
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border border-[#EEF2FF] p-3">
