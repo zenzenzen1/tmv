@@ -16,6 +16,7 @@ import sep490g65.fvcapi.repository.AthleteRepository;
 import sep490g65.fvcapi.repository.WeightClassRepository;
 import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
+import sep490g65.fvcapi.service.CompetitionOrderService;
 
 import java.util.UUID;
 import java.util.ArrayList;
@@ -28,6 +29,7 @@ public class AthleteService {
     private final AthleteRepository athleteRepository;
     private final WeightClassRepository weightClassRepository;
     private final VovinamFistItemRepository fistItemRepository;
+    private final CompetitionOrderService competitionOrderService;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository fistConfigRepository;
     private final MusicIntegratedPerformanceRepository musicRepository;
 
@@ -128,9 +130,10 @@ public class AthleteService {
     }
     
     @Transactional
-    public void arrangeOrder(String tournamentId, String contentId, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
+    public void arrangeOrder(String competitionId, String competitionType, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
         // For now, ignore contentId and set order for provided athletes
-        List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(competitionType, competitionId);
+        List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(
+            Athlete.CompetitionType.valueOf(competitionType), competitionId);
         Collections.shuffle(athletes);
         for (int i = 0; i < athletes.size(); i++) {
             // CompetitionOrder
