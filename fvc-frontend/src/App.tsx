@@ -5,6 +5,8 @@ import { useIsAuthenticated } from "./stores/authStore";
 // Pages
 import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
+import ProfilePage from "./pages/profile/ProfilePage";
+import ProfileLayout from "./components/layout/ProfileLayout";
 import SubmittedFormsPage from "./pages/submitted-forms/ListPage";
 import FormListPage from "./pages/forms/ListPage";
 import FormBuilderPage from "./pages/forms/BuilderPage";
@@ -67,6 +69,18 @@ export default function App() {
           />
         }
       />
+
+      {/* Profile page with its own layout */}
+      <Route
+        path="/profile"
+        element={
+          <Protected>
+            <ProfileLayout />
+          </Protected>
+        }
+      >
+        <Route index element={<ProfilePage />} />
+      </Route>
       {/* Member Management */}
       <Route path="/member-management" element={<MemberManagementListPage />} />
       {/* Tournaments */}
@@ -93,9 +107,9 @@ export default function App() {
         {/* default */}
         <Route index element={<Navigate to="tournaments" replace />} />
 
-        {/* Dashboard/Home (optional) */}
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="home" element={<Home />} />
+      {/* Dashboard/Home (optional) */}
+      <Route path="dashboard" element={<DashboardPage />} />
+      <Route path="home" element={<Home />} />
 
         {/* Tournaments */}
         <Route path="tournaments" element={<TournamentListPage />} />

@@ -12,7 +12,6 @@ import {
   Divider,
 } from "@mui/material";
 import {
-  AccountCircle,
   Settings,
   Logout,
   Person,
@@ -45,6 +44,7 @@ export default function DashboardPage() {
   };
 
   const handleProfile = () => {
+    navigate('/profile');
     handleClose();
   };
 
@@ -164,7 +164,7 @@ export default function DashboardPage() {
                 {user?.fullName || 'User'}
               </Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {user?.systemRole || 'User'}
+                {user?.role || 'User'}
               </Typography>
             </Box>
 
@@ -215,7 +215,7 @@ export default function DashboardPage() {
                   <strong>Edu Email:</strong> {user?.eduMail}
                 </p>
                 <p>
-                  <strong>Role:</strong> {user?.systemRole}
+                  <strong>Role:</strong> {user?.role}
                 </p>
               </div>
             </div>
