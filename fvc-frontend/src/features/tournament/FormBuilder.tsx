@@ -1,20 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import FormPreviewModal from "./FormPreviewModal";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { PaginationResponse } from "../../types/api";
 import { useToast } from "../../components/common/ToastContext";
-<<<<<<< Updated upstream
-import {
-  XMarkIcon,
-  PlusIcon,
-  ChevronDownIcon,
-  Bars3Icon,
-} from "@heroicons/react/24/outline";
-=======
 import { validateLength, validateRequired } from "../../utils/validation";
->>>>>>> Stashed changes
 
 interface FormData {
   competitionType: string;
@@ -509,230 +500,6 @@ const FormBuilder: React.FC = () => {
         </div>
       </div>
 
-<<<<<<< Updated upstream
-                  // Enforce one form per competition on client (best-effort); server also checks
-                  try {
-                    const check = await api.get<
-                      PaginationResponse<{ id: string; competitionId: string }>
-                    >(API_ENDPOINTS.TOURNAMENT_FORMS.BASE, {
-                      page: 0,
-                      size: 100,
-                    });
-                    const hasForm = check.data.content.some(
-                      (f: { id: string; competitionId: string }) =>
-                        f.competitionId === competitionId
-                    );
-                    if (!editingId && hasForm) {
-                      toast.error(
-                        "Giải đấu này đã có form rồi. Không thể tạo thêm form mới."
-                      );
-                      return;
-                    }
-                  } catch {
-                    // ignore network error; backend will still enforce
-                  }
-
-                  // Validate custom questions: require non-empty label AND non-empty options for non short-answer
-                  const invalidQuestions = questions.filter((q) => {
-                    if (!q.label || !q.label.trim()) return true;
-                    if (q.type === "short-answer") return false;
-                    const cleaned = (q.options ?? []).map((o) =>
-                      (o ?? "").trim()
-                    );
-                    return (
-                      cleaned.length === 0 ||
-                      cleaned.every((o) => o.length === 0)
-                    );
-                  });
-
-                  if (invalidQuestions.length > 0) {
-                    toast.error(
-                      "Vui lòng điền đầy đủ nội dung cho tất cả câu hỏi tùy chỉnh."
-                    );
-                    return;
-                  }
-
-                  try {
-                    setSubmitting(true);
-                    const body = {
-                      name: formData.title,
-                      description: formData.description,
-                      formType:
-                        formData.competitionType === "competition" ||
-                        formData.competitionType === "fighting" ||
-                        formData.competitionType === "quyen" ||
-                        formData.competitionType === "music"
-                          ? "COMPETITION_REGISTRATION"
-                          : "CLUB_REGISTRATION",
-                      competitionId,
-                      fields: questions.map((q) => ({
-                        id: q.id,
-                        label: q.label,
-                        name: q.label,
-                        fieldType:
-                          q.type === "short-answer"
-                            ? "TEXT"
-                            : q.type === "dropdown"
-                            ? "SELECT"
-                            : q.type === "multiple-choice"
-                            ? "RADIO"
-                            : "CHECKBOX",
-                        required: false, // Assuming required is handled by formData
-                        options:
-                          q.type === "short-answer"
-                            ? undefined
-                            : JSON.stringify(
-                                (q.options ?? [])
-                                  .map((o) => (o ?? "").trim())
-                                  .filter((o) => o.length > 0)
-                              ),
-                        sortOrder: questions.findIndex((it) => it.id === q.id),
-                      })),
-                    };
-                    if (editingId) {
-                      await api.put(`/v1/tournament-forms/${editingId}`, {
-                        ...body,
-                        status: "DRAFT",
-                      });
-                      const snapNow = JSON.stringify(questions);
-                      sessionStorage.setItem(snapshotKey, snapNow);
-                      window.dispatchEvent(new Event("forms:changed"));
-                    } else {
-                      await api.post(`/v1/tournament-forms`, body);
-                      const snapNow = JSON.stringify(questions);
-                      sessionStorage.setItem(snapshotKey, snapNow);
-                      window.dispatchEvent(new Event("forms:changed"));
-                    }
-                    toast.success("Lưu thành công");
-                    navigate(-1);
-                  } catch (err) {
-                    console.error(err);
-                    toast.error("Lưu nháp thất bại");
-                  } finally {
-                    setSubmitting(false);
-                  }
-                }}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 shadow-sm"
-              >
-                Lưu nháp
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={async () => {
-                  if (!competitionId) {
-                    toast.error("Vui lòng chọn giải đấu");
-                    return;
-                  }
-
-                  // Enforce one form per competition on client (best-effort); server also checks
-                  try {
-                    const check = await api.get<
-                      PaginationResponse<{ id: string; competitionId: string }>
-                    >(API_ENDPOINTS.TOURNAMENT_FORMS.BASE, {
-                      page: 0,
-                      size: 100,
-                    });
-                    const hasForm = check.data.content.some(
-                      (f: { id: string; competitionId: string }) =>
-                        f.competitionId === competitionId
-                    );
-                    if (!editingId && hasForm) {
-                      toast.error(
-                        "Giải đấu này đã có form rồi. Không thể tạo thêm form mới."
-                      );
-                      return;
-                    }
-                  } catch {
-                    // ignore network error; backend will still enforce
-                  }
-
-                  // Validate custom questions: require non-empty label AND non-empty options for non short-answer
-                  const invalidQuestions = questions.filter((q) => {
-                    if (!q.label || !q.label.trim()) return true;
-                    if (q.type === "short-answer") return false;
-                    const cleaned = (q.options ?? []).map((o) =>
-                      (o ?? "").trim()
-                    );
-                    return (
-                      cleaned.length === 0 ||
-                      cleaned.every((o) => o.length === 0)
-                    );
-                  });
-
-                  if (invalidQuestions.length > 0) {
-                    toast.error(
-                      "Vui lòng điền đầy đủ nội dung cho tất cả câu hỏi tùy chỉnh."
-                    );
-                    return;
-                  }
-
-                  try {
-                    setSubmitting(true);
-                    const body = {
-                      name: formData.title,
-                      description: formData.description,
-                      formType:
-                        formData.competitionType === "competition" ||
-                        formData.competitionType === "fighting" ||
-                        formData.competitionType === "quyen" ||
-                        formData.competitionType === "music"
-                          ? "COMPETITION_REGISTRATION"
-                          : "CLUB_REGISTRATION",
-                      competitionId,
-                      fields: questions.map((q) => ({
-                        id: q.id,
-                        label: q.label,
-                        name: q.label,
-                        fieldType:
-                          q.type === "short-answer"
-                            ? "TEXT"
-                            : q.type === "dropdown"
-                            ? "SELECT"
-                            : q.type === "multiple-choice"
-                            ? "RADIO"
-                            : "CHECKBOX",
-                        required: false, // Assuming required is handled by formData
-                        options:
-                          q.type === "short-answer"
-                            ? undefined
-                            : JSON.stringify(
-                                (q.options ?? [])
-                                  .map((o) => (o ?? "").trim())
-                                  .filter((o) => o.length > 0)
-                              ),
-                        sortOrder: questions.findIndex((it) => it.id === q.id),
-                      })),
-                    };
-                    if (editingId) {
-                      await api.put(`/v1/tournament-forms/${editingId}`, {
-                        ...body,
-                        status: "PUBLISH",
-                      });
-                      const snapNow = JSON.stringify(questions);
-                      sessionStorage.setItem(snapshotKey, snapNow);
-                      window.dispatchEvent(new Event("forms:changed"));
-                    } else {
-                      await api.post(`/v1/tournament-forms`, body);
-                      const snapNow = JSON.stringify(questions);
-                      sessionStorage.setItem(snapshotKey, snapNow);
-                      window.dispatchEvent(new Event("forms:changed"));
-                    }
-                    toast.success("Lưu thành công");
-                    navigate(-1);
-                  } catch (err) {
-                    console.error(err);
-                    toast.error("Lưu thất bại");
-                  } finally {
-                    setSubmitting(false);
-                  }
-                }}
-                className="rounded-lg bg-[#377CFB] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#2e6de0] disabled:opacity-60"
-              >
-                {submitting ? "Đang lưu..." : "Lưu & Publish"}
-              </button>
-            </div>
-=======
       {/* Form Builder */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="space-y-6">
@@ -753,7 +520,6 @@ const FormBuilder: React.FC = () => {
                 </option>
               ))}
             </select>
->>>>>>> Stashed changes
           </div>
 
           {/* Form Title */}
@@ -840,68 +606,6 @@ const FormBuilder: React.FC = () => {
               </div>
             </div>
 
-<<<<<<< Updated upstream
-            <div className="bg-white rounded-lg shadow-sm border border-[#EEF2FF] p-3">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Tiêu đề
-              </label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => handleInputChange("title", e.target.value)}
-                className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-[#EEF2FF] p-3">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Mô tả
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) =>
-                  handleInputChange("description", e.target.value)
-                }
-                rows={3}
-                className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-[#EEF2FF] p-3">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Họ và tên
-              </label>
-              <p className="text-sm text-gray-500 mb-2">Nhập họ và tên</p>
-              <input
-                type="text"
-                value={formData.fullName}
-                onChange={(e) => handleInputChange("fullName", e.target.value)}
-                className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-[#EEF2FF] p-3">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Email
-              </label>
-              <p className="text-sm text-gray-500 mb-2">Nhập email</p>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleInputChange("email", e.target.value)}
-                className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-[#EEF2FF] p-3">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Giới tính
-              </label>
-              <p className="text-sm text-gray-500 mb-2">Chọn giới tính</p>
-              <div className="flex space-x-4">
-                {["male", "female", "other"].map((gender) => (
-                  <label key={gender} className="flex items-center">
-=======
             {/* Email */}
             <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
               <div className="space-y-3">
@@ -924,7 +628,6 @@ const FormBuilder: React.FC = () => {
                     <div className="mb-1 text-xs font-medium text-gray-700">
                       Nhãn câu hỏi
                     </div>
->>>>>>> Stashed changes
                     <input
                       className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
                       value="Email"

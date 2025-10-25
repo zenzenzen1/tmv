@@ -7,6 +7,7 @@ import { useToast } from "../../components/common/ToastContext";
 type FormConfig = {
   id: string;
   name: string;
+  formTitle: string;
   description: string;
   formType: string;
   createdAt: string;
@@ -108,10 +109,11 @@ export default function TournamentFormList() {
           });
         });
 
-        const formsData: FormConfig[] = dataArray.map((form: FormConfig) => ({
+        const formsData: FormConfig[] = dataArray.map((form: any) => ({
           id: form.id,
-          name: form.name,
-          description: form.description,
+          name: form.formTitle || form.name || "Không có tên",
+          formTitle: form.formTitle || form.name || "Không có tên",
+          description: form.description || "Không có mô tả",
           formType: form.formType,
           createdAt: form.createdAt,
           updatedAt: form.updatedAt,
@@ -271,11 +273,12 @@ export default function TournamentFormList() {
                     className="rounded-lg border border-gray-200 bg-white p-4 hover:bg-gray-50 cursor-pointer"
                     onClick={() => handleEditForm(form.id)}
                   >
+                    {console.log("Rendering form:", form)}
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           <h3 className="text-lg font-semibold text-gray-900">
-                            {form.name}
+                            {form.formTitle || form.name || "Không có tên"}
                           </h3>
                           <span className="rounded-md border px-2 py-1 text-[11px] font-semibold text-gray-600">
                             Đăng ký giải đấu

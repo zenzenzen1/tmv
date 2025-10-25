@@ -3,12 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "../../components/common/ToastContext";
 import apiService from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
-import {
-  validateEmail,
-  validatePhoneNumber,
-  validateStudentId,
-  validateRequired,
-} from "../../utils/validation";
 
 type FormField = {
   id: string;
@@ -52,13 +46,12 @@ export default function FormRegistrationPage() {
 
       let response;
       if (slug) {
-<<<<<<< Updated upstream
-        response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.PUBLIC_BY_SLUG(slug));
-=======
+        response = await apiService.get<any>(
+          API_ENDPOINTS.APPLICATION_FORMS.PUBLIC_BY_SLUG(slug)
+        );
         response = await apiService.get<any>(
           `${API_ENDPOINTS.APPLICATION_FORMS.BASE}/public/${slug}`
         );
->>>>>>> Stashed changes
       } else {
         response = await apiService.get<any>(
           API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id!)
@@ -101,8 +94,6 @@ export default function FormRegistrationPage() {
       ...prev,
       [fieldName]: value,
     }));
-<<<<<<< Updated upstream
-=======
 
     // Clear field error when user starts typing
     if (fieldErrors[fieldName]) {
@@ -195,7 +186,6 @@ export default function FormRegistrationPage() {
 
     setFieldErrors(errors);
     return isValid;
->>>>>>> Stashed changes
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -203,15 +193,12 @@ export default function FormRegistrationPage() {
 
     if (!formConfig) return;
 
-<<<<<<< Updated upstream
-=======
     // Validate form before submission
     if (!validateForm()) {
       toast.error("Vui lòng kiểm tra lại thông tin đã nhập");
       return;
     }
 
->>>>>>> Stashed changes
     try {
       setSubmitting(true);
 
@@ -241,29 +228,15 @@ export default function FormRegistrationPage() {
   };
 
   const renderField = (field: FormField) => {
-<<<<<<< Updated upstream
-    const value = formData[field.name] || '';
-=======
     const value = formData[field.name] || "";
     const hasError = fieldErrors[field.name];
     const errorClass = hasError
       ? "border-red-500 focus:border-red-500"
       : "border-gray-300 focus:border-blue-500";
->>>>>>> Stashed changes
 
     switch (field.fieldType) {
       case "TEXT":
         return (
-<<<<<<< Updated upstream
-          <input
-            type="text"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-            value={value}
-            onChange={(e) => handleInputChange(field.name, e.target.value)}
-            placeholder={`Nhập ${field.label.toLowerCase()}`}
-            required={field.required}
-          />
-=======
           <div>
             <input
               type="text"
@@ -294,7 +267,6 @@ export default function FormRegistrationPage() {
               <p className="text-red-500 text-xs mt-1">{hasError}</p>
             )}
           </div>
->>>>>>> Stashed changes
         );
 
       case "DATE":
@@ -310,21 +282,6 @@ export default function FormRegistrationPage() {
 
       case "SELECT":
         return (
-<<<<<<< Updated upstream
-          <select
-            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-            value={value}
-            onChange={(e) => handleInputChange(field.name, e.target.value)}
-            required={field.required}
-          >
-            <option value="">Chọn một tùy chọn</option>
-            {field.options?.split(',').map((option, index) => (
-              <option key={index} value={option.trim()}>
-                {option.trim()}
-              </option>
-            ))}
-          </select>
-=======
           <div>
             <select
               className={`w-full rounded-md border px-3 py-2 focus:outline-none ${errorClass}`}
@@ -343,32 +300,10 @@ export default function FormRegistrationPage() {
               <p className="text-red-500 text-xs mt-1">{hasError}</p>
             )}
           </div>
->>>>>>> Stashed changes
         );
 
       case "CHECKBOX":
         return (
-<<<<<<< Updated upstream
-          <div className="space-y-2">
-            {field.options?.split(',').map((option, index) => (
-              <label key={index} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  checked={value.includes(option.trim())}
-                  onChange={(e) => {
-                    const currentValues = value || [];
-                    if (e.target.checked) {
-                      handleInputChange(field.name, [...currentValues, option.trim()]);
-                    } else {
-                      handleInputChange(field.name, currentValues.filter((v: string) => v !== option.trim()));
-                    }
-                  }}
-                />
-                <span className="text-sm text-gray-700">{option.trim()}</span>
-              </label>
-            ))}
-=======
           <div>
             <div className="space-y-2">
               {field.options?.split(",").map((option, index) => (
@@ -401,20 +336,11 @@ export default function FormRegistrationPage() {
             {hasError && (
               <p className="text-red-500 text-xs mt-1">{hasError}</p>
             )}
->>>>>>> Stashed changes
           </div>
         );
 
       case "FILE":
         return (
-<<<<<<< Updated upstream
-          <input
-            type="file"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-            onChange={(e) => handleInputChange(field.name, e.target.files?.[0])}
-            required={field.required}
-          />
-=======
           <div>
             <input
               type="file"
@@ -428,7 +354,6 @@ export default function FormRegistrationPage() {
               <p className="text-red-500 text-xs mt-1">{hasError}</p>
             )}
           </div>
->>>>>>> Stashed changes
         );
 
       default:

@@ -6,6 +6,7 @@ import api from "../../services/api";
 import { fistContentService } from "../../services/fistContent";
 import type { PaginationResponse } from "../../types/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
+import { validateLength } from "../../utils/validation";
 
 type AthleteRow = {
   id: string;
@@ -75,7 +76,11 @@ export default function AthleteManagementPage({
 
   // Search input validation
   const searchValidation = useMemo(() => {
-    return validateSearchInput(nameQuery, "Tìm kiếm");
+    return validateLength(nameQuery, {
+      min: 0,
+      max: 100,
+      fieldName: "Tìm kiếm",
+    });
   }, [nameQuery]);
 
   // Debounce name search to reduce request volume

@@ -7,6 +7,8 @@ import Pagination from "@/components/common/Pagination";
 import { useEffect, useMemo, useMemo as useReactMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
+import { API_ENDPOINTS } from "@/config/endpoints";
+import { useToast } from "@/components/common/ToastContext";
 
 // Hàm để extract tất cả các trường từ form data
 function extractFormDataFields(formData: any): Record<string, string> {
@@ -14,7 +16,7 @@ function extractFormDataFields(formData: any): Record<string, string> {
   try {
     const obj = typeof formData === "string" ? JSON.parse(formData) : formData;
     const fields: Record<string, string> = {};
-    
+
     function walk(o: any, path: string[] = []) {
       if (o == null) return;
       if (typeof o !== "object") {
@@ -31,7 +33,7 @@ function extractFormDataFields(formData: any): Record<string, string> {
       }
       Object.entries(o).forEach(([kk, vv]) => walk(vv, [...path, kk]));
     }
-    
+
     walk(obj);
     return fields;
   } catch {
@@ -42,24 +44,44 @@ function extractFormDataFields(formData: any): Record<string, string> {
 // Mapping các trường phổ biến sang tên hiển thị tiếng Việt
 const fieldDisplayNames: Record<string, string> = {
   // Số điện thoại
-  "phone": "Số điện thoại",
-  "sdt": "Số điện thoại", 
-  "mobile": "Số điện thoại",
-  "phoneNumber": "Số điện thoại",
-  "contactPhone": "Số điện thoại liên lạc",
-  "emergencyPhone": "Số điện thoại khẩn cấp",
-  
+  phone: "Số điện thoại",
+  sdt: "Số điện thoại",
+  mobile: "Số điện thoại",
+  phoneNumber: "Số điện thoại",
+  contactPhone: "Số điện thoại liên lạc",
+  emergencyPhone: "Số điện thoại khẩn cấp",
+
   // Lý do tham gia
-  "reason": "Lý do tham gia",
-  "lydo": "Lý do tham gia",
-  "motivation": "Động lực tham gia",
-  
+  reason: "Lý do tham gia",
+  lydo: "Lý do tham gia",
+  motivation: "Động lực tham gia",
+
   // Tên (để hiển thị khi không có user_id)
-  "ten": "Tên",
-  "name": "Tên",
-  "fullName": "Họ và tên",
-  "hovaten": "Họ và tên",
-  
+  ten: "Tên",
+  name: "Tên",
+  fullName: "Họ và tên",
+  hovaten: "Họ và tên",
+
+  // Giới tính
+  gender: "Giới tính",
+  gioitinh: "Giới tính",
+
+  // Câu lạc bộ
+  club: "Câu lạc bộ",
+  clb: "Câu lạc bộ",
+
+  // MSSV
+  studentId: "MSSV",
+  mssv: "MSSV",
+  msv: "MSSV",
+
+  // Email
+  email: "Email",
+  mail: "Email",
+
+  // Field "Mày" từ form
+  may: "Mày",
+
   // Các trường khác sẽ tự động xuất hiện khi người dùng thay đổi form
   // Không cần định nghĩa trước để tránh hiển thị các cột không cần thiết
 };
@@ -69,52 +91,86 @@ function extractNameFromFormData(formData: any): string {
   if (!formData) return "";
   try {
     const obj = typeof formData === "string" ? JSON.parse(formData) : formData;
-    
+
     // Danh sách các trường có thể chứa tên (ưu tiên cao đến thấp)
-    const nameFields = ["fullName", "name", "hovaten", "ten", "hoTen", "full_name"];
-    
+    const nameFields = [
+      "fullName",
+      "name",
+      "hovaten",
+      "ten",
+      "hoTen",
+      "full_name",
+    ];
+
     // Tìm exact match trước
     for (const field of nameFields) {
       if (obj[field] && typeof obj[field] === "string" && obj[field].trim()) {
         return obj[field].trim();
       }
     }
-    
+
     // Tìm case-insensitive match
     for (const field of nameFields) {
-      const foundKey = Object.keys(obj).find(key => 
-        key.toLowerCase() === field.toLowerCase()
+      const foundKey = Object.keys(obj).find(
+        (key) => key.toLowerCase() === field.toLowerCase()
       );
-      if (foundKey && obj[foundKey] && typeof obj[foundKey] === "string" && obj[foundKey].trim()) {
+      if (
+        foundKey &&
+        obj[foundKey] &&
+        typeof obj[foundKey] === "string" &&
+        obj[foundKey].trim()
+      ) {
         return obj[foundKey].trim();
       }
     }
-    
+
     // Loại bỏ các trường không phải tên
-    const excludeFields = ["club", "clb", "team", "competition", "reason", "lydo", "phone", "sdt", "mobile", "email", "mail", "studentCode", "mssv", "msv"];
-    
+    const excludeFields = [
+      "club",
+      "clb",
+      "team",
+      "competition",
+      "reason",
+      "lydo",
+      "phone",
+      "sdt",
+      "mobile",
+      "email",
+      "mail",
+      "studentCode",
+      "mssv",
+      "msv",
+    ];
+
     // Tìm trường có vẻ giống tên (có khoảng trắng, độ dài hợp lý, không phải email/phone)
     for (const [key, value] of Object.entries(obj)) {
       if (typeof value === "string" && value.trim()) {
         const lowerKey = key.toLowerCase();
         const lowerValue = value.trim().toLowerCase();
-        
+
         // Loại bỏ các trường không phải tên
-        if (excludeFields.some(exclude => lowerKey.includes(exclude) || lowerValue.includes(exclude))) {
+        if (
+          excludeFields.some(
+            (exclude) =>
+              lowerKey.includes(exclude) || lowerValue.includes(exclude)
+          )
+        ) {
           continue;
         }
-        
+
         // Kiểm tra nếu có vẻ giống tên (có khoảng trắng, độ dài 5-50 ký tự, không phải email/phone)
-        if (/\s/.test(value.trim()) && 
-            value.trim().length >= 5 && 
-            value.trim().length <= 50 &&
-            !/\b[\w.+-]+@\w+\.[\w.-]+\b/.test(value.trim()) &&
-            !/\b(0|\+84)?[\d\s.-]{8,14}\b/.test(value.trim())) {
+        if (
+          /\s/.test(value.trim()) &&
+          value.trim().length >= 5 &&
+          value.trim().length <= 50 &&
+          !/\b[\w.+-]+@\w+\.[\w.-]+\b/.test(value.trim()) &&
+          !/\b(0|\+84)?[\d\s.-]{8,14}\b/.test(value.trim())
+        ) {
           return value.trim();
         }
       }
     }
-    
+
     return "";
   } catch {
     return "";
@@ -122,25 +178,145 @@ function extractNameFromFormData(formData: any): string {
 }
 
 // Hàm để lấy tên hiển thị cho một trường
-function getFieldDisplayName(fieldKey: string): string {
+function getFieldDisplayName(fieldKey: string, formDefinition?: any): string {
   const lowerKey = fieldKey.toLowerCase();
-  
+
+  // Nếu có form definition, tìm field title từ form definition
+  if (formDefinition && formDefinition.fields) {
+    try {
+      const formFields = formDefinition.fields;
+
+      console.log(
+        "Looking for field:",
+        fieldKey,
+        "in form definition:",
+        formFields
+      );
+
+      // Tìm field trong form definition
+      const findFieldInDefinition = (fields: any[]): string | null => {
+        for (const field of fields) {
+          console.log(
+            "Checking field:",
+            field.id,
+            field.name,
+            field.label,
+            "against:",
+            fieldKey
+          );
+
+          // Kiểm tra nhiều cách match
+          const isMatch =
+            field.id === fieldKey ||
+            field.name === fieldKey ||
+            field.id === fieldKey.toString() ||
+            field.name === fieldKey.toString() ||
+            (field.id && field.id.toString() === fieldKey) ||
+            (field.name && field.name.toString() === fieldKey);
+
+          if (isMatch) {
+            console.log("Found field match:", field);
+            return (
+              field.label || field.title || field.name || field.id || field.name
+            );
+          }
+
+          // Nếu field có children (như trong nested structure)
+          if (field.children && Array.isArray(field.children)) {
+            const found = findFieldInDefinition(field.children);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const fieldTitle = findFieldInDefinition(formFields);
+      console.log("Field title found:", fieldTitle);
+      if (fieldTitle) {
+        return fieldTitle;
+      }
+    } catch (error) {
+      console.error("Error parsing form definition:", error);
+    }
+  }
+
   // Tìm exact match trước
   if (fieldDisplayNames[lowerKey]) {
     return fieldDisplayNames[lowerKey];
   }
-  
+
   // Tìm partial match
   for (const [key, displayName] of Object.entries(fieldDisplayNames)) {
     if (lowerKey.includes(key) || key.includes(lowerKey)) {
       return displayName;
     }
   }
-  
+
   // Nếu không tìm thấy, format key thành tên hiển thị
+  // Xử lý các trường hợp đặc biệt
+  if (
+    lowerKey.includes("phone") ||
+    lowerKey.includes("sdt") ||
+    lowerKey.includes("mobile")
+  ) {
+    return "Số điện thoại";
+  }
+  if (lowerKey.includes("email") || lowerKey.includes("mail")) {
+    return "Email";
+  }
+  if (
+    lowerKey.includes("name") ||
+    lowerKey.includes("ten") ||
+    lowerKey.includes("ho")
+  ) {
+    return "Họ và tên";
+  }
+  if (
+    lowerKey.includes("student") ||
+    lowerKey.includes("mssv") ||
+    lowerKey.includes("msv")
+  ) {
+    return "MSSV";
+  }
+  if (
+    lowerKey.includes("gender") ||
+    lowerKey.includes("gioi") ||
+    lowerKey.includes("sex")
+  ) {
+    return "Giới tính";
+  }
+  if (lowerKey.includes("club") || lowerKey.includes("clb")) {
+    return "Câu lạc bộ";
+  }
+  if (lowerKey.includes("may") || lowerKey === "may") {
+    return "Mày";
+  }
+
+  // Xử lý trường hợp field có key là timestamp - fallback
+  if (/^\d{13,}$/.test(fieldKey)) {
+    // Nếu có form definition nhưng không tìm thấy field, có thể là field custom
+    if (formDefinition) {
+      // Thử tìm field theo timestamp trong form definition
+      if (formDefinition.fields) {
+        for (const field of formDefinition.fields) {
+          // Kiểm tra nếu field có id hoặc name là timestamp
+          if (field.id && field.id.toString() === fieldKey) {
+            return field.label || field.title || field.name || "Custom Field";
+          }
+          if (field.name && field.name.toString() === fieldKey) {
+            return field.label || field.title || field.name || "Custom Field";
+          }
+        }
+      }
+      return "Custom Field";
+    }
+    return "Mày"; // Fallback cũ
+  }
+
+  // Format key thành tên hiển thị
   return fieldKey
     .split(/[._-]/)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
 
@@ -154,6 +330,12 @@ type SubmittedRow = {
   note: string;
   stt?: number;
   formData?: any;
+  competitionType?: string;
+  category?: string;
+  club?: string;
+  coach?: string;
+  gender?: string;
+  status?: string;
   [key: string]: any; // Cho phép các trường động từ form data
 };
 
@@ -166,7 +348,7 @@ export default function SubmittedFormsPage() {
   const [pageSize] = useState<number>(10); // fixed page size
   const [totalElements, setTotalElements] = useState<number>(0);
   const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
-  
+
   // Filters
   const [status, setStatus] = useState<string>("");
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -174,63 +356,277 @@ export default function SubmittedFormsPage() {
   // Search
   const [query, setQuery] = useState<string>("");
 
+  // New form type filters
+  const [formTypeFilter, setFormTypeFilter] = useState<
+    "COMPETITION" | "CLUB" | ""
+  >("");
+  const [selectedFormId, setSelectedFormId] = useState<string>("");
+  const [availableForms, setAvailableForms] = useState<
+    Array<{ id: string; name: string; formType: string }>
+  >([]);
+  const [selectedFormDefinition, setSelectedFormDefinition] =
+    useState<any>(null);
+
+  // Get toast context with safe handling
+  let toast: any = null;
+  try {
+    const toastContext = useToast();
+    toast = toastContext;
+  } catch (error) {
+    console.log("Toast context not available, using fallback");
+    toast = {
+      success: (message: string) => console.log("✅ Success:", message),
+      error: (message: string) => console.log("❌ Error:", message),
+    };
+  }
+
+  // Handle status change
+  const handleStatusChange = async (
+    submissionId: string,
+    newStatus: string
+  ) => {
+    try {
+      // Call API to update status
+      await api.patch(
+        `/v1/tournament-forms/submissions/${submissionId}/status`,
+        {
+          status: newStatus,
+        }
+      );
+
+      // Update local state
+      setRows((prevRows) =>
+        prevRows.map((row) =>
+          row.id === submissionId ? { ...row, status: newStatus } : row
+        )
+      );
+
+      // Show success toast
+      const statusText =
+        newStatus === "APPROVED"
+          ? "Đã duyệt"
+          : newStatus === "REJECTED"
+          ? "Từ chối"
+          : "Chờ duyệt";
+
+      toast.success(`Đã cập nhật trạng thái thành "${statusText}" thành công!`);
+
+      console.log(
+        `Status updated to ${newStatus} for submission ${submissionId}`
+      );
+    } catch (error) {
+      console.error("Error updating status:", error);
+      toast.error("Có lỗi xảy ra khi cập nhật trạng thái. Vui lòng thử lại!");
+    }
+  };
+
+  // Load available forms based on form type filter
+  useEffect(() => {
+    const loadForms = async () => {
+      if (!formTypeFilter) {
+        setAvailableForms([]);
+        setSelectedFormDefinition(null);
+        return;
+      }
+
+      try {
+        const response = await api.get<{
+          content: any[];
+          totalElements: number;
+        }>(API_ENDPOINTS.TOURNAMENT_FORMS.BASE, {
+          page: 0,
+          size: 100, // Use same size as TournamentFormList.tsx
+        });
+
+        const forms = response.data?.content || [];
+        console.log("All forms from API:", forms.length, forms);
+
+        const filteredForms = forms.filter((form: any) => {
+          console.log("Form:", form.name, "formType:", form.formType);
+          if (formTypeFilter === "COMPETITION") {
+            return form.formType === "COMPETITION_REGISTRATION";
+          } else if (formTypeFilter === "CLUB") {
+            return form.formType === "CLUB_REGISTRATION";
+          }
+          return false;
+        });
+
+        console.log("Filtered forms:", filteredForms.length, filteredForms);
+        console.log("Forms breakdown:");
+        console.log(
+          "- COMPETITION_REGISTRATION:",
+          forms.filter((f) => f.formType === "COMPETITION_REGISTRATION").length
+        );
+        console.log(
+          "- CLUB_REGISTRATION:",
+          forms.filter((f) => f.formType === "CLUB_REGISTRATION").length
+        );
+        console.log(
+          "- Other types:",
+          forms.filter(
+            (f) =>
+              f.formType !== "COMPETITION_REGISTRATION" &&
+              f.formType !== "CLUB_REGISTRATION"
+          ).length
+        );
+
+        setAvailableForms(
+          filteredForms.map((form: any) => ({
+            id: form.id,
+            name: form.formTitle || form.name || "Không có tên",
+            formType: form.formType,
+          }))
+        );
+      } catch (error) {
+        console.error("Error loading forms:", error);
+      }
+    };
+
+    loadForms();
+  }, [formTypeFilter]);
+
+  // Load form definition when form is selected
+  useEffect(() => {
+    const loadFormDefinition = async () => {
+      if (!selectedFormId) {
+        setSelectedFormDefinition(null);
+        return;
+      }
+
+      try {
+        const response = await api.get(
+          `/v1/tournament-forms/${selectedFormId}`
+        );
+        setSelectedFormDefinition(response.data);
+        console.log("Form definition loaded:", response.data);
+      } catch (error) {
+        console.error("Error loading form definition:", error);
+        setSelectedFormDefinition(null);
+      }
+    };
+
+    loadFormDefinition();
+  }, [selectedFormId]);
+
   useEffect(() => {
     let ignore = false;
     async function fetchData() {
       try {
         setLoading(true);
         setError("");
+        // Only fetch data if a specific form is selected
+        if (!selectedFormId) {
+          setRows([]);
+          setTotalElements(0);
+          return;
+        }
+
+        // Use FormResults API endpoint for specific form submissions
         const res = await api.get<{
           content: any[];
           page: number;
           size: number;
           totalElements: number;
-        }>("/v1/submitted-forms", {
-          // fixed form type: club registration
-          type: "CLUB_REGISTRATION",
-          page: page - 1,
-          size: pageSize,
-          sortBy: "createdAt",
-          sortDirection: "desc",
-          status: status || undefined,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-          search: query || undefined,
+        }>(`/v1/tournament-forms/${selectedFormId}/submissions`, {
+          params: {
+            page: page - 1,
+            size: pageSize,
+            sortBy: "createdAt",
+            sortDirection: "desc",
+            status: status || undefined,
+            dateFrom: dateFrom || undefined,
+            dateTo: dateTo || undefined,
+            search: query || undefined,
+          },
         });
         if (!ignore) {
-          const mapped: SubmittedRow[] = (res.data?.content ?? []).map((s: any, idx: number) => {
-            const emailFromUser = s.userPersonalMail || s.userEduMail || "";
-            const codeFromUser = s.userStudentCode || "";
-            const nameFromUser = s.userFullName || "";
-            const phoneFromForm = s.formData ? safePick(s.formData, ["phone", "sdt", "mobile"]) : "";
-            
-            // Extract tất cả các trường từ form data
-            const formFields = extractFormDataFields(s.formData);
-            
-            // Logic ưu tiên tên: 1) Từ bảng user nếu có user_id, 2) Từ form_data nếu không có user_id
-            let finalName = "";
-            if (s.userId && nameFromUser) {
-              // Có user_id và có tên từ bảng user
-              finalName = nameFromUser;
-            } else {
-              // Không có user_id hoặc không có tên từ bảng user, lấy từ form_data
-              finalName = s.formData ? extractNameFromFormData(s.formData) : "";
+          const root = res.data as Record<string, unknown>;
+          const pageData = (root["data"] as Record<string, unknown>) ?? root;
+          const responseTimestamp = (root["timestamp"] as string) || "";
+          const totalElements =
+            (pageData["totalElements"] as number) ||
+            (pageData["total"] as number) ||
+            0;
+          const content = (pageData["content"] as Array<unknown>) ?? [];
+
+          const mapped: SubmittedRow[] = content.map((raw) => {
+            const item = raw as {
+              id: number;
+              formData?: string;
+              status?: string;
+            };
+            let parsed: Record<string, unknown> = {};
+            try {
+              parsed = item.formData ? JSON.parse(item.formData) : {};
+            } catch {
+              parsed = {};
             }
-            
+
+            // Extract competition type and category like FormResults
+            const compRaw = (
+              (parsed.competitionType as string) || ""
+            ).toLowerCase();
+            const compVi =
+              compRaw === "quyen"
+                ? "Quyền"
+                : compRaw === "fighting"
+                ? "Đối kháng"
+                : compRaw === "music"
+                ? "Võ nhạc"
+                : "";
+
+            // Extract category like FormResults
+            let categoryVi = "";
+            if (compRaw === "fighting") {
+              const weightClass = parsed.weightClass as string;
+              const weightClassId = parsed.weightClassId as string;
+              if (weightClass && weightClass.trim()) {
+                categoryVi = weightClass;
+              } else if (weightClassId) {
+                categoryVi = weightClassId;
+              } else {
+                categoryVi = "Đối kháng";
+              }
+            } else if (compRaw === "quyen") {
+              const quyenCategory = parsed.quyenCategory as string;
+              const quyenContent = parsed.quyenContent as string;
+              if (quyenCategory && quyenCategory.trim()) {
+                categoryVi = quyenCategory;
+              } else if (quyenContent && quyenContent.trim()) {
+                categoryVi = quyenContent;
+              } else {
+                categoryVi = "Quyền";
+              }
+            } else if (compRaw === "music") {
+              const musicCategory = parsed.musicCategory as string;
+              if (musicCategory && musicCategory.trim()) {
+                categoryVi = musicCategory;
+              } else {
+                categoryVi = "Võ nhạc";
+              }
+            }
+
             return {
-              id: String(s.id ?? idx),
-              submittedAt: s.createdAt ?? "",
-              fullName: finalName,
-              email: emailFromUser || (s.formData ? safePick(s.formData, ["email", "mail"]) : ""),
-              studentCode: codeFromUser || (s.formData ? safePick(s.formData, ["studentCode", "mssv", "msv"]) : ""),
-              phone: phoneFromForm,
-              note: s.reviewerNote ?? "",
-              formData: s.formData,
-              ...formFields, // Spread tất cả các trường form data vào row
+              id: String(item.id),
+              submittedAt:
+                item.createdAt || item.submittedAt || new Date().toISOString(),
+              fullName: (parsed.fullName as string) || "",
+              email: (parsed.email as string) || "",
+              studentCode: (parsed.studentId as string) || "",
+              phone: parsed.phone || parsed.phoneNumber || "",
+              note: item.reviewerNote ?? "",
+              formData: item.formData,
+              competitionType: compVi,
+              category: categoryVi,
+              club: (parsed.club as string) || "",
+              coach: (parsed.coach as string) || "",
+              gender: parsed.gender === "FEMALE" ? "Nữ" : "Nam",
+              status: item.status || "PENDING", // Add status field
             } as SubmittedRow;
           });
+
           setRows(mapped);
-          setTotalElements(res.data?.totalElements ?? mapped.length);
+          setTotalElements(totalElements);
         }
       } catch (e: any) {
         if (!ignore) setError(e?.message || "Không tải được dữ liệu");
@@ -242,7 +638,7 @@ export default function SubmittedFormsPage() {
     return () => {
       ignore = true;
     };
-  }, [page, pageSize, status, dateFrom, dateTo, query]);
+  }, [page, pageSize, status, dateFrom, dateTo, query, selectedFormId]);
 
   function safePick(jsonString: string, keys: string[]): string {
     try {
@@ -321,7 +717,14 @@ export default function SubmittedFormsPage() {
       try {
         const d = new Date(v);
         if (Number.isNaN(d.getTime())) return v;
-        return d.toLocaleDateString("vi-VN");
+        return d.toLocaleString("vi-VN", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
       } catch {
         return v;
       }
@@ -329,19 +732,24 @@ export default function SubmittedFormsPage() {
 
     // Lấy các trường form data được định nghĩa trong fieldDisplayNames
     const allowedFormFields = new Set<string>();
-    rows.forEach(row => {
+    rows.forEach((row) => {
       const formFields = extractFormDataFields(row.formData);
-      Object.keys(formFields).forEach(key => {
+      Object.keys(formFields).forEach((key) => {
         const lowerKey = key.toLowerCase();
         // Loại bỏ các trường tên vì đã hiển thị trong cột "Họ và tên"
-        const isNameField = ["fullName", "name", "hovaten", "ten"].includes(lowerKey);
+        const isNameField = ["fullName", "name", "hovaten", "ten"].includes(
+          lowerKey
+        );
         if (!isNameField) {
           // Chỉ hiển thị các trường được định nghĩa trong fieldDisplayNames
-          if (Object.keys(fieldDisplayNames).some(definedKey => 
-            definedKey.toLowerCase() === lowerKey || 
-            lowerKey.includes(definedKey.toLowerCase()) ||
-            definedKey.toLowerCase().includes(lowerKey)
-          )) {
+          if (
+            Object.keys(fieldDisplayNames).some(
+              (definedKey) =>
+                definedKey.toLowerCase() === lowerKey ||
+                lowerKey.includes(definedKey.toLowerCase()) ||
+                definedKey.toLowerCase().includes(lowerKey)
+            )
+          ) {
             allowedFormFields.add(key);
           }
         }
@@ -349,13 +757,14 @@ export default function SubmittedFormsPage() {
     });
 
     // Tạo cột cho các trường form data được phép
-    const formDataColumns: TableColumn<SubmittedRow>[] = Array.from(allowedFormFields)
-      .map(fieldKey => ({
-        key: fieldKey,
-        title: getFieldDisplayName(fieldKey),
-        render: (row: SubmittedRow) => row[fieldKey] || "",
-        className: "max-w-xs",
-      }));
+    const formDataColumns: TableColumn<SubmittedRow>[] = Array.from(
+      allowedFormFields
+    ).map((fieldKey) => ({
+      key: fieldKey,
+      title: getFieldDisplayName(fieldKey),
+      render: (row: SubmittedRow) => row[fieldKey] || "",
+      className: "max-w-xs",
+    }));
 
     return [
       {
@@ -363,37 +772,150 @@ export default function SubmittedFormsPage() {
         title: "STT",
         render: (row: SubmittedRow) => row.stt,
         sortable: false,
-        className: "w-16 text-center",
+        className: "w-10 text-center",
       },
       {
         key: "submittedAt",
-        title: "Thời gian nộp",
+        title: "Thời gian",
         sortable: true,
         render: (r) => formatDate(r.submittedAt),
+        className: "w-20",
       },
-      { key: "fullName", title: "Họ và tên", sortable: true },
-      { key: "email", title: "Email", sortable: true },
-      { key: "studentCode", title: "MSSV", sortable: true },
-      { key: "note", title: "Mô tả ngắn về bản thân" },
-      ...formDataColumns, // Thêm các cột form data động (bao gồm số điện thoại)
+      {
+        key: "fullName",
+        title: "Họ tên",
+        sortable: true,
+        className: "w-20",
+      },
+      {
+        key: "email",
+        title: "Email",
+        sortable: true,
+        className: "w-28",
+      },
+      {
+        key: "studentCode",
+        title: "MSSV",
+        sortable: true,
+        className: "w-16",
+      },
+      {
+        key: "competitionType",
+        title: "Nội dung thi đấu",
+        sortable: true,
+        className: "w-16",
+      },
+      {
+        key: "category",
+        title: "Hạng mục",
+        sortable: true,
+        className: "w-20",
+        render: (row: SubmittedRow) => {
+          const category = row.category || "";
+          // Truncate long text (like UUIDs) to show only first 8 characters
+          if (category.length > 8) {
+            return (
+              <span title={category} className="truncate">
+                {category.substring(0, 8)}...
+              </span>
+            );
+          }
+          return category;
+        },
+      },
+      {
+        key: "phone",
+        title: "SĐT",
+        sortable: true,
+        className: "w-16",
+      },
+      {
+        key: "gender",
+        title: "Giới tính",
+        sortable: true,
+        className: "w-12",
+      },
       {
         key: "actions",
-        title: "Thao tác",
+        title: "Xem",
         sortable: false,
-        className: "w-32",
+        className: "w-16 text-center",
         render: (row: SubmittedRow) => (
           <button
-            type="button"
-            aria-label={`Xem form #${row.id}`}
             onClick={() => setViewingRow(row)}
-            className="inline-flex items-center gap-1 rounded-md bg-[#2563eb] px-3 py-1.5 text-[12px] font-medium text-white shadow hover:bg-[#1e4fd9] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/40"
+            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded"
+            title="Xem chi tiết"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
-              <path d="M12 5c-5 0-9 5-9 7s4 7 9 7 9-5 9-7-4-7-9-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/>
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              />
             </svg>
-            Xem form
           </button>
         ),
+      },
+      {
+        key: "status",
+        title: "Trạng thái",
+        sortable: true,
+        className: "w-20",
+        render: (row: SubmittedRow) => {
+          // Get status from row data
+          const status = row.status || "PENDING";
+
+          const getStatusDisplay = (status: string) => {
+            switch (status.toUpperCase()) {
+              case "APPROVED":
+                return {
+                  text: "Đã duyệt",
+                  color: "bg-green-100 text-green-800",
+                };
+              case "REJECTED":
+                return { text: "Từ chối", color: "bg-red-100 text-red-800" };
+              case "PENDING":
+              default:
+                return {
+                  text: "Chờ duyệt",
+                  color: "bg-yellow-100 text-yellow-800",
+                };
+            }
+          };
+
+          const statusInfo = getStatusDisplay(status);
+
+          return (
+            <select
+              value={status}
+              onChange={(e) => handleStatusChange(row.id, e.target.value)}
+              className={`rounded-md border px-2 py-1 text-xs font-medium focus:outline-none focus:ring-2 ${
+                status === "APPROVED"
+                  ? "border-green-300 bg-green-100 text-green-800 focus:ring-green-500/40"
+                  : status === "REJECTED"
+                  ? "border-red-300 bg-red-100 text-red-800 focus:ring-red-500/40"
+                  : "border-yellow-300 bg-yellow-100 text-yellow-800 focus:ring-yellow-500/40"
+              }`}
+            >
+              <option value="PENDING">Chờ duyệt</option>
+              <option value="APPROVED">Đã duyệt</option>
+              <option value="REJECTED">Từ chối</option>
+            </select>
+          );
+        },
       },
     ];
   }, [rows]);
@@ -404,13 +926,13 @@ export default function SubmittedFormsPage() {
     return rows.filter((r) => {
       // Lấy tất cả các giá trị từ row để search
       const searchableValues = [
-        r.fullName, 
-        r.email, 
-        r.studentCode, 
+        r.fullName,
+        r.email,
+        r.studentCode,
         r.note,
-        ...Object.values(r).filter(v => typeof v === 'string' && v.trim())
+        ...Object.values(r).filter((v) => typeof v === "string" && v.trim()),
       ];
-      
+
       return searchableValues
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
@@ -419,127 +941,216 @@ export default function SubmittedFormsPage() {
 
   return (
     <div className="space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => navigate(-1)}
+          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+        >
+          ⟵ Quay lại
+        </button>
+        <button
+          onClick={() => exportCsv(filtered)}
+          className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
+        >
+          Xuất Excel
+        </button>
+      </div>
+
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">
+          {selectedFormId && availableForms.length > 0
+            ? availableForms.find((f) => f.id === selectedFormId)?.name ||
+              "Kết quả đăng ký"
+            : "Kết quả đăng ký"}
+        </h2>
+        <p className="text-gray-600">
+          {formTypeFilter === "COMPETITION"
+            ? "Đăng ký giải đấu"
+            : formTypeFilter === "CLUB"
+            ? "Đăng ký CLB"
+            : "Đăng kí tham gia FPTU Vovinam Club FALL 2025"}
+        </p>
+      </div>
+
+      {/* Statistics Cards */}
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+          <div className="text-2xl font-bold text-blue-600">
+            {totalElements}
+          </div>
+          <div className="text-sm text-gray-600">Tổng số đăng ký</div>
+        </div>
+        <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+          <div className="text-2xl font-bold text-green-600">
+            {filtered.length}
+          </div>
+          <div className="text-sm text-gray-600">Kết quả hiển thị</div>
+        </div>
+        <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+          <div className="text-2xl font-bold text-purple-600">{page}</div>
+          <div className="text-sm text-gray-600">Trang hiện tại</div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Bộ lọc</h3>
           <button
-            onClick={() => navigate(-1)}
-            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            onClick={() => {
+              setStatus("");
+              setDateFrom("");
+              setDateTo("");
+              setQuery("");
+              setFormTypeFilter("");
+              setSelectedFormId("");
+              setPage(1);
+            }}
+            className="text-sm text-gray-500 hover:text-gray-700"
           >
-            ⟵ Quay lại
-          </button>
-          <button
-            onClick={() => exportCsv(filtered)}
-            className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
-          >
-            Xuất Excel
+            Xóa tất cả bộ lọc
           </button>
         </div>
 
-        {/* Header */}
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Kết quả đăng ký</h2>
-          <p className="text-gray-600">Đăng kí tham gia FPTU Vovinam Club FALL 2025</p>
-        </div>
-
-        {/* Statistics Cards */}
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
-            <div className="text-2xl font-bold text-blue-600">{totalElements}</div>
-            <div className="text-sm text-gray-600">Tổng số đăng ký</div>
-          </div>
-          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
-            <div className="text-2xl font-bold text-green-600">{filtered.length}</div>
-            <div className="text-sm text-gray-600">Kết quả hiển thị</div>
-          </div>
-          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
-            <div className="text-2xl font-bold text-purple-600">{page}</div>
-            <div className="text-sm text-gray-600">Trang hiện tại</div>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Bộ lọc</h3>
-            <button
-              onClick={() => { setStatus(""); setDateFrom(""); setDateTo(""); setQuery(""); setPage(1); }}
-              className="text-sm text-gray-500 hover:text-gray-700"
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+          {/* Form Type Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Loại form
+            </label>
+            <select
+              value={formTypeFilter}
+              onChange={(e) => {
+                setFormTypeFilter(
+                  e.target.value as "COMPETITION" | "CLUB" | ""
+                );
+                setSelectedFormId("");
+                setPage(1);
+              }}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
             >
-              Xóa tất cả bộ lọc
-            </button>
+              <option value="">Chọn loại form</option>
+              <option value="COMPETITION">Form đăng ký giải</option>
+              <option value="CLUB">Form đăng ký CLB</option>
+            </select>
           </div>
-          
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+
+          {/* Specific Form Filter */}
+          {formTypeFilter && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Form cụ thể
+              </label>
               <select
-                value={status}
-                onChange={(e) => { setPage(1); setStatus(e.target.value); }}
+                value={selectedFormId}
+                onChange={(e) => {
+                  setSelectedFormId(e.target.value);
+                  setPage(1);
+                }}
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
               >
-                <option value="">Tất cả trạng thái</option>
-                <option value="PENDING">Đang chờ</option>
-                <option value="APPROVED">Đã duyệt</option>
-                <option value="REJECTED">Từ chối</option>
+                <option value="">Chọn form cụ thể</option>
+                {availableForms.map((form) => (
+                  <option key={form.id} value={form.id}>
+                    {form.name}
+                  </option>
+                ))}
               </select>
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => { setPage(1); setDateFrom(e.target.value); }}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Đến ngày</label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => { setPage(1); setDateTo(e.target.value); }}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tìm kiếm</label>
-              <input
-                placeholder="Tên, email, MSSV..."
-                value={query}
-                onChange={(e) => { setPage(1); setQuery(e.target.value); }}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
-              />
-            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Trạng thái
+            </label>
+            <select
+              value={status}
+              onChange={(e) => {
+                setPage(1);
+                setStatus(e.target.value);
+              }}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+            >
+              <option value="">Tất cả trạng thái</option>
+              <option value="PENDING">Đang chờ</option>
+              <option value="APPROVED">Đã duyệt</option>
+              <option value="REJECTED">Từ chối</option>
+            </select>
           </div>
-          
-          <div className="mt-4 text-sm text-gray-600">
-            Hiển thị {filtered.length} trong {totalElements} kết quả
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Từ ngày
+            </label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setPage(1);
+                setDateFrom(e.target.value);
+              }}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Đến ngày
+            </label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setPage(1);
+                setDateTo(e.target.value);
+              }}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tìm kiếm
+            </label>
+            <input
+              placeholder="Tên, email, MSSV..."
+              value={query}
+              onChange={(e) => {
+                setPage(1);
+                setQuery(e.target.value);
+              }}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+            />
           </div>
         </div>
 
-        {error && <ErrorMessage error={error} />}
-        
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <LoadingSpinner />
-          </div>
-        ) : (
-          <CommonTable
-            data={
-              filtered.map((r, idx) => ({
-                ...r,
-                stt: (page - 1) * pageSize + idx + 1,
-              })) as any
-            }
-            columns={columns as any}
-            page={page}
-            pageSize={pageSize}
-            total={totalElements}
-            onPageChange={(p) => setPage(p)}
-          />
-        )}
+        <div className="mt-4 text-sm text-gray-600">
+          Hiển thị {filtered.length} trong {totalElements} kết quả
+        </div>
+      </div>
+
+      {error && <ErrorMessage error={error} />}
+
+      {loading ? (
+        <div className="flex justify-center py-8">
+          <LoadingSpinner />
+        </div>
+      ) : (
+        <CommonTable
+          data={
+            filtered.map((r, idx) => ({
+              ...r,
+              stt: (page - 1) * pageSize + idx + 1,
+            })) as any
+          }
+          columns={columns as any}
+          page={page}
+          pageSize={pageSize}
+          total={totalElements}
+          onPageChange={(p) => setPage(p)}
+        />
+      )}
 
       {/* View Form Modal */}
       {viewingRow && (
@@ -547,62 +1158,178 @@ export default function SubmittedFormsPage() {
           <div className="w-full max-w-4xl rounded-lg bg-white shadow-xl">
             <div className="flex items-center justify-between border-b px-6 py-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                Chi tiết form đăng ký #{viewingRow.id}
+                {selectedFormId && availableForms.length > 0
+                  ? availableForms.find((f) => f.id === selectedFormId)?.name ||
+                    "Chi tiết form đăng ký"
+                  : "Chi tiết form đăng ký"}{" "}
+                #{viewingRow.id}
               </h3>
-              <button 
-                onClick={() => setViewingRow(null)} 
+              <button
+                onClick={() => setViewingRow(null)}
                 className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
-            
+
             <div className="max-h-[70vh] overflow-auto p-6">
-              {/* Basic Information */}
+              {/* Form Fields Information */}
               <div className="mb-6">
                 <h4 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                  Thông tin cơ bản
+                  Thông tin đăng ký
                 </h4>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="rounded-md bg-gray-50 p-3">
-                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Họ và tên</div>
-                    <div className="mt-1 text-sm text-gray-900">{viewingRow.fullName || "-"}</div>
-                  </div>
-                  <div className="rounded-md bg-gray-50 p-3">
-                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</div>
-                    <div className="mt-1 text-sm text-gray-900">{viewingRow.email || "-"}</div>
-                  </div>
-                  <div className="rounded-md bg-gray-50 p-3">
-                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">MSSV</div>
-                    <div className="mt-1 text-sm text-gray-900">{viewingRow.studentCode || "-"}</div>
-                  </div>
-                  <div className="rounded-md bg-gray-50 p-3">
-                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Thời gian nộp</div>
-                    <div className="mt-1 text-sm text-gray-900">
-                      {new Date(viewingRow.submittedAt).toLocaleString("vi-VN")}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                  {/* Parse form data to show all fields from the specific form */}
+                  {(() => {
+                    let formData = {};
+                    try {
+                      formData = viewingRow.formData
+                        ? JSON.parse(viewingRow.formData)
+                        : {};
+                    } catch (e) {
+                      formData = {};
+                    }
 
-              {/* Form Data */}
-              <div>
-                <h4 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                  Dữ liệu form
-                </h4>
-                <div className="rounded-md bg-gray-50 p-4">
-                  <pre className="whitespace-pre-wrap text-xs leading-relaxed text-gray-800">
-{typeof viewingRow.formData === 'string' ? viewingRow.formData : JSON.stringify(viewingRow.formData, null, 2)}
-                  </pre>
+                    // Get all fields from form data, excluding only content and system fields
+                    const excludeFields = [
+                      // Chỉ loại trừ nội dung thi đấu
+                      "nội dung",
+                      "content",
+                      "competitionType",
+                      "category",
+                      "weightClass",
+                      "quyenCategory",
+                      "quyenContent",
+                      "musicCategory",
+                      "musicContent",
+                      // Chỉ loại trừ các field hệ thống
+                      "submittedAtClient",
+                      "submittedAt",
+                      "createdAt",
+                      "updatedAt",
+                      "timestamp",
+                      "id",
+                      "weightClassId",
+                      "fistConfigId",
+                      "musicContentId",
+                      "quyenContentId",
+                    ];
+
+                    // Function to check if a value is an ID (UUID, timestamp, or numeric ID)
+                    const isId = (value: any) => {
+                      const str = value.toString();
+                      // UUID pattern
+                      if (
+                        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                          str
+                        )
+                      ) {
+                        return true;
+                      }
+                      // Timestamp pattern (ISO date)
+                      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(str)) {
+                        return true;
+                      }
+                      // Chỉ loại trừ timestamp rất dài (16+ chữ số) - tránh loại trừ các số hợp lệ
+                      if (/^\d{16,}$/.test(str)) {
+                        return true;
+                      }
+                      return false;
+                    };
+
+                    const fields = Object.entries(formData).filter(
+                      ([key, value]) => {
+                        const lowerKey = key.toLowerCase();
+                        const valueStr = value?.toString().trim() || "";
+
+                        // Loại trừ nếu key chứa các từ khóa không mong muốn
+                        const hasExcludeKeyword = excludeFields.some(
+                          (exclude) => lowerKey.includes(exclude.toLowerCase())
+                        );
+
+                        // Chỉ loại trừ nếu value là ID thực sự dài
+                        const looksLikeId = isId(value);
+
+                        // Chỉ loại trừ nếu key hoàn toàn không có ý nghĩa (chỉ là ký tự đặc biệt)
+                        const hasUnclearKey = /^[^a-zA-Z0-9]+$/.test(key);
+
+                        // Đặc biệt: không loại trừ field có key là timestamp nhưng value là text hợp lệ
+                        // (có thể là field custom như "Mày")
+                        const isCustomFieldWithTimestampKey =
+                          /^\d{13,}$/.test(key) &&
+                          valueStr.length > 0 &&
+                          valueStr.length < 100 &&
+                          !/^\d{10,}$/.test(valueStr);
+
+                        return (
+                          value &&
+                          valueStr !== "" &&
+                          !hasExcludeKeyword &&
+                          (!looksLikeId || isCustomFieldWithTimestampKey) &&
+                          (!hasUnclearKey || isCustomFieldWithTimestampKey)
+                        );
+                      }
+                    );
+
+                    // Sort fields to show standard fields first, then custom fields
+                    const standardFields = [
+                      "fullName",
+                      "email",
+                      "studentId",
+                      "phoneNumber",
+                      "gender",
+                      "club",
+                      "may", // Thêm field "Mày"
+                    ];
+                    const sortedFields = fields.sort(([keyA], [keyB]) => {
+                      // Xử lý field custom có key timestamp (như field "Mày")
+                      const isCustomA = /^\d{13,}$/.test(keyA);
+                      const isCustomB = /^\d{13,}$/.test(keyB);
+
+                      const indexA = standardFields.indexOf(keyA);
+                      const indexB = standardFields.indexOf(keyB);
+
+                      // Nếu một trong hai là field custom với timestamp key
+                      if (isCustomA && !isCustomB) return 1; // Custom field sau standard fields
+                      if (!isCustomA && isCustomB) return -1;
+
+                      if (indexA === -1 && indexB === -1)
+                        return keyA.localeCompare(keyB);
+                      if (indexA === -1) return 1;
+                      if (indexB === -1) return -1;
+                      return indexA - indexB;
+                    });
+
+                    return sortedFields.map(([key, value]) => (
+                      <div key={key} className="rounded-md bg-gray-50 p-3">
+                        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                          {getFieldDisplayName(key, selectedFormDefinition)}
+                        </div>
+                        <div className="mt-1 text-sm text-gray-900">
+                          {value.toString()}
+                        </div>
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center justify-end gap-3 border-t px-6 py-4">
-              <button 
-                onClick={() => setViewingRow(null)} 
+              <button
+                onClick={() => setViewingRow(null)}
                 className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 Đóng
@@ -622,22 +1349,27 @@ function exportCsv(rows: SubmittedRow[]) {
     console.warn("Không có dữ liệu để xuất");
     return;
   }
-  
+
   // Lấy các trường form data được phép từ dữ liệu
   const allowedFormFields = new Set<string>();
-  rows.forEach(row => {
+  rows.forEach((row) => {
     const formFields = extractFormDataFields(row.formData);
-    Object.keys(formFields).forEach(key => {
+    Object.keys(formFields).forEach((key) => {
       const lowerKey = key.toLowerCase();
       // Loại bỏ các trường tên vì đã có trong cột "Họ và tên"
-      const isNameField = ["fullName", "name", "hovaten", "ten"].includes(lowerKey);
+      const isNameField = ["fullName", "name", "hovaten", "ten"].includes(
+        lowerKey
+      );
       if (!isNameField) {
         // Chỉ export các trường được định nghĩa trong fieldDisplayNames
-        if (Object.keys(fieldDisplayNames).some(definedKey => 
-          definedKey.toLowerCase() === lowerKey || 
-          lowerKey.includes(definedKey.toLowerCase()) ||
-          definedKey.toLowerCase().includes(lowerKey)
-        )) {
+        if (
+          Object.keys(fieldDisplayNames).some(
+            (definedKey) =>
+              definedKey.toLowerCase() === lowerKey ||
+              lowerKey.includes(definedKey.toLowerCase()) ||
+              definedKey.toLowerCase().includes(lowerKey)
+          )
+        ) {
           allowedFormFields.add(key);
         }
       }
@@ -651,7 +1383,9 @@ function exportCsv(rows: SubmittedRow[]) {
     "Email",
     "MSSV",
     "Mô tả ngắn về bản thân",
-    ...Array.from(allowedFormFields).map(fieldKey => getFieldDisplayName(fieldKey)),
+    ...Array.from(allowedFormFields).map((fieldKey) =>
+      getFieldDisplayName(fieldKey)
+    ),
   ];
 
   const formatDate = (v?: string) => {
@@ -672,7 +1406,9 @@ function exportCsv(rows: SubmittedRow[]) {
     escapeCsv(r.email),
     escapeCsv(r.studentCode),
     escapeCsv(r.note),
-    ...Array.from(allowedFormFields).map(fieldKey => escapeCsv(r[fieldKey] || "")),
+    ...Array.from(allowedFormFields).map((fieldKey) =>
+      escapeCsv(r[fieldKey] || "")
+    ),
   ]);
 
   const csv = [

@@ -42,11 +42,6 @@ type AthleteApi = {
   status: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "VIOLATED" | string;
 };
 
-<<<<<<< Updated upstream
-type CompetitionType = "fighting" | "quyen" | "music";
-
-=======
->>>>>>> Stashed changes
 const STATUS_COLORS = {
   "ĐÃ ĐẤU": "bg-green-100 text-green-800 border-green-200",
   "HOÀN ĐẤU": "bg-purple-100 text-purple-800 border-purple-200",
@@ -187,16 +182,10 @@ export default function ArrangeOrderPage({
         if (genderFilter) qs.set("gender", genderFilter);
         if (statusFilter) qs.set("status", statusFilter);
         // Standard handling by type
-<<<<<<< Updated upstream
-        if (activeTab === "fighting") {
-          // Do NOT send weight to backend; fetch all then filter client-side
-        } else if (activeTab === "music") {
-=======
         // if (activeTab === "fighting") {
         //   // Do NOT send weight to backend; fetch all then filter client-side
         // } else
         if (activeTab === "music") {
->>>>>>> Stashed changes
           // Music: send selected content as detail, and optionally label the sub type
           if (subCompetitionFilter) {
             qs.set("subCompetitionType", "Tiết mục");
@@ -388,34 +377,6 @@ export default function ArrangeOrderPage({
         className: "whitespace-nowrap",
         sortable: true,
       },
-<<<<<<< Updated upstream
-      ...(activeTab === "fighting"
-        ? [
-            {
-              key: "detailSubCompetitionType",
-              title: "Hạng cân",
-              className: "whitespace-nowrap",
-              render: (row: AthleteRow) => {
-                const value =
-                  row.detailSubCompetitionType || row.subCompetitionType || "-";
-                return String(value)
-                  .replace(/^Nam\s+/i, "")
-                  .replace(/^Nữ\s+/i, "");
-              },
-              sortable: true,
-            } as TableColumn<AthleteRow>,
-          ]
-        : [
-            {
-              key: "detailSubCompetitionType",
-              title: "Nội dung",
-              className: "whitespace-nowrap",
-              render: (row: AthleteRow) =>
-                row.detailSubCompetitionType || row.subCompetitionType || "-",
-              sortable: true,
-            } as TableColumn<AthleteRow>,
-          ]),
-=======
       // ...(activeTab === "fighting"
       //   ? [
       //       {
@@ -443,7 +404,6 @@ export default function ArrangeOrderPage({
           sortable: true,
         } as TableColumn<AthleteRow>,
       ],
->>>>>>> Stashed changes
       {
         key: "studentId",
         title: "MSSV",
@@ -596,11 +556,6 @@ export default function ArrangeOrderPage({
     }
   };
 
-<<<<<<< Updated upstream
-  const handleArrangeOrderClick = () => {
-    // TODO: implement arrange order action (e.g., open modal or navigate)
-    console.log("Arrange order clicked");
-=======
   const handleArrangeOrderClick = async () => {
     if (!selectedTournament) {
       alert("Vui lòng chọn giải đấu trước khi sắp xếp thứ tự");
@@ -685,7 +640,6 @@ export default function ArrangeOrderPage({
     } finally {
       setIsArranging(false);
     }
->>>>>>> Stashed changes
   };
 
   return (
@@ -1020,16 +974,12 @@ export default function ArrangeOrderPage({
         <div className="flex items-center gap-2">
           <button
             onClick={handleArrangeOrderClick}
-<<<<<<< Updated upstream
-            className="rounded-md bg-blue-600 px-3 py-2 text-white text-sm shadow hover:bg-blue-700"
-=======
             disabled={isArranging}
             className={`rounded-md px-3 py-2 text-white text-sm shadow ${
               isArranging
                 ? "bg-gray-400 cursor-not-allowed"
                 : "bg-blue-600 hover:bg-blue-700"
             }`}
->>>>>>> Stashed changes
           >
             Sắp xếp
           </button>

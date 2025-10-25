@@ -34,6 +34,7 @@ export default function PublishedForm() {
   const [dynamicValues, setDynamicValues] = useState<
     Record<string, string | string[]>
   >({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Standard fields state (always rendered)
   const [competitionType, setCompetitionType] = useState<
@@ -211,36 +212,7 @@ export default function PublishedForm() {
     })();
   }, [id]);
 
-<<<<<<< Updated upstream
-  // Filter quyen contents based on selected category
-  useEffect(() => {
-    console.log(
-      "PublishedForm - Filter effect triggered - quyenCategory:",
-      quyenCategory,
-      "allQuyenContents length:",
-      allQuyenContents.length
-    );
-    if (!quyenCategory) {
-      setQuyenContents([]);
-      return;
-    }
-    if (allQuyenContents.length > 0) {
-      const filtered = allQuyenContents.filter(
-        (content) => content.category === quyenCategory
-      );
-      console.log("PublishedForm - Filtered quyen contents:", filtered);
-      setQuyenContents(filtered);
-    }
-  }, [quyenCategory, allQuyenContents]);
-
-  const sortedFields = useMemo(() => {
-    return (meta?.fields || [])
-      .slice()
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }, [meta]);
-=======
   // Field validations
->>>>>>> Stashed changes
 
   const parseOptions = (opts?: string): string[] => {
     if (!opts) return [];
@@ -258,20 +230,7 @@ export default function PublishedForm() {
       submittedAtClient: new Date().toISOString(), // Add client timestamp
     };
 
-<<<<<<< Updated upstream
-  const validate = (): string | null => {
-    if (!fullName?.trim()) return "Vui lòng nhập Họ và tên";
-    if (!email?.trim()) return "Vui lòng nhập Email";
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return "Email không hợp lệ";
-    if (!studentId?.trim()) return "Vui lòng nhập MSSV";
-    if (!club?.trim()) return "Vui lòng nhập CLB";
-    if (!gender?.trim()) return "Vui lòng chọn Giới tính";
-
-    // Competition-specific required selections
-=======
     // Add competition-specific data
->>>>>>> Stashed changes
     if (competitionType === "fighting") {
       formData.weightClass = weightClass;
       formData.weightClassId = weightClassId;
@@ -453,53 +412,6 @@ export default function PublishedForm() {
     );
   }
 
-<<<<<<< Updated upstream
-          {loading ? (
-            <div className="text-sm text-gray-600">Đang tải...</div>
-          ) : (
-            <div className="space-y-4">
-              {/* Standard base fields */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Họ và tên
-                </label>
-                <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  MSSV
-                </label>
-                <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  CLB
-                </label>
-                <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  value={club}
-                  onChange={(e) => setClub(e.target.value)}
-                />
-              </div>
-=======
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
@@ -508,7 +420,6 @@ export default function PublishedForm() {
           {meta.description && (
             <p className="text-gray-600 mb-6">{meta.description}</p>
           )}
->>>>>>> Stashed changes
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Dynamic Fields */}
@@ -926,153 +837,6 @@ export default function PublishedForm() {
                   </div>
                 </div>
               </div>
-<<<<<<< Updated upstream
-
-              {/* Bỏ upload thẻ sinh viên tạm thời */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  SDT liên lạc
-                </label>
-                <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Huấn luyện viên quản lý
-                </label>
-                <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  value={coachName}
-                  onChange={(e) => setCoachName(e.target.value)}
-                />
-              </div>
-              {sortedFields.length > 0 && (
-                <div className="space-y-4">
-                  {sortedFields.map((f) => {
-                    const options = parseOptions(f.options);
-                    return (
-                      <div key={f.id}>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          {f.label}
-                          {f.required ? " *" : ""}
-                        </label>
-                        {f.fieldType === "TEXT" && (
-                          <input
-                            className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                            value={(dynamicValues[f.name] as string) ?? ""}
-                            onChange={(e) =>
-                              setDynamicValues((prev) => ({
-                                ...prev,
-                                [f.name]: e.target.value,
-                              }))
-                            }
-                          />
-                        )}
-                        {f.fieldType === "SELECT" && (
-                          <select
-                            className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                            value={(dynamicValues[f.name] as string) ?? ""}
-                            onChange={(e) =>
-                              setDynamicValues((prev) => ({
-                                ...prev,
-                                [f.name]: e.target.value,
-                              }))
-                            }
-                          >
-                            <option value="">Chọn</option>
-                            {options.map((o, i) => (
-                              <option key={i} value={o}>
-                                {o}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        {f.fieldType === "RADIO" && (
-                          <div className="space-y-1 border border-gray-300 rounded-md p-3">
-                            {options.map((o, i) => (
-                              <label
-                                key={i}
-                                className="flex items-center gap-2 text-sm text-gray-700"
-                              >
-                                <input
-                                  type="radio"
-                                  name={f.name}
-                                  checked={
-                                    (dynamicValues[f.name] as string) === o
-                                  }
-                                  onChange={() =>
-                                    setDynamicValues((prev) => ({
-                                      ...prev,
-                                      [f.name]: o,
-                                    }))
-                                  }
-                                />
-                                {o}
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                        {f.fieldType === "CHECKBOX" && (
-                          <div className="space-y-1 border border-gray-300 rounded-md p-3">
-                            {options.map((o, i) => {
-                              const val = dynamicValues[f.name];
-                              const arr: string[] = Array.isArray(val)
-                                ? (val as string[])
-                                : [];
-                              const checked =
-                                Array.isArray(arr) && arr.includes(o);
-                              return (
-                                <label
-                                  key={i}
-                                  className="flex items-center gap-2 text-sm text-gray-700"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => {
-                                      setDynamicValues((prev) => {
-                                        const current: string[] = Array.isArray(
-                                          prev[f.name]
-                                        )
-                                          ? (prev[f.name] as string[])
-                                          : [];
-                                        let next: string[];
-                                        if (current.includes(o)) {
-                                          next = current.filter(
-                                            (it) => it !== o
-                                          );
-                                        } else {
-                                          next = [...current, o];
-                                        }
-                                        return { ...prev, [f.name]: next };
-                                      });
-                                    }}
-                                  />
-                                  {o}
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="pt-2 flex items-center gap-2">
-                <button
-                  onClick={handleSubmit}
-                  className="rounded bg-[#377CFB] px-4 py-2 text-sm text-white shadow hover:bg-[#2f6ae0]"
-                >
-                  Gửi đăng ký
-                </button>
-              </div>
-=======
->>>>>>> Stashed changes
             </div>
 
             {/* Submit Button */}
