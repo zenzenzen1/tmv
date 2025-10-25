@@ -17,6 +17,7 @@ import CompetitionFormPage from "./pages/tournament/CompetitionFormPage";
 import FormResults from "./features/tournament/FormResults";
 // import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
+import TournamentFormList from "./features/tournament/TournamentFormList";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
 
 import MemberManagementListPage from "./pages/member-management/ListPage";
@@ -26,18 +27,21 @@ import { ToastProvider } from "./components/common/ToastProvider";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
+import BracketBuilder from "./pages/brackets/BracketBuilder";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
-
+import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
+import FormBuilder from "./features/tournament/FormBuilder";
+import UserManagementPage from "./pages/user-management/UserManagementPage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
 
-  const Protected = ({ children }: { children: React.ReactElement }) => {
+  function Protected({ children }: { children: React.ReactElement }) {
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
     }
     return children;
-  };
+  }
 
   // Nếu đã login → hiển thị layout chính
   return (
@@ -46,12 +50,24 @@ export default function App() {
       <Route
         path="/login"
         element={
-          isAuthenticated ? <Navigate to="/manage/tournaments" replace /> : <LoginPage />
+          isAuthenticated ? (
+            <Navigate to="/manage/tournaments" replace />
+          ) : (
+            <LoginPage />
+          )
         }
       />
 
       {/* Landing redirect */}
-      <Route path="/" element={<Navigate to={isAuthenticated ? "/manage/tournaments" : "/login"} replace />} />
+      <Route
+        path="/"
+        element={
+          <Navigate
+            to={isAuthenticated ? "/manage/tournaments" : "/login"}
+            replace
+          />
+        }
+      />
       {/* Member Management */}
       <Route path="/member-management" element={<MemberManagementListPage />} />
       {/* Tournaments */}
@@ -63,7 +79,6 @@ export default function App() {
       {/* Public Home */}
       <Route path="/home" element={<Home />} />
       <Route path="dashboard" element={<DashboardPage />} />
-
 
       {/* Protected app routes under /manage */}
       <Route
@@ -98,10 +113,14 @@ export default function App() {
         <Route path="forms/:id/fill" element={<PublishedForm />} />
         <Route path="submitted-forms" element={<SubmittedFormsPage />} />
         <Route path="results/:id" element={<FormResults />} />
+        <Route path="tournament-forms" element={<TournamentFormList />} />
 
         {/* Athletes */}
         <Route path="athletes" element={<AthleteManagementWrapper />} />
-        <Route path="athletes/fighting" element={<AthleteManagementWrapper />} />
+        <Route
+          path="athletes/fighting"
+          element={<AthleteManagementWrapper />}
+        />
         <Route path="athletes/quyen" element={<AthleteManagementWrapper />} />
         <Route path="athletes/music" element={<AthleteManagementWrapper />} />
 
@@ -110,14 +129,45 @@ export default function App() {
         <Route path="fist-content" element={<FistContentListPage />} />
         <Route path="fist-content/:id/items" element={<FistItemsPage />} />
         <Route path="music-content" element={<MusicContentListPage />} />
+        <Route path="brackets" element={<BracketBuilder />} />
+
+        {/* Arrange */}
+        <Route path="arrange" element={<ArrangeOrderWrapper />} />
+        <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
+
+        {/* User Management */}
+        <Route path="users" element={<UserManagementPage />} />
       </Route>
 
       {/* Legacy redirects to /manage */}
-      <Route path="/tournaments/*" element={<Navigate to="/manage/tournaments" replace />} />
-      <Route path="/athletes/*" element={<Navigate to="/manage/athletes" replace />} />
-      <Route path="/form-list" element={<Navigate to="/manage/form-list" replace />} />
-      <Route path="/submitted-forms" element={<Navigate to="/manage/submitted-forms" replace />} />
-      <Route path="/forms/*" element={<Navigate to="/manage/forms" replace />} />
+      <Route
+        path="/tournaments/*"
+        element={<Navigate to="/manage/tournaments" replace />}
+      />
+      <Route
+        path="/athletes/*"
+        element={<Navigate to="/manage/athletes" replace />}
+      />
+      <Route
+        path="/arrange/*"
+        element={<Navigate to="/manage/arrange" replace />}
+      />
+      <Route
+        path="/form-list"
+        element={<Navigate to="/manage/form-list" replace />}
+      />
+      <Route
+        path="/submitted-forms"
+        element={<Navigate to="/manage/submitted-forms" replace />}
+      />
+      <Route
+        path="/forms/*"
+        element={<Navigate to="/manage/forms" replace />}
+      />
+      <Route path="/form-builder" element={<FormBuilder />} />
+      <Route path="/form-builder/:id" element={<FormBuilder />} />
+      <Route path="/results/:id" element={<FormResults />} />
+      <Route path="/published-form/:id" element={<PublishedForm />} />
 
       {/* 404 */}
       <Route path="*" element={<div>404 Not Found</div>} />

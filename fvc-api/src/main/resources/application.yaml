@@ -5,7 +5,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/fvc-db
     username: postgres
-    password: 123
+    password: thanh2003
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -24,7 +24,7 @@ spring:
   security:
     jwt:
       secret: "b9f3c7e2a5d1f0c4b8a3e6d9f2c1a7b4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0"
-      expiration: 1800000 # 30 minutes in milliseconds
+      expiration: 18000000 # 300 minutes in milliseconds
 
 logging:
   level:

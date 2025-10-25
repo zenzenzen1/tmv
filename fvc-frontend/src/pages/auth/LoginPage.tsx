@@ -1,5 +1,5 @@
 // src/pages/LoginPage.tsx
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Logo from "../../assets/logo.png";
 import Background from "../../assets/background.png";
@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { useAuthActions, useAuth } from "../../stores/authStore";
 import type { LoginRequest } from "../../types";
+import { validateEmail, validateRequired } from "../../utils/validation";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -20,6 +21,21 @@ export default function LoginPage() {
   const { login } = useAuthActions();
   const { isLoading, error } = useAuth();
 
+  // Email validation
+  const emailValidation = useMemo(() => {
+    return validateEmail(formData.email, { required: true });
+  }, [formData.email]);
+
+  // Password validation
+  const passwordValidation = useMemo(() => {
+    return validateRequired(formData.password, "Mật khẩu");
+  }, [formData.password]);
+
+  // Form validation
+  const isFormValid = useMemo(() => {
+    return emailValidation.isValid && passwordValidation.isValid;
+  }, [emailValidation.isValid, passwordValidation.isValid]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -30,6 +46,12 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form before submission
+    if (!isFormValid) {
+      return;
+    }
+    
     try {
       await login(formData);
       navigate("/dashboard");
@@ -107,9 +129,18 @@ export default function LoginPage() {
                   onChange={handleInputChange}
                   placeholder="Enter your email"
                   autoComplete="email"
-                  className="mt-1 w-full rounded-md border border-gray-300 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white/70"
+                  className={`mt-1 w-full rounded-md border p-2 focus:outline-none focus:ring-2 bg-white/70 ${
+                    emailValidation.isValid || formData.email === ""
+                      ? "border-gray-300 focus:ring-blue-500"
+                      : "border-red-500 focus:ring-red-500"
+                  }`}
                   required
                 />
+                {!emailValidation.isValid && formData.email !== "" && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {emailValidation.errorMessage}
+                  </p>
+                )}
               </div>
 
               {/* Password */}
@@ -123,7 +154,11 @@ export default function LoginPage() {
                     onChange={handleInputChange}
                     placeholder="********"
                     autoComplete="current-password"
-                    className="w-full rounded-md border border-gray-300 p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white/70"
+                    className={`w-full rounded-md border p-2 pr-10 focus:outline-none focus:ring-2 bg-white/70 ${
+                      passwordValidation.isValid || formData.password === ""
+                        ? "border-gray-300 focus:ring-blue-500"
+                        : "border-red-500 focus:ring-red-500"
+                    }`}
                     required
                   />
                   <span
@@ -133,6 +168,11 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </span>
                 </div>
+                {!passwordValidation.isValid && formData.password !== "" && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {passwordValidation.errorMessage}
+                  </p>
+                )}
               </div>
 
               {/* Remember & Forgot */}
@@ -149,7 +189,7 @@ export default function LoginPage() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !isFormValid}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white py-2 rounded-md font-medium transition-colors"
               >
                 {isLoading ? "LOGGING IN..." : "CONTINUE"}

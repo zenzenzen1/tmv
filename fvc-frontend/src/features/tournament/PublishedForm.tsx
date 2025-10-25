@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import { useToast } from "../../components/common/ToastContext";
+import { validateEmail, validatePhoneNumber, validateStudentId, validateLength } from "../../utils/validation";
 
 type FormField = {
   id: string;
@@ -25,7 +26,6 @@ type FormMeta = {
 export default function PublishedForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const toast = useToast();
   const [meta, setMeta] = useState<FormMeta | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [dynamicValues, setDynamicValues] = useState<
@@ -42,12 +42,18 @@ export default function PublishedForm() {
     "fighting" | "quyen" | "music"
   >("fighting");
   const [weightClass, setWeightClass] = useState("");
+  const [weightClassId, setWeightClassId] = useState<string>("");
   const [quyenCategory, setQuyenCategory] = useState("");
   const [quyenContent, setQuyenContent] = useState("");
   const [musicCategory, setMusicCategory] = useState("");
+  const [fistConfigId, setFistConfigId] = useState<string>("");
+  const [musicContentId, setMusicContentId] = useState<string>("");
   const [coachName, setCoachName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   // const [studentCardFile, setStudentCardFile] = useState<File | null>(null);
+
+  // Field validation states
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // API data states
   const [weightClasses, setWeightClasses] = useState<
@@ -326,11 +332,33 @@ export default function PublishedForm() {
     }
   }, [quyenCategory, allQuyenContents]);
 
-  const sortedFields = useMemo(() => {
-    return (meta?.fields || [])
-      .slice()
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }, [meta]);
+  // Field validations
+  const emailValidation = useMemo(() => {
+    return validateEmail(email, { required: true });
+  }, [email]);
+
+  const phoneValidation = useMemo(() => {
+    return validatePhoneNumber(phoneNumber, { required: false });
+  }, [phoneNumber]);
+
+  const studentIdValidation = useMemo(() => {
+    return validateStudentId(studentId, { required: true });
+  }, [studentId]);
+
+  const fullNameValidation = useMemo(() => {
+    return validateLength(fullName, { min: 1, max: 100, fieldName: 'Họ và tên' });
+  }, [fullName]);
+
+  const clubValidation = useMemo(() => {
+    return validateLength(club, { min: 1, max: 100, fieldName: 'CLB' });
+  }, [club]);
+
+  const coachNameValidation = useMemo(() => {
+    if (!coachName || coachName.trim() === '') {
+      return { isValid: true }; // Coach name is optional
+    }
+    return validateLength(coachName, { min: 1, max: 100, fieldName: 'Huấn luyện viên' });
+  }, [coachName]);
 
   const parseOptions = (opts?: string): string[] => {
     if (!opts) return [];
@@ -351,9 +379,13 @@ export default function PublishedForm() {
       gender: gender.toUpperCase(),
       competitionType,
       weightClass,
+      // Embed IDs for tight backend linking
+      weightClassId: weightClassId || undefined,
       quyenCategory,
       quyenContent,
+      fistConfigId: fistConfigId || undefined,
       musicCategory,
+      musicContentId: musicContentId || undefined,
       coachName,
       phoneNumber,
       // client-side submission timestamp fallback when backend doesn't persist createdAt
@@ -364,13 +396,16 @@ export default function PublishedForm() {
   };
 
   const validate = (): string | null => {
-    if (!fullName?.trim()) return "Vui lòng nhập Họ và tên";
-    if (!email?.trim()) return "Vui lòng nhập Email";
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return "Email không hợp lệ";
-    if (!studentId?.trim()) return "Vui lòng nhập MSSV";
-    if (!club?.trim()) return "Vui lòng nhập CLB";
+    // Validate required fields
+    if (!fullNameValidation.isValid) return fullNameValidation.errorMessage || "Họ và tên không hợp lệ";
+    if (!emailValidation.isValid) return emailValidation.errorMessage || "Email không hợp lệ";
+    if (!studentIdValidation.isValid) return studentIdValidation.errorMessage || "MSSV không hợp lệ";
+    if (!clubValidation.isValid) return clubValidation.errorMessage || "CLB không hợp lệ";
     if (!gender?.trim()) return "Vui lòng chọn Giới tính";
+
+    // Validate optional fields if they have values
+    if (!phoneValidation.isValid) return phoneValidation.errorMessage || "Số điện thoại không hợp lệ";
+    if (!coachNameValidation.isValid) return coachNameValidation.errorMessage || "Tên huấn luyện viên không hợp lệ";
 
     // Competition-specific required selections
     if (competitionType === "fighting") {
@@ -388,7 +423,7 @@ export default function PublishedForm() {
   const handleSubmit = async (): Promise<void> => {
     const err = validate();
     if (err) {
-      toast.error(err);
+      alert(err);
       return;
     }
     if (!id) return;
@@ -403,10 +438,14 @@ export default function PublishedForm() {
           club,
           gender: gender.toUpperCase(),
           formDataJson,
+          // Preferred ID fields for tight linking
+          weightClassId: weightClassId || undefined,
+          fistConfigId: fistConfigId || undefined,
+          musicContentId: musicContentId || undefined,
         }
       );
       window.dispatchEvent(new Event("forms:changed"));
-      toast.success("Đăng ký thành công!");
+      alert("Đăng ký thành công!");
       navigate(-1);
     } catch (e: unknown) {
       console.error(e);
@@ -421,7 +460,7 @@ export default function PublishedForm() {
         (typeof serverMsg === "string" &&
           serverMsg.toLowerCase().includes("email"))
       ) {
-        toast.error(
+        alert(
           "Email này đã đăng ký cho form này. Mỗi email chỉ được đăng ký một lần."
         );
         return;
@@ -431,13 +470,13 @@ export default function PublishedForm() {
         (typeof serverMsg === "string" &&
           serverMsg.toLowerCase().includes("mssv"))
       ) {
-        toast.error(
+        alert(
           "MSSV này đã được đăng ký cho form này. Mỗi MSSV chỉ được đăng ký một lần."
         );
         return;
       }
       const msg = err?.message;
-      toast.error(serverMsg || msg || "Gửi đăng ký thất bại");
+      alert(serverMsg || msg || "Gửi đăng ký thất bại");
     }
   };
 
@@ -470,43 +509,75 @@ export default function PublishedForm() {
               {/* Standard base fields */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Họ và tên
+                  Họ và tên *
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !fullNameValidation.isValid && fullName !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
+                  maxLength={100}
                 />
+                {!fullNameValidation.isValid && fullName !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{fullNameValidation.errorMessage}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                  Email *
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  type="email"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !emailValidation.isValid && email !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
+                {!emailValidation.isValid && email !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{emailValidation.errorMessage}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  MSSV
+                  MSSV *
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !studentIdValidation.isValid && studentId !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value)}
+                  maxLength={10}
                 />
+                {!studentIdValidation.isValid && studentId !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{studentIdValidation.errorMessage}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  CLB
+                  CLB *
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !clubValidation.isValid && club !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={club}
                   onChange={(e) => setClub(e.target.value)}
+                  maxLength={100}
                 />
+                {!clubValidation.isValid && club !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{clubValidation.errorMessage}</p>
+                )}
               </div>
 
               <div>
@@ -562,8 +633,17 @@ export default function PublishedForm() {
                     </label>
                     <div className="relative mb-3">
                       <select
-                        value={weightClass}
-                        onChange={(e) => setWeightClass(e.target.value)}
+                        value={weightClassId}
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          setWeightClassId(id);
+                          const wc = weightClasses.find((w) => w.id === id);
+                          const display = wc
+                            ? wc.weightClass ||
+                              `${wc.minWeight}-${wc.maxWeight}kg`
+                            : "";
+                          setWeightClass(display);
+                        }}
                         className="w-full appearance-none bg-white border border-gray-400 rounded-full px-4 h-9 text-sm text-gray-700"
                       >
                         <option value="">Chọn hạng cân của bạn</option>
@@ -581,7 +661,7 @@ export default function PublishedForm() {
                                 w.weightClass ||
                                 `${w.minWeight}-${w.maxWeight}kg`;
                               return (
-                                <option key={w.id} value={weightDisplay}>
+                                <option key={w.id} value={w.id}>
                                   {weightDisplay}
                                 </option>
                               );
@@ -634,8 +714,13 @@ export default function PublishedForm() {
                         Nội dung thi đấu
                       </label>
                       <select
-                        value={quyenContent}
-                        onChange={(e) => setQuyenContent(e.target.value)}
+                        value={fistConfigId}
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          setFistConfigId(id);
+                          const item = quyenContents.find((q) => q.id === id);
+                          setQuyenContent(item?.name || "");
+                        }}
                         className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
                       >
                         <option value="">Chọn nội dung thi đấu</option>
@@ -648,7 +733,7 @@ export default function PublishedForm() {
                             quyenContents &&
                             quyenContents.length > 0 &&
                             quyenContents.map((content) => (
-                              <option key={content.id} value={content.name}>
+                              <option key={content.id} value={content.id}>
                                 {content.name}
                               </option>
                             ))
@@ -679,15 +764,20 @@ export default function PublishedForm() {
                       </label>
                     </div>
                     <select
-                      value={musicCategory}
-                      onChange={(e) => setMusicCategory(e.target.value)}
+                      value={musicContentId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setMusicContentId(id);
+                        const item = musicContents.find((m) => m.id === id);
+                        setMusicCategory(item?.name || "");
+                      }}
                       className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
                     >
                       <option value="">Chọn nội dung thi đấu</option>
                       {musicContents &&
                         musicContents.length > 0 &&
                         musicContents.map((content) => (
-                          <option key={content.id} value={content.name}>
+                          <option key={content.id} value={content.id}>
                             {content.name}
                           </option>
                         ))}
@@ -702,24 +792,42 @@ export default function PublishedForm() {
                   SDT liên lạc
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !phoneValidation.isValid && phoneNumber !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                 />
+                {!phoneValidation.isValid && phoneNumber !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{phoneValidation.errorMessage}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Huấn luyện viên quản lý
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !coachNameValidation.isValid && coachName !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={coachName}
                   onChange={(e) => setCoachName(e.target.value)}
+                  maxLength={100}
                 />
+                {!coachNameValidation.isValid && coachName !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{coachNameValidation.errorMessage}</p>
+                )}
               </div>
-              {sortedFields.length > 0 && (
+              {meta?.fields && meta.fields.length > 0 && (
                 <div className="space-y-4">
-                  {sortedFields.map((f) => {
+                  {meta.fields
+                    .filter(f => f.fieldType !== 'TEXT' || !['fullName', 'email', 'studentId', 'club', 'gender', 'phoneNumber', 'coachName'].includes(f.name))
+                    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                    .map((f) => {
                     const options = parseOptions(f.options);
                     return (
                       <div key={f.id}>
