@@ -77,7 +77,6 @@ export interface FvcUserResponse {
   systemRole: string;
 }
 
-
 // Generic types
 export interface SelectOption {
   value: string | number;
@@ -156,7 +155,7 @@ export interface FistContentResponse {
   id: string;
   name: string;
   description?: string | null;
-  status: boolean;
+  status?: boolean;
   typeId?: string;
   typeName?: string;
 }
@@ -259,6 +258,8 @@ export interface FistItemResponse {
   description?: string;
   level?: number;
   parentId?: string;
+  configId?: string;
+  configName?: string;
 }
 
 export interface CreateFistItemRequest {

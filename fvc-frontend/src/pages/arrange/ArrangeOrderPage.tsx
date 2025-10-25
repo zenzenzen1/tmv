@@ -3,8 +3,14 @@ import CommonTable, {
   type TableColumn,
 } from "../../components/common/CommonTable";
 import api from "../../services/api";
+import { fistContentService } from "../../services/fistContent";
 import type { PaginationResponse } from "../../types/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
+import type { CompetitionType } from "./ArrangeOrderWrapper";
+import {
+  competitionOrderService,
+  type CreateCompetitionOrderRequest,
+} from "../../services/competitionOrderService";
 
 type AthleteRow = {
   id: string;
@@ -36,8 +42,11 @@ type AthleteApi = {
   status: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "VIOLATED" | string;
 };
 
+<<<<<<< Updated upstream
 type CompetitionType = "fighting" | "quyen" | "music";
 
+=======
+>>>>>>> Stashed changes
 const STATUS_COLORS = {
   "ĐÃ ĐẤU": "bg-green-100 text-green-800 border-green-200",
   "HOÀN ĐẤU": "bg-purple-100 text-purple-800 border-purple-200",
@@ -53,13 +62,7 @@ const COMPETITION_TYPES = {
   music: "Võ nhạc",
 };
 
-// Fixed quyền categories like in PublishedForm
-const FIXED_QUYEN_CATEGORIES = [
-  "Đơn luyện",
-  "Song luyện",
-  "Đa luyện",
-  "Đồng đội",
-];
+// Dynamic quyền categories will be loaded from API
 
 interface ArrangeOrderPageProps {
   activeTab: CompetitionType;
@@ -112,40 +115,29 @@ export default function ArrangeOrderPage({
   >([]);
   // Derived categories no longer needed for fixed buttons UI
   // Keeping state removed to avoid unused warnings
-  const [quyenContents, setQuyenContents] = useState<
-    Array<{ id: string; name: string; category?: string }>
+  // Fist content data for quyen filtering
+  const [fistConfigs, setFistConfigs] = useState<
+    Array<{
+      id: string;
+      name: string;
+      description?: string | null;
+      status?: boolean;
+    }>
+  >([]);
+
+  const [fistItems, setFistItems] = useState<
+    Array<{
+      id: string;
+      name: string;
+      description?: string;
+      level?: number;
+      configId?: string;
+      configName?: string;
+    }>
   >([]);
   const [musicContents, setMusicContents] = useState<
     Array<{ id: string; name: string }>
   >([]);
-
-  // Helper: derive normalized category for quyền content item
-  const normalizeQuyenCategory = (
-    rawCategory?: string | null,
-    rawName?: string | null,
-    parentName?: string | null
-  ): string => {
-    const candidates: string[] = [];
-    if (rawCategory) candidates.push(rawCategory);
-    if (parentName) candidates.push(parentName);
-    if (rawName) candidates.push(rawName);
-    const strip = (s: string) =>
-      s
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d")
-        .replace(/Đ/g, "D")
-        .toLowerCase();
-    for (const c of candidates) {
-      const t = strip(c);
-      if (t.includes("don luyen")) return "Đơn luyện";
-      if (t.includes("song luyen") && !t.includes("song quyen"))
-        return "Song luyện";
-      if (t.includes("da luyen")) return "Đa luyện";
-      if (t.includes("song quyen")) return "Đồng đội";
-    }
-    return "";
-  };
 
   // Filter states - closed by default
   const [showGenderFilter, setShowGenderFilter] = useState(false);
@@ -195,9 +187,16 @@ export default function ArrangeOrderPage({
         if (genderFilter) qs.set("gender", genderFilter);
         if (statusFilter) qs.set("status", statusFilter);
         // Standard handling by type
+<<<<<<< Updated upstream
         if (activeTab === "fighting") {
           // Do NOT send weight to backend; fetch all then filter client-side
         } else if (activeTab === "music") {
+=======
+        // if (activeTab === "fighting") {
+        //   // Do NOT send weight to backend; fetch all then filter client-side
+        // } else
+        if (activeTab === "music") {
+>>>>>>> Stashed changes
           // Music: send selected content as detail, and optionally label the sub type
           if (subCompetitionFilter) {
             qs.set("subCompetitionType", "Tiết mục");
@@ -389,6 +388,7 @@ export default function ArrangeOrderPage({
         className: "whitespace-nowrap",
         sortable: true,
       },
+<<<<<<< Updated upstream
       ...(activeTab === "fighting"
         ? [
             {
@@ -415,6 +415,35 @@ export default function ArrangeOrderPage({
               sortable: true,
             } as TableColumn<AthleteRow>,
           ]),
+=======
+      // ...(activeTab === "fighting"
+      //   ? [
+      //       {
+      //         key: "detailSubCompetitionType",
+      //         title: "Hạng cân",
+      //         className: "whitespace-nowrap",
+      //         render: (row: AthleteRow) => {
+      //           const value =
+      //             row.detailSubCompetitionType || row.subCompetitionType || "-";
+      //           return String(value)
+      //             .replace(/^Nam\s+/i, "")
+      //             .replace(/^Nữ\s+/i, "");
+      //         },
+      //         sortable: true,
+      //       } as TableColumn<AthleteRow>,
+      //     ]
+      //   :
+      ...[
+        {
+          key: "detailSubCompetitionType",
+          title: "Nội dung",
+          className: "whitespace-nowrap",
+          render: (row: AthleteRow) =>
+            row.detailSubCompetitionType || row.subCompetitionType || "-",
+          sortable: true,
+        } as TableColumn<AthleteRow>,
+      ],
+>>>>>>> Stashed changes
       {
         key: "studentId",
         title: "MSSV",
@@ -477,74 +506,13 @@ export default function ArrangeOrderPage({
         }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
         setWeightClasses(weightClassesRes.data?.content || []);
 
-        // Load quyền contents and derive categories
-        const quyenContentsRes = await api.get(
-          API_ENDPOINTS.FIST_CONTENTS.ITEMS
-        );
-        type FistItem = {
-          id: string | number;
-          name?: string;
-          category?: string | null;
-          categoryName?: string | null;
-          parent?: { name?: string } | null;
-        };
-        let rawItems: FistItem[] = [];
-        const responseData = quyenContentsRes.data as {
-          content?: FistItem[];
-          data?: { content?: FistItem[] };
-        };
-        if (responseData && Array.isArray(responseData.content)) {
-          rawItems = responseData.content as FistItem[];
-        } else if (
-          responseData?.data?.content &&
-          Array.isArray(responseData.data.content)
-        ) {
-          rawItems = (responseData.data.content ?? []) as FistItem[];
-        }
+        // Load fist configs (Đa luyện, Đơn luyện)
+        const fistConfigsRes = await fistContentService.list({ size: 100 });
+        setFistConfigs(fistConfigsRes.content || []);
 
-        const mapped = rawItems.map((it) => {
-          const id = String(it.id ?? "");
-          const name = typeof it.name === "string" ? it.name : "";
-          const parent = it.parent ?? undefined;
-          const category = normalizeQuyenCategory(
-            (it.category as string | undefined) ??
-              (it.categoryName as string | undefined),
-            name,
-            parent && typeof parent.name === "string" ? parent.name : undefined
-          );
-          return { id, name, category } as {
-            id: string;
-            name: string;
-            category?: string;
-          };
-        });
-        setQuyenContents(mapped);
-
-        // Fallback: if no items returned, try loading from fist-configs (like PublishedForm)
-        if (!mapped || mapped.length === 0) {
-          try {
-            const cfgRes = await api.get(
-              `${API_ENDPOINTS.FIST_CONTENTS.BASE}?page=0&size=100`
-            );
-            const root = cfgRes.data as Record<string, unknown>;
-            const pageObj = ((root["data"] as Record<string, unknown>) ??
-              root) as Record<string, unknown>;
-            const cfgs = (pageObj["content"] as Array<unknown>) ?? [];
-            const mappedFromConfigs = cfgs.map((raw) => {
-              const it = raw as Record<string, unknown>;
-              const name =
-                typeof it["name"] === "string" ? (it["name"] as string) : "";
-              return {
-                id: String(it["id"] ?? ""),
-                name,
-                category: normalizeQuyenCategory("", name, ""),
-              } as { id: string; name: string; category?: string };
-            });
-            setQuyenContents(mappedFromConfigs);
-          } catch (fallbackErr) {
-            console.warn("Failed to load fallback fist-configs", fallbackErr);
-          }
-        }
+        // Load fist items (Đơn luyện 1, Đơn luyện 2, etc.)
+        const fistItemsRes = await fistContentService.listItems({ size: 100 });
+        setFistItems(fistItemsRes.content || []);
 
         // Load music contents
         const musicContentsRes = await api.get<{
@@ -628,9 +596,96 @@ export default function ArrangeOrderPage({
     }
   };
 
+<<<<<<< Updated upstream
   const handleArrangeOrderClick = () => {
     // TODO: implement arrange order action (e.g., open modal or navigate)
     console.log("Arrange order clicked");
+=======
+  const handleArrangeOrderClick = async () => {
+    if (!selectedTournament) {
+      alert("Vui lòng chọn giải đấu trước khi sắp xếp thứ tự");
+      return;
+    }
+
+    if (rows.length === 0) {
+      alert("Không có vận động viên nào để sắp xếp");
+      return;
+    }
+
+    setIsArranging(true);
+    try {
+      // Group athletes by competition type and content for proper ordering
+      const groupedAthletes = new Map<string, AthleteRow[]>();
+
+      rows.forEach((athlete) => {
+        const key = `${athlete.competitionType}-${athlete.subCompetitionType}-${athlete.detailSubCompetitionType}`;
+        if (!groupedAthletes.has(key)) {
+          groupedAthletes.set(key, []);
+        }
+        groupedAthletes.get(key)!.push(athlete);
+      });
+
+      // Create competition order requests
+      const orderRequests: CreateCompetitionOrderRequest[] = [];
+      let orderIndex = 1;
+
+      for (const [, athletes] of groupedAthletes) {
+        // For now, we'll create one order per group
+        // In a more sophisticated implementation, you might want to create separate orders for each athlete
+        const firstAthlete = athletes[0];
+
+        // Find the content selection ID if it's a quyền competition
+        let contentSelectionId: string | undefined;
+        if (
+          activeTab === "quyen" &&
+          firstAthlete.detailSubCompetitionType !== "-"
+        ) {
+          // Try to find the content selection ID from the fist items
+          const matchingItem = fistItems.find(
+            (item) => item.name === firstAthlete.detailSubCompetitionType
+          );
+          contentSelectionId = matchingItem?.id;
+        } else if (
+          activeTab === "music" &&
+          firstAthlete.detailSubCompetitionType !== "-"
+        ) {
+          // Try to find the content selection ID from the music contents
+          const matchingContent = musicContents.find(
+            (content) => content.name === firstAthlete.detailSubCompetitionType
+          );
+          contentSelectionId = matchingContent?.id;
+        }
+
+        orderRequests.push({
+          competitionId: selectedTournament,
+          orderIndex: orderIndex++,
+          contentSelectionId: contentSelectionId,
+        });
+      }
+
+      if (orderRequests.length === 0) {
+        alert(
+          "Không thể tạo thứ tự thi đấu. Vui lòng kiểm tra dữ liệu vận động viên."
+        );
+        return;
+      }
+
+      // Call the API to create competition orders
+      await competitionOrderService.createBulkOrders(orderRequests);
+
+      alert(
+        `Đã sắp xếp thứ tự thi đấu thành công cho ${orderRequests.length} nhóm vận động viên`
+      );
+
+      // Optionally refresh the data
+      setReloadKey((prev) => prev + 1);
+    } catch (error) {
+      console.error("Failed to arrange order:", error);
+      alert("Có lỗi xảy ra khi sắp xếp thứ tự thi đấu. Vui lòng thử lại.");
+    } finally {
+      setIsArranging(false);
+    }
+>>>>>>> Stashed changes
   };
 
   return (
@@ -638,7 +693,7 @@ export default function ArrangeOrderPage({
       {/* Tournament Selection */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-blue-600 mb-4">
-        Sắp xếp vận động viên
+          Sắp xếp vận động viên
         </h1>
 
         <div className="flex items-center gap-2">
@@ -839,37 +894,39 @@ export default function ArrangeOrderPage({
 
             {activeTab === "quyen" && (
               <div className="flex items-center flex-wrap gap-2">
-                {FIXED_QUYEN_CATEGORIES.map((c) => (
-                  <div key={c} className="relative filter-dropdown">
+                {fistConfigs.map((config) => (
+                  <div key={config.id} className="relative filter-dropdown">
                     <button
                       type="button"
                       onClick={() => {
-                        if (subCompetitionFilter === c) {
+                        if (subCompetitionFilter === config.name) {
                           // Toggle off current category filter
                           setSubCompetitionFilter("");
                           setDetailCompetitionFilter("");
                           setOpenCategory("");
                         } else {
-                          setSubCompetitionFilter(c);
+                          setSubCompetitionFilter(config.name);
                           setDetailCompetitionFilter("");
-                          setOpenCategory((prev) => (prev === c ? "" : c));
+                          setOpenCategory((prev) =>
+                            prev === config.name ? "" : config.name
+                          );
                         }
                       }}
                       className={`px-3 py-1.5 text-xs font-medium rounded border ${
-                        subCompetitionFilter === c
+                        subCompetitionFilter === config.name
                           ? "border-blue-500 text-blue-600 bg-blue-50"
                           : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
                       }`}
                     >
-                      {c}
+                      {config.name}
                     </button>
-                    {openCategory === c && (
+                    {openCategory === config.name && (
                       <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-300 rounded shadow-lg z-20">
                         <div className="p-2 space-y-1 max-h-64 overflow-auto">
                           <label className="flex items-center cursor-pointer">
                             <input
                               type="radio"
-                              name={`detailCompetitionFilter-${c}`}
+                              name={`detailCompetitionFilter-${config.name}`}
                               className="mr-2 h-3 w-3 text-blue-600"
                               checked={detailCompetitionFilter === ""}
                               onChange={() => setDetailCompetitionFilter("")}
@@ -878,26 +935,26 @@ export default function ArrangeOrderPage({
                               Tất cả
                             </span>
                           </label>
-                          {quyenContents
-                            .filter((content) => content.category === c)
-                            .map((content) => (
+                          {fistItems
+                            .filter((item) => item.configId === config.id)
+                            .map((item) => (
                               <label
-                                key={content.id}
+                                key={item.id}
                                 className="flex items-center cursor-pointer"
                               >
                                 <input
                                   type="radio"
-                                  name={`detailCompetitionFilter-${c}`}
+                                  name={`detailCompetitionFilter-${config.name}`}
                                   className="mr-2 h-3 w-3 text-blue-600"
                                   checked={
-                                    detailCompetitionFilter === content.name
+                                    detailCompetitionFilter === item.name
                                   }
                                   onChange={() =>
-                                    setDetailCompetitionFilter(content.name)
+                                    setDetailCompetitionFilter(item.name)
                                   }
                                 />
                                 <span className="text-sm text-gray-700">
-                                  {content.name}
+                                  {item.name}
                                 </span>
                               </label>
                             ))}
@@ -963,7 +1020,16 @@ export default function ArrangeOrderPage({
         <div className="flex items-center gap-2">
           <button
             onClick={handleArrangeOrderClick}
+<<<<<<< Updated upstream
             className="rounded-md bg-blue-600 px-3 py-2 text-white text-sm shadow hover:bg-blue-700"
+=======
+            disabled={isArranging}
+            className={`rounded-md px-3 py-2 text-white text-sm shadow ${
+              isArranging
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700"
+            }`}
+>>>>>>> Stashed changes
           >
             Sắp xếp
           </button>

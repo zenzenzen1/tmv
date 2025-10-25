@@ -15,7 +15,7 @@ import Home from "./pages/Home";
 import TournamentListPage from "./pages/tournament/ListPage";
 import CompetitionFormPage from "./pages/tournament/CompetitionFormPage";
 import FormResults from "./features/tournament/FormResults";
-// import FormBuilder from "./features/tournament/FormBuilder";
+import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
 import TournamentFormList from "./features/tournament/TournamentFormList";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
@@ -29,7 +29,6 @@ import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
-import FormBuilder from "./features/tournament/FormBuilder";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -131,6 +130,11 @@ export default function App() {
         {/* Arrange */}
         <Route path="arrange" element={<ArrangeOrderWrapper />} />
         <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
+
+        {/* Tournament Forms */}
+        <Route path="tournament-forms" element={<TournamentFormList />} />
+        <Route path="tournament-forms/new" element={<FormBuilder />} />
+        <Route path="tournament-forms/:id/edit" element={<FormBuilder />} />
       </Route>
 
       {/* Legacy redirects to /manage */}
@@ -158,8 +162,6 @@ export default function App() {
         path="/forms/*"
         element={<Navigate to="/manage/forms" replace />}
       />
-      <Route path="/form-builder" element={<FormBuilder />} />
-      <Route path="/form-builder/:id" element={<FormBuilder />} />
       <Route path="/results/:id" element={<FormResults />} />
       <Route path="/published-form/:id" element={<PublishedForm />} />
 

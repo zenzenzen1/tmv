@@ -3,6 +3,7 @@ import CommonTable, {
   type TableColumn,
 } from "../../components/common/CommonTable";
 import api from "../../services/api";
+import { fistContentService } from "../../services/fistContent";
 import type { PaginationResponse } from "../../types/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 
@@ -55,13 +56,7 @@ const COMPETITION_TYPES = {
   music: "Võ nhạc",
 };
 
-// Fixed quyền categories like in PublishedForm
-const FIXED_QUYEN_CATEGORIES = [
-  "Đơn luyện",
-  "Song luyện",
-  "Đa luyện",
-  "Đồng đội",
-];
+// Dynamic quyền categories will be loaded from API
 
 interface AthleteManagementPageProps {
   activeTab: CompetitionType;
@@ -77,6 +72,12 @@ export default function AthleteManagementPage({
   const [total, setTotal] = useState(0);
   const [nameQuery, setNameQuery] = useState("");
   const [debouncedName, setDebouncedName] = useState("");
+
+  // Search input validation
+  const searchValidation = useMemo(() => {
+    return validateSearchInput(nameQuery, "Tìm kiếm");
+  }, [nameQuery]);
+
   // Debounce name search to reduce request volume
   useEffect(() => {
     const t = setTimeout(() => setDebouncedName(nameQuery.trim()), 300);
@@ -112,42 +113,30 @@ export default function AthleteManagementPage({
       maxWeight: number;
     }>
   >([]);
-  // Derived categories no longer needed for fixed buttons UI
-  // Keeping state removed to avoid unused warnings
-  const [quyenContents, setQuyenContents] = useState<
-    Array<{ id: string; name: string; category?: string }>
+
+  // Fist content data for quyen filtering
+  const [fistConfigs, setFistConfigs] = useState<
+    Array<{
+      id: string;
+      name: string;
+      description?: string | null;
+      level?: number;
+      configId?: string;
+      configName?: string;
+    }>
+  >([]);
+
+  const [fistItems, setFistItems] = useState<
+    Array<{
+      id: string;
+      name: string;
+      description?: string | null;
+      status?: boolean;
+    }>
   >([]);
   const [musicContents, setMusicContents] = useState<
     Array<{ id: string; name: string }>
   >([]);
-
-  // Helper: derive normalized category for quyền content item
-  const normalizeQuyenCategory = (
-    rawCategory?: string | null,
-    rawName?: string | null,
-    parentName?: string | null
-  ): string => {
-    const candidates: string[] = [];
-    if (rawCategory) candidates.push(rawCategory);
-    if (parentName) candidates.push(parentName);
-    if (rawName) candidates.push(rawName);
-    const strip = (s: string) =>
-      s
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d")
-        .replace(/Đ/g, "D")
-        .toLowerCase();
-    for (const c of candidates) {
-      const t = strip(c);
-      if (t.includes("don luyen")) return "Đơn luyện";
-      if (t.includes("song luyen") && !t.includes("song quyen"))
-        return "Song luyện";
-      if (t.includes("da luyen")) return "Đa luyện";
-      if (t.includes("song quyen")) return "Đồng đội";
-    }
-    return "";
-  };
 
   // Filter states - closed by default
   const [showGenderFilter, setShowGenderFilter] = useState(false);
@@ -225,6 +214,35 @@ export default function AthleteManagementPage({
             .data as PaginationResponse<AthleteApi>) ??
           (res.data as unknown as PaginationResponse<AthleteApi>);
         const content: AthleteApi[] = pageData?.content ?? [];
+
+        // Debug: Log raw data from API
+        console.log(
+          "Raw athlete data from API:",
+          content.map((a) => ({
+            name: a.fullName,
+            competitionType: a.competitionType,
+            subCompetitionType: a.subCompetitionType,
+            detailSubCompetitionType: a.detailSubCompetitionType,
+            detailSubId: a.detailSubId,
+            detailSubLabel: a.detailSubLabel,
+            // Check all properties
+            allProps: Object.keys(a).reduce((acc, key) => {
+              acc[key] = (a as Record<string, unknown>)[key];
+              return acc;
+            }, {} as Record<string, unknown>),
+          }))
+        );
+
+        // Debug: Check if there are any weight-related fields
+        if (content.length > 0) {
+          const firstAthlete = content[0];
+          console.log(
+            "First athlete all properties:",
+            Object.keys(firstAthlete)
+          );
+          console.log("First athlete full object:", firstAthlete);
+        }
+
         // Client-side safety filter in case backend ignores filters
         // Client-side filtering (fallback when backend doesn't support)
         const strip = (s: string) =>
@@ -254,27 +272,74 @@ export default function AthleteManagementPage({
           // Client-side filtering for competition-specific filters
           const rawSub = a.subCompetitionType || "";
           const rawDetail = a.detailSubCompetitionType || "";
+          const rawDetailLabel = a.detailSubLabel || "";
           let okSubDetail = true;
           if (activeTab === "fighting") {
             if (subCompetitionFilter) {
               const want = normalizeWeight(subCompetitionFilter);
               okSubDetail =
                 normalizeWeight(rawDetail) === want ||
-                normalizeWeight(rawSub) === want;
+                normalizeWeight(rawSub) === want ||
+                normalizeWeight(rawDetailLabel) === want;
+
+              // Debug logging
+              console.log("Đối kháng filtering debug:", {
+                subCompetitionFilter,
+                rawSub,
+                rawDetail,
+                rawDetailLabel,
+                want,
+                normalizedDetail: normalizeWeight(rawDetail),
+                normalizedSub: normalizeWeight(rawSub),
+                normalizedDetailLabel: normalizeWeight(rawDetailLabel),
+                okSubDetail,
+                athlete: a.fullName,
+              });
             }
           } else if (activeTab === "music") {
             // Match by selected content name in detail
             const okDetail = subCompetitionFilter
-              ? strip(rawDetail) === strip(subCompetitionFilter)
+              ? strip(rawDetail) === strip(subCompetitionFilter) ||
+                strip(rawDetailLabel) === strip(subCompetitionFilter)
               : true;
+
+            // Debug logging
+            if (subCompetitionFilter) {
+              console.log("Võ nhạc filtering debug:", {
+                subCompetitionFilter,
+                rawDetail,
+                rawDetailLabel,
+                okDetail,
+                athlete: a.fullName,
+              });
+            }
+
             okSubDetail = okDetail;
           } else {
+            // Quyền filtering
             const okSub = subCompetitionFilter
-              ? strip(rawSub) === strip(subCompetitionFilter)
+              ? strip(rawSub) === strip(subCompetitionFilter) ||
+                strip(rawDetailLabel) === strip(subCompetitionFilter)
               : true;
             const okDetail = detailCompetitionFilter
-              ? strip(rawDetail) === strip(detailCompetitionFilter)
+              ? strip(rawDetail) === strip(detailCompetitionFilter) ||
+                strip(rawDetailLabel) === strip(detailCompetitionFilter)
               : true;
+
+            // Debug logging
+            if (subCompetitionFilter || detailCompetitionFilter) {
+              console.log("Quyền filtering debug:", {
+                subCompetitionFilter,
+                detailCompetitionFilter,
+                rawSub,
+                rawDetail,
+                rawDetailLabel,
+                okSub,
+                okDetail,
+                athlete: a.fullName,
+              });
+            }
+
             okSubDetail = okSub && okDetail;
           }
 
@@ -485,74 +550,19 @@ export default function AthleteManagementPage({
         }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
         setWeightClasses(weightClassesRes.data?.content || []);
 
-        // Load quyền contents and derive categories
-        const quyenContentsRes = await api.get(
-          API_ENDPOINTS.FIST_CONTENTS.ITEMS
-        );
-        type FistItem = {
-          id: string | number;
-          name?: string;
-          category?: string | null;
-          categoryName?: string | null;
-          parent?: { name?: string } | null;
-        };
-        let rawItems: FistItem[] = [];
-        const responseData = quyenContentsRes.data as {
-          content?: FistItem[];
-          data?: { content?: FistItem[] };
-        };
-        if (responseData && Array.isArray(responseData.content)) {
-          rawItems = responseData.content as FistItem[];
-        } else if (
-          responseData?.data?.content &&
-          Array.isArray(responseData.data.content)
-        ) {
-          rawItems = (responseData.data.content ?? []) as FistItem[];
-        }
+        // Load fist configs (Đa luyện, Đơn luyện)
+        const fistConfigsRes = await fistContentService.list({ size: 100 });
+        console.log("AthleteManagement - Fist configs loaded:", fistConfigsRes);
+        // Swap: Use configs as items for dropdown
+        setFistItems(fistConfigsRes.content || []);
 
-        const mapped = rawItems.map((it) => {
-          const id = String(it.id ?? "");
-          const name = typeof it.name === "string" ? it.name : "";
-          const parent = it.parent ?? undefined;
-          const category = normalizeQuyenCategory(
-            (it.category as string | undefined) ??
-              (it.categoryName as string | undefined),
-            name,
-            parent && typeof parent.name === "string" ? parent.name : undefined
-          );
-          return { id, name, category } as {
-            id: string;
-            name: string;
-            category?: string;
-          };
-        });
-        setQuyenContents(mapped);
+        // Load fist items (Đơn luyện 1, Đơn luyện 2, etc.)
+        const fistItemsRes = await fistContentService.listItems({ size: 100 });
+        console.log("AthleteManagement - Fist items loaded:", fistItemsRes);
+        // Swap: Use items as configs for buttons
+        setFistConfigs(fistItemsRes.content || []);
 
-        // Fallback: if no items returned, try loading from fist-configs (like PublishedForm)
-        if (!mapped || mapped.length === 0) {
-          try {
-            const cfgRes = await api.get(
-              `${API_ENDPOINTS.FIST_CONTENTS.BASE}?page=0&size=100`
-            );
-            const root = cfgRes.data as Record<string, unknown>;
-            const pageObj = ((root["data"] as Record<string, unknown>) ??
-              root) as Record<string, unknown>;
-            const cfgs = (pageObj["content"] as Array<unknown>) ?? [];
-            const mappedFromConfigs = cfgs.map((raw) => {
-              const it = raw as Record<string, unknown>;
-              const name =
-                typeof it["name"] === "string" ? (it["name"] as string) : "";
-              return {
-                id: String(it["id"] ?? ""),
-                name,
-                category: normalizeQuyenCategory("", name, ""),
-              } as { id: string; name: string; category?: string };
-            });
-            setQuyenContents(mappedFromConfigs);
-          } catch (fallbackErr) {
-            console.warn("Failed to load fallback fist-configs", fallbackErr);
-          }
-        }
+        // Fist content data loaded successfully
 
         // Load music contents
         const musicContentsRes = await api.get<{
@@ -711,8 +721,17 @@ export default function AthleteManagementPage({
               placeholder="Tìm theo tên vận động viên..."
               value={nameQuery}
               onChange={(e) => setNameQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-80"
+              className={`pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 w-80 ${
+                !searchValidation.isValid && nameQuery !== ""
+                  ? "border-red-500 focus:ring-red-500"
+                  : "border-gray-300 focus:ring-blue-500"
+              }`}
             />
+            {!searchValidation.isValid && nameQuery !== "" && (
+              <p className="text-red-500 text-xs mt-1">
+                {searchValidation.errorMessage}
+              </p>
+            )}
           </div>
 
           {/* Filter Buttons (removed CLB, Sân đấu) */}
@@ -811,29 +830,66 @@ export default function AthleteManagementPage({
                         />
                         <span className="text-sm text-gray-700">Tất cả</span>
                       </label>
-                      {weightClasses.map((wc) => {
-                        const weightDisplay =
-                          wc.weightClass || `${wc.minWeight}-${wc.maxWeight}kg`;
-                        return (
-                          <label
-                            key={wc.id}
-                            className="flex items-center cursor-pointer"
-                          >
-                            <input
-                              type="radio"
-                              name="subCompetitionFilter"
-                              className="mr-2 h-3 w-3 text-blue-600"
-                              checked={subCompetitionFilter === weightDisplay}
-                              onChange={() =>
-                                setSubCompetitionFilter(weightDisplay)
-                              }
-                            />
-                            <span className="text-sm text-gray-700">
-                              {weightDisplay}
-                            </span>
-                          </label>
+                      {(() => {
+                        // Filter weight classes based on gender selection
+                        let filteredWeightClasses = weightClasses.filter(
+                          (wc) => {
+                            if (!genderFilter) {
+                              // No gender selected: show all weight classes
+                              return true;
+                            } else {
+                              // Gender selected: show weight classes for that gender + common ones
+                              return (
+                                wc.gender === genderFilter ||
+                                wc.gender === "COMMON" ||
+                                !wc.gender
+                              );
+                            }
+                          }
                         );
-                      })}
+
+                        // If no gender selected, deduplicate by weight display
+                        if (!genderFilter) {
+                          const seen = new Set<string>();
+                          filteredWeightClasses = filteredWeightClasses.filter(
+                            (wc) => {
+                              const weightDisplay =
+                                wc.weightClass ||
+                                `${wc.minWeight}-${wc.maxWeight}kg`;
+                              if (seen.has(weightDisplay)) {
+                                return false;
+                              }
+                              seen.add(weightDisplay);
+                              return true;
+                            }
+                          );
+                        }
+
+                        return filteredWeightClasses.map((wc) => {
+                          const weightDisplay =
+                            wc.weightClass ||
+                            `${wc.minWeight}-${wc.maxWeight}kg`;
+                          return (
+                            <label
+                              key={wc.id}
+                              className="flex items-center cursor-pointer"
+                            >
+                              <input
+                                type="radio"
+                                name="subCompetitionFilter"
+                                className="mr-2 h-3 w-3 text-blue-600"
+                                checked={subCompetitionFilter === weightDisplay}
+                                onChange={() =>
+                                  setSubCompetitionFilter(weightDisplay)
+                                }
+                              />
+                              <span className="text-sm text-gray-700">
+                                {weightDisplay}
+                              </span>
+                            </label>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 )}
@@ -842,37 +898,39 @@ export default function AthleteManagementPage({
 
             {activeTab === "quyen" && (
               <div className="flex items-center flex-wrap gap-2">
-                {FIXED_QUYEN_CATEGORIES.map((c) => (
-                  <div key={c} className="relative filter-dropdown">
+                {fistConfigs.map((config) => (
+                  <div key={config.id} className="relative filter-dropdown">
                     <button
                       type="button"
                       onClick={() => {
-                        if (subCompetitionFilter === c) {
+                        if (subCompetitionFilter === config.name) {
                           // Toggle off current category filter
                           setSubCompetitionFilter("");
                           setDetailCompetitionFilter("");
                           setOpenCategory("");
                         } else {
-                          setSubCompetitionFilter(c);
+                          setSubCompetitionFilter(config.name);
                           setDetailCompetitionFilter("");
-                          setOpenCategory((prev) => (prev === c ? "" : c));
+                          setOpenCategory((prev) =>
+                            prev === config.name ? "" : config.name
+                          );
                         }
                       }}
                       className={`px-3 py-1.5 text-xs font-medium rounded border ${
-                        subCompetitionFilter === c
+                        subCompetitionFilter === config.name
                           ? "border-blue-500 text-blue-600 bg-blue-50"
                           : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
                       }`}
                     >
-                      {c}
+                      {config.name}
                     </button>
-                    {openCategory === c && (
+                    {openCategory === config.name && (
                       <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-300 rounded shadow-lg z-20">
                         <div className="p-2 space-y-1 max-h-64 overflow-auto">
                           <label className="flex items-center cursor-pointer">
                             <input
                               type="radio"
-                              name={`detailCompetitionFilter-${c}`}
+                              name={`detailCompetitionFilter-${config.name}`}
                               className="mr-2 h-3 w-3 text-blue-600"
                               checked={detailCompetitionFilter === ""}
                               onChange={() => setDetailCompetitionFilter("")}
@@ -881,26 +939,26 @@ export default function AthleteManagementPage({
                               Tất cả
                             </span>
                           </label>
-                          {quyenContents
-                            .filter((content) => content.category === c)
-                            .map((content) => (
+                          {fistItems
+                            .filter((item) => item.id === config.configId)
+                            .map((item) => (
                               <label
-                                key={content.id}
+                                key={item.id}
                                 className="flex items-center cursor-pointer"
                               >
                                 <input
                                   type="radio"
-                                  name={`detailCompetitionFilter-${c}`}
+                                  name={`detailCompetitionFilter-${config.name}`}
                                   className="mr-2 h-3 w-3 text-blue-600"
                                   checked={
-                                    detailCompetitionFilter === content.name
+                                    detailCompetitionFilter === item.name
                                   }
                                   onChange={() =>
-                                    setDetailCompetitionFilter(content.name)
+                                    setDetailCompetitionFilter(item.name)
                                   }
                                 />
                                 <span className="text-sm text-gray-700">
-                                  {content.name}
+                                  {item.name}
                                 </span>
                               </label>
                             ))}

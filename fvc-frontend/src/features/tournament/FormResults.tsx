@@ -240,14 +240,54 @@ export default function FormResults() {
             getFirstString((parsed as Record<string, unknown>).contentName) ||
             getFirstString(parsed.content) ||
             "";
+          // For fighting, try to get weight class name from formData or fallback to "Đối kháng"
+          let fightingCategory = "";
+          if (compRaw === "fighting") {
+            fightingCategory = (parsed.weightClass as string) || "";
+            // If weightClass is empty but we have weightClassId, try to extract from formData
+            if (!fightingCategory && parsed.weightClassId) {
+              // Look for weight class info in the formData
+              const weightClassInfo =
+                parsed.weightClassInfo ||
+                parsed.weightClassName ||
+                parsed.weightClassDisplay;
+              fightingCategory = weightClassInfo || "Đối kháng";
+            }
+            // If still empty, try to create a readable name from weightClassId
+            if (!fightingCategory && parsed.weightClassId) {
+              // Extract readable info from the ID or create a generic name
+              const weightClassId = parsed.weightClassId as string;
+              if (weightClassId.includes("-")) {
+                // If ID contains weight range info, use it
+                fightingCategory = weightClassId;
+              } else {
+                // Otherwise, use a generic name
+                fightingCategory = "Đối kháng";
+              }
+            }
+            if (!fightingCategory) {
+              fightingCategory = "Đối kháng";
+            }
+          }
+
           const categoryVi =
             compRaw === "quyen"
               ? `${quyenCategory}${quyenContent ? ` - ${quyenContent}` : ""}`
               : compRaw === "fighting"
-              ? (parsed.weightClass as string) || ""
+              ? fightingCategory
               : compRaw === "music"
               ? (parsed.musicCategory as string) || ""
               : (parsed.category as string) || "";
+
+          console.log("FormResults category mapping:", {
+            compRaw,
+            weightClass: parsed.weightClass,
+            quyenCategory,
+            quyenContent,
+            musicCategory: parsed.musicCategory,
+            categoryVi,
+            parsed: parsed,
+          });
           if (compRaw === "quyen") {
             console.log("FormResults parsed quyen:", {
               raw: parsed,
@@ -310,7 +350,7 @@ export default function FormResults() {
             studentId: parsed.studentId || "",
             club: parsed.club || "",
             coach: parsed.coach || "",
-            phone: parsed.phone || "",
+            phone: parsed.phone || parsed.phoneNumber || "",
             status,
           } as ResultRow;
         });

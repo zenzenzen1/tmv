@@ -116,7 +116,10 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 if (up.getLabel() == null || up.getLabel().trim().isEmpty()) {
                     continue;
                 }
-                if (!"TEXT".equalsIgnoreCase(up.getFieldType())) {
+                // Only validate options for field types that require them
+                if ("SELECT".equalsIgnoreCase(up.getFieldType()) || "DROPDOWN".equalsIgnoreCase(up.getFieldType()) || 
+                    "RADIO".equalsIgnoreCase(up.getFieldType()) || "CHECKBOX".equalsIgnoreCase(up.getFieldType()) ||
+                    "MULTIPLE-CHOICE".equalsIgnoreCase(up.getFieldType())) {
                     boolean hasOptions = up.getOptions() != null && !up.getOptions().trim().isEmpty() && !"[]".equals(up.getOptions().trim());
                     if (!hasOptions) continue;
                 }
@@ -148,7 +151,10 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 if (fld.getLabel() == null || fld.getLabel().trim().isEmpty()) {
                     continue;
                 }
-                if (!"TEXT".equalsIgnoreCase(fld.getFieldType())) {
+                // Only validate options for field types that require them
+                if ("SELECT".equalsIgnoreCase(fld.getFieldType()) || "DROPDOWN".equalsIgnoreCase(fld.getFieldType()) || 
+                    "RADIO".equalsIgnoreCase(fld.getFieldType()) || "CHECKBOX".equalsIgnoreCase(fld.getFieldType()) ||
+                    "MULTIPLE-CHOICE".equalsIgnoreCase(fld.getFieldType())) {
                     String opts = fld.getOptions();
                     if (opts == null || opts.trim().isEmpty() || "[]".equals(opts.trim())) {
                         continue;
@@ -205,7 +211,10 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 if (up.getLabel() == null || up.getLabel().trim().isEmpty()) {
                     continue;
                 }
-                if (!"TEXT".equalsIgnoreCase(up.getFieldType())) {
+                // Only validate options for field types that require them
+                if ("SELECT".equalsIgnoreCase(up.getFieldType()) || "DROPDOWN".equalsIgnoreCase(up.getFieldType()) || 
+                    "RADIO".equalsIgnoreCase(up.getFieldType()) || "CHECKBOX".equalsIgnoreCase(up.getFieldType()) ||
+                    "MULTIPLE-CHOICE".equalsIgnoreCase(up.getFieldType())) {
                     boolean hasOptions = up.getOptions() != null && !up.getOptions().trim().isEmpty() && !"[]".equals(up.getOptions().trim());
                     if (!hasOptions) continue;
                 }
@@ -408,6 +417,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 .competitionId(c != null ? c.getId() : null)
                 .tournamentName(c != null ? c.getName() : null)
                 .formTitle(f.getName())
+                .formType(f.getFormType() != null ? f.getFormType().toString() : null)
                 .numberOfParticipants((int) participants)
                 .createdAt(f.getCreatedAt())
                 .status(status)

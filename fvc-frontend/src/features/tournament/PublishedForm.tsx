@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../services/api";
+import { fistContentService } from "../../services/fistContent";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import { useToast } from "../../components/common/ToastContext";
 
@@ -19,6 +20,7 @@ type FormMeta = {
   name: string;
   description?: string;
   status?: string;
+  formType?: string;
   fields?: FormField[];
 };
 
@@ -28,19 +30,15 @@ export default function PublishedForm() {
   const toast = useToast();
   const [meta, setMeta] = useState<FormMeta | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [dynamicValues, setDynamicValues] = useState<
     Record<string, string | string[]>
   >({});
 
   // Standard fields state (always rendered)
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [studentId, setStudentId] = useState("");
-  const [club, setClub] = useState("");
-  const [gender, setGender] = useState("male");
   const [competitionType, setCompetitionType] = useState<
-    "fighting" | "quyen" | "music"
-  >("fighting");
+    "fighting" | "quyen" | "music" | ""
+  >("");
   const [weightClass, setWeightClass] = useState("");
   const [weightClassId, setWeightClassId] = useState<string>("");
   const [quyenCategory, setQuyenCategory] = useState("");
@@ -48,9 +46,6 @@ export default function PublishedForm() {
   const [musicCategory, setMusicCategory] = useState("");
   const [fistConfigId, setFistConfigId] = useState<string>("");
   const [musicContentId, setMusicContentId] = useState<string>("");
-  const [coachName, setCoachName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  // const [studentCardFile, setStudentCardFile] = useState<File | null>(null);
 
   // API data states
   const [weightClasses, setWeightClasses] = useState<
@@ -68,59 +63,29 @@ export default function PublishedForm() {
       name: string;
     }>
   >([]);
-  // Fixed quyen categories (config cứng)
-  const quyenCategories = ["Đơn luyện", "Song luyện", "Đa luyện", "Đồng đội"];
 
-  // Dynamic quyen content from API
-  const [quyenContents, setQuyenContents] = useState<
+  // Fist content data for quyen filtering
+  const [fistConfigs, setFistConfigs] = useState<
     Array<{
       id: string;
       name: string;
-      category?: string;
+      description?: string | null;
+      level?: number;
+      configId?: string;
+      configName?: string;
     }>
   >([]);
-  const [allQuyenContents, setAllQuyenContents] = useState<
+
+  const [fistItems, setFistItems] = useState<
     Array<{
       id: string;
       name: string;
-      category?: string;
+      description?: string | null;
+      level?: number;
+      configId?: string;
+      configName?: string;
     }>
   >([]);
-
-  // Helpers aligned with FormBuilder
-  const getString = (obj: Record<string, unknown>, key: string): string => {
-    const v = obj[key];
-    return typeof v === "string" ? v : "";
-  };
-
-  const normalizeQuyenCategory = (
-    rawCategory: string,
-    rawName: string,
-    parentName: string
-  ): string => {
-    const candidates: string[] = [];
-    if (rawCategory) candidates.push(rawCategory);
-    if (parentName) candidates.push(parentName);
-    if (rawName) candidates.push(rawName);
-
-    const stripAccents = (s: string) =>
-      s
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d")
-        .replace(/Đ/g, "D")
-        .toLowerCase();
-
-    for (const c of candidates) {
-      const t = stripAccents(c);
-      if (t.includes("don luyen")) return "Đơn luyện";
-      if (t.includes("song luyen") && !t.includes("song quyen"))
-        return "Song luyện";
-      if (t.includes("da luyen")) return "Đa luyện";
-      if (t.includes("song quyen")) return "Đồng đội";
-    }
-    return "";
-  };
 
   useEffect(() => {
     if (!id) return;
@@ -130,12 +95,52 @@ export default function PublishedForm() {
         const res = await api.get<FormMeta>(
           API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(id as string)
         );
+        // Check if form is published
+        if (res.data.status !== "PUBLISH") {
+          setError("Form này chưa được xuất bản hoặc đã bị lưu trữ");
+          return;
+        }
+
         setMeta(res.data);
+        console.log("PublishedForm - Loaded form data:", res.data);
+        console.log(
+          "PublishedForm - Fields count:",
+          res.data.fields?.length || 0
+        );
+        console.log("PublishedForm - All fields:", res.data.fields);
+        console.log("PublishedForm - Fields count:", res.data.fields?.length);
+        console.log(
+          "PublishedForm - Fields with sortOrder > 6:",
+          res.data.fields?.filter((f) => f.sortOrder && f.sortOrder > 6)
+        );
+        console.log(
+          "PublishedForm - Custom fields (sortOrder > 6):",
+          res.data.fields?.filter((f) => f.sortOrder && f.sortOrder > 6)
+        );
+        console.log(
+          "PublishedForm - All fields with sortOrder:",
+          res.data.fields?.map((f) => ({
+            label: f.label,
+            sortOrder: f.sortOrder,
+            fieldType: f.fieldType,
+          }))
+        );
+
         const initial: Record<string, string | string[]> = {};
         (res.data.fields || []).forEach((f) => {
-          if (f.fieldType === "CHECKBOX") initial[f.name] = [];
-          else initial[f.name] = "";
+          console.log(
+            "Initializing field:",
+            f.label,
+            f.name,
+            f.fieldType,
+            f.sortOrder
+          );
+          const fieldName =
+            f.name || f.id || f.label.toLowerCase().replace(/\s+/g, "_");
+          if (f.fieldType === "CHECKBOX") initial[fieldName] = [];
+          else initial[fieldName] = "";
         });
+        console.log("Initial dynamic values:", initial);
         setDynamicValues(initial);
 
         // Load weight classes
@@ -168,137 +173,35 @@ export default function PublishedForm() {
           setMusicContents([]);
         }
 
-        // 1) BỎ competition-scope: luôn dùng global như FormBuilder
-
-        // 2) Load quyền contents (global fist items)
-        try {
-          const quyenContentsRes = await api.get(
-            API_ENDPOINTS.FIST_CONTENTS.ITEMS
-          );
-          console.log(
-            "PublishedForm - Quyen contents API response:",
-            quyenContentsRes.data
-          );
-
-          // Handle different response structures
-          let quyenData: Array<{
-            id: string;
-            name: string;
-            category?: string;
-          }> = [];
-          const responseData = quyenContentsRes.data as Record<string, unknown>;
-          if (responseData?.content && Array.isArray(responseData.content)) {
-            quyenData = responseData.content as Array<{
-              id: string;
-              name: string;
-              category?: string;
-            }>;
-          } else if (
-            responseData?.data &&
-            typeof responseData.data === "object" &&
-            responseData.data !== null
-          ) {
-            const dataObj = responseData.data as Record<string, unknown>;
-            if (dataObj.content && Array.isArray(dataObj.content)) {
-              quyenData = dataObj.content as Array<{
-                id: string;
-                name: string;
-                category?: string;
-              }>;
-            }
-          } else if (Array.isArray(responseData)) {
-            quyenData = responseData as Array<{
-              id: string;
-              name: string;
-              category?: string;
-            }>;
-          } else if (
-            responseData?.data &&
-            Array.isArray((responseData as { data: unknown[] }).data)
-          ) {
-            quyenData = (
-              responseData as {
-                data: Array<{ id: string; name: string; category?: string }>;
-              }
-            ).data as Array<{
-              id: string;
-              name: string;
-              category?: string;
-            }>;
+        // Only load competition-related data for COMPETITION_REGISTRATION forms
+        if (res.data.formType === "COMPETITION_REGISTRATION") {
+          // Load fist configs (Đa luyện, Đơn luyện)
+          try {
+            const fistConfigsRes = await fistContentService.list({ size: 100 });
+            console.log("PublishedForm - Fist configs loaded:", fistConfigsRes);
+            // Swap: Use configs as items for dropdown
+            setFistItems(fistConfigsRes.content || []);
+          } catch (configError) {
+            console.warn("Failed to load fist configs:", configError);
+            setFistItems([]);
           }
 
-          const mapped = (quyenData || []).map((raw) => {
-            const item = raw as unknown as Record<string, unknown>;
-            const parent =
-              (item["parent"] as Record<string, unknown> | undefined) ??
-              undefined;
-            const derived = normalizeQuyenCategory(
-              getString(item, "category") ||
-                getString(item, "categoryName") ||
-                getString(item, "group") ||
-                getString(item, "groupName") ||
-                getString(item, "type") ||
-                getString(item, "typeName"),
-              getString(item, "name"),
-              parent
-                ? getString(parent, "name")
-                : getString(item, "parentName") ||
-                    getString(item, "parentTitle")
-            );
-            return {
-              id: String(item["id"] ?? ""),
-              name: getString(item, "name"),
-              category: derived || getString(item, "category"),
-            };
-          });
-          console.log(
-            "PublishedForm - Setting quyen contents state (mapped):",
-            mapped
-          );
-          console.log("PublishedForm - Quyen contents count:", mapped.length);
-          // If empty, fallback to using config names as contents
-          if (mapped.length === 0) {
-            try {
-              const cfgRes = await api.get(
-                `${API_ENDPOINTS.FIST_CONTENTS.BASE}?page=0&size=100`
-              );
-              const root = cfgRes.data as Record<string, unknown>;
-              const pageObj = (root["data"] as Record<string, unknown>) ?? root;
-              const cfgs = (pageObj["content"] as Array<unknown>) ?? [];
-              const mappedFromConfigs = cfgs.map((raw) => {
-                const it = raw as Record<string, unknown>;
-                const name =
-                  typeof it["name"] === "string" ? (it["name"] as string) : "";
-                return {
-                  id: String(it["id"] ?? ""),
-                  name,
-                  category: normalizeQuyenCategory("", name, ""),
-                };
-              });
-              setAllQuyenContents(mappedFromConfigs);
-              setQuyenContents(
-                quyenCategory
-                  ? mappedFromConfigs.filter(
-                      (m) => m.category === quyenCategory
-                    )
-                  : mappedFromConfigs
-              );
-            } catch (fallbackErr) {
-              console.warn(
-                "PublishedForm - Fallback load configs failed",
-                fallbackErr
-              );
-              setAllQuyenContents([]);
-              setQuyenContents([]);
-            }
-          } else {
-            // Use items when available
-            setAllQuyenContents(mapped);
-            setQuyenContents(mapped);
+          // Load fist items (Đơn luyện 1, Đơn luyện 2, etc.)
+          try {
+            const fistItemsRes = await fistContentService.listItems({
+              size: 100,
+            });
+            console.log("PublishedForm - Fist items loaded:", fistItemsRes);
+            // Swap: Use items as configs for buttons
+            setFistConfigs(fistItemsRes.content || []);
+          } catch (itemError) {
+            console.warn("Failed to load fist items:", itemError);
+            setFistConfigs([]);
           }
-        } catch (quyenError) {
-          console.warn("Failed to load quyen contents:", quyenError);
-          setQuyenContents([]);
+        } else {
+          // Not a competition form, show error
+          setError("Form này không phải là form đăng ký giải");
+          return;
         }
       } catch (e) {
         console.error(e);
@@ -308,6 +211,7 @@ export default function PublishedForm() {
     })();
   }, [id]);
 
+<<<<<<< Updated upstream
   // Filter quyen contents based on selected category
   useEffect(() => {
     console.log(
@@ -334,6 +238,9 @@ export default function PublishedForm() {
       .slice()
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [meta]);
+=======
+  // Field validations
+>>>>>>> Stashed changes
 
   const parseOptions = (opts?: string): string[] => {
     if (!opts) return [];
@@ -346,30 +253,12 @@ export default function PublishedForm() {
   };
 
   const buildFormDataJson = (): string => {
-    const payload: Record<string, unknown> = {
-      fullName,
-      email,
-      studentId,
-      club,
-      gender: gender.toUpperCase(),
+    const formData: Record<string, unknown> = {
       competitionType,
-      weightClass,
-      // Embed IDs for tight backend linking
-      weightClassId: weightClassId || undefined,
-      quyenCategory,
-      quyenContent,
-      fistConfigId: fistConfigId || undefined,
-      musicCategory,
-      musicContentId: musicContentId || undefined,
-      coachName,
-      phoneNumber,
-      // client-side submission timestamp fallback when backend doesn't persist createdAt
-      submittedAtClient: new Date().toISOString(),
+      submittedAtClient: new Date().toISOString(), // Add client timestamp
     };
-    Object.assign(payload, dynamicValues);
-    return JSON.stringify(payload);
-  };
 
+<<<<<<< Updated upstream
   const validate = (): string | null => {
     if (!fullName?.trim()) return "Vui lòng nhập Họ và tên";
     if (!email?.trim()) return "Vui lòng nhập Email";
@@ -380,100 +269,191 @@ export default function PublishedForm() {
     if (!gender?.trim()) return "Vui lòng chọn Giới tính";
 
     // Competition-specific required selections
+=======
+    // Add competition-specific data
+>>>>>>> Stashed changes
     if (competitionType === "fighting") {
-      if (!weightClass?.trim()) return "Vui lòng chọn Hạng cân";
+      formData.weightClass = weightClass;
+      formData.weightClassId = weightClassId;
     } else if (competitionType === "quyen") {
-      if (!quyenCategory?.trim()) return "Vui lòng chọn Loại quyền";
-      if (!quyenContent?.trim()) return "Vui lòng chọn Nội dung quyền";
+      formData.quyenCategory = quyenCategory;
+      formData.quyenContent = quyenContent;
+      formData.fistConfigId = fistConfigId;
     } else if (competitionType === "music") {
-      if (!musicCategory?.trim()) return "Vui lòng chọn Nội dung Võ nhạc";
+      formData.musicCategory = musicCategory;
+      formData.musicContentId = musicContentId;
     }
 
-    return null;
+    // Add dynamic field values
+    Object.entries(dynamicValues).forEach(([key, value]) => {
+      formData[key] = value;
+    });
+
+    return JSON.stringify(formData);
   };
 
-  const handleSubmit = async (): Promise<void> => {
-    const err = validate();
-    if (err) {
-      toast.error(err);
+  const { show } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate required fields from dynamic fields
+    const errors: Record<string, string> = {};
+
+    // Check required dynamic fields
+    if (meta && meta.fields) {
+      console.log("Meta fields:", meta.fields);
+      meta.fields.forEach((field) => {
+        if (field.required) {
+          const fieldName =
+            field.name ||
+            field.id ||
+            field.label.toLowerCase().replace(/\s+/g, "_");
+          const value = dynamicValues[fieldName];
+          console.log(`Field ${field.label} (${fieldName}):`, value);
+          if (!value || (typeof value === "string" && value.trim() === "")) {
+            errors[fieldName] = `${field.label} là bắt buộc`;
+          }
+        }
+      });
+    }
+
+    // Competition-specific validation
+    if (competitionType === "fighting" && !weightClassId) {
+      console.log("Fighting validation failed - no weight class selected");
+      errors.weightClass = "Vui lòng chọn hạng cân";
+    }
+
+    if (competitionType === "quyen" && !fistConfigId) {
+      console.log("Quyen validation failed - no fist config selected");
+      errors.quyenContent = "Vui lòng chọn nội dung thi đấu";
+    }
+
+    if (competitionType === "music" && !musicContentId) {
+      console.log("Music validation failed - no music content selected");
+      errors.musicContent = "Vui lòng chọn nội dung thi đấu";
+    }
+
+    // Check if competition type is selected
+    if (!competitionType) {
+      errors.competitionType = "Vui lòng chọn nội dung thi đấu";
+    }
+
+    // Also check if there's a dynamic field for competition type
+    if (meta && meta.fields) {
+      const competitionField = meta.fields.find(
+        (field) => field.label === "Nội dung thi đấu"
+      );
+      if (competitionField && competitionField.required) {
+        const value = dynamicValues[competitionField.name];
+        if (!value || (typeof value === "string" && value.trim() === "")) {
+          errors[
+            competitionField.name
+          ] = `${competitionField.label} là bắt buộc`;
+        }
+      }
+    }
+
+    setFieldErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
+      console.log("Validation errors:", errors);
+      console.log("Dynamic values:", dynamicValues);
+      console.log("Competition type:", competitionType);
+      console.log("Weight class ID:", weightClassId);
+      console.log("Fist config ID:", fistConfigId);
+      console.log("Music content ID:", musicContentId);
+      show("Vui lòng kiểm tra lại thông tin", "error");
       return;
     }
-    if (!id) return;
+
     try {
       const formDataJson = buildFormDataJson();
-      await api.post(
-        `${API_ENDPOINTS.TOURNAMENT_FORMS.BASE}/${id}/submissions`,
-        {
-          fullName,
-          email,
-          studentId,
-          club,
-          gender: gender.toUpperCase(),
-          formDataJson,
-          // Preferred ID fields for tight linking
-          weightClassId: weightClassId || undefined,
-          fistConfigId: fistConfigId || undefined,
-          musicContentId: musicContentId || undefined,
-        }
-      );
-      window.dispatchEvent(new Event("forms:changed"));
-      toast.success("Đăng ký thành công!");
-      navigate(-1);
-    } catch (e: unknown) {
-      console.error(e);
-      const err = e as {
-        response?: { status?: number; data?: { message?: string } };
-        message?: string;
+
+      const submissionData = {
+        fullName: dynamicValues.fullName || "",
+        email: dynamicValues.email || "",
+        studentId: dynamicValues.studentId || "",
+        club: dynamicValues.club || "",
+        gender: dynamicValues.gender || "",
+        formDataJson,
+        weightClassId:
+          competitionType === "fighting" ? weightClassId : undefined,
+        fistConfigId: competitionType === "quyen" ? fistConfigId : undefined,
+        fistItemId: competitionType === "quyen" ? fistConfigId : undefined,
+        musicContentId:
+          competitionType === "music" ? musicContentId : undefined,
       };
-      const status = err?.response?.status;
-      const serverMsg = (err?.response?.data as { message?: string })?.message;
-      if (
-        status === 409 ||
-        (typeof serverMsg === "string" &&
-          serverMsg.toLowerCase().includes("email"))
-      ) {
-        toast.error(
-          "Email này đã đăng ký cho form này. Mỗi email chỉ được đăng ký một lần."
-        );
-        return;
-      }
-      if (
-        status === 409 ||
-        (typeof serverMsg === "string" &&
-          serverMsg.toLowerCase().includes("mssv"))
-      ) {
-        toast.error(
-          "MSSV này đã được đăng ký cho form này. Mỗi MSSV chỉ được đăng ký một lần."
-        );
-        return;
-      }
-      const msg = err?.message;
-      toast.error(serverMsg || msg || "Gửi đăng ký thất bại");
+
+      console.log("Submission payload:", submissionData);
+      console.log("Form data JSON:", formDataJson);
+      console.log("Competition type:", competitionType);
+      console.log("Weight class:", weightClass);
+      console.log("Weight class ID:", weightClassId);
+      console.log("Form data parsed:", JSON.parse(formDataJson));
+
+      await api.post(
+        API_ENDPOINTS.TOURNAMENT_FORMS.SUBMISSIONS(id as string),
+        submissionData
+      );
+
+      show("Đăng ký thành công!", "success");
+      navigate("/");
+    } catch (error) {
+      console.error("Submission error:", error);
+      show("Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", "error");
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F0F6FF] to-[#E0EAFF]">
-      <div className="max-w-3xl mx-auto p-5">
-        <div className="bg-white border border-[#E6ECFF] rounded-xl shadow-md p-5">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <h2 className="text-base font-semibold text-gray-900">
-                {meta?.name || "Form đăng ký"}
-              </h2>
-            </div>
-            <button
-              onClick={() => navigate(-1)}
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50"
-            >
-              Quay lại
-            </button>
-          </div>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Đang tải form...</p>
+        </div>
+      </div>
+    );
+  }
 
-          <p className="text-sm text-gray-600 mb-4">
-            {meta?.description || "Vui lòng điền thông tin phía dưới."}
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 mb-4">{error}</div>
+          <button
+            onClick={() => navigate("/")}
+            className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+          >
+            Về trang chủ
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!meta) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">
+            Không tìm thấy form
+          </h1>
+          <p className="text-gray-600 mb-4">
+            Form bạn đang tìm kiếm không tồn tại hoặc đã bị xóa.
           </p>
+          <button
+            onClick={() => navigate("/")}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            Về trang chủ
+          </button>
+        </div>
+      </div>
+    );
+  }
 
+<<<<<<< Updated upstream
           {loading ? (
             <div className="text-sm text-gray-600">Đang tải...</div>
           ) : (
@@ -519,138 +499,321 @@ export default function PublishedForm() {
                   onChange={(e) => setClub(e.target.value)}
                 />
               </div>
+=======
+  return (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-4xl mx-auto px-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">{meta.name}</h1>
+          {meta.description && (
+            <p className="text-gray-600 mb-6">{meta.description}</p>
+          )}
+>>>>>>> Stashed changes
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Giới tính
-                </label>
-                <div className="flex items-center gap-6 text-sm">
-                  {[
-                    { value: "male", label: "Nam" },
-                    { value: "female", label: "Nữ" },
-                    { value: "other", label: "Khác" },
-                  ].map((g) => (
-                    <label
-                      key={g.value}
-                      className="inline-flex items-center gap-2"
-                    >
-                      <input
-                        type="radio"
-                        name="gender"
-                        value={g.value}
-                        checked={gender === g.value}
-                        onChange={(e) => {
-                          setGender(e.target.value);
-                          setWeightClass(""); // reset weight when gender changes
-                        }}
-                      />
-                      <span>{g.label}</span>
-                    </label>
-                  ))}
-                </div>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Dynamic Fields */}
+            {meta.fields && meta.fields.length > 0 && (
+              <div className="space-y-4">
+                {meta.fields
+                  .filter((field) => {
+                    console.log(
+                      "Filtering field:",
+                      field.label,
+                      field.name,
+                      field.fieldType,
+                      field.sortOrder
+                    );
+                    const isCompetitionType =
+                      field.label === "Nội dung thi đấu";
+                    const isCustomField =
+                      field.sortOrder && field.sortOrder > 6;
+                    console.log("Field filter result:", {
+                      isCompetitionType,
+                      isCustomField,
+                      willShow: !isCompetitionType,
+                    });
+                    return !isCompetitionType;
+                  })
+                  .map((field) => {
+                    console.log(
+                      "Rendering field:",
+                      field.label,
+                      field.fieldType,
+                      field.sortOrder
+                    );
+                    const fieldName =
+                      field.name ||
+                      field.id ||
+                      field.label.toLowerCase().replace(/\s+/g, "_");
+                    return (
+                      <div key={field.id}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {field.label}
+                          {field.required && (
+                            <span className="text-red-500 ml-1">*</span>
+                          )}
+                        </label>
+                        {(field.fieldType === "TEXT" ||
+                          field.fieldType === "SHORT-ANSWER") && (
+                          <input
+                            type="text"
+                            value={(dynamicValues[fieldName] as string) || ""}
+                            onChange={(e) =>
+                              setDynamicValues((prev) => ({
+                                ...prev,
+                                [fieldName]: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder={`Nhập ${field.label.toLowerCase()}`}
+                          />
+                        )}
+                        {field.fieldType === "EMAIL" && (
+                          <input
+                            type="email"
+                            value={(dynamicValues[fieldName] as string) || ""}
+                            onChange={(e) =>
+                              setDynamicValues((prev) => ({
+                                ...prev,
+                                [fieldName]: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder={`Nhập ${field.label.toLowerCase()}`}
+                          />
+                        )}
+                        {field.fieldType === "DATE" && (
+                          <input
+                            type="date"
+                            value={(dynamicValues[fieldName] as string) || ""}
+                            onChange={(e) =>
+                              setDynamicValues((prev) => ({
+                                ...prev,
+                                [fieldName]: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        )}
+                        {field.fieldType === "TEXTAREA" && (
+                          <textarea
+                            value={(dynamicValues[fieldName] as string) || ""}
+                            onChange={(e) =>
+                              setDynamicValues((prev) => ({
+                                ...prev,
+                                [fieldName]: e.target.value,
+                              }))
+                            }
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder={`Nhập ${field.label.toLowerCase()}`}
+                          />
+                        )}
+                        {(field.fieldType === "SELECT" ||
+                          field.fieldType === "DROPDOWN" ||
+                          field.fieldType === "MULTIPLE-CHOICE") && (
+                          <select
+                            value={(dynamicValues[fieldName] as string) || ""}
+                            onChange={(e) =>
+                              setDynamicValues((prev) => ({
+                                ...prev,
+                                [fieldName]: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">
+                              Chọn {field.label.toLowerCase()}
+                            </option>
+                            {parseOptions(field.options).map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {field.fieldType === "CHECKBOX" && (
+                          <div className="space-y-2">
+                            {parseOptions(field.options).map((option) => (
+                              <label key={option} className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  checked={(
+                                    (dynamicValues[fieldName] as string[]) || []
+                                  ).includes(option)}
+                                  onChange={(e) => {
+                                    const currentValues =
+                                      (dynamicValues[fieldName] as string[]) ||
+                                      [];
+                                    const newValues = e.target.checked
+                                      ? [...currentValues, option]
+                                      : currentValues.filter(
+                                          (v) => v !== option
+                                        );
+                                    setDynamicValues((prev) => ({
+                                      ...prev,
+                                      [fieldName]: newValues,
+                                    }));
+                                  }}
+                                  className="mr-2"
+                                />
+                                {option}
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                        {field.fieldType === "FILE-UPLOAD" && (
+                          <input
+                            type="file"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                setDynamicValues((prev) => ({
+                                  ...prev,
+                                  [fieldName]: file.name,
+                                }));
+                              }
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
+            )}
 
+            {/* Competition Type Selection - Move to bottom */}
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <label className="block text-sm font-medium text-gray-700 mb-4">
+                Nội dung thi đấu *
+              </label>
               <div className="space-y-3">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Nội dung thi đấu
-                </label>
-                <div className="space-y-3">
-                  <div>
-                    <label className="flex items-center mb-2">
-                      <input
-                        type="radio"
-                        name="competitionType"
-                        value="fighting"
-                        checked={competitionType === "fighting"}
-                        onChange={(e) =>
-                          setCompetitionType(
-                            e.target.value as "fighting" | "quyen" | "music"
-                          )
-                        }
-                        className="mr-2"
-                      />
-                      Đối kháng
-                    </label>
-                    <div className="relative mb-3">
-                      <select
-                        value={weightClassId}
-                        onChange={(e) => {
-                          const id = e.target.value;
-                          setWeightClassId(id);
-                          const wc = weightClasses.find((w) => w.id === id);
-                          const display = wc
-                            ? wc.weightClass ||
-                              `${wc.minWeight}-${wc.maxWeight}kg`
-                            : "";
-                          setWeightClass(display);
-                        }}
-                        className="w-full appearance-none bg-white border border-gray-400 rounded-full px-4 h-9 text-sm text-gray-700"
-                      >
-                        <option value="">Chọn hạng cân của bạn</option>
-                        {weightClasses &&
-                          weightClasses.length > 0 &&
-                          weightClasses
-                            .filter((w) => {
-                              if (gender === "male") return w.gender === "MALE";
-                              if (gender === "female")
-                                return w.gender === "FEMALE";
-                              return true; // 'other' shows all
-                            })
-                            .map((w) => {
-                              const weightDisplay =
-                                w.weightClass ||
-                                `${w.minWeight}-${w.maxWeight}kg`;
-                              return (
-                                <option key={w.id} value={w.id}>
-                                  {weightDisplay}
-                                </option>
-                              );
-                            })}
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">
-                      <span className="inline-flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="competitionType"
-                          value="quyen"
-                          checked={competitionType === "quyen"}
-                          onChange={(e) =>
-                            setCompetitionType(
-                              e.target.value as "fighting" | "quyen" | "music"
-                            )
+                {/* Fighting Option */}
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="competitionType"
+                      value="fighting"
+                      checked={competitionType === "fighting"}
+                      onChange={(e) => {
+                        console.log(
+                          "Setting competition type to:",
+                          e.target.value
+                        );
+                        setCompetitionType(
+                          e.target.value as "fighting" | "quyen" | "music"
+                        );
+                        // Also update dynamic values if there's a competition field
+                        if (meta && meta.fields) {
+                          const competitionField = meta.fields.find(
+                            (field) => field.label === "Nội dung thi đấu"
+                          );
+                          if (competitionField) {
+                            setDynamicValues((prev) => ({
+                              ...prev,
+                              [competitionField.name]: e.target.value,
+                            }));
                           }
-                          className="mr-2"
-                        />
-                        Quyền
-                      </span>
+                        }
+                      }}
+                      className="mr-3"
+                    />
+                    <span className="text-sm font-medium">Đối kháng</span>
+                  </label>
+                  <div className="ml-6 mt-2">
+                    <label className="block text-sm text-gray-600 mb-1">
+                      Hạng cân
                     </label>
+                    <select
+                      value={weightClassId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setWeightClassId(id);
+                        const wc = weightClasses.find((w) => w.id === id);
+                        const weightDisplay =
+                          wc?.weightClass ||
+                          `${wc?.minWeight}-${wc?.maxWeight}kg`;
+                        console.log("Setting weight class:", {
+                          wc,
+                          weightDisplay,
+                        });
+                        setWeightClass(weightDisplay || "");
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Chọn hạng cân</option>
+                      {weightClasses.map((w) => {
+                        const weightDisplay =
+                          w.weightClass || `${w.minWeight}-${w.maxWeight}kg`;
+                        return (
+                          <option key={w.id} value={w.id}>
+                            {weightDisplay}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {fieldErrors.weightClass && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {fieldErrors.weightClass}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quyen Option */}
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="competitionType"
+                      value="quyen"
+                      checked={competitionType === "quyen"}
+                      onChange={(e) => {
+                        setCompetitionType(
+                          e.target.value as "fighting" | "quyen" | "music"
+                        );
+                        // Also update dynamic values if there's a competition field
+                        if (meta && meta.fields) {
+                          const competitionField = meta.fields.find(
+                            (field) => field.label === "Nội dung thi đấu"
+                          );
+                          if (competitionField) {
+                            setDynamicValues((prev) => ({
+                              ...prev,
+                              [competitionField.name]: e.target.value,
+                            }));
+                          }
+                        }
+                      }}
+                      className="mr-3"
+                    />
+                    <span className="text-sm font-medium">Quyền</span>
+                  </label>
+                  <div className="ml-6 mt-2">
                     <div className="flex items-center flex-wrap gap-2 mb-2">
-                      {quyenCategories.map((c) => (
+                      {fistConfigs.map((config) => (
                         <button
-                          key={c}
+                          key={config.id}
                           type="button"
                           onClick={() => {
                             setCompetitionType("quyen");
-                            setQuyenCategory(c);
+                            setQuyenCategory(config.name);
                             setQuyenContent(""); // reset selected content when category changes
                           }}
                           className={`rounded-full border px-3 py-1.5 text-xs ${
-                            quyenCategory === c
+                            quyenCategory === config.name
                               ? "border-blue-500 text-blue-600 bg-blue-50"
                               : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
                           }`}
                         >
-                          {c}
+                          {config.name}
                         </button>
                       ))}
                     </div>
-
-                    {/* Quyen Contents Dropdown - Always visible */}
-                    <div className="mt-3">
-                      <label className="block text-sm text-gray-700 mb-1">
+                    <div className="mt-2">
+                      <label className="block text-sm text-gray-600 mb-1">
                         Nội dung thi đấu
                       </label>
                       <select
@@ -658,51 +821,84 @@ export default function PublishedForm() {
                         onChange={(e) => {
                           const id = e.target.value;
                           setFistConfigId(id);
-                          const item = quyenContents.find((q) => q.id === id);
+                          const item = fistItems.find((item) => item.id === id);
                           setQuyenContent(item?.name || "");
                         }}
-                        className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
                         <option value="">Chọn nội dung thi đấu</option>
                         {(() => {
-                          console.log(
-                            "PublishedForm - Rendering quyen contents dropdown, quyenContents:",
-                            quyenContents
+                          // If no category selected, show nothing
+                          if (!quyenCategory) {
+                            return null;
+                          }
+
+                          // Find the selected config (VovinamFistItem)
+                          const selectedConfig = fistConfigs.find(
+                            (config) => config.name === quyenCategory
                           );
+
+                          // If category selected, show fistItems (VovinamFistConfig) that match configId
+                          const filteredItems =
+                            selectedConfig && selectedConfig.configId
+                              ? fistItems.filter(
+                                  (item) => item.id === selectedConfig.configId
+                                )
+                              : [];
+
                           return (
-                            quyenContents &&
-                            quyenContents.length > 0 &&
-                            quyenContents.map((content) => (
-                              <option key={content.id} value={content.id}>
-                                {content.name}
+                            filteredItems &&
+                            filteredItems.length > 0 &&
+                            filteredItems.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
                               </option>
                             ))
                           );
                         })()}
                       </select>
+                      {fieldErrors.quyenContent && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {fieldErrors.quyenContent}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">
-                      Nội dung Võ nhạc
-                    </label>
-                    <div className="mb-2">
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          name="competitionType"
-                          value="music"
-                          checked={competitionType === "music"}
-                          onChange={(e) =>
-                            setCompetitionType(
-                              e.target.value as "fighting" | "quyen" | "music"
-                            )
+                </div>
+
+                {/* Music Option */}
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="competitionType"
+                      value="music"
+                      checked={competitionType === "music"}
+                      onChange={(e) => {
+                        setCompetitionType(
+                          e.target.value as "fighting" | "quyen" | "music"
+                        );
+                        // Also update dynamic values if there's a competition field
+                        if (meta && meta.fields) {
+                          const competitionField = meta.fields.find(
+                            (field) => field.label === "Nội dung thi đấu"
+                          );
+                          if (competitionField) {
+                            setDynamicValues((prev) => ({
+                              ...prev,
+                              [competitionField.name]: e.target.value,
+                            }));
                           }
-                          className="mr-2"
-                        />
-                        Võ nhạc
-                      </label>
-                    </div>
+                        }
+                      }}
+                      className="mr-3"
+                    />
+                    <span className="text-sm font-medium">Võ nhạc</span>
+                  </label>
+                  <div className="ml-6 mt-2">
+                    <label className="block text-sm text-gray-600 mb-1">
+                      Nội dung thi đấu
+                    </label>
                     <select
                       value={musicContentId}
                       onChange={(e) => {
@@ -711,7 +907,7 @@ export default function PublishedForm() {
                         const item = musicContents.find((m) => m.id === id);
                         setMusicCategory(item?.name || "");
                       }}
-                      className="w-full bg-white border border-gray-400 rounded-md px-3 py-2 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Chọn nội dung thi đấu</option>
                       {musicContents &&
@@ -722,9 +918,15 @@ export default function PublishedForm() {
                           </option>
                         ))}
                     </select>
+                    {fieldErrors.musicContent && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {fieldErrors.musicContent}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
+<<<<<<< Updated upstream
 
               {/* Bỏ upload thẻ sinh viên tạm thời */}
               <div>
@@ -869,8 +1071,20 @@ export default function PublishedForm() {
                   Gửi đăng ký
                 </button>
               </div>
+=======
+>>>>>>> Stashed changes
             </div>
-          )}
+
+            {/* Submit Button */}
+            <div className="pt-6">
+              <button
+                type="submit"
+                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium"
+              >
+                Đăng ký
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

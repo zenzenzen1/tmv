@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import apiService from '../../services/api';
-import { API_ENDPOINTS } from '../../config/endpoints';
-import { useToast } from '../../components/common/ToastContext';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import apiService from "../../services/api";
+import { API_ENDPOINTS } from "../../config/endpoints";
+import { useToast } from "../../components/common/ToastContext";
 
 type FormConfig = {
   id: string;
@@ -29,35 +29,39 @@ export default function FormListPage() {
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE);
-      
+
+      const response = await apiService.get<any>(
+        API_ENDPOINTS.APPLICATION_FORMS.BASE
+      );
+
       if (response.success && response.data) {
-        const formsData: FormConfig[] = response.data.map((form: any) => ({
-          id: form.id,
-          name: form.name,
-          description: form.description,
-          formType: form.formType,
-          createdAt: form.createdAt,
-          updatedAt: form.updatedAt,
-          fieldCount: form.fields?.length || 0
-        }));
-        
+        const formsData: FormConfig[] = response.data
+          .filter((form: any) => form.formType === "CLUB_REGISTRATION") // Only show CLUB forms
+          .map((form: any) => ({
+            id: form.id,
+            name: form.name,
+            description: form.description,
+            formType: form.formType,
+            createdAt: form.createdAt,
+            updatedAt: form.updatedAt,
+            fieldCount: form.fields?.length || 0,
+          }));
+
         setForms(formsData);
       } else {
-        setError(response.message || 'Failed to fetch forms');
-        toastError(response.message || 'Tải danh sách form thất bại');
+        setError(response.message || "Failed to fetch forms");
+        toastError(response.message || "Tải danh sách form thất bại");
       }
     } catch (err: any) {
-      setError(err?.message || 'Lỗi khi tải danh sách form');
-      toastError(err?.message || 'Tải danh sách form thất bại');
+      setError(err?.message || "Lỗi khi tải danh sách form");
+      toastError(err?.message || "Tải danh sách form thất bại");
     } finally {
       setLoading(false);
     }
   };
 
   const handleEditForm = (formId: string) => {
-    navigate(`/manage/forms/${formId}/edit`); 
+    navigate(`/manage/forms/${formId}/edit`);
   };
 
   const handleViewForm = (formId: string) => {
@@ -65,11 +69,11 @@ export default function FormListPage() {
   };
 
   const handleCreateNew = () => {
-    navigate('/manage/forms/new');
+    navigate("/manage/forms/new");
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('vi-VN');
+    return new Date(dateString).toLocaleDateString("vi-VN");
   };
 
   return (
@@ -84,7 +88,9 @@ export default function FormListPage() {
             >
               ⟵ Quay lại
             </button>
-            <h1 className="text-[15px] font-semibold text-gray-900">Quản lý Form</h1>
+            <h1 className="text-[15px] font-semibold text-gray-900">
+              Quản lý Form
+            </h1>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -105,16 +111,15 @@ export default function FormListPage() {
           )}
 
           {error && (
-            <div className="text-red-600 text-center py-8">
-              {error}
-            </div>
+            <div className="text-red-600 text-center py-8">{error}</div>
           )}
 
           {!loading && !error && (
             <>
               <div className="mb-4">
                 <div className="text-sm text-gray-600">
-                  <span className="font-semibold">{forms.length}</span> form đã tạo
+                  <span className="font-semibold">{forms.length}</span> form đã
+                  tạo
                 </div>
               </div>
 
@@ -132,7 +137,9 @@ export default function FormListPage() {
                             {form.name}
                           </h3>
                           <span className="rounded-md border px-2 py-1 text-[11px] font-semibold text-gray-600">
-                            {form.formType === 'CLUB_REGISTRATION' ? 'Đăng ký câu lạc bộ' : 'Đăng ký giải đấu'}
+                            {form.formType === "CLUB_REGISTRATION"
+                              ? "Đăng ký câu lạc bộ"
+                              : "Đăng ký giải đấu"}
                           </span>
                         </div>
                         <p className="text-[13px] text-gray-600 mb-2">
@@ -171,7 +178,9 @@ export default function FormListPage() {
                 {forms.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <div className="text-[14px] mb-2">Chưa có form nào</div>
-                    <div className="text-[12px]">Nhấn "Tạo Form Mới" để bắt đầu</div>
+                    <div className="text-[12px]">
+                      Nhấn "Tạo Form Mới" để bắt đầu
+                    </div>
                   </div>
                 )}
               </div>

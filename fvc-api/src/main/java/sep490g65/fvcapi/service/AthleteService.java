@@ -22,6 +22,7 @@ public class AthleteService {
     private final AthleteRepository athleteRepository;
     private final WeightClassRepository weightClassRepository;
     private final VovinamFistItemRepository fistItemRepository;
+    private final CompetitionOrderService competitionOrderService;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository fistConfigRepository;
     private final MusicIntegratedPerformanceRepository musicRepository;
 
@@ -123,7 +124,7 @@ public class AthleteService {
     }
     
     @Transactional
-    public void arrangeOrder(String tournamentId, String contentId, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
+    public void arrangeOrder(String competitionId, Athlete.CompetitionType competitionType) {
         // For now, ignore contentId and set order for provided athletes
         for (sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder ao : orders) {
             UUID id = UUID.fromString(ao.getAthleteId());
