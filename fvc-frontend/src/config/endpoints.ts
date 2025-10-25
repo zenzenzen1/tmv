@@ -4,7 +4,7 @@ export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: "/v1/auth/login",
     ME: "/v1/auth/me",
-    REGISTER: "/v1/auth/register",
+    REGISTER: "/v1/auth/create-user",
     REFRESH: "/v1/auth/refresh",
     LOGOUT: "/v1/auth/logout",
     FORGOT_PASSWORD: "/v1/auth/forgot-password",
@@ -14,7 +14,7 @@ export const API_ENDPOINTS = {
 
   // User management
   USERS: {
-    BASE: "/v1/users",
+    BASE: "/v1/auth/users",
     PROFILE: "/v1/users/profile",
     UPDATE_PROFILE: "/v1/users/profile",
     CHANGE_PASSWORD: "/v1/users/change-password",
