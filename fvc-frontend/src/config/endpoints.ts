@@ -109,6 +109,14 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/v1/clubs/members/${id}`,
   },
 
+  // Draw management
+  DRAWS: {
+    PERFORM: "/api/draws/perform",
+    HISTORY: "/api/draws/history/{competitionId}/{weightClassId}",
+    FINAL: "/api/draws/final/{competitionId}/{weightClassId}",
+    FINALIZE: "/api/draws/finalize/{drawSessionId}",
+  },
+
   // Common endpoints
   HEALTH: "/health",
   VERSION: "/version",
