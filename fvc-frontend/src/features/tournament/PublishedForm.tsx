@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
+import { useToast } from "../../components/common/ToastContext";
+import { validateEmail, validatePhoneNumber, validateStudentId, validateLength } from "../../utils/validation";
 
 type FormField = {
   id: string;
@@ -49,6 +51,9 @@ export default function PublishedForm() {
   const [coachName, setCoachName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   // const [studentCardFile, setStudentCardFile] = useState<File | null>(null);
+
+  // Field validation states
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // API data states
   const [weightClasses, setWeightClasses] = useState<
@@ -327,11 +332,33 @@ export default function PublishedForm() {
     }
   }, [quyenCategory, allQuyenContents]);
 
-  const sortedFields = useMemo(() => {
-    return (meta?.fields || [])
-      .slice()
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }, [meta]);
+  // Field validations
+  const emailValidation = useMemo(() => {
+    return validateEmail(email, { required: true });
+  }, [email]);
+
+  const phoneValidation = useMemo(() => {
+    return validatePhoneNumber(phoneNumber, { required: false });
+  }, [phoneNumber]);
+
+  const studentIdValidation = useMemo(() => {
+    return validateStudentId(studentId, { required: true });
+  }, [studentId]);
+
+  const fullNameValidation = useMemo(() => {
+    return validateLength(fullName, { min: 1, max: 100, fieldName: 'Họ và tên' });
+  }, [fullName]);
+
+  const clubValidation = useMemo(() => {
+    return validateLength(club, { min: 1, max: 100, fieldName: 'CLB' });
+  }, [club]);
+
+  const coachNameValidation = useMemo(() => {
+    if (!coachName || coachName.trim() === '') {
+      return { isValid: true }; // Coach name is optional
+    }
+    return validateLength(coachName, { min: 1, max: 100, fieldName: 'Huấn luyện viên' });
+  }, [coachName]);
 
   const parseOptions = (opts?: string): string[] => {
     if (!opts) return [];
@@ -369,13 +396,16 @@ export default function PublishedForm() {
   };
 
   const validate = (): string | null => {
-    if (!fullName?.trim()) return "Vui lòng nhập Họ và tên";
-    if (!email?.trim()) return "Vui lòng nhập Email";
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return "Email không hợp lệ";
-    if (!studentId?.trim()) return "Vui lòng nhập MSSV";
-    if (!club?.trim()) return "Vui lòng nhập CLB";
+    // Validate required fields
+    if (!fullNameValidation.isValid) return fullNameValidation.errorMessage || "Họ và tên không hợp lệ";
+    if (!emailValidation.isValid) return emailValidation.errorMessage || "Email không hợp lệ";
+    if (!studentIdValidation.isValid) return studentIdValidation.errorMessage || "MSSV không hợp lệ";
+    if (!clubValidation.isValid) return clubValidation.errorMessage || "CLB không hợp lệ";
     if (!gender?.trim()) return "Vui lòng chọn Giới tính";
+
+    // Validate optional fields if they have values
+    if (!phoneValidation.isValid) return phoneValidation.errorMessage || "Số điện thoại không hợp lệ";
+    if (!coachNameValidation.isValid) return coachNameValidation.errorMessage || "Tên huấn luyện viên không hợp lệ";
 
     // Competition-specific required selections
     if (competitionType === "fighting") {
@@ -479,43 +509,75 @@ export default function PublishedForm() {
               {/* Standard base fields */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Họ và tên
+                  Họ và tên *
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !fullNameValidation.isValid && fullName !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
+                  maxLength={100}
                 />
+                {!fullNameValidation.isValid && fullName !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{fullNameValidation.errorMessage}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                  Email *
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  type="email"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !emailValidation.isValid && email !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
+                {!emailValidation.isValid && email !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{emailValidation.errorMessage}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  MSSV
+                  MSSV *
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !studentIdValidation.isValid && studentId !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value)}
+                  maxLength={10}
                 />
+                {!studentIdValidation.isValid && studentId !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{studentIdValidation.errorMessage}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  CLB
+                  CLB *
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !clubValidation.isValid && club !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={club}
                   onChange={(e) => setClub(e.target.value)}
+                  maxLength={100}
                 />
+                {!clubValidation.isValid && club !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{clubValidation.errorMessage}</p>
+                )}
               </div>
 
               <div>
@@ -730,24 +792,42 @@ export default function PublishedForm() {
                   SDT liên lạc
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !phoneValidation.isValid && phoneNumber !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                 />
+                {!phoneValidation.isValid && phoneNumber !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{phoneValidation.errorMessage}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Huấn luyện viên quản lý
                 </label>
                 <input
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className={`w-full rounded border px-3 py-2 text-sm ${
+                    !coachNameValidation.isValid && coachName !== '' 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
                   value={coachName}
                   onChange={(e) => setCoachName(e.target.value)}
+                  maxLength={100}
                 />
+                {!coachNameValidation.isValid && coachName !== '' && (
+                  <p className="text-red-500 text-xs mt-1">{coachNameValidation.errorMessage}</p>
+                )}
               </div>
-              {sortedFields.length > 0 && (
+              {meta?.fields && meta.fields.length > 0 && (
                 <div className="space-y-4">
-                  {sortedFields.map((f) => {
+                  {meta.fields
+                    .filter(f => f.fieldType !== 'TEXT' || !['fullName', 'email', 'studentId', 'club', 'gender', 'phoneNumber', 'coachName'].includes(f.name))
+                    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                    .map((f) => {
                     const options = parseOptions(f.options);
                     return (
                       <div key={f.id}>
