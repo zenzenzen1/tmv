@@ -11,6 +11,7 @@ import sep490g65.fvcapi.service.AthleteService;
 import sep490g65.fvcapi.constants.ApiConstants;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
+import org.springframework.web.bind.annotation.RequestParam;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.utils.ResponseUtils;
 import jakarta.validation.Valid;
@@ -48,7 +49,7 @@ public class AthleteController {
 
     @PostMapping("/arrange-order")
     public ResponseEntity<BaseResponse<Void>> arrangeOrder(@Valid @RequestBody ArrangeFistOrderRequest request) {
-        // athleteService.arrangeOrder(request.getCompetitionId(), Athlete.CompetitionType.valueOf(request.getCompetitionType()));
+        athleteService.arrangeOrder(request.getCompetitionId(), Athlete.CompetitionType.valueOf(request.getCompetitionType()));
         return ResponseEntity.ok(ResponseUtils.success("Arrange order saved"));
     }
 }
