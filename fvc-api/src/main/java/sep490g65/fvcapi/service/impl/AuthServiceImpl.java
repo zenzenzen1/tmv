@@ -2,7 +2,6 @@ package sep490g65.fvcapi.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -40,8 +39,8 @@ public class AuthServiceImpl implements AuthService {
 
             log.info("Login successful for user: {}", request.getEmail());
 
-            // Generate token for email
-            String token = jwtUtils.generateTokenFromEmail(user.getPersonalMail());
+            // Generate token for email (can be used for future JWT integration)
+            jwtUtils.generateTokenFromEmail(user.getPersonalMail());
 
             return LoginResponse.builder()
                 .id(user.getId())
@@ -58,4 +57,5 @@ public class AuthServiceImpl implements AuthService {
             throw new BadCredentialsException("Invalid email or password");
         }
     }
+
 }

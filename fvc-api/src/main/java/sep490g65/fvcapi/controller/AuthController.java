@@ -67,6 +67,7 @@ public class AuthController {
         }
     }
 
+
     @PostMapping("/logout")
     public ResponseEntity<BaseResponse<Void>> logout(HttpServletResponse response) {
         // Clear JWT HttpOnly cookie
@@ -109,4 +110,5 @@ public class AuthController {
 
         return ResponseEntity.ok(ResponseUtils.success("OK", data));
     }
+
 }
