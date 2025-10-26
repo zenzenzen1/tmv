@@ -30,8 +30,6 @@ public class CreateUserRequest {
     @Email(message = "Education email should be valid")
     private String eduMail;
     
-    private String studentCode;
-    
     private LocalDate dob;
     
     @Pattern(regexp = "^(MALE|FEMALE|OTHER)$", message = "Gender must be MALE, FEMALE, or OTHER")

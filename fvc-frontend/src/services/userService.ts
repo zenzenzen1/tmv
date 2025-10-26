@@ -11,7 +11,7 @@ class UserService {
    */
   async createUser(data: CreateUserRequest): Promise<UserResponse> {
     const response = await apiService.post<BaseResponse<UserResponse>>(
-      API_ENDPOINTS.AUTH.REGISTER,
+      API_ENDPOINTS.USERS.CREATE,
       data
     );
     return (response as any).data;

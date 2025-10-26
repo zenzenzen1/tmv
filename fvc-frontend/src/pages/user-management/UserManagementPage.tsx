@@ -17,7 +17,7 @@ import {
   Alert,
   InputAdornment,
 } from "@mui/material";
-import { Add, Delete, Search as SearchIcon } from "@mui/icons-material";
+import { Add, Delete, Search as SearchIcon, Visibility, VisibilityOff } from "@mui/icons-material";
 import userService from "@/services/userService";
 import type { CreateUserRequest, UserResponse, SystemRole } from "@/types/user";
 import { CommonTable, type TableColumn } from "@/components/common/CommonTable";
@@ -55,11 +55,13 @@ export default function UserManagementPage() {
     personalMail: "",
     password: "",
     eduMail: "",
-    studentCode: "",
     dob: "",
     gender: undefined,
     systemRole: null,
   });
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Load users on component mount
   useEffect(() => {
@@ -124,11 +126,13 @@ export default function UserManagementPage() {
       personalMail: "",
       password: "",
       eduMail: "",
-      studentCode: "",
       dob: "",
       gender: undefined,
       systemRole: null,
     });
+    setConfirmPassword("");
+    setShowPassword(false);
+    setShowConfirmPassword(false);
     setError(null);
     setSuccess(null);
     setFieldErrors({});
@@ -171,6 +175,12 @@ export default function UserManagementPage() {
       errors.password = "Mật khẩu là bắt buộc";
     } else if (formData.password.length < 6) {
       errors.password = "Mật khẩu phải có ít nhất 6 ký tự";
+    }
+
+    if (!confirmPassword) {
+      errors.confirmPassword = "Xác nhận mật khẩu là bắt buộc";
+    } else if (formData.password !== confirmPassword) {
+      errors.confirmPassword = "Mật khẩu xác nhận không khớp";
     }
 
     if (formData.eduMail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.eduMail)) {
@@ -392,12 +402,57 @@ export default function UserManagementPage() {
             />
             <TextField
               label="Mật khẩu *"
-              type="password"
+              type={showPassword ? "text" : "password"}
               fullWidth
               value={formData.password}
               onChange={(e) => handleInputChange("password", e.target.value)}
               error={!!fieldErrors.password}
               helperText={fieldErrors.password || "Tối thiểu 6 ký tự"}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <TextField
+              label="Xác nhận mật khẩu *"
+              type={showConfirmPassword ? "text" : "password"}
+              fullWidth
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                // Clear field error when user types
+                if (fieldErrors.confirmPassword) {
+                  setFieldErrors((prev) => {
+                    const newErrors = { ...prev };
+                    delete newErrors.confirmPassword;
+                    return newErrors;
+                  });
+                }
+              }}
+              error={!!fieldErrors.confirmPassword}
+              helperText={fieldErrors.confirmPassword}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle confirm password visibility"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      edge="end"
+                    >
+                      {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               label="Email giáo dục"
@@ -407,12 +462,6 @@ export default function UserManagementPage() {
               onChange={(e) => handleInputChange("eduMail", e.target.value)}
               error={!!fieldErrors.eduMail}
               helperText={fieldErrors.eduMail}
-            />
-            <TextField
-              label="Mã sinh viên"
-              fullWidth
-              value={formData.studentCode}
-              onChange={(e) => handleInputChange("studentCode", e.target.value)}
             />
             <TextField
               label="Ngày sinh"

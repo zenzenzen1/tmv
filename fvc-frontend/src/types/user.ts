@@ -8,7 +8,6 @@ export interface CreateUserRequest {
   personalMail: string;
   password: string;
   eduMail?: string;
-  studentCode?: string;
   dob?: string; // ISO date format: YYYY-MM-DD
   gender?: Gender;
   systemRole: SystemRole | null;
