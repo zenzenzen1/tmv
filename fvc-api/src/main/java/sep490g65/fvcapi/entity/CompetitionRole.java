@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.Builder;
 import sep490g65.fvcapi.enums.CompetitionRoleType;
 
 @Entity
@@ -18,6 +19,7 @@ import sep490g65.fvcapi.enums.CompetitionRoleType;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 public class CompetitionRole extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -27,9 +29,12 @@ public class CompetitionRole extends BaseEntity {
     @JoinColumn(name = "competition_id")
     private Competition competition;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = true)
     @JoinColumn(name = "user_id")
     private User user;
+
+    @Column(name = "email", nullable = false)
+    private String email; // Always required, for cases when user_id is null
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

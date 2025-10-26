@@ -17,6 +17,7 @@ import sep490g65.fvcapi.repository.ApplicationFormConfigRepository;
 import sep490g65.fvcapi.entity.ApplicationFormConfig;
 import sep490g65.fvcapi.repository.SubmittedApplicationFormRepository;
 import sep490g65.fvcapi.repository.UserRepository;
+import sep490g65.fvcapi.repository.CompetitionRoleRepository;
 import sep490g65.fvcapi.enums.ApplicationFormStatus;
 import sep490g65.fvcapi.service.TournamentFormService;
 import sep490g65.fvcapi.utils.ResponseUtils;
@@ -27,6 +28,9 @@ import sep490g65.fvcapi.dto.response.FormFieldDto;
 import sep490g65.fvcapi.dto.request.CreateSubmissionRequest;
 import sep490g65.fvcapi.service.AthleteService;
 import sep490g65.fvcapi.entity.Athlete;
+import sep490g65.fvcapi.entity.CompetitionRole;
+import sep490g65.fvcapi.entity.User;
+import sep490g65.fvcapi.enums.CompetitionRoleType;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,6 +47,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     private final SubmittedApplicationFormRepository submittedRepository;
     private final UserRepository userRepository;
     private final AthleteService athleteService;
+    private final CompetitionRoleRepository competitionRoleRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private TournamentFormResponse toDto(Competition c) {
@@ -316,7 +321,36 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                     // Stop persisting fistItemId per requirement; rely on fistConfigId only for Quyền labels
                     if (musicContentId!= null && !musicContentId.isBlank()) builder.musicContentId(musicContentId);
 
-                    athleteService.upsert(builder.build());
+                    Athlete athlete = athleteService.upsert(builder.build());
+                    
+                    // Create CompetitionRole for the athlete (always create)
+                    Competition competition = competitionRepository.findById(tournamentId).orElse(null);
+                    User user = userRepository.findByPersonalMail(email).orElse(null);
+                    
+                    if (competition != null) {
+                        // Check if CompetitionRole already exists
+                        boolean roleExists = false;
+                        if (user != null) {
+                            roleExists = competitionRoleRepository.existsByCompetitionIdAndUserIdAndRole(
+                                tournamentId, user.getId(), CompetitionRoleType.ATHLETE);
+                        } else {
+                            // For non-system users, check by email
+                            roleExists = competitionRoleRepository.existsByCompetitionIdAndEmailAndRole(
+                                tournamentId, email, CompetitionRoleType.ATHLETE);
+                        }
+                        
+                        if (!roleExists) {
+                            CompetitionRole competitionRole = CompetitionRole.builder()
+                                .competition(competition)
+                                .user(user) // null if user doesn't exist
+                                .email(email) // store email for non-system users
+                                .role(CompetitionRoleType.ATHLETE)
+                                .build();
+                            
+                            competitionRoleRepository.save(competitionRole);
+                        }
+                    }
+                    // Note: Athlete record and CompetitionRole are always created
                 }
             } catch (Exception ignored) {
                 // Intentionally ignore to avoid breaking approval flow; consider logging if needed
@@ -384,22 +418,15 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                     "MSSV này đã được đăng ký cho form này"
             );
         }
-        // resolve user from email or create a lightweight guest user
-        sep490g65.fvcapi.entity.User user = userRepository.findByPersonalMail(request.getEmail())
-                .orElseGet(() -> {
-                    sep490g65.fvcapi.entity.User u = new sep490g65.fvcapi.entity.User();
-                    u.setFullName(request.getFullName());
-                    u.setPersonalMail(request.getEmail());
-                    u.setSystemRole(sep490g65.fvcapi.enums.SystemRole.MEMBER);
-                    u.setStatus(Boolean.TRUE);
-                    return userRepository.save(u);
-                });
+        // resolve user from email (only if exists, don't create new user)
+        sep490g65.fvcapi.entity.User user = userRepository.findByPersonalMail(request.getEmail()).orElse(null);
 
         sep490g65.fvcapi.entity.SubmittedApplicationForm s = sep490g65.fvcapi.entity.SubmittedApplicationForm.builder()
                 .applicationFormConfig(form)
                 .formType(form.getFormType())
                 .formData(request.getFormDataJson())
                 .user(user)
+                .email(request.getEmail())
                 .status(sep490g65.fvcapi.enums.ApplicationFormStatus.PENDING)
                 .build();
         submittedRepository.save(s);
