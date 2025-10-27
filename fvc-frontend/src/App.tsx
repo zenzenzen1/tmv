@@ -1,6 +1,6 @@
 import { Route, Routes, Navigate } from "react-router-dom";
 import "./App.css";
-import { useIsAuthenticated } from "./stores/authStore";
+import { useIsAuthenticated, useAuthStore } from "./stores/authStore";
 
 // Pages
 import LoginPage from "./pages/auth/LoginPage";
@@ -38,6 +38,13 @@ export default function App() {
   const isAuthenticated = useIsAuthenticated();
 
   function Protected({ children }: { children: React.ReactElement }) {
+    // Wait for hydration to complete
+    const isLoading = useAuthStore((state) => state.isLoading);
+    
+    if (isLoading) {
+      return <div>Loading...</div>; // Or a proper loading component
+    }
+    
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
     }
@@ -59,17 +66,6 @@ export default function App() {
         }
       />
 
-      {/* Landing redirect */}
-      <Route
-        path="/"
-        element={
-          <Navigate
-            to={isAuthenticated ? "/manage/tournaments" : "/login"}
-            replace
-          />
-        }
-      />
-
       {/* Profile page with its own layout */}
       <Route
         path="/profile"
@@ -81,6 +77,17 @@ export default function App() {
       >
         <Route index element={<ProfilePage />} />
       </Route>
+
+      {/* Landing redirect */}
+      <Route
+        path="/"
+        element={
+          <Navigate
+            to={isAuthenticated ? "/manage/tournaments" : "/login"}
+            replace
+          />
+        }
+      />
       {/* Member Management */}
       <Route path="/member-management" element={<MemberManagementListPage />} />
       {/* Tournaments */}
