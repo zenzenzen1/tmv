@@ -19,17 +19,20 @@ export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
 export interface User {
   id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
   fullName?: string;
   personalMail?: string;
   eduMail?: string;
   studentCode?: string;
-  role: UserRole;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  gender?: string;
+  dob?: string;
+  role?: UserRole;
+  systemRole?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ==========================

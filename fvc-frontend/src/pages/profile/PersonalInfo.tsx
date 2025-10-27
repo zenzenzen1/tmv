@@ -19,14 +19,18 @@ import type { UpdateProfileRequest } from '@/types';
 
 export default function PersonalInfo() {
   const { user } = useAuth();
+  
+  // Debug: Log user data
+  console.log('User data:', user);
+  
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     fullName: user?.fullName || '',
     studentCode: user?.studentCode || '',
     personalMail: user?.personalMail || '',
     eduMail: user?.eduMail || '',
-    gender: '',
-    dob: '',
+    gender: user?.gender || '',
+    dob: user?.dob || '',
   });
 
   const handleInputChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,8 +85,8 @@ export default function PersonalInfo() {
       studentCode: user?.studentCode || '',
       personalMail: user?.personalMail || '',
       eduMail: user?.eduMail || '',
-      gender: '',
-      dob: '',
+      gender: user?.gender || '',
+      dob: user?.dob || '',
     });
     setIsEditing(false);
   };
