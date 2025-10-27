@@ -31,19 +31,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, 
                                     FilterChain filterChain) throws ServletException, IOException {
         
+        String requestPath = request.getRequestURI();
+        log.debug("JWT Filter processing: {} {}", request.getMethod(), requestPath);
+        
         try {
             String jwt = getJwtFromCookies(request);
             
-            if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
-                String email = jwtUtils.getEmailFromJwtToken(jwt);
+            if (jwt != null) {
+                log.debug("JWT found in cookies for {}", requestPath);
                 
-                UserDetails userDetails = userDetailsService.loadUserByUsername(email);
-                
-                UsernamePasswordAuthenticationToken authentication = 
-                    new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                if (jwtUtils.validateJwtToken(jwt)) {
+                    String email = jwtUtils.getEmailFromJwtToken(jwt);
+                    log.debug("JWT valid for user: {}", email);
+                    
+                    UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+                    
+                    UsernamePasswordAuthenticationToken authentication = 
+                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    log.debug("Authentication set for user: {}", email);
+                } else {
+                    log.warn("JWT token validation failed for {}", requestPath);
+                }
+            } else {
+                log.debug("No JWT found in cookies for {}", requestPath);
             }
         } catch (Exception e) {
             log.error("Cannot set user authentication: {}", e.getMessage());

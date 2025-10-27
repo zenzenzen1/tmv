@@ -12,22 +12,29 @@ import sep490g65.fvcapi.entity.User;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.exception.custom.ValidationException;
 import sep490g65.fvcapi.repository.UserRepository;
-import sep490g65.fvcapi.service.ProfileService;
+import sep490g65.fvcapi.service.UserService;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ProfileServiceImpl implements ProfileService {
+public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
+    // ========== PROFILE MANAGEMENT ==========
+    
     @Override
     public ProfileResponse getCurrentUserProfile(String email) {
         log.info("Fetching profile for email: {}", email);
         
-        User user = userRepository.findByPersonalMailIgnoreCase(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        List<User> users = userRepository.findAllByPersonalMailIgnoreCase(email);
+        if (users.isEmpty()) {
+            throw new ResourceNotFoundException("User not found");
+        }
+        User user = users.get(0); // Get first user if duplicates exist
         
         return mapToProfileResponse(user);
     }
@@ -37,8 +44,11 @@ public class ProfileServiceImpl implements ProfileService {
     public ProfileResponse updateProfile(String email, UpdateProfileRequest request) {
         log.info("Updating profile for email: {}", email);
         
-        User user = userRepository.findByPersonalMailIgnoreCase(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        List<User> users = userRepository.findAllByPersonalMailIgnoreCase(email);
+        if (users.isEmpty()) {
+            throw new ResourceNotFoundException("User not found");
+        }
+        User user = users.get(0); // Get first user if duplicates exist
         
         // Update fullName
         if (request.getFullName() != null && !request.getFullName().trim().isEmpty()) {
@@ -49,12 +59,10 @@ public class ProfileServiceImpl implements ProfileService {
         if (request.getPersonalMail() != null && !request.getPersonalMail().trim().isEmpty()) {
             String newPersonalMail = request.getPersonalMail().trim();
             // Check if email already exists for another user
-            userRepository.findByPersonalMailIgnoreCase(newPersonalMail)
-                    .ifPresent(existingUser -> {
-                        if (!existingUser.getId().equals(user.getId())) {
-                            throw new ValidationException("personalMail", "Personal email already exists");
-                        }
-                    });
+            List<User> existingUsers = userRepository.findAllByPersonalMailIgnoreCase(newPersonalMail);
+            if (!existingUsers.isEmpty() && !existingUsers.get(0).getId().equals(user.getId())) {
+                throw new ValidationException("personalMail", "Personal email already exists");
+            }
             user.setPersonalMail(newPersonalMail);
         }
         
@@ -62,12 +70,10 @@ public class ProfileServiceImpl implements ProfileService {
         if (request.getEduMail() != null && !request.getEduMail().trim().isEmpty()) {
             String newEduMail = request.getEduMail().trim();
             // Check if email already exists for another user
-            userRepository.findByEduMailIgnoreCase(newEduMail)
-                    .ifPresent(existingUser -> {
-                        if (!existingUser.getId().equals(user.getId())) {
-                            throw new ValidationException("eduMail", "Educational email already exists");
-                        }
-                    });
+            List<User> existingUsers = userRepository.findAllByEduMailIgnoreCase(newEduMail);
+            if (!existingUsers.isEmpty() && !existingUsers.get(0).getId().equals(user.getId())) {
+                throw new ValidationException("eduMail", "Educational email already exists");
+            }
             user.setEduMail(newEduMail);
         }
         
@@ -105,8 +111,11 @@ public class ProfileServiceImpl implements ProfileService {
     public void changePassword(String email, ChangePasswordRequest request) {
         log.info("Changing password for email: {}", email);
         
-        User user = userRepository.findByPersonalMailIgnoreCase(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        List<User> users = userRepository.findAllByPersonalMailIgnoreCase(email);
+        if (users.isEmpty()) {
+            throw new ResourceNotFoundException("User not found");
+        }
+        User user = users.get(0); // Get first user if duplicates exist
         
         // Verify current password
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getHashPassword())) {
@@ -148,3 +157,4 @@ public class ProfileServiceImpl implements ProfileService {
                 .build();
     }
 }
+

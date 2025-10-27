@@ -13,7 +13,7 @@ import sep490g65.fvcapi.dto.request.ChangePasswordRequest;
 import sep490g65.fvcapi.dto.request.UpdateProfileRequest;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.ProfileResponse;
-import sep490g65.fvcapi.service.ProfileService;
+import sep490g65.fvcapi.service.UserService;
 import sep490g65.fvcapi.utils.ResponseUtils;
 
 @RestController
@@ -23,7 +23,7 @@ import sep490g65.fvcapi.utils.ResponseUtils;
 @CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
 public class ProfileController {
 
-    private final ProfileService profileService;
+    private final UserService userService;
 
     @GetMapping
     public ResponseEntity<BaseResponse<ProfileResponse>> getProfile() {
@@ -31,7 +31,7 @@ public class ProfileController {
             String email = getCurrentUserEmail();
             log.info("Fetching profile for email: {}", email);
             
-            ProfileResponse profile = profileService.getCurrentUserProfile(email);
+            ProfileResponse profile = userService.getCurrentUserProfile(email);
             return ResponseEntity.ok(ResponseUtils.success("Profile retrieved successfully", profile));
         } catch (Exception e) {
             log.error("Error fetching profile: {}", e.getMessage());
@@ -47,7 +47,7 @@ public class ProfileController {
             String email = getCurrentUserEmail();
             log.info("Updating profile for email: {}", email);
             
-            ProfileResponse profile = profileService.updateProfile(email, request);
+            ProfileResponse profile = userService.updateProfile(email, request);
             return ResponseEntity.ok(ResponseUtils.success("Profile updated successfully", profile));
         } catch (RuntimeException e) {
             log.error("Error updating profile: {}", e.getMessage());
@@ -67,7 +67,7 @@ public class ProfileController {
             String email = getCurrentUserEmail();
             log.info("Changing password for email: {}", email);
             
-            profileService.changePassword(email, request);
+            userService.changePassword(email, request);
             return ResponseEntity.ok(ResponseUtils.success("Password changed successfully"));
         } catch (RuntimeException e) {
             log.error("Error changing password: {}", e.getMessage());

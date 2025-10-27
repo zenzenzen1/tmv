@@ -1,6 +1,7 @@
 package sep490g65.fvcapi.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,6 +18,7 @@ public class BaseResponse<T> {
     private boolean success;
     private String message;
     private T data;
+    @JsonProperty("error")
     private String errorCode;
     private LocalDateTime timestamp;
 
