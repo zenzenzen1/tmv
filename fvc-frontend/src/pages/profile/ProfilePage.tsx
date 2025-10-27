@@ -18,7 +18,9 @@ import {
   Security,
 } from '@mui/icons-material';
 import PersonalInfo from './PersonalInfo';
-import SecuritySettings from './SecuritySettings'; // Profile security component
+import SecuritySettings from './SecuritySettings';
+import Header from '@/components/common/Header';
+import Footer from '@/components/layout/Footer';
 
 type ProfileSection = 'personal' | 'security';
 
@@ -50,11 +52,16 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'text.primary' }}>
-          Hồ sơ cá nhân
-        </Typography>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Header */}
+      <Header showBackButton={true} />
+
+      {/* Main Content */}
+      <div className="flex-1">
+        <Container maxWidth="lg" sx={{ py: 4 }}>
+          <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'text.primary' }}>
+            Hồ sơ cá nhân
+          </Typography>
         
         <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>
           {/* Sidebar */}
@@ -119,6 +126,10 @@ export default function ProfilePage() {
           </Box>
         </Box>
       </Container>
+      </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 }

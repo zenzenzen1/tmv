@@ -77,6 +77,39 @@ export interface FvcUserResponse {
   systemRole: string;
 }
 
+// ==========================
+// ✅ Profile types
+// ==========================
+export interface ProfileResponse {
+  id: string;
+  fullName: string;
+  personalMail: string;
+  eduMail?: string;
+  studentCode?: string;
+  gender?: string;
+  dob?: string;
+  systemRole: string;
+  status: boolean;
+  isInChallenge: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateProfileRequest {
+  fullName?: string;
+  personalMail?: string;
+  eduMail?: string;
+  studentCode?: string;
+  gender?: string;
+  dob?: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
 
 // Generic types
 export interface SelectOption {

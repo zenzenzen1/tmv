@@ -12,13 +12,11 @@ export const API_ENDPOINTS = {
     VERIFY_EMAIL: "/v1/auth/verify-email",
   },
 
-  // User management
-  USERS: {
-    BASE: "/v1/users",
-    PROFILE: "/v1/users/profile",
-    UPDATE_PROFILE: "/v1/users/profile",
-    CHANGE_PASSWORD: "/v1/users/change-password",
-    UPLOAD_AVATAR: "/v1/users/avatar",
+  // Profile management
+  PROFILE: {
+    GET: "/v1/profile",
+    UPDATE: "/v1/profile",
+    CHANGE_PASSWORD: "/v1/profile/change-password",
   },
 
   // File management

@@ -6,23 +6,17 @@ import {
   Paper,
   Alert,
   Divider,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Switch,
-  FormControlLabel,
+  IconButton,
 } from '@mui/material';
 import {
   Security,
   Lock,
-  Key,
-  Shield,
-  Notifications,
   Visibility,
   VisibilityOff,
 } from '@mui/icons-material';
 import { useState } from 'react';
+import profileService from '@/services/profileService';
+import type { ChangePasswordRequest } from '@/types';
 
 export default function SecuritySettings() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -33,29 +27,53 @@ export default function SecuritySettings() {
     newPassword: '',
     confirmPassword: '',
   });
-  const [notifications, setNotifications] = useState({
-    emailNotifications: true,
-    securityAlerts: true,
-    loginAlerts: true,
-  });
+  const [isChanging, setIsChanging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const handlePasswordChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setPasswordData(prev => ({
       ...prev,
       [field]: event.target.value,
     }));
+    // Clear messages when user starts typing
+    if (error) setError(null);
+    if (success) setSuccess(false);
   };
 
-  const handleNotificationChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
-    setNotifications(prev => ({
-      ...prev,
-      [field]: event.target.checked,
-    }));
-  };
+  const handleChangePassword = async () => {
+    try {
+      setIsChanging(true);
+      setError(null);
+      setSuccess(false);
 
-  const handleChangePassword = () => {
-    // TODO: Implement password change functionality
-    console.log('Changing password:', passwordData);
+      // Validate passwords match
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+        setError('New password and confirm password do not match');
+        return;
+      }
+
+      const changePasswordData: ChangePasswordRequest = {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+        confirmPassword: passwordData.confirmPassword,
+      };
+
+      await profileService.changePassword(changePasswordData);
+      setSuccess(true);
+      // Clear form
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      // Hide success message after 3 seconds
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to change password');
+    } finally {
+      setIsChanging(false);
+    }
   };
 
   return (
