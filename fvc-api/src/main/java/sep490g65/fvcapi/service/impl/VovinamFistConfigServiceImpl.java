@@ -164,6 +164,7 @@ public class VovinamFistConfigServiceImpl implements VovinamFistConfigService {
                 .name(item.getName())
                 .description(item.getDescription())
                 .level(item.getLevel())
+                .participantsPerEntry(item.getParticipantsPerEntry())
                 .configId(item.getVovinamFistConfig() != null ? item.getVovinamFistConfig().getId() : null)
                 .configName(item.getVovinamFistConfig() != null ? item.getVovinamFistConfig().getName() : null)
                 .build();
@@ -185,6 +186,7 @@ public class VovinamFistConfigServiceImpl implements VovinamFistConfigService {
                 .parent(parent)
                 .name(request.getName())
                 .description(request.getDescription())
+                .participantsPerEntry(request.getParticipantsPerEntry() != null ? request.getParticipantsPerEntry() : 1)
                 .level(parent == null ? 1 : (parent.getLevel() == null ? 2 : parent.getLevel() + 1))
                 .build();
         VovinamFistItem saved = fistItemRepository.save(entity);
@@ -202,6 +204,7 @@ public class VovinamFistConfigServiceImpl implements VovinamFistConfigService {
 
         if (request.getName() != null) entity.setName(request.getName());
         if (request.getDescription() != null) entity.setDescription(request.getDescription());
+        if (request.getParticipantsPerEntry() != null) entity.setParticipantsPerEntry(request.getParticipantsPerEntry());
         if (request.getParentId() != null) {
             VovinamFistItem parent = fistItemRepository.findById(request.getParentId())
                     .orElseThrow(() -> new ResourceNotFoundException("FistItem not found: " + request.getParentId()));
