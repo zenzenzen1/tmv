@@ -47,6 +47,7 @@ export default function PublishedForm() {
   const [musicCategory, setMusicCategory] = useState("");
   const [fistConfigId, setFistConfigId] = useState<string>("");
   const [musicContentId, setMusicContentId] = useState<string>("");
+  const [selectedGender, setSelectedGender] = useState<string>("");
 
   // API data states
   const [weightClasses, setWeightClasses] = useState<
@@ -143,6 +144,21 @@ export default function PublishedForm() {
         });
         console.log("Initial dynamic values:", initial);
         setDynamicValues(initial);
+
+        // Set selectedGender from initial values
+        const genderField = res.data.fields?.find(
+          (field) => field.label === "Giới tính"
+        );
+        if (genderField) {
+          const genderFieldName =
+            genderField.name ||
+            genderField.id ||
+            genderField.label.toLowerCase().replace(/\s+/g, "_");
+          const initialGender = initial[genderFieldName] as string;
+          if (initialGender) {
+            setSelectedGender(initialGender);
+          }
+        }
 
         // Load weight classes
         try {
@@ -278,9 +294,15 @@ export default function PublishedForm() {
     }
 
     // Competition-specific validation
-    if (competitionType === "fighting" && !weightClassId) {
-      console.log("Fighting validation failed - no weight class selected");
-      errors.weightClass = "Vui lòng chọn hạng cân";
+    if (competitionType === "fighting") {
+      if (!selectedGender) {
+        console.log("Fighting validation failed - no gender selected");
+        errors.gender = "Vui lòng chọn giới tính";
+      }
+      if (!weightClassId) {
+        console.log("Fighting validation failed - no weight class selected");
+        errors.weightClass = "Vui lòng chọn hạng cân";
+      }
     }
 
     if (competitionType === "quyen" && !fistConfigId) {
@@ -333,7 +355,7 @@ export default function PublishedForm() {
         fullName: dynamicValues.fullName || "",
         email: dynamicValues.email || "",
         studentId: dynamicValues.studentId || "",
-        club: dynamicValues.club || "",
+        club: dynamicValues.club || "Không có",
         gender: dynamicValues.gender || "",
         formDataJson,
         weightClassId:
@@ -436,8 +458,21 @@ export default function PublishedForm() {
                     );
                     const isCompetitionType =
                       field.label === "Nội dung thi đấu";
-                    const isCustomField =
-                      field.sortOrder && field.sortOrder > 6;
+
+                    // Use the same defaultFieldLabels as FormBuilder
+                    const defaultFieldLabels = [
+                      "Họ và tên",
+                      "Email",
+                      "MSSV",
+                      "Số điện thoại",
+                      "Giới tính",
+                      "Câu lạc bộ",
+                      "Nội dung thi đấu",
+                    ];
+                    const isCustomField = !defaultFieldLabels.includes(
+                      field.label
+                    );
+
                     console.log("Field filter result:", {
                       isCompetitionType,
                       isCustomField,
@@ -445,6 +480,7 @@ export default function PublishedForm() {
                     });
                     return !isCompetitionType;
                   })
+                  .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
                   .map((field) => {
                     console.log(
                       "Rendering field:",
@@ -525,23 +561,45 @@ export default function PublishedForm() {
                           field.fieldType === "MULTIPLE-CHOICE") && (
                           <select
                             value={(dynamicValues[fieldName] as string) || ""}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const value = e.target.value;
                               setDynamicValues((prev) => ({
                                 ...prev,
-                                [fieldName]: e.target.value,
-                              }))
-                            }
+                                [fieldName]: value,
+                              }));
+
+                              // If this is gender field, update selectedGender and reset weight class
+                              if (field.label === "Giới tính") {
+                                setSelectedGender(value);
+                                if (competitionType === "fighting") {
+                                  setWeightClassId("");
+                                  setWeightClass("");
+                                }
+                              }
+                            }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
                             <option value="">
                               Chọn {field.label.toLowerCase()}
                             </option>
-                            {parseOptions(field.options).map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
+                            {field.label === "Giới tính" ? (
+                              <>
+                                <option value="Nam">Nam</option>
+                                <option value="Nữ">Nữ</option>
+                              </>
+                            ) : (
+                              parseOptions(field.options).map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))
+                            )}
                           </select>
+                        )}
+                        {field.label === "Giới tính" && fieldErrors.gender && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {fieldErrors.gender}
+                          </p>
                         )}
                         {field.fieldType === "CHECKBOX" && (
                           <div className="space-y-2">
@@ -653,17 +711,32 @@ export default function PublishedForm() {
                         setWeightClass(weightDisplay || "");
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={!selectedGender}
                     >
-                      <option value="">Chọn hạng cân</option>
-                      {weightClasses.map((w) => {
-                        const weightDisplay =
-                          w.weightClass || `${w.minWeight}-${w.maxWeight}kg`;
-                        return (
-                          <option key={w.id} value={w.id}>
-                            {weightDisplay}
-                          </option>
-                        );
-                      })}
+                      <option value="">
+                        {selectedGender
+                          ? "Chọn hạng cân"
+                          : "Vui lòng chọn giới tính trước"}
+                      </option>
+                      {weightClasses
+                        .filter((w) => {
+                          if (!selectedGender) return false;
+                          // Map Vietnamese gender to English for filtering
+                          const genderMap: Record<string, string> = {
+                            Nam: "MALE",
+                            Nữ: "FEMALE",
+                          };
+                          return w.gender === genderMap[selectedGender];
+                        })
+                        .map((w) => {
+                          const weightDisplay =
+                            w.weightClass || `${w.minWeight}-${w.maxWeight}kg`;
+                          return (
+                            <option key={w.id} value={w.id}>
+                              {weightDisplay}
+                            </option>
+                          );
+                        })}
                     </select>
                     {fieldErrors.weightClass && (
                       <p className="text-red-500 text-xs mt-1">

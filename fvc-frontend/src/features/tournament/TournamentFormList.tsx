@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
@@ -29,37 +29,7 @@ export default function TournamentFormList() {
   const [totalForms, setTotalForms] = useState(0);
   const [allForms, setAllForms] = useState<FormConfig[]>([]);
 
-  useEffect(() => {
-    loadForms();
-  }, []);
-
-  // Update pagination when currentPage changes
-  useEffect(() => {
-    console.log("Pagination useEffect triggered:", {
-      allFormsLength: allForms.length,
-      currentPage,
-      pageSize,
-      totalForms,
-    });
-
-    if (allForms.length > 0) {
-      const startIndex = (currentPage - 1) * pageSize;
-      const endIndex = startIndex + pageSize;
-      const paginatedForms = allForms.slice(startIndex, endIndex);
-      console.log("Pagination debug:", {
-        currentPage,
-        pageSize,
-        totalForms: allForms.length,
-        startIndex,
-        endIndex,
-        paginatedFormsLength: paginatedForms.length,
-        allFormsLength: allForms.length,
-      });
-      setForms(paginatedForms);
-    }
-  }, [currentPage, allForms, pageSize]);
-
-  const loadForms = async () => {
+  const loadForms = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -109,17 +79,28 @@ export default function TournamentFormList() {
           });
         });
 
-        const formsData: FormConfig[] = dataArray.map((form: any) => ({
-          id: form.id,
-          name: form.formTitle || form.name || "Không có tên",
-          formTitle: form.formTitle || form.name || "Không có tên",
-          description: form.description || "Không có mô tả",
-          formType: form.formType,
-          createdAt: form.createdAt,
-          updatedAt: form.updatedAt,
-          fieldCount: 0,
-          status: form.status ? form.status.toUpperCase() : "DRAFT",
-        }));
+        const formsData: FormConfig[] = dataArray.map(
+          (formLike: Partial<FormConfig> & { formTitle?: string }) => {
+            const id = String(formLike.id || "");
+            const name = formLike.formTitle || formLike.name || "Không có tên";
+            const description = formLike.description || "Không có mô tả";
+            const formType = String(formLike.formType || "");
+            const createdAt = String(formLike.createdAt || "");
+            const updatedAt = String(formLike.updatedAt || "");
+            const status = (formLike.status || "DRAFT").toUpperCase();
+            return {
+              id,
+              name,
+              formTitle: name,
+              description,
+              formType,
+              createdAt,
+              updatedAt,
+              fieldCount: 0,
+              status,
+            };
+          }
+        );
 
         console.log("All mapped forms:", formsData);
 
@@ -175,10 +156,45 @@ export default function TournamentFormList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, toastError]);
 
-  const handleEditForm = (formId: string) => {
-    navigate(`/manage/tournament-forms/${formId}/edit`);
+  useEffect(() => {
+    (async () => {
+      await loadForms();
+    })();
+  }, [loadForms]);
+
+  // Update pagination when currentPage changes
+  useEffect(() => {
+    console.log("Pagination useEffect triggered:", {
+      allFormsLength: allForms.length,
+      currentPage,
+      pageSize,
+      totalForms,
+    });
+    if (allForms.length > 0) {
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const paginatedForms = allForms.slice(startIndex, endIndex);
+      console.log("Pagination debug:", {
+        currentPage,
+        pageSize,
+        totalForms: allForms.length,
+        startIndex,
+        endIndex,
+        paginatedFormsLength: paginatedForms.length,
+        allFormsLength: allForms.length,
+      });
+      setForms(paginatedForms);
+    }
+  }, [currentPage, allForms, pageSize, totalForms]);
+
+  const handleEditForm = (form: FormConfig) => {
+    if ((form.status || "DRAFT").toUpperCase() !== "DRAFT") {
+      toastError("Chỉ form ở trạng thái Draft mới được chỉnh sửa");
+      return;
+    }
+    navigate(`/manage/tournament-forms/${form.id}/edit`);
   };
 
   const handleCreateNew = () => {
@@ -271,9 +287,12 @@ export default function TournamentFormList() {
                   <div
                     key={form.id}
                     className="rounded-lg border border-gray-200 bg-white p-4 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => handleEditForm(form.id)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleEditForm(form);
+                    }}
                   >
-                    {console.log("Rendering form:", form)}
+                    {/* Debug log moved outside JSX to avoid returning void */}
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
@@ -339,7 +358,7 @@ export default function TournamentFormList() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleEditForm(form.id);
+                            handleEditForm(form);
                           }}
                           className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-sm hover:bg-[#2e6de0]"
                         >
