@@ -921,23 +921,59 @@ export default function SubmittedFormsPage() {
   }, [rows]);
 
   const filtered = useReactMemo(() => {
-    if (!query.trim()) return rows;
-    const q = query.toLowerCase();
-    return rows.filter((r) => {
-      // Lấy tất cả các giá trị từ row để search
-      const searchableValues = [
-        r.fullName,
-        r.email,
-        r.studentCode,
-        r.note,
-        ...Object.values(r).filter((v) => typeof v === "string" && v.trim()),
-      ];
+    let data = rows;
 
-      return searchableValues
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
-    });
-  }, [rows, query]);
+    const toTimestamp = (input?: string): number | null => {
+      if (!input) return null;
+      const direct = Date.parse(input);
+      if (!Number.isNaN(direct)) return direct;
+      // Try parse formats like "HH:mm:ss dd/MM/yyyy" or "dd/MM/yyyy"
+      try {
+        const match = input.match(
+          /(?:(\d{1,2}):(\d{2})(?::(\d{2}))?\s+)?(\d{2})\/(\d{2})\/(\d{4})/
+        );
+        if (match) {
+          const hh = Number(match[1] ?? 0);
+          const mm = Number(match[2] ?? 0);
+          const ss = Number(match[3] ?? 0);
+          const dd = Number(match[4]);
+          const mo = Number(match[5]) - 1;
+          const yy = Number(match[6]);
+          return new Date(yy, mo, dd, hh, mm, ss).getTime();
+        }
+      } catch {}
+      return null;
+    };
+
+    // Status filter
+    if (status && status.trim()) {
+      const s = status.trim().toUpperCase();
+      data = data.filter((r) => (r.status || "PENDING").toUpperCase() === s);
+    }
+
+    // Date range filter (inclusive)
+    if ((dateFrom && dateFrom.trim()) || (dateTo && dateTo.trim())) {
+      const fromTs = dateFrom
+        ? new Date(dateFrom + "T00:00:00").getTime()
+        : Number.NEGATIVE_INFINITY;
+      const toTs = dateTo
+        ? new Date(dateTo + "T23:59:59.999").getTime()
+        : Number.POSITIVE_INFINITY;
+      data = data.filter((r) => {
+        const ts = toTimestamp(r.submittedAt);
+        if (ts == null) return true; // if cannot parse, do not exclude
+        return ts >= fromTs && ts <= toTs;
+      });
+    }
+
+    // Email search
+    if (query && query.trim()) {
+      const q = query.trim().toLowerCase();
+      data = data.filter((r) => (r.email || "").toLowerCase().includes(q));
+    }
+
+    return data;
+  }, [rows, status, dateFrom, dateTo, query]);
 
   return (
     <div className="space-y-4">
@@ -1111,10 +1147,10 @@ export default function SubmittedFormsPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tìm kiếm
+              Tìm theo email
             </label>
             <input
-              placeholder="Tên, email, MSSV..."
+              placeholder="Nhập email..."
               value={query}
               onChange={(e) => {
                 setPage(1);

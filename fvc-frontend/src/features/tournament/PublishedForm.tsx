@@ -47,6 +47,15 @@ export default function PublishedForm() {
   const [musicCategory, setMusicCategory] = useState("");
   const [fistConfigId, setFistConfigId] = useState<string>("");
   const [musicContentId, setMusicContentId] = useState<string>("");
+  const [selectedGender, setSelectedGender] = useState<string>("");
+
+  // Team registration helpers
+  const [participantsPerEntry, setParticipantsPerEntry] = useState<
+    number | undefined
+  >(undefined);
+  const [teamMembers, setTeamMembers] = useState<
+    Array<{ fullName: string; email: string; gender: string }>
+  >([]);
 
   // API data states
   const [weightClasses, setWeightClasses] = useState<
@@ -144,6 +153,21 @@ export default function PublishedForm() {
         console.log("Initial dynamic values:", initial);
         setDynamicValues(initial);
 
+        // Set selectedGender from initial values
+        const genderField = res.data.fields?.find(
+          (field) => field.label === "Giới tính"
+        );
+        if (genderField) {
+          const genderFieldName =
+            genderField.name ||
+            genderField.id ||
+            genderField.label.toLowerCase().replace(/\s+/g, "_");
+          const initialGender = initial[genderFieldName] as string;
+          if (initialGender) {
+            setSelectedGender(initialGender);
+          }
+        }
+
         // Load weight classes
         try {
           const weightClassesRes = await api.get<{
@@ -212,6 +236,74 @@ export default function PublishedForm() {
     })();
   }, [id]);
 
+  // Detect required participants for the selected content (Quyền or Võ nhạc)
+  useEffect(() => {
+    let required: number | undefined = undefined;
+    if (competitionType === "quyen") {
+      // Try by selected item id first (when present). Note: data sources may swap; check both arrays.
+      if (fistConfigId) {
+        const fromItems = (fistItems as any[]).find(
+          (i) => i.id === fistConfigId
+        );
+        const fromConfigs = (fistConfigs as any[]).find(
+          (i) => i.id === fistConfigId
+        );
+        const candidate = (fromItems || fromConfigs) as any;
+        if (candidate && typeof candidate.participantsPerEntry === "number") {
+          required = candidate.participantsPerEntry;
+        }
+      }
+      // If still unknown, try by selected button name (quyenCategory) or dropdown (quyenContent) against both lists
+      if (!required) {
+        const selectedName = (
+          quyenCategory ||
+          quyenContent ||
+          ""
+        ).toLowerCase();
+        if (selectedName) {
+          const byNameInItems = (fistItems as any[]).find(
+            (x) => (x?.name || "").toLowerCase() === selectedName
+          ) as any;
+          const byNameInConfigs = (fistConfigs as any[]).find(
+            (x) => (x?.name || "").toLowerCase() === selectedName
+          ) as any;
+          const candidate = byNameInItems || byNameInConfigs;
+          if (candidate && typeof candidate.participantsPerEntry === "number") {
+            required = candidate.participantsPerEntry;
+          }
+        }
+      }
+      // As a last fallback, infer by keyword
+      if (!required) {
+        const keyword = (quyenCategory || quyenContent || "").toLowerCase();
+        if (keyword.includes("song")) required = 2;
+        else if (keyword.includes("tam") || keyword.includes("đa"))
+          required = 3;
+      }
+    }
+    if (competitionType === "music" && musicContentId) {
+      const perf = musicContents.find((m) => m.id === musicContentId) as any;
+      if (perf && typeof perf.performersPerEntry === "number") {
+        required = perf.performersPerEntry;
+      }
+    }
+    setParticipantsPerEntry(required);
+
+    // Keep teamMembers length = max(required - 1, 0). We already have one main registrant in standard fields
+    const extras = required && required > 1 ? required - 1 : 0;
+    setTeamMembers((prev) => {
+      const next = [...prev];
+      if (next.length < extras) {
+        for (let i = next.length; i < extras; i++) {
+          next.push({ fullName: "", email: "", gender: "" });
+        }
+      } else if (next.length > extras) {
+        next.length = extras;
+      }
+      return next;
+    });
+  }, [competitionType, fistConfigId, musicContentId, fistItems, musicContents]);
+
   // Field validations
 
   const parseOptions = (opts?: string): string[] => {
@@ -241,6 +333,12 @@ export default function PublishedForm() {
     } else if (competitionType === "music") {
       formData.musicCategory = musicCategory;
       formData.musicContentId = musicContentId;
+    }
+
+    // Team infos (for multi-performer entries)
+    if (participantsPerEntry && participantsPerEntry > 1) {
+      formData.participantsPerEntry = participantsPerEntry;
+      formData.teamMembers = teamMembers;
     }
 
     // Add dynamic field values
@@ -278,9 +376,15 @@ export default function PublishedForm() {
     }
 
     // Competition-specific validation
-    if (competitionType === "fighting" && !weightClassId) {
-      console.log("Fighting validation failed - no weight class selected");
-      errors.weightClass = "Vui lòng chọn hạng cân";
+    if (competitionType === "fighting") {
+      if (!selectedGender) {
+        console.log("Fighting validation failed - no gender selected");
+        errors.gender = "Vui lòng chọn giới tính";
+      }
+      if (!weightClassId) {
+        console.log("Fighting validation failed - no weight class selected");
+        errors.weightClass = "Vui lòng chọn hạng cân";
+      }
     }
 
     if (competitionType === "quyen" && !fistConfigId) {
@@ -296,6 +400,32 @@ export default function PublishedForm() {
     // Check if competition type is selected
     if (!competitionType) {
       errors.competitionType = "Vui lòng chọn nội dung thi đấu";
+    }
+
+    // If this content requires multiple performers, validate additional members
+    if (participantsPerEntry && participantsPerEntry > 1) {
+      const expected = participantsPerEntry - 1;
+      if (teamMembers.length !== expected) {
+        errors.teamMembers = `Vui lòng nhập thông tin ${expected} thành viên bổ sung`;
+      } else {
+        teamMembers.forEach((m, idx) => {
+          if (!m.fullName || !m.fullName.trim()) {
+            errors[`teamMember_${idx}_fullName`] = `Thành viên ${
+              idx + 2
+            }: thiếu họ tên`;
+          }
+          if (!m.email || !m.email.trim()) {
+            errors[`teamMember_${idx}_email`] = `Thành viên ${
+              idx + 2
+            }: thiếu email`;
+          }
+          if (!m.gender || !m.gender.trim()) {
+            errors[`teamMember_${idx}_gender`] = `Thành viên ${
+              idx + 2
+            }: thiếu giới tính`;
+          }
+        });
+      }
     }
 
     // Also check if there's a dynamic field for competition type
@@ -333,7 +463,7 @@ export default function PublishedForm() {
         fullName: dynamicValues.fullName || "",
         email: dynamicValues.email || "",
         studentId: dynamicValues.studentId || "",
-        club: dynamicValues.club || "",
+        club: dynamicValues.club || "Không có",
         gender: dynamicValues.gender || "",
         formDataJson,
         weightClassId:
@@ -436,8 +566,21 @@ export default function PublishedForm() {
                     );
                     const isCompetitionType =
                       field.label === "Nội dung thi đấu";
-                    const isCustomField =
-                      field.sortOrder && field.sortOrder > 6;
+
+                    // Use the same defaultFieldLabels as FormBuilder
+                    const defaultFieldLabels = [
+                      "Họ và tên",
+                      "Email",
+                      "MSSV",
+                      "Số điện thoại",
+                      "Giới tính",
+                      "Câu lạc bộ",
+                      "Nội dung thi đấu",
+                    ];
+                    const isCustomField = !defaultFieldLabels.includes(
+                      field.label
+                    );
+
                     console.log("Field filter result:", {
                       isCompetitionType,
                       isCustomField,
@@ -445,6 +588,7 @@ export default function PublishedForm() {
                     });
                     return !isCompetitionType;
                   })
+                  .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
                   .map((field) => {
                     console.log(
                       "Rendering field:",
@@ -525,23 +669,45 @@ export default function PublishedForm() {
                           field.fieldType === "MULTIPLE-CHOICE") && (
                           <select
                             value={(dynamicValues[fieldName] as string) || ""}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const value = e.target.value;
                               setDynamicValues((prev) => ({
                                 ...prev,
-                                [fieldName]: e.target.value,
-                              }))
-                            }
+                                [fieldName]: value,
+                              }));
+
+                              // If this is gender field, update selectedGender and reset weight class
+                              if (field.label === "Giới tính") {
+                                setSelectedGender(value);
+                                if (competitionType === "fighting") {
+                                  setWeightClassId("");
+                                  setWeightClass("");
+                                }
+                              }
+                            }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
                             <option value="">
                               Chọn {field.label.toLowerCase()}
                             </option>
-                            {parseOptions(field.options).map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
+                            {field.label === "Giới tính" ? (
+                              <>
+                                <option value="Nam">Nam</option>
+                                <option value="Nữ">Nữ</option>
+                              </>
+                            ) : (
+                              parseOptions(field.options).map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))
+                            )}
                           </select>
+                        )}
+                        {field.label === "Giới tính" && fieldErrors.gender && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {fieldErrors.gender}
+                          </p>
                         )}
                         {field.fieldType === "CHECKBOX" && (
                           <div className="space-y-2">
@@ -653,17 +819,32 @@ export default function PublishedForm() {
                         setWeightClass(weightDisplay || "");
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={!selectedGender}
                     >
-                      <option value="">Chọn hạng cân</option>
-                      {weightClasses.map((w) => {
-                        const weightDisplay =
-                          w.weightClass || `${w.minWeight}-${w.maxWeight}kg`;
-                        return (
-                          <option key={w.id} value={w.id}>
-                            {weightDisplay}
-                          </option>
-                        );
-                      })}
+                      <option value="">
+                        {selectedGender
+                          ? "Chọn hạng cân"
+                          : "Vui lòng chọn giới tính trước"}
+                      </option>
+                      {weightClasses
+                        .filter((w) => {
+                          if (!selectedGender) return false;
+                          // Map Vietnamese gender to English for filtering
+                          const genderMap: Record<string, string> = {
+                            Nam: "MALE",
+                            Nữ: "FEMALE",
+                          };
+                          return w.gender === genderMap[selectedGender];
+                        })
+                        .map((w) => {
+                          const weightDisplay =
+                            w.weightClass || `${w.minWeight}-${w.maxWeight}kg`;
+                          return (
+                            <option key={w.id} value={w.id}>
+                              {weightDisplay}
+                            </option>
+                          );
+                        })}
                     </select>
                     {fieldErrors.weightClass && (
                       <p className="text-red-500 text-xs mt-1">
@@ -838,6 +1019,62 @@ export default function PublishedForm() {
                 </div>
               </div>
             </div>
+
+            {/* Extra team member fields when multi-performer is required */}
+            {participantsPerEntry && participantsPerEntry > 1 && (
+              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Thành viên bổ sung ({participantsPerEntry - 1})
+                </label>
+                <div className="space-y-4">
+                  {teamMembers.map((m, idx) => (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-1 md:grid-cols-3 gap-3"
+                    >
+                      <input
+                        type="text"
+                        placeholder={`Họ và tên thành viên ${idx + 2}`}
+                        value={m.fullName}
+                        onChange={(e) => {
+                          const next = [...teamMembers];
+                          next[idx] = {
+                            ...next[idx],
+                            fullName: e.target.value,
+                          };
+                          setTeamMembers(next);
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={m.email}
+                        onChange={(e) => {
+                          const next = [...teamMembers];
+                          next[idx] = { ...next[idx], email: e.target.value };
+                          setTeamMembers(next);
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <select
+                        value={m.gender}
+                        onChange={(e) => {
+                          const next = [...teamMembers];
+                          next[idx] = { ...next[idx], gender: e.target.value };
+                          setTeamMembers(next);
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Chọn giới tính</option>
+                        <option value="Nam">Nam</option>
+                        <option value="Nữ">Nữ</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Submit Button */}
             <div className="pt-6">

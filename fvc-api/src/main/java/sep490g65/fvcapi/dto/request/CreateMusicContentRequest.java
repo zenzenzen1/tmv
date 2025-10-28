@@ -23,6 +23,9 @@ public class CreateMusicContentRequest {
     @NotNull(message = "Is active is required")
     @Builder.Default
     private Boolean isActive = true;
+
+    // Number of performers per entry
+    private Integer performersPerEntry;
 }
 
 

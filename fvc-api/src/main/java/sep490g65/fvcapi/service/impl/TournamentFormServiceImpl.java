@@ -191,7 +191,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     @Override
     @Transactional
     public FormDetailResponse update(String id, UpdateFormRequest request) {
-        ApplicationFormConfig f = formConfigRepository.findById(id).orElseThrow();
+        ApplicationFormConfig f = formConfigRepository.findWithFieldsById(id).orElseThrow();
         if (request.getName() != null) f.setName(request.getName());
         if (request.getDescription() != null) f.setDescription(request.getDescription());
         if (request.getFormType() != null) f.setFormType(request.getFormType());
@@ -366,7 +366,6 @@ public class TournamentFormServiceImpl implements TournamentFormService {
         if (request.getFullName() == null || request.getFullName().isBlank()
                 || request.getEmail() == null || request.getEmail().isBlank()
                 || request.getStudentId() == null || request.getStudentId().isBlank()
-                || request.getClub() == null || request.getClub().isBlank()
                 || request.getGender() == null || request.getGender().isBlank()
                 || request.getFormDataJson() == null || request.getFormDataJson().isBlank()) {
             throw new IllegalArgumentException("Missing required fields for submission");
