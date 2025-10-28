@@ -48,7 +48,7 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
     @Transactional(readOnly = true)
     public PaginationResponse<SubmittedApplicationFormResponse> list(RequestParam params, ApplicationFormType type) {
         Sort sort = Sort.by(params.isAscending() ? Sort.Direction.ASC : Sort.Direction.DESC, params.getSortBy());
-        Pageable pageable = PageRequest.of(params.getPage(), params.getSize(), sort);
+        Pageable pageable = params.isAll() ? Pageable.unpaged() : PageRequest.of(params.getPage(), params.getSize(), sort);
         Page<SubmittedApplicationForm> page = repository.search(type, pageable);
         return ResponseUtils.createPaginatedResponse(page.map(this::toDto));
     }

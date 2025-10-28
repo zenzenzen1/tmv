@@ -126,6 +126,7 @@ export default function AthleteManagementPage({
       name: string;
       description?: string | null;
       level?: number;
+      // config has no parent; keep optional fields for compatibility
       configId?: string;
       configName?: string;
     }>
@@ -137,6 +138,7 @@ export default function AthleteManagementPage({
       name: string;
       description?: string | null;
       status?: boolean;
+      configId?: string; // link back to config so we can filter dropdown by config
     }>
   >([]);
   const [musicContents, setMusicContents] = useState<
@@ -555,17 +557,29 @@ export default function AthleteManagementPage({
         }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
         setWeightClasses(weightClassesRes.data?.content || []);
 
-        // Load fist configs (Đa luyện, Đơn luyện)
+        // Load fist configs (Đơn luyện/Đa luyện/Song luyện ...)
         const fistConfigsRes = await fistContentService.list({ size: 100 });
         console.log("AthleteManagement - Fist configs loaded:", fistConfigsRes);
-        // Swap: Use configs as items for dropdown
-        setFistItems(fistConfigsRes.content || []);
+        setFistConfigs(fistConfigsRes.content || []);
 
-        // Load fist items (Đơn luyện 1, Đơn luyện 2, etc.)
+        // Load fist items (Đơn luyện 1, Đơn luyện 2, ...)
         const fistItemsRes = await fistContentService.listItems({ size: 100 });
         console.log("AthleteManagement - Fist items loaded:", fistItemsRes);
-        // Swap: Use items as configs for buttons
-        setFistConfigs(fistItemsRes.content || []);
+        // Ensure each item carries configId for mapping to its config
+        setFistItems(
+          (fistItemsRes.content || []).map((it: any) => ({
+            id: it.id,
+            name: it.name,
+            description: it.description,
+            status: it.status,
+            configId:
+              it.configId ||
+              it.parentId ||
+              it.fistConfigId ||
+              it.config?.id ||
+              undefined,
+          }))
+        );
 
         // Fist content data loaded successfully
 
@@ -945,7 +959,7 @@ export default function AthleteManagementPage({
                             </span>
                           </label>
                           {fistItems
-                            .filter((item) => item.id === config.configId)
+                            .filter((item) => item.configId === config.id)
                             .map((item) => (
                               <label
                                 key={item.id}

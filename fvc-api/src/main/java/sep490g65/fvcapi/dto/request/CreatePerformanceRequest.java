@@ -23,7 +23,6 @@ public class CreatePerformanceRequest {
     private Boolean isTeam;
     
     private String teamId;
-    private String teamName;
     
     @NotNull(message = "Performance type is required")
     private Performance.PerformanceType performanceType;
@@ -32,10 +31,25 @@ public class CreatePerformanceRequest {
     private Performance.ContentType contentType;
     
     private String contentId;
-    
+
+    // Optional: tạo performance từ danh sách athlete sẵn có
     private List<String> athleteIds;
-    
     private List<Integer> teamPositions;
-    
     private List<Boolean> isCaptains;
+
+    // Team submit (pending): số người/tiết mục và danh sách thành viên tạm
+    private Integer participantsPerEntry;
+    private List<MemberDto> teamMembers;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MemberDto {
+        private String fullName;
+        private String email;
+        private String phone;
+        private String gender; // MALE/FEMALE
+        // removed teamPosition and isCaptain as per new requirement
+    }
 }

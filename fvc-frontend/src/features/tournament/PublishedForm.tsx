@@ -357,11 +357,27 @@ export default function PublishedForm() {
     // Validate required fields from dynamic fields
     const errors: Record<string, string> = {};
 
-    // Check required dynamic fields
+    // Check required dynamic fields (only for fields that are actually rendered)
     if (meta && meta.fields) {
       console.log("Meta fields:", meta.fields);
       meta.fields.forEach((field) => {
-        if (field.required) {
+        // Skip validation for "Nội dung thi đấu" field as it's handled separately
+        const isCompetitionTypeField = field.label === "Nội dung thi đấu";
+
+        // Only validate fields that are actually rendered
+        const defaultFieldLabels = [
+          "Họ và tên",
+          "Email",
+          "MSSV",
+          "Số điện thoại",
+          "Giới tính",
+          "Câu lạc bộ",
+          "Nội dung thi đấu",
+        ];
+        const isCustomField = !defaultFieldLabels.includes(field.label);
+        const willShow = !isCompetitionTypeField; // Same logic as rendering
+
+        if (field.required && !isCompetitionTypeField && willShow) {
           const fieldName =
             field.name ||
             field.id ||
@@ -398,7 +414,9 @@ export default function PublishedForm() {
     }
 
     // Check if competition type is selected
+    console.log("Validation - competitionType:", competitionType);
     if (!competitionType) {
+      console.log("Validation failed - no competition type selected");
       errors.competitionType = "Vui lòng chọn nội dung thi đấu";
     }
 
@@ -428,20 +446,7 @@ export default function PublishedForm() {
       }
     }
 
-    // Also check if there's a dynamic field for competition type
-    if (meta && meta.fields) {
-      const competitionField = meta.fields.find(
-        (field) => field.label === "Nội dung thi đấu"
-      );
-      if (competitionField && competitionField.required) {
-        const value = dynamicValues[competitionField.name];
-        if (!value || (typeof value === "string" && value.trim() === "")) {
-          errors[
-            competitionField.name
-          ] = `${competitionField.label} là bắt buộc`;
-        }
-      }
-    }
+    // Competition type validation is handled above, no need to check meta.fields again
 
     setFieldErrors(errors);
 
@@ -452,6 +457,9 @@ export default function PublishedForm() {
       console.log("Weight class ID:", weightClassId);
       console.log("Fist config ID:", fistConfigId);
       console.log("Music content ID:", musicContentId);
+      console.log("Selected gender:", selectedGender);
+      console.log("Team members:", teamMembers);
+      console.log("Participants per entry:", participantsPerEntry);
       show("Vui lòng kiểm tra lại thông tin", "error");
       return;
     }
@@ -885,7 +893,7 @@ export default function PublishedForm() {
                   </label>
                   <div className="ml-6 mt-2">
                     <div className="flex items-center flex-wrap gap-2 mb-2">
-                      {fistConfigs.map((config) => (
+                      {fistItems.map((config) => (
                         <button
                           key={config.id}
                           type="button"
@@ -913,7 +921,9 @@ export default function PublishedForm() {
                         onChange={(e) => {
                           const id = e.target.value;
                           setFistConfigId(id);
-                          const item = fistItems.find((item) => item.id === id);
+                          const item = fistConfigs.find(
+                            (item) => item.id === id
+                          );
                           setQuyenContent(item?.name || "");
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -925,16 +935,17 @@ export default function PublishedForm() {
                             return null;
                           }
 
-                          // Find the selected config (VovinamFistItem)
-                          const selectedConfig = fistConfigs.find(
-                            (config) => config.name === quyenCategory
+                          // Find the selected category (VovinamFistConfig) by name
+                          const selectedCategory = fistItems.find(
+                            (cfg) => cfg.name === quyenCategory
                           );
 
-                          // If category selected, show fistItems (VovinamFistConfig) that match configId
+                          // Show items (VovinamFistItem) that belong to this category by configId
                           const filteredItems =
-                            selectedConfig && selectedConfig.configId
-                              ? fistItems.filter(
-                                  (item) => item.id === selectedConfig.configId
+                            selectedCategory && selectedCategory.id
+                              ? fistConfigs.filter(
+                                  (item) =>
+                                    item.configId === selectedCategory.id
                                 )
                               : [];
 

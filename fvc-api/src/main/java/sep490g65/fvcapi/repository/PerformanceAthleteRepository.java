@@ -17,12 +17,7 @@ public interface PerformanceAthleteRepository extends JpaRepository<PerformanceA
     
     @Query("SELECT pa FROM PerformanceAthlete pa WHERE pa.athlete.id = :athleteId")
     List<PerformanceAthlete> findByAthleteId(@Param("athleteId") java.util.UUID athleteId);
-    
-    @Query("SELECT pa FROM PerformanceAthlete pa WHERE pa.performance.id = :performanceId ORDER BY pa.teamPosition ASC")
-    List<PerformanceAthlete> findByPerformanceIdOrderByTeamPosition(@Param("performanceId") String performanceId);
-    
-    @Query("SELECT pa FROM PerformanceAthlete pa WHERE pa.performance.id = :performanceId AND pa.isCaptain = true")
-    Optional<PerformanceAthlete> findCaptainByPerformanceId(@Param("performanceId") String performanceId);
+
     
     @Query("SELECT pa FROM PerformanceAthlete pa WHERE pa.athlete.id = :athleteId AND pa.performance.competition.id = :competitionId")
     List<PerformanceAthlete> findByAthleteIdAndCompetitionId(@Param("athleteId") java.util.UUID athleteId, @Param("competitionId") String competitionId);

@@ -16,6 +16,8 @@ public interface AthleteRepository extends JpaRepository<Athlete, java.util.UUID
     Page<Athlete> findByCompetitionType(Athlete.CompetitionType competitionType, Pageable pageable);
 
     Page<Athlete> findByTournamentIdAndCompetitionType(String tournamentId, Athlete.CompetitionType competitionType, Pageable pageable);
+
+    void deleteByEmailAndTournamentId(String email, String tournamentId);
 }
 
 

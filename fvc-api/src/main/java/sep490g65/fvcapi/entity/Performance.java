@@ -31,8 +31,9 @@ public class Performance extends BaseEntity {
     @Column(name = "team_id")
     private String teamId;
 
-    @Column(name = "team_name")
-    private String teamName;
+    // Số người/tiết mục (nếu có cấu hình, có thể null)
+    @Column(name = "participants_per_entry")
+    private Integer participantsPerEntry;
 
     // Performance details
     @Enumerated(EnumType.STRING)

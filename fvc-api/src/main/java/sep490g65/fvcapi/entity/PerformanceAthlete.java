@@ -4,11 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "performance_athletes", 
-       uniqueConstraints = {
-           @UniqueConstraint(name = "uk_performance_athlete", columnNames = {"performance_id", "athlete_id"}),
-           @UniqueConstraint(name = "uk_performance_team_position", columnNames = {"performance_id", "team_position"})
-       })
+@Table(name = "performance_athletes")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,12 +21,21 @@ public class PerformanceAthlete extends BaseEntity {
     private Performance performance;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "athlete_id", nullable = false)
-    private Athlete athlete;
+    @JoinColumn(name = "athlete_id")
+    private Athlete athlete; // null ở trạng thái PENDING, sẽ được set khi approve
 
-    @Column(name = "team_position")
-    private Integer teamPosition;  // Vị trí trong đội (1, 2, 3...)
+    // removed team_position and is_captain as per new spec
 
-    @Column(name = "is_captain")
-    private Boolean isCaptain = false;  // Đội trưởng
+    // Thông tin tạm thời của thành viên khi chưa sinh Athlete (PENDING)
+    @Column(name = "temp_full_name")
+    private String tempFullName;
+
+    @Column(name = "temp_email")
+    private String tempEmail;
+
+    @Column(name = "temp_phone")
+    private String tempPhone;
+
+    @Column(name = "temp_gender")
+    private String tempGender; // MALE/FEMALE (text) để linh hoạt khi chưa map enum
 }

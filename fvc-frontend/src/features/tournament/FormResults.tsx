@@ -6,6 +6,7 @@ import {
   type TableColumn,
 } from "../../components/common/CommonTable";
 import api from "../../services/api";
+import { API_ENDPOINTS } from "../../config/endpoints";
 import { useToast } from "../../components/common/ToastContext";
 // import type { PaginationResponse } from "../../types/api";
 
@@ -52,6 +53,18 @@ export default function FormResults() {
 
   const tournamentName = location?.state?.tournamentName ?? "";
 
+  // Caches for resolving IDs -> display labels
+  const [weightClassMap, setWeightClassMap] = useState<Record<string, string>>(
+    {}
+  );
+  const [fistConfigMap, setFistConfigMap] = useState<Record<string, string>>(
+    {}
+  );
+  const [fistItemMap, setFistItemMap] = useState<Record<string, string>>({});
+  const [musicContentMap, setMusicContentMap] = useState<
+    Record<string, string>
+  >({});
+
   // Load available forms based on form type filter
   useEffect(() => {
     const loadForms = async () => {
@@ -61,12 +74,19 @@ export default function FormResults() {
       }
 
       try {
-        const response = await api.get("/v1/tournament-forms", {
+        const response = await api.get<{
+          content: Array<{
+            id: string;
+            formTitle?: string;
+            name?: string;
+            formType: string;
+          }>;
+        }>("/v1/tournament-forms", {
           params: { size: 100 },
         });
 
         const forms = response.data?.content || [];
-        const filteredForms = forms.filter((form: any) => {
+        const filteredForms = forms.filter((form) => {
           if (formTypeFilter === "COMPETITION") {
             return form.formType === "COMPETITION_REGISTRATION";
           } else if (formTypeFilter === "CLUB") {
@@ -76,7 +96,7 @@ export default function FormResults() {
         });
 
         setAvailableForms(
-          filteredForms.map((form: any) => ({
+          filteredForms.map((form) => ({
             id: form.id,
             name: form.formTitle || form.name || "Không có tên",
             formType: form.formType,
@@ -90,6 +110,74 @@ export default function FormResults() {
 
     loadForms();
   }, [formTypeFilter, toast]);
+
+  // Load weight classes once to resolve weightClassId -> readable label
+  useEffect(() => {
+    const loadWeightClasses = async () => {
+      try {
+        const res = await api.get<{
+          content: Array<{
+            id: string;
+            weightClass?: string;
+            minWeight?: number;
+            maxWeight?: number;
+          }>;
+        }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
+        const list = res.data?.content || [];
+        const map: Record<string, string> = {};
+        for (const wc of list) {
+          const label =
+            wc.weightClass && wc.weightClass.trim()
+              ? wc.weightClass
+              : [wc.minWeight, wc.maxWeight].every((v) => typeof v === "number")
+              ? `${wc.minWeight}-${wc.maxWeight}kg`
+              : "";
+          if (wc.id) map[wc.id] = label;
+        }
+        setWeightClassMap(map);
+      } catch {
+        // ignore; fallback mapping will handle
+      }
+    };
+    loadWeightClasses();
+  }, []);
+
+  // Load fist configs/items and music contents for resolving IDs -> names
+  useEffect(() => {
+    const loadContentCatalogs = async () => {
+      try {
+        // Fist configs
+        const cfgRes = await api.get<{
+          content: Array<{ id: string; name: string }>;
+        }>(API_ENDPOINTS.FIST_CONTENTS.BASE);
+        const cfgList = cfgRes.data?.content || [];
+        const cfgMap: Record<string, string> = {};
+        for (const c of cfgList) if (c.id) cfgMap[c.id] = c.name || "";
+        setFistConfigMap(cfgMap);
+
+        // Fist items
+        const itemRes = await api.get<{
+          content: Array<{ id: string; name: string }>;
+        }>(API_ENDPOINTS.FIST_CONTENTS.ITEMS);
+        const itemList = itemRes.data?.content || [];
+        const itMap: Record<string, string> = {};
+        for (const it of itemList) if (it.id) itMap[it.id] = it.name || "";
+        setFistItemMap(itMap);
+
+        // Music contents
+        const musicRes = await api.get<{
+          content: Array<{ id: string; name: string }>;
+        }>(API_ENDPOINTS.MUSIC_CONTENTS.BASE);
+        const musicList = musicRes.data?.content || [];
+        const mcMap: Record<string, string> = {};
+        for (const m of musicList) if (m.id) mcMap[m.id] = m.name || "";
+        setMusicContentMap(mcMap);
+      } catch {
+        // Ignore failures; mapping code has fallbacks
+      }
+    };
+    loadContentCatalogs();
+  }, []);
 
   const columns: Array<TableColumn<ResultRow>> = useMemo(
     () => [
@@ -113,7 +201,7 @@ export default function FormResults() {
       {
         key: "email",
         title: "Email",
-        className: "whitespace-nowrap text-[15px]",
+        className: "text-[15px] break-words",
       },
       {
         key: "gender",
@@ -135,12 +223,12 @@ export default function FormResults() {
         title: "MSSV",
         className: "whitespace-nowrap text-[15px]",
       },
-      { key: "club", title: "CLB", className: "whitespace-nowrap text-[15px]" },
+      { key: "club", title: "CLB", className: "text-[15px] break-words" },
       // Removed coach column per request
       {
         key: "phone",
         title: "SDT liên lạc",
-        className: "whitespace-nowrap text-[15px]",
+        className: "text-[15px] break-words",
       },
       {
         key: "status",
@@ -194,10 +282,10 @@ export default function FormResults() {
         sortable: false,
       },
     ],
-    []
+    [toast]
   );
 
-  const pageSize = 5;
+  const [pageSize, setPageSize] = useState<number>(10);
   const [searchText, setSearchText] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<
     "ALL" | "Đối kháng" | "Quyền" | "Võ nhạc"
@@ -214,22 +302,13 @@ export default function FormResults() {
 
       try {
         setLoading(true);
-        const applyingFilter =
-          searchText.trim().length > 0 ||
-          typeFilter !== "ALL" ||
-          statusFilter !== "ALL";
-        const targetPage = applyingFilter ? 0 : page - 1;
-        const targetSize = applyingFilter ? 100 : pageSize; // backend max 100
+        // Always request all records; backend will ignore pagination when all=true
         const resp = await api.get(
-          `/v1/tournament-forms/${formId}/submissions?page=${targetPage}&size=${targetSize}`
+          `/v1/tournament-forms/${formId}/submissions?all=true`
         );
         const root = resp.data as Record<string, unknown>;
         const pageData = (root["data"] as Record<string, unknown>) ?? root;
         const responseTimestamp = (root["timestamp"] as string) || "";
-        const totalElements =
-          (pageData["totalElements"] as number) ||
-          (pageData["total"] as number) ||
-          0;
         const content = (pageData["content"] as Array<unknown>) ?? [];
         const mapped: ResultRow[] = content.map((raw) => {
           const item = raw as {
@@ -279,7 +358,11 @@ export default function FormResults() {
           const quyenCategory =
             getFirstString(parsed.quyenCategory) ||
             getFirstString(parsed.category) ||
-            "";
+            // fallback by fistConfigId
+            ((): string => {
+              const id = (parsed as Record<string, unknown>)["fistConfigId"];
+              return typeof id === "string" ? fistConfigMap[id] || "" : "";
+            })();
           const quyenContent =
             getFirstString(parsed.quyenContent) ||
             getFirstString((parsed as Record<string, unknown>).fistContent) ||
@@ -290,19 +373,32 @@ export default function FormResults() {
             ) ||
             getFirstString((parsed as Record<string, unknown>).contentName) ||
             getFirstString(parsed.content) ||
-            "";
+            // fallback by quyenContentId or fistItemId
+            ((): string => {
+              const qid = (parsed as Record<string, unknown>)["quyenContentId"];
+              if (typeof qid === "string" && qid) return fistItemMap[qid] || "";
+              const fid = (parsed as Record<string, unknown>)["fistItemId"];
+              if (typeof fid === "string" && fid) return fistItemMap[fid] || "";
+              return "";
+            })();
           // For fighting, try to get weight class name from formData or fallback to "Đối kháng"
           let fightingCategory = "";
           if (compRaw === "fighting") {
             fightingCategory = (parsed.weightClass as string) || "";
             // If weightClass is empty but we have weightClassId, try to extract from formData
             if (!fightingCategory && parsed.weightClassId) {
-              // Look for weight class info in the formData
-              const weightClassInfo =
-                parsed.weightClassInfo ||
-                parsed.weightClassName ||
-                parsed.weightClassDisplay;
-              fightingCategory = weightClassInfo || "Đối kháng";
+              // First try: resolve via preloaded map
+              const labelFromMap = weightClassMap[String(parsed.weightClassId)];
+              if (labelFromMap) {
+                fightingCategory = labelFromMap;
+              } else {
+                // Look for weight class info in the formData
+                const weightClassInfo =
+                  (parsed as Record<string, unknown>).weightClassInfo ||
+                  (parsed as Record<string, unknown>).weightClassName ||
+                  (parsed as Record<string, unknown>).weightClassDisplay;
+                fightingCategory = (weightClassInfo as string) || "Đối kháng";
+              }
             }
             // If still empty, try to create a readable name from weightClassId
             if (!fightingCategory && parsed.weightClassId) {
@@ -327,7 +423,15 @@ export default function FormResults() {
               : compRaw === "fighting"
               ? fightingCategory
               : compRaw === "music"
-              ? (parsed.musicCategory as string) || ""
+              ? (parsed.musicCategory as string) ||
+                ((): string => {
+                  const id = (parsed as Record<string, unknown>)[
+                    "musicContentId"
+                  ];
+                  return typeof id === "string"
+                    ? musicContentMap[id] || ""
+                    : "";
+                })()
               : (parsed.category as string) || "";
 
           console.log("FormResults category mapping:", {
@@ -417,14 +521,13 @@ export default function FormResults() {
           return matchesName && matchesType && matchesStatus;
         });
 
-        const finalRows = applyingFilter ? filtered : mapped;
-        const effectiveTotal = applyingFilter
-          ? finalRows.length
-          : totalElements;
-        const start = (page - 1) * pageSize;
-        const end = start + pageSize;
-        setRows(applyingFilter ? finalRows.slice(start, end) : finalRows);
-        setTotal(effectiveTotal);
+        // Client-side pagination: 10 per page
+        const finalRows = filtered;
+        const start = (page - 1) * 10;
+        const end = start + 10;
+        setRows(finalRows.slice(start, end));
+        setTotal(finalRows.length);
+        setPageSize(10);
       } catch (e: unknown) {
         console.error("Load submissions failed", e);
         if (typeof e === "object" && e && "message" in e) {
@@ -446,6 +549,10 @@ export default function FormResults() {
     searchText,
     typeFilter,
     statusFilter,
+    weightClassMap,
+    fistConfigMap,
+    fistItemMap,
+    musicContentMap,
   ]);
 
   // Listen for form submissions elsewhere to refresh results
@@ -536,7 +643,9 @@ export default function FormResults() {
               value={typeFilter}
               onChange={(e) => {
                 setPage(1);
-                setTypeFilter(e.target.value as any);
+                setTypeFilter(
+                  e.target.value as "ALL" | "Đối kháng" | "Quyền" | "Võ nhạc"
+                );
               }}
               className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
             >
@@ -549,7 +658,7 @@ export default function FormResults() {
               value={statusFilter}
               onChange={(e) => {
                 setPage(1);
-                setStatusFilter(e.target.value as any);
+                setStatusFilter(e.target.value as "ALL" | ResultRow["status"]);
               }}
               className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
             >

@@ -331,6 +331,9 @@ type SubmittedRow = {
   stt?: number;
   formData?: any;
   competitionType?: string;
+  rawCompetitionType?: string; // 'fighting' | 'quyen' | 'music' | ''
+  participantsPerEntry?: number | null;
+  performanceId?: string | null;
   category?: string;
   club?: string;
   coach?: string;
@@ -345,7 +348,7 @@ export default function SubmittedFormsPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [page, setPage] = useState<number>(1); // CommonTable is 1-based
-  const [pageSize] = useState<number>(10); // fixed page size
+  const [pageSize, setPageSize] = useState<number>(10); // fixed 10 per page
   const [totalElements, setTotalElements] = useState<number>(0);
   const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
 
@@ -366,6 +369,11 @@ export default function SubmittedFormsPage() {
   >([]);
   const [selectedFormDefinition, setSelectedFormDefinition] =
     useState<any>(null);
+  // Bộ lọc nâng cao
+  const [formStyle, setFormStyle] = useState<"" | "PERSON" | "TEAM">("");
+  const [competitionFilter, setCompetitionFilter] = useState<
+    "ALL" | "fighting" | "quyen" | "music"
+  >("ALL");
 
   // Get toast context with safe handling
   let toast: any = null;
@@ -529,8 +537,7 @@ export default function SubmittedFormsPage() {
           totalElements: number;
         }>(`/v1/tournament-forms/${selectedFormId}/submissions`, {
           params: {
-            page: page - 1,
-            size: pageSize,
+            all: true,
             sortBy: "createdAt",
             sortDirection: "desc",
             status: status || undefined,
@@ -617,6 +624,10 @@ export default function SubmittedFormsPage() {
               note: item.reviewerNote ?? "",
               formData: item.formData,
               competitionType: compVi,
+              rawCompetitionType: compRaw,
+              participantsPerEntry:
+                (parsed.participantsPerEntry as number) ?? null,
+              performanceId: (parsed.performanceId as string) ?? null,
               category: categoryVi,
               club: (parsed.club as string) || "",
               coach: (parsed.coach as string) || "",
@@ -625,8 +636,10 @@ export default function SubmittedFormsPage() {
             } as SubmittedRow;
           });
 
+          // Store full dataset; paginate after client-side filters
           setRows(mapped);
-          setTotalElements(totalElements);
+          setTotalElements(mapped.length);
+          setPageSize(10);
         }
       } catch (e: any) {
         if (!ignore) setError(e?.message || "Không tải được dữ liệu");
@@ -766,7 +779,7 @@ export default function SubmittedFormsPage() {
       className: "max-w-xs",
     }));
 
-    return [
+    const cols: TableColumn<SubmittedRow>[] = [
       {
         key: "stt",
         title: "STT",
@@ -779,67 +792,65 @@ export default function SubmittedFormsPage() {
         title: "Thời gian",
         sortable: true,
         render: (r) => formatDate(r.submittedAt),
-        className: "w-20",
+        className: "w-28",
       },
       {
         key: "fullName",
         title: "Họ tên",
         sortable: true,
-        className: "w-20",
+        className: "w-32",
       },
       {
         key: "email",
         title: "Email",
         sortable: true,
-        className: "w-28",
+        className: "w-44 break-words",
       },
-      {
-        key: "studentCode",
-        title: "MSSV",
-        sortable: true,
-        className: "w-16",
-      },
+      // MSSV column will be conditionally inserted for non-team view
       {
         key: "competitionType",
         title: "Nội dung thi đấu",
         sortable: true,
-        className: "w-16",
+        className: "w-24 break-words",
       },
       {
         key: "category",
         title: "Hạng mục",
         sortable: true,
-        className: "w-20",
+        className: "w-40 break-words",
         render: (row: SubmittedRow) => {
-          const category = row.category || "";
-          // Truncate long text (like UUIDs) to show only first 8 characters
-          if (category.length > 8) {
-            return (
-              <span title={category} className="truncate">
-                {category.substring(0, 8)}...
-              </span>
-            );
+          try {
+            const fd = row.formData ? JSON.parse(row.formData) : {};
+            const rawType = (row.rawCompetitionType || "").toLowerCase();
+            if (rawType === "quyen") {
+              const cfg = fd?.quyenCategory || row.category || ""; // config
+              const item =
+                fd?.quyenContentName ||
+                fd?.fistItemName ||
+                fd?.contentName ||
+                fd?.quyenContent ||
+                ""; // item
+              if (cfg && item) return `${cfg} - ${item}`;
+              return cfg || item || "";
+            }
+            const itemName =
+              fd?.contentName || fd?.fistItemName || fd?.quyenContentName || "";
+            const cat = row.category || "";
+            if (itemName && cat && itemName !== cat)
+              return `${cat} - ${itemName}`;
+            return cat || itemName || "";
+          } catch {
+            return row.category || "";
           }
-          return category;
         },
       },
-      {
-        key: "phone",
-        title: "SĐT",
-        sortable: true,
-        className: "w-16",
-      },
-      {
-        key: "gender",
-        title: "Giới tính",
-        sortable: true,
-        className: "w-12",
-      },
+      // Removed SĐT column to make table cleaner
+      // Gender column will be conditionally inserted for non-team view
       {
         key: "actions",
         title: "Xem",
         sortable: false,
-        className: "w-16 text-center",
+        className: "w-14 text-center",
         render: (row: SubmittedRow) => (
           <button
             onClick={() => setViewingRow(row)}
@@ -873,7 +884,7 @@ export default function SubmittedFormsPage() {
         key: "status",
         title: "Trạng thái",
         sortable: true,
-        className: "w-20",
+        className: "w-24",
         render: (row: SubmittedRow) => {
           // Get status from row data
           const status = row.status || "PENDING";
@@ -918,9 +929,30 @@ export default function SubmittedFormsPage() {
         },
       },
     ];
-  }, [rows]);
 
-  const filtered = useReactMemo(() => {
+    if (formStyle !== "TEAM") {
+      // Chèn cột MSSV sau Email khi không ở chế độ Đồng đội
+      cols.splice(4, 0, {
+        key: "studentCode",
+        title: "MSSV",
+        sortable: true,
+        className: "w-16 break-words",
+      });
+      // Thêm cột Giới tính (không áp dụng cho Đồng đội) và đưa vào vị trí trống bên trái (sau Hạng mục)
+      const afterCategoryIndex =
+        cols.findIndex((c) => c.key === "category") + 1;
+      cols.splice(afterCategoryIndex, 0, {
+        key: "gender",
+        title: "Giới tính",
+        sortable: true,
+        className: "w-12",
+      });
+    }
+
+    return cols;
+  }, [rows, formStyle]);
+
+  const filteredAll = useReactMemo(() => {
     let data = rows;
 
     const toTimestamp = (input?: string): number | null => {
@@ -972,8 +1004,56 @@ export default function SubmittedFormsPage() {
       data = data.filter((r) => (r.email || "").toLowerCase().includes(q));
     }
 
+    // Hình thức: Cá nhân / Đồng đội
+    if (formStyle) {
+      if (formStyle === "TEAM") {
+        data = data.filter((r) => {
+          const ppe = r.participantsPerEntry ?? null;
+          const hasPerf = !!r.performanceId;
+          // coi như team nếu participantsPerEntry > 1 hoặc có performanceId trong formData
+          return (typeof ppe === "number" && ppe > 1) || hasPerf;
+        });
+      } else if (formStyle === "PERSON") {
+        data = data.filter((r) => {
+          const ppe = r.participantsPerEntry ?? null;
+          const hasPerf = !!r.performanceId;
+          return !((typeof ppe === "number" && ppe > 1) || hasPerf);
+        });
+      }
+    }
+
+    // Nếu là form đăng ký giải → lọc theo thể thức (đối kháng/quyền/võ nhạc)
+    if (formTypeFilter === "COMPETITION" && competitionFilter !== "ALL") {
+      data = data.filter(
+        (r) => (r.rawCompetitionType || "") === competitionFilter
+      );
+    }
+
     return data;
-  }, [rows, status, dateFrom, dateTo, query]);
+  }, [
+    rows,
+    status,
+    dateFrom,
+    dateTo,
+    query,
+    formStyle,
+    formTypeFilter,
+    competitionFilter,
+  ]);
+
+  const paginated = useReactMemo(() => {
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    return filteredAll.slice(start, end);
+  }, [filteredAll, page, pageSize]);
+
+  // Bảo đảm không thể chuyển sang trang vượt quá tổng số trang sau khi lọc
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredAll.length / pageSize));
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [filteredAll.length, pageSize]);
 
   return (
     <div className="space-y-4">
@@ -985,7 +1065,7 @@ export default function SubmittedFormsPage() {
           ⟵ Quay lại
         </button>
         <button
-          onClick={() => exportCsv(filtered)}
+          onClick={() => exportCsv(filteredAll)}
           className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
         >
           Xuất Excel
@@ -1019,7 +1099,7 @@ export default function SubmittedFormsPage() {
         </div>
         <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
           <div className="text-2xl font-bold text-green-600">
-            {filtered.length}
+            {filteredAll.length}
           </div>
           <div className="text-sm text-gray-600">Kết quả hiển thị</div>
         </div>
@@ -1096,6 +1176,49 @@ export default function SubmittedFormsPage() {
             </div>
           )}
 
+          {/* Hình thức: Cá nhân / Đồng đội */}
+          {selectedFormId && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Hình thức
+              </label>
+              <select
+                value={formStyle}
+                onChange={(e) => {
+                  setPage(1);
+                  setFormStyle(e.target.value as any);
+                }}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+              >
+                <option value="">Tất cả</option>
+                <option value="PERSON">Cá nhân</option>
+                <option value="TEAM">Đồng đội</option>
+              </select>
+            </div>
+          )}
+
+          {/* Thể thức thi đấu (chỉ hiện với Form đăng ký giải) */}
+          {selectedFormId && formTypeFilter === "COMPETITION" && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Thể thức thi đấu
+              </label>
+              <select
+                value={competitionFilter}
+                onChange={(e) => {
+                  setPage(1);
+                  setCompetitionFilter(e.target.value as any);
+                }}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+              >
+                <option value="ALL">Tất cả</option>
+                <option value="fighting">Đối kháng</option>
+                <option value="quyen">Quyền</option>
+                <option value="music">Võ nhạc</option>
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Trạng thái
@@ -1162,7 +1285,7 @@ export default function SubmittedFormsPage() {
         </div>
 
         <div className="mt-4 text-sm text-gray-600">
-          Hiển thị {filtered.length} trong {totalElements} kết quả
+          Hiển thị {filteredAll.length} trong {totalElements} kết quả
         </div>
       </div>
 
@@ -1175,7 +1298,7 @@ export default function SubmittedFormsPage() {
       ) : (
         <CommonTable
           data={
-            filtered.map((r, idx) => ({
+            paginated.map((r, idx) => ({
               ...r,
               stt: (page - 1) * pageSize + idx + 1,
             })) as any
@@ -1183,7 +1306,7 @@ export default function SubmittedFormsPage() {
           columns={columns as any}
           page={page}
           pageSize={pageSize}
-          total={totalElements}
+          total={filteredAll.length}
           onPageChange={(p) => setPage(p)}
         />
       )}
@@ -1238,16 +1361,101 @@ export default function SubmittedFormsPage() {
                       formData = {};
                     }
 
-                    // Get all fields from form data, excluding only content and system fields
+                    // Nếu bản ghi có dấu hiệu là đồng đội → hiển thị bảng thành viên (Họ tên, Email, Giới tính)
+                    const isTeamRow = (() => {
+                      try {
+                        const ppe = (formData as any).participantsPerEntry;
+                        const members = (formData as any).teamMembers;
+                        const perfId = (formData as any).performanceId;
+                        return (
+                          (typeof ppe === "number" && ppe > 1) ||
+                          (Array.isArray(members) && members.length > 0) ||
+                          (typeof perfId === "string" && perfId.length > 0)
+                        );
+                      } catch {
+                        return false;
+                      }
+                    })();
+
+                    if (isTeamRow) {
+                      const members: Array<{
+                        fullName?: string;
+                        email?: string;
+                        gender?: string;
+                      }> = Array.isArray((formData as any).teamMembers)
+                        ? ((formData as any).teamMembers as any[])
+                        : [];
+
+                      // Render captain first (người nộp)
+                      const captain = {
+                        fullName: (formData as any).fullName,
+                        email: (formData as any).email,
+                        gender: (formData as any).gender,
+                      };
+
+                      const rows = [captain, ...members];
+
+                      const displayGender = (g?: string) => {
+                        if (!g) return "";
+                        const v = String(g).trim().toUpperCase();
+                        if (["FEMALE", "NỮ", "NU", "F"].includes(v))
+                          return "Nữ";
+                        if (["MALE", "NAM", "M"].includes(v)) return "Nam";
+                        return g;
+                      };
+
+                      return (
+                        <div className="col-span-2">
+                          <div className="mb-2 text-sm font-medium text-gray-700">
+                            Thông tin thành viên
+                          </div>
+                          <table className="w-full table-auto border border-gray-200 rounded-md overflow-hidden">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-1/3">
+                                  Họ tên
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-1/2">
+                                  Email
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-1/6">
+                                  Giới tính
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {rows.map((m, i) => (
+                                <tr key={i} className="hover:bg-gray-50">
+                                  <td className="px-3 py-2 text-sm text-gray-900 break-words">
+                                    {m.fullName || ""}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-gray-700 break-words">
+                                    {m.email || ""}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-gray-700">
+                                    {displayGender(m.gender)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    }
+
+                    // Mặc định: (không phải Đồng đội) hiển thị các trường form data
                     const excludeFields = [
                       // Chỉ loại trừ nội dung thi đấu
                       "nội dung",
                       "content",
+                      // vẫn cho phép contentName đi qua để tự ghép với item
                       "competitionType",
                       "category",
                       "weightClass",
                       "quyenCategory",
                       "quyenContent",
+                      // vẫn cho phép quyenContentName và fistItemName đi qua để ghép
+                      // nhưng loại bỏ các key alias khác để tránh trùng
                       "musicCategory",
                       "musicContent",
                       // Chỉ loại trừ các field hệ thống
@@ -1261,6 +1469,7 @@ export default function SubmittedFormsPage() {
                       "fistConfigId",
                       "musicContentId",
                       "quyenContentId",
+                      // giữ gender để hiển thị
                     ];
 
                     // Function to check if a value is an ID (UUID, timestamp, or numeric ID)

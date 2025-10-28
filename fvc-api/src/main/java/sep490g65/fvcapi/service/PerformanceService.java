@@ -31,4 +31,7 @@ public interface PerformanceService {
     PerformanceResponse addAthleteToPerformance(String performanceId, String athleteId, Integer teamPosition, Boolean isCaptain);
     
     void removeAthleteFromPerformance(String performanceId, String athleteId);
+
+    // Approve a team performance: create Athletes from pending PerformanceAthlete rows
+    PerformanceResponse approve(String id);
 }

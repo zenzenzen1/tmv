@@ -23,7 +23,7 @@ public class PerformanceResponse {
     
     private Boolean isTeam;
     private String teamId;
-    private String teamName;
+    private Integer participantsPerEntry;
     
     private Performance.PerformanceType performanceType;
     private Performance.ContentType contentType;
@@ -53,8 +53,8 @@ public class PerformanceResponse {
         private String id;
         private String fullName;
         private String email;
-        private Integer teamPosition;
-        private Boolean isCaptain;
+        // removed teamPosition/isCaptain in new spec
+        private Boolean approved; // true nếu đã có athlete id
     }
     
     @Data

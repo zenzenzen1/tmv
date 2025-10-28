@@ -101,4 +101,9 @@ public class PerformanceController {
         performanceService.removeAthleteFromPerformance(performanceId, athleteId);
         return ResponseEntity.ok().build();
     }
+
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<PerformanceResponse> approve(@PathVariable String id) {
+        return ResponseEntity.ok(performanceService.approve(id));
+    }
 }

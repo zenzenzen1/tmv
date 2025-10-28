@@ -47,6 +47,16 @@ public class AthleteService {
                 .orElseGet(() -> athleteRepository.save(prototype));
     }
 
+    @Transactional
+    public Athlete create(Athlete athlete) {
+        return athleteRepository.save(athlete);
+    }
+
+    @Transactional
+    public void deleteByEmailAndTournamentId(String email, String tournamentId) {
+        athleteRepository.deleteByEmailAndTournamentId(email, tournamentId);
+    }
+
     public Page<Athlete> list(
             String tournamentId,
             Athlete.CompetitionType competitionType,
@@ -65,7 +75,30 @@ public class AthleteService {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("competitionType"), competitionType));
         }
         if (subCompetitionType != null && !subCompetitionType.isBlank()) {
-            spec = spec.and((root, q, cb) -> cb.equal(root.get("subCompetitionType"), subCompetitionType));
+            // For Quyền, allow matching by either stored label or by fistConfigId resolved from the label
+            if (competitionType == Athlete.CompetitionType.quyen) {
+                String label = subCompetitionType.trim();
+                String configId = null;
+                try {
+                    configId = fistConfigRepository
+                            .findFirstByNameStartingWithIgnoreCase(label)
+                            .map(cfg -> cfg.getId())
+                            .orElse(null);
+                } catch (Exception ignored) {}
+
+                final String resolvedConfigId = configId; // effectively final for lambda
+                spec = spec.and((root, q, cb) -> {
+                    if (resolvedConfigId != null) {
+                        return cb.or(
+                                cb.equal(root.get("subCompetitionType"), label),
+                                cb.equal(root.get("fistConfigId"), resolvedConfigId)
+                        );
+                    }
+                    return cb.equal(root.get("subCompetitionType"), label);
+                });
+            } else {
+                spec = spec.and((root, q, cb) -> cb.equal(root.get("subCompetitionType"), subCompetitionType));
+            }
         }
         // legacy filter removed: detailSubCompetitionType no longer used
         if (name != null && !name.isBlank()) {
