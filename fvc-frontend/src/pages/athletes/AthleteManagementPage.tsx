@@ -21,6 +21,7 @@ type AthleteRow = {
   club: string;
   tournament: string;
   status: "ĐÃ ĐẤU" | "HOÀN ĐẤU" | "VI PHẠM" | "CHỜ ĐẤU" | "ĐANG ĐẤU" | "-";
+  isTeam?: boolean;
 };
 
 type AthleteApi = {
@@ -43,6 +44,7 @@ type AthleteApi = {
   fistItemId?: string | null;
   musicContentId?: string | null;
   weightClassId?: string | null;
+  performanceId?: string | null;
 };
 
 type CompetitionType = "fighting" | "quyen" | "music";
@@ -144,11 +146,35 @@ export default function AthleteManagementPage({
       description?: string | null;
       status?: boolean;
       configId?: string; // link back to config so we can filter dropdown by config
+      participantsPerEntry?: number; // 1 = cá nhân, >1 = đồng đội
     }>
   >([]);
   const [musicContents, setMusicContents] = useState<
-    Array<{ id: string; name: string }>
+    Array<{ id: string; name: string; performersPerEntry?: number }>
   >([]);
+
+  // Team detail modal state
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [teamModalLoading, setTeamModalLoading] = useState(false);
+  const [teamModalData, setTeamModalData] = useState<{
+    teamName: string;
+    members: Array<{
+      fullName: string;
+      studentId?: string;
+      gender?: string;
+      email?: string;
+    }>;
+  } | null>(null);
+
+  // Registrant map for team rows (teamName -> registrant email and canonical team name)
+  const [teamRegistrantMap, setTeamRegistrantMap] = useState<
+    Record<string, { teamName: string; email: string }>
+  >({});
+
+  // Cache performance details by id
+  const [performanceCache, setPerformanceCache] = useState<
+    Record<string, Record<string, unknown>>
+  >({});
 
   // Filter states - closed by default
   const [showGenderFilter, setShowGenderFilter] = useState(false);
@@ -184,6 +210,10 @@ export default function AthleteManagementPage({
   // Filters
   const [genderFilter, setGenderFilter] = useState<string>(""); // MALE/FEMALE/''
   const [statusFilter, setStatusFilter] = useState<string>("");
+  // Team/Individual filter for Quyền & Võ nhạc
+  const [teamFilter, setTeamFilter] = useState<"PERSON" | "TEAM" | "ALL">(
+    "PERSON"
+  );
 
   // Fetch athletes from backend
   useEffect(() => {
@@ -264,6 +294,96 @@ export default function AthleteManagementPage({
             .toLowerCase();
         const normalizeWeight = (s: string) =>
           (s || "").replace(/[^0-9]+/g, "");
+        const isTeamEntry = (a: AthleteApi): boolean => {
+          if (a.competitionType === "quyen") {
+            // 1) Prefer participantsPerEntry from item
+            const itemId = (a as unknown as Record<string, unknown>)[
+              "fistItemId"
+            ] as string;
+            if (itemId) {
+              const fi = fistItems.find((x) => x.id === itemId);
+              if (fi && typeof fi?.participantsPerEntry === "number") {
+                return (fi.participantsPerEntry as number) > 1;
+              }
+              // Derive by item name keywords when participants not available
+              if (fi?.name) {
+                const n = strip(fi.name).replace(/\s+/g, " ");
+                if (n.includes("song luyen") || n.includes("da luyen"))
+                  return true;
+                if (n.includes("don luyen")) return false;
+              }
+            }
+            // 2) Derive category name robustly
+            let catName = a.subCompetitionType || "";
+            const cfgId = (a as unknown as Record<string, unknown>)[
+              "fistConfigId"
+            ] as string;
+            if (
+              (!catName ||
+                catName === "-" ||
+                catName.toLowerCase() === "quyền") &&
+              cfgId
+            ) {
+              const cfg = fistConfigs.find((x) => x.id === cfgId);
+              if (cfg?.name) catName = cfg.name;
+            }
+            if ((!catName || catName === "-") && itemId) {
+              const it = fistItems.find((x) => x.id === itemId);
+              const parentCfg = it?.configId
+                ? fistConfigs.find((x) => x.id === it.configId)
+                : undefined;
+              if (parentCfg?.name) catName = parentCfg.name;
+            }
+            const s = strip(
+              `${catName} ${a.detailSubCompetitionType || ""} ${
+                a.detailSubLabel || ""
+              }`
+            ).replace(/\s+/g, " ");
+            if (s.includes("song luyen") || s.includes("da luyen")) return true;
+            if (s.includes("don luyen")) return false;
+            return false;
+          } else if (a.competitionType === "music") {
+            const mid = (a as unknown as Record<string, unknown>)[
+              "musicContentId"
+            ] as string;
+            if (mid) {
+              const mc = musicContents.find((x) => x.id === mid);
+              if (mc && typeof mc?.performersPerEntry === "number") {
+                return mc.performersPerEntry > 1;
+              }
+            }
+            // fallback by detail
+            const s = strip(
+              `${a.detailSubCompetitionType || ""} ${a.detailSubLabel || ""}`
+            )
+              .replace(/\s+/g, " ")
+              .trim();
+            if (
+              s.includes("doi nhom") ||
+              s.includes("doi hinh") ||
+              s.includes("tap the") ||
+              s.includes("team")
+            )
+              return true;
+            if (s.includes("ca nhan")) return false;
+            return false;
+          }
+          return false;
+        };
+
+        // Heuristic to detect team header/owner row (not individual members)
+        const isTeamHeader = (a: AthleteApi): boolean => {
+          const email = String(a.email || "").toLowerCase();
+          if (email.endsWith("@team.local")) return true;
+          const rec = (a as unknown as Record<string, unknown>) || {};
+          const teamName = (rec["teamName"] as string) || "";
+          const fullName = (a.fullName || "").trim();
+          if (teamName && teamName.trim().length > 0) {
+            return teamName.trim() === fullName;
+          }
+          return false;
+        };
+
         const filteredRaw: AthleteApi[] = content.filter((a: AthleteApi) => {
           const okName = debouncedName
             ? (a.fullName || "")
@@ -355,7 +475,17 @@ export default function AthleteManagementPage({
             okSubDetail = okSub && okDetail;
           }
 
-          return okName && okGender && okStatus && okSubDetail;
+          let okTeam = true;
+          if (activeTab !== "fighting") {
+            const team = isTeamEntry(a);
+            if (teamFilter === "TEAM") {
+              okTeam = team && isTeamHeader(a);
+            } else if (teamFilter === "PERSON") {
+              okTeam = !team;
+            }
+          }
+
+          return okName && okGender && okStatus && okSubDetail && okTeam;
         });
         const totalElements: number =
           pageData?.totalElements ?? filteredRaw.length;
@@ -394,6 +524,33 @@ export default function AthleteManagementPage({
           return "-";
         };
 
+        // Preload performance details for team rows if performanceId is present
+        try {
+          const missing = new Set<string>();
+          filteredRaw.forEach((a) => {
+            const rec = (a as unknown as Record<string, unknown>) || {};
+            const pid =
+              (a.performanceId as string) || (rec["performanceId"] as string);
+            if (pid && typeof pid === "string" && !performanceCache[pid]) {
+              missing.add(pid);
+            }
+          });
+          for (const pid of missing) {
+            try {
+              const pRes = await api.get(`/v1/performances/${pid}`);
+              const dataObj = pRes.data as Record<string, unknown>;
+              setPerformanceCache((prev) => ({
+                ...prev,
+                [pid]: dataObj as Record<string, unknown>,
+              }));
+            } catch (err) {
+              console.warn("Load performance failed", pid, err);
+            }
+          }
+        } catch {
+          // ignore preload errors
+        }
+
         const mapped: AthleteRow[] = filteredRaw.map(
           (a: AthleteApi, idx: number) => {
             // Resolve category similar to ListPage for Quyền
@@ -427,11 +584,42 @@ export default function AthleteManagementPage({
               }
             }
 
+            const isTeam = isTeamEntry(a);
+
+            // Prefer team name/email from submissions map when available
+            const rec = (a as unknown as Record<string, unknown>) || {};
+            const rawTeamName = isTeam
+              ? (rec["teamName"] as string) || a.fullName
+              : a.fullName;
+            const keyForLookup = (rawTeamName || "")
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .toLowerCase()
+              .replace(/\s+/g, " ")
+              .trim();
+            const perfId =
+              (a.performanceId as string) || (rec["performanceId"] as string);
+            const perf =
+              perfId && performanceCache[perfId]
+                ? (performanceCache[perfId] as Record<string, unknown>)
+                : undefined;
+            const perfTeamName = (perf?.["teamName"] as string) || "";
+            const perfEmail =
+              (perf?.["registrantEmail"] as string) ||
+              (perf?.["email"] as string) ||
+              "";
+            const enriched = isTeam
+              ? teamRegistrantMap[keyForLookup]
+              : undefined;
+            const displayName = isTeam
+              ? perfTeamName || enriched?.teamName || rawTeamName || a.fullName
+              : a.fullName;
+
             return {
               id: a.id,
               stt: (page - 1) * pageSize + idx + 1,
-              name: a.fullName,
-              email: a.email,
+              name: displayName,
+              email: isTeam ? perfEmail || enriched?.email || a.email : a.email,
               gender: a.gender === "FEMALE" ? "Nữ" : "Nam",
               competitionType:
                 a.competitionType === "fighting"
@@ -459,6 +647,7 @@ export default function AthleteManagementPage({
                   : a.status === "VIOLATED"
                   ? "VI PHẠM"
                   : "-",
+              isTeam,
             };
           }
         );
@@ -482,11 +671,13 @@ export default function AthleteManagementPage({
     reloadKey,
     subCompetitionFilter,
     detailCompetitionFilter,
+    teamFilter,
     fistConfigs,
     fistItems,
     musicContents,
     weightClasses,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    teamRegistrantMap,
+    performanceCache,
   ]);
 
   // Reset to first page when filters/search change
@@ -500,6 +691,7 @@ export default function AthleteManagementPage({
     activeTab,
     subCompetitionFilter,
     detailCompetitionFilter,
+    teamFilter,
   ]);
 
   // Reset competition filters when competition type changes
@@ -507,10 +699,16 @@ export default function AthleteManagementPage({
     setSubCompetitionFilter("");
     setDetailCompetitionFilter("");
     setShowCompetitionFilter(false);
+    // Default to Cá nhân for Quyền/Võ nhạc when switching tab
+    if (activeTab === "quyen" || activeTab === "music") {
+      setTeamFilter("PERSON");
+    } else {
+      setTeamFilter("ALL");
+    }
   }, [activeTab]);
 
-  const columns: TableColumn<AthleteRow>[] = useMemo(
-    () => [
+  const columns: TableColumn<AthleteRow>[] = useMemo(() => {
+    const base: TableColumn<AthleteRow>[] = [
       {
         key: "stt",
         title: "STT",
@@ -519,11 +717,27 @@ export default function AthleteManagementPage({
       },
       {
         key: "name",
-        title: "Tên",
+        title:
+          teamFilter === "TEAM" && activeTab !== "fighting" ? "Tên đội" : "Tên",
         className: "whitespace-nowrap",
         sortable: true,
       },
-      {
+    ];
+
+    if (teamFilter === "TEAM" && activeTab !== "fighting") {
+      base.push({
+        key: "email",
+        title: "Email người đăng ký",
+        className: "whitespace-nowrap",
+        sortable: true,
+        render: (row: AthleteRow) => {
+          const e = row.email || "";
+          // Hide synthetic team email placeholder
+          return e.endsWith("@team.local") ? "" : e;
+        },
+      });
+    } else {
+      base.push({
         key: "email",
         title: "Email",
         className: "whitespace-nowrap",
@@ -532,78 +746,100 @@ export default function AthleteManagementPage({
           const e = row.email || "";
           return e.endsWith("@team.local") ? "" : e;
         },
-      },
-      {
+      });
+    }
+
+    if (!(teamFilter === "TEAM" && activeTab !== "fighting")) {
+      base.push({
         key: "gender",
         title: "Giới tính",
         className: "whitespace-nowrap text-center",
         sortable: true,
-      },
-      {
-        key: "competitionType",
-        title: "Thể thức thi đấu",
+      });
+    }
+
+    base.push({
+      key: "competitionType",
+      title: "Thể thức thi đấu",
+      className: "whitespace-nowrap",
+      sortable: true,
+    });
+
+    if (activeTab === "fighting") {
+      base.push({
+        key: "detailSubCompetitionType",
+        title: "Hạng cân",
         className: "whitespace-nowrap",
+        render: (row: AthleteRow) => {
+          const value = row.detailSubCompetitionType || "-";
+          return String(value)
+            .replace(/^Nam\s+/i, "")
+            .replace(/^Nữ\s+/i, "");
+        },
         sortable: true,
-      },
-      ...(activeTab === "fighting"
-        ? [
-            {
-              key: "detailSubCompetitionType",
-              title: "Hạng cân",
-              className: "whitespace-nowrap",
-              render: (row: AthleteRow) => {
-                const value = row.detailSubCompetitionType || "-";
-                return String(value)
-                  .replace(/^Nam\s+/i, "")
-                  .replace(/^Nữ\s+/i, "");
-              },
-              sortable: true,
-            } as TableColumn<AthleteRow>,
-          ]
-        : [
-            {
-              key: "detailSubCompetitionType",
-              title: "Nội dung",
-              className: "whitespace-nowrap",
-              render: (row: AthleteRow) => {
-                const cat = (row.subCompetitionType || "").trim();
-                const item = (row.detailSubCompetitionType || "").trim();
-                if (activeTab === "quyen") {
-                  // Always show "category - item" when item exists, per requirement
-                  if (item) return `${cat ? `${cat} - ` : ""}${item}`;
-                  return cat || "-";
-                }
-                // music: just item name if available
-                return item || "-";
-              },
-              sortable: true,
-            } as TableColumn<AthleteRow>,
-          ]),
-      {
+      });
+    } else {
+      base.push({
+        key: "detailSubCompetitionType",
+        title: "Nội dung",
+        className: "whitespace-nowrap",
+        render: (row: AthleteRow) => {
+          const cat = (row.subCompetitionType || "").trim();
+          const item = (row.detailSubCompetitionType || "").trim();
+          if (activeTab === "quyen") {
+            if (item) return `${cat ? `${cat} - ` : ""}${item}`;
+            return cat || "-";
+          }
+          return item || "-";
+        },
+        sortable: true,
+      });
+    }
+
+    if (!(teamFilter === "TEAM" && activeTab !== "fighting")) {
+      base.push({
         key: "studentId",
         title: "MSSV",
         className: "whitespace-nowrap",
         sortable: true,
-      },
-      // Remove tournament column per request
-      {
-        key: "status",
-        title: "Trạng thái",
+      });
+    }
+
+    base.push({
+      key: "status",
+      title: "Trạng thái",
+      className: "whitespace-nowrap text-center",
+      render: (row) => (
+        <span
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+            STATUS_COLORS[row.status]
+          }`}
+        >
+          {row.status}
+        </span>
+      ),
+      sortable: true,
+    });
+
+    if (teamFilter === "TEAM" && activeTab !== "fighting") {
+      base.push({
+        key: "actions",
+        title: "Xem chi tiết",
         className: "whitespace-nowrap text-center",
-        render: (row) => (
-          <span
-            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
-              STATUS_COLORS[row.status]
-            }`}
+        sortable: false,
+        render: (row: AthleteRow) => (
+          <button
+            className="px-2 py-1 text-xs rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+            onClick={() => openTeamDetail(row)}
           >
-            {row.status}
-          </span>
+            Xem chi tiết
+          </button>
         ),
-        sortable: true,
-      },
-    ],
-    [activeTab]
-  );
+      });
+    }
+
+    return base;
+  }, [activeTab, teamFilter]);
 
   // Load tournaments from database
   useEffect(() => {
@@ -667,6 +903,7 @@ export default function AthleteManagementPage({
               fistConfigId?: string;
               config?: { id?: string };
               configId?: string;
+              participantsPerEntry?: number;
             }) => ({
               id: it.id,
               name: it.name,
@@ -678,6 +915,7 @@ export default function AthleteManagementPage({
                 it.fistConfigId ||
                 it.config?.id ||
                 undefined,
+              participantsPerEntry: it.participantsPerEntry,
             })
           )
         );
@@ -686,7 +924,11 @@ export default function AthleteManagementPage({
 
         // Load music contents
         const musicContentsRes = await api.get<{
-          content: Array<{ id: string; name: string }>;
+          content: Array<{
+            id: string;
+            name: string;
+            performersPerEntry?: number;
+          }>;
           totalElements: number;
         }>(API_ENDPOINTS.MUSIC_CONTENTS.BASE);
         setMusicContents(musicContentsRes.data?.content || []);
@@ -697,6 +939,113 @@ export default function AthleteManagementPage({
 
     loadFilterData();
   }, []);
+
+  // Load registrant mapping for team view to resolve correct team name and email
+  useEffect(() => {
+    const loadRegistrants = async () => {
+      try {
+        if (!selectedTournament) {
+          setTeamRegistrantMap({});
+          return;
+        }
+        // For quyen/music, always build registrant map so team rows can be enriched
+        if (!(activeTab === "quyen" || activeTab === "music")) {
+          setTeamRegistrantMap({});
+          return;
+        }
+        // Fetch all tournament forms then their submissions, similar to ListPage
+        const formsRes = await api.get<{
+          content?: Array<Record<string, unknown>>;
+        }>(API_ENDPOINTS.TOURNAMENT_FORMS.BASE, { page: 0, size: 100 });
+        const root1 = formsRes.data as unknown as Record<string, unknown>;
+        const allForms: Array<Record<string, unknown>> = ((
+          root1["data"] as unknown as {
+            content?: Array<Record<string, unknown>>;
+          }
+        )?.content ??
+          (root1["content"] as Array<Record<string, unknown>>) ??
+          []) as Array<Record<string, unknown>>;
+        // Prefer forms that appear to belong to selected tournament by name
+        const preferredForms = allForms.filter((f: Record<string, unknown>) => {
+          const name = String(
+            (f["name"] as string) || (f["formTitle"] as string) || ""
+          ).toLowerCase();
+          const tn =
+            tournaments.find((t) => t.id === selectedTournament)?.name || "";
+          return name.includes(String(tn).toLowerCase());
+        });
+        const formsToUse =
+          preferredForms.length > 0 ? preferredForms : allForms;
+
+        const map: Record<string, { teamName: string; email: string }> = {};
+
+        for (const form of formsToUse) {
+          const formId = String(form["id"] || "");
+          if (!formId) continue;
+          try {
+            const subsRes = await api.get<{
+              content?: Array<Record<string, unknown>>;
+            }>(API_ENDPOINTS.TOURNAMENT_FORMS.SUBMISSIONS(formId), {
+              all: true,
+              page: 0,
+              size: 500,
+            });
+            const root2 = subsRes.data as unknown as Record<string, unknown>;
+            const pageData =
+              (root2["data"] as Record<string, unknown>) ?? root2;
+            const subs: Array<Record<string, unknown>> =
+              (pageData["content"] as Array<Record<string, unknown>>) ?? [];
+            for (const s of subs) {
+              const formDataRaw = (s["formData"] as string) || "";
+              let formData: Record<string, unknown> = {};
+              try {
+                formData = formDataRaw
+                  ? (JSON.parse(formDataRaw) as Record<string, unknown>)
+                  : {};
+              } catch {
+                formData = {};
+              }
+              const comp = String(
+                (formData["competitionType"] as string) || ""
+              ).toLowerCase();
+              if (comp && comp !== String(activeTab)) continue;
+              const ppe = formData["participantsPerEntry"] as
+                | number
+                | undefined;
+              const members = formData["teamMembers"] as unknown[] | undefined;
+              const hasTeam =
+                (typeof ppe === "number" && ppe > 1) ||
+                (Array.isArray(members) && members.length > 0);
+              if (!hasTeam) continue;
+              const teamName = String(
+                (formData["teamName"] as string) ||
+                  (formData["fullName"] as string) ||
+                  ""
+              ).trim();
+              const email = String((formData["email"] as string) || "").trim();
+              if (!teamName) continue;
+              const key = teamName
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toLowerCase()
+                .replace(/\s+/g, " ")
+                .trim();
+              if (!map[key]) map[key] = { teamName, email };
+            }
+          } catch {
+            // Ignore per-form errors, continue
+          }
+        }
+
+        setTeamRegistrantMap(map);
+      } catch (e) {
+        console.error("Failed to load team registrants map", e);
+        setTeamRegistrantMap({});
+      }
+    };
+
+    loadRegistrants();
+  }, [selectedTournament, activeTab, tournaments]);
 
   // rows, total are driven by API fetch; no local recompute
 
@@ -764,6 +1113,20 @@ export default function AthleteManagementPage({
     } catch (error) {
       console.error("Export failed:", error);
     }
+  };
+
+  // Open team detail modal and fetch members (best-effort across possible response shapes)
+  const openTeamDetail = async (row: AthleteRow) => {
+    // Temporarily disable API fetch until backend endpoint is available
+    setTeamModalOpen(true);
+    setTeamModalLoading(false);
+    setTeamModalData({ teamName: row.name, members: [] });
+  };
+
+  const closeTeamDetail = () => {
+    setTeamModalOpen(false);
+    setTeamModalData(null);
+    setTeamModalLoading(false);
   };
 
   return (
@@ -856,6 +1219,47 @@ export default function AthleteManagementPage({
 
           {/* Filter Buttons (removed CLB, Sân đấu) */}
           <div className="flex gap-1">
+            {/* Team filter for Quyền and Võ nhạc */}
+            {(activeTab === "quyen" || activeTab === "music") && (
+              <div className="relative filter-dropdown">
+                <button
+                  onClick={() =>
+                    setShowCompetitionFilter(!showCompetitionFilter)
+                  }
+                  className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  Hình thức
+                </button>
+                {showCompetitionFilter && (
+                  <div className="absolute top-full left-0 mt-1 w-40 bg-white border border-gray-300 rounded shadow-lg z-20">
+                    <div className="p-2 space-y-1">
+                      {(
+                        [
+                          { label: "Cá nhân", value: "PERSON" },
+                          { label: "Đồng đội", value: "TEAM" },
+                        ] as const
+                      ).map((opt) => (
+                        <label
+                          key={opt.value}
+                          className="flex items-center cursor-pointer"
+                        >
+                          <input
+                            type="radio"
+                            name="teamFilter"
+                            className="mr-2 h-3 w-3 text-blue-600"
+                            checked={teamFilter === opt.value}
+                            onChange={() => setTeamFilter(opt.value)}
+                          />
+                          <span className="text-sm text-gray-700">
+                            {opt.label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="relative filter-dropdown">
               <button
                 onClick={() => setShowGenderFilter(!showGenderFilter)}
@@ -1169,6 +1573,75 @@ export default function AthleteManagementPage({
           onPageChange={setPage}
         />
       </div>
+
+      {/* Team detail modal */}
+      {teamModalOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={closeTeamDetail}
+          />
+          <div className="relative z-50 w-full max-w-lg rounded-lg bg-white shadow-lg p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Chi tiết thành viên
+              </h3>
+              <button
+                className="text-gray-500 hover:text-gray-700"
+                onClick={closeTeamDetail}
+              >
+                ✕
+              </button>
+            </div>
+            {teamModalLoading ? (
+              <div className="py-6 text-center text-sm text-gray-600">
+                Đang tải...
+              </div>
+            ) : teamModalData && teamModalData.members.length > 0 ? (
+              <div>
+                <div className="mb-2 text-sm text-gray-700">
+                  <span className="font-medium">Đội:</span>{" "}
+                  {teamModalData.teamName}
+                </div>
+                <div className="max-h-80 overflow-auto border rounded">
+                  <table className="w-full table-auto">
+                    <thead className="bg-gray-50 text-xs text-gray-600">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Họ tên</th>
+                        <th className="px-3 py-2 text-left">MSSV</th>
+                        <th className="px-3 py-2 text-left">Giới tính</th>
+                        <th className="px-3 py-2 text-left">Email</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-sm">
+                      {teamModalData.members.map((m, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="px-3 py-2">{m.fullName}</td>
+                          <td className="px-3 py-2">{m.studentId || ""}</td>
+                          <td className="px-3 py-2">{m.gender || ""}</td>
+                          <td className="px-3 py-2">{m.email || ""}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="py-6 text-center text-sm text-gray-600">
+                Không tìm thấy chi tiết thành viên cho đội này.
+              </div>
+            )}
+            <div className="mt-4 text-right">
+              <button
+                className="px-4 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+                onClick={closeTeamDetail}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
