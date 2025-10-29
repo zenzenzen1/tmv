@@ -23,11 +23,16 @@ public class PerformanceResponse {
     
     private Boolean isTeam;
     private String teamId;
+    private String teamName;
     private Integer participantsPerEntry;
     
     private Performance.PerformanceType performanceType;
     private Performance.ContentType contentType;
     private String contentId;
+    // Denormalized content identifiers
+    private String fistConfigId;
+    private String fistItemId;
+    private String musicContentId;
     
     private Performance.PerformanceStatus status;
     private LocalDateTime startTime;

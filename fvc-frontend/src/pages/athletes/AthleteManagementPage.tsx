@@ -38,6 +38,11 @@ type AthleteApi = {
   tournamentId?: string | null;
   tournamentName?: string | null; // optional if backend enriches later
   status: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "VIOLATED" | string;
+  // Content IDs for mapping
+  fistConfigId?: string | null;
+  fistItemId?: string | null;
+  musicContentId?: string | null;
+  weightClassId?: string | null;
 };
 
 type CompetitionType = "fighting" | "quyen" | "music";
@@ -354,41 +359,86 @@ export default function AthleteManagementPage({
         });
         const totalElements: number =
           pageData?.totalElements ?? filteredRaw.length;
+
+        // Function to resolve content from IDs
+        const resolveDetail = (a: AthleteApi): string => {
+          const explicit = a.detailSubLabel || a.detailSubCompetitionType;
+          if (explicit && explicit.trim()) return explicit;
+
+          // Use content IDs directly from API response
+          if (a.competitionType === "quyen") {
+            if (a.fistItemId) {
+              const fi = fistItems.find((x) => x.id === a.fistItemId);
+              if (fi) return fi.name;
+            }
+            if (a.fistConfigId) {
+              const fc = fistConfigs.find((x) => x.id === a.fistConfigId);
+              if (fc) return fc.name;
+            }
+            // Fallback to subCompetitionType label (e.g., "đơn luyện")
+            if (a.subCompetitionType && a.subCompetitionType.trim()) {
+              return a.subCompetitionType;
+            }
+          } else if (a.competitionType === "music") {
+            if (a.musicContentId) {
+              const mc = musicContents.find((x) => x.id === a.musicContentId);
+              if (mc) return mc.name;
+            }
+          } else if (a.competitionType === "fighting") {
+            if (a.weightClassId) {
+              const wc = weightClasses.find((x) => x.id === a.weightClassId);
+              if (wc)
+                return wc.weightClass || `${wc.minWeight}-${wc.maxWeight}kg`;
+            }
+          }
+          return "-";
+        };
+
         const mapped: AthleteRow[] = filteredRaw.map(
-          (a: AthleteApi, idx: number) => ({
-            id: a.id,
-            stt: (page - 1) * pageSize + idx + 1,
-            name: a.fullName,
-            email: a.email,
-            gender: a.gender === "FEMALE" ? "Nữ" : "Nam",
-            competitionType:
-              a.competitionType === "fighting"
-                ? "Đối kháng"
-                : a.competitionType === "quyen"
-                ? "Quyền"
-                : a.competitionType === "music"
-                ? "Võ nhạc"
-                : "-",
-            subCompetitionType: a.subCompetitionType || "-",
-            // Always show detailed item if available; do not fallback to category like "Đơn luyện"
-            detailSubCompetitionType:
-              a.detailSubLabel || a.detailSubCompetitionType || "-",
-            studentId: a.studentId ?? "",
-            club: a.club ?? "",
-            tournament:
-              a.tournamentName ??
-              (tournaments.find((t) => t.id === a.tournamentId)?.name || ""),
-            status:
-              a.status === "NOT_STARTED"
-                ? "CHỜ ĐẤU"
-                : a.status === "IN_PROGRESS"
-                ? "ĐANG ĐẤU"
-                : a.status === "DONE"
-                ? "ĐÃ ĐẤU"
-                : a.status === "VIOLATED"
-                ? "VI PHẠM"
-                : "-",
-          })
+          (a: AthleteApi, idx: number) => {
+            // Resolve category similar to ListPage for Quyền
+            let resolvedCategory = a.subCompetitionType || "-";
+            if (a.competitionType === "quyen") {
+              if (a.fistConfigId) {
+                const fc = fistConfigs.find((x) => x.id === a.fistConfigId);
+                if (fc) resolvedCategory = fc.name;
+              }
+            }
+
+            return {
+              id: a.id,
+              stt: (page - 1) * pageSize + idx + 1,
+              name: a.fullName,
+              email: a.email,
+              gender: a.gender === "FEMALE" ? "Nữ" : "Nam",
+              competitionType:
+                a.competitionType === "fighting"
+                  ? "Đối kháng"
+                  : a.competitionType === "quyen"
+                  ? "Quyền"
+                  : a.competitionType === "music"
+                  ? "Võ nhạc"
+                  : "-",
+              subCompetitionType: resolvedCategory,
+              // Use resolveDetail function to get content from IDs
+              detailSubCompetitionType: resolveDetail(a),
+              studentId: a.studentId ?? "",
+              club: a.club ?? "",
+              tournament:
+                a.tournamentName ??
+                (tournaments.find((t) => t.id === a.tournamentId)?.name || ""),
+              status:
+                a.status === "NOT_STARTED"
+                  ? "CHỜ ĐẤU"
+                  : a.status === "IN_PROGRESS"
+                  ? "ĐANG ĐẤU"
+                  : a.status === "DONE"
+                  ? "ĐÃ ĐẤU"
+                  : a.status === "VIOLATED"
+                  ? "VI PHẠM"
+                  : "-",
+            };
+          }
         );
         setRows(mapped);
         setTotal(totalElements);
@@ -410,6 +460,11 @@ export default function AthleteManagementPage({
     reloadKey,
     subCompetitionFilter,
     detailCompetitionFilter,
+    fistConfigs,
+    fistItems,
+    musicContents,
+    weightClasses,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
   // Reset to first page when filters/search change
@@ -451,6 +506,10 @@ export default function AthleteManagementPage({
         title: "Email",
         className: "whitespace-nowrap",
         sortable: true,
+        render: (row: AthleteRow) => {
+          const e = row.email || "";
+          return e.endsWith("@team.local") ? "" : e;
+        },
       },
       {
         key: "gender",
@@ -484,8 +543,16 @@ export default function AthleteManagementPage({
               key: "detailSubCompetitionType",
               title: "Nội dung",
               className: "whitespace-nowrap",
-              render: (row: AthleteRow) =>
-                String(row.detailSubCompetitionType || "-"),
+              render: (row: AthleteRow) => {
+                const cat = (row.subCompetitionType || "").trim();
+                const item = (row.detailSubCompetitionType || "").trim();
+                if (activeTab === "quyen") {
+                  if (cat && item && cat !== item) return `${cat} - ${item}`;
+                  return cat || item || "-";
+                }
+                // music: just item name if available
+                return item || "-";
+              },
               sortable: true,
             } as TableColumn<AthleteRow>,
           ]),
@@ -567,18 +634,24 @@ export default function AthleteManagementPage({
         console.log("AthleteManagement - Fist items loaded:", fistItemsRes);
         // Ensure each item carries configId for mapping to its config
         setFistItems(
-          (fistItemsRes.content || []).map((it: any) => ({
-            id: it.id,
-            name: it.name,
-            description: it.description,
-            status: it.status,
-            configId:
-              it.configId ||
-              it.parentId ||
-              it.fistConfigId ||
-              it.config?.id ||
-              undefined,
-          }))
+          (fistItemsRes.content || []).map(
+            (it: {
+              id: string;
+              name: string;
+              description?: string;
+              status?: boolean;
+              configId?: string;
+              parentId?: string;
+              fistConfigId?: string;
+            }) => ({
+              id: it.id,
+              name: it.name,
+              description: it.description,
+              status: it.status,
+              configId:
+                it.configId || it.parentId || it.fistConfigId || undefined,
+            })
+          )
         );
 
         // Fist content data loaded successfully

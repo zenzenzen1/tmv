@@ -8,6 +8,8 @@ import sep490g65.fvcapi.dto.response.PerformanceResponse;
 import sep490g65.fvcapi.entity.*;
 import sep490g65.fvcapi.repository.*;
 import sep490g65.fvcapi.service.PerformanceService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,6 +27,8 @@ public class PerformanceServiceImpl implements PerformanceService {
     private final AssessorRepository assessorRepository;
     private final AssessorScoreRepository assessorScoreRepository;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository vovinamFistConfigRepository;
+    private final SubmittedApplicationFormRepository submittedApplicationFormRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional
@@ -38,10 +42,14 @@ public class PerformanceServiceImpl implements PerformanceService {
                 .competition(competition)
                 .isTeam(request.getIsTeam())
                 .teamId(request.getTeamId())
+                .teamName(request.getTeamName())
                 .participantsPerEntry(request.getParticipantsPerEntry())
                 .performanceType(request.getPerformanceType())
                 .contentType(request.getContentType())
                 .contentId(request.getContentId())
+                .fistConfigId(request.getFistConfigId())
+                .fistItemId(request.getFistItemId())
+                .musicContentId(request.getMusicContentId())
                 .status(Performance.PerformanceStatus.PENDING)
                 .build();
 
@@ -66,6 +74,7 @@ public class PerformanceServiceImpl implements PerformanceService {
                 PerformanceAthlete pa = PerformanceAthlete.builder()
                         .performance(savedPerformance)
                         .tempFullName(m.getFullName())
+                        .tempStudentId(m.getStudentId())
                         .tempEmail(m.getEmail())
                         .tempPhone(m.getPhone())
                         .tempGender(m.getGender())
@@ -189,7 +198,56 @@ public class PerformanceServiceImpl implements PerformanceService {
 
         // Process all rows: create missing athletes or update existing athletes' fields
         List<PerformanceAthlete> rows = performanceAthleteRepository.findByPerformanceId(id);
-        for (PerformanceAthlete pa : rows) {
+
+        // Precompute team-level fallback for subCompetitionType (especially for Quyền when IDs are missing)
+        String teamSubCompetitionTypeFallback = null;
+        // 1) Try derive from performance content IDs (preferred)
+        if (performance.getContentType() == Performance.ContentType.QUYEN) {
+            String cfgIdForName = performance.getContentId() != null && !performance.getContentId().isBlank()
+                    ? performance.getContentId()
+                    : performance.getFistConfigId();
+            if (cfgIdForName != null && !cfgIdForName.isBlank()) {
+                sep490g65.fvcapi.entity.VovinamFistConfig cfg = vovinamFistConfigRepository.findById(cfgIdForName).orElse(null);
+                if (cfg != null && cfg.getName() != null && !cfg.getName().isBlank()) {
+                    teamSubCompetitionTypeFallback = cfg.getName();
+                }
+            }
+            // If still missing, set a generic non-null label for Quyền
+            if (teamSubCompetitionTypeFallback == null) {
+                // Try derive from submitted form JSON (quyenCategory) using performanceId saved at submit()
+                try {
+                    java.util.Optional<SubmittedApplicationForm> subOpt = submittedApplicationFormRepository.findOneByPerformanceId(performance.getId());
+                    if (subOpt.isPresent()) {
+                        String formJson = subOpt.get().getFormData();
+                        if (formJson != null && !formJson.isBlank()) {
+                            JsonNode root = objectMapper.readTree(formJson);
+                            if (root.hasNonNull("quyenCategory")) {
+                                String qc = root.get("quyenCategory").asText();
+                                if (qc != null && !qc.isBlank()) {
+                                    teamSubCompetitionTypeFallback = qc;
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception ignoredJson) {}
+                if (teamSubCompetitionTypeFallback == null) teamSubCompetitionTypeFallback = "Quyền";
+            }
+        } else if (performance.getContentType() == Performance.ContentType.FIGHTING) {
+            teamSubCompetitionTypeFallback = "Hạng cân";
+        } else if (performance.getContentType() == Performance.ContentType.MUSIC) {
+            teamSubCompetitionTypeFallback = "Tiết mục";
+        }
+        // 2) If still null, reuse any existing linked athlete's subCompetitionType in the team
+        if (teamSubCompetitionTypeFallback == null) {
+            for (PerformanceAthlete paProbe : rows) {
+                if (paProbe.getAthlete() != null && paProbe.getAthlete().getSubCompetitionType() != null && !paProbe.getAthlete().getSubCompetitionType().isBlank()) {
+                    teamSubCompetitionTypeFallback = paProbe.getAthlete().getSubCompetitionType();
+                    break;
+                }
+            }
+        }
+        for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+            PerformanceAthlete pa = rows.get(rowIndex);
             try {
                     // Create athlete from temp fields
                     Athlete.Gender g = null;
@@ -205,12 +263,19 @@ public class PerformanceServiceImpl implements PerformanceService {
                 Athlete athlete = pa.getAthlete();
 
                 if (athlete == null) {
-                    if (name == null || name.isBlank() || email == null || email.isBlank()) {
+                    if (name == null || name.isBlank()) {
                         // skip incomplete member silently
                         continue;
                     }
 
                     // Reuse existing athlete by (tournamentId, email) to avoid unique constraint violation
+                    // Ensure DB non-null constraint on email: synthesize internal email if missing
+                    if (email == null || email.isBlank()) {
+                        String normalized = name != null ? name.trim().toLowerCase().replaceAll("[^a-z0-9]+", ".") : "member";
+                        String suffix = performance.getId() != null ? performance.getId() : java.util.UUID.randomUUID().toString();
+                        email = normalized + "+" + suffix + "+" + (rowIndex + 1) + "@team.local";
+                    }
+
                     java.util.Optional<Athlete> existing = athleteRepository
                             .findByTournamentIdAndEmail(performance.getCompetition().getId(), email);
                     if (existing.isPresent()) {
@@ -221,18 +286,27 @@ public class PerformanceServiceImpl implements PerformanceService {
                         else if (performance.getContentType() == Performance.ContentType.MUSIC) ct = Athlete.CompetitionType.music;
                         String subCompType = null;
                         if (performance.getContentType() == Performance.ContentType.QUYEN) {
-                            VovinamFistConfig config = vovinamFistConfigRepository.findById(performance.getContentId()).orElse(null);
+                            // Prefer contentId; fallback to fistConfigId
+                            String cfgId = performance.getContentId() != null && !performance.getContentId().isBlank()
+                                    ? performance.getContentId()
+                                    : performance.getFistConfigId();
+                            VovinamFistConfig config = cfgId != null ?
+                                    vovinamFistConfigRepository.findById(cfgId).orElse(null) : null;
                             if (config != null) subCompType = config.getName();
                         } else if (performance.getContentType() == Performance.ContentType.FIGHTING) {
                             subCompType = "Hạng cân";
                         } else if (performance.getContentType() == Performance.ContentType.MUSIC) {
                             subCompType = "Tiết mục";
                         }
+                        if ((subCompType == null || subCompType.isBlank()) && teamSubCompetitionTypeFallback != null && !teamSubCompetitionTypeFallback.isBlank()) {
+                            subCompType = teamSubCompetitionTypeFallback;
+                        }
 
                         athlete = Athlete.builder()
                                 .tournamentId(performance.getCompetition().getId())
                                 .fullName(name)
                                 .email(email)
+                                .studentId(pa.getTempStudentId())
                                 .gender(g != null ? g : Athlete.Gender.MALE)
                                 .competitionType(ct)
                                 .subCompetitionType(subCompType)
@@ -247,6 +321,13 @@ public class PerformanceServiceImpl implements PerformanceService {
 
                 // Ensure fields for both new and existing linked athletes
                 boolean dirty = false;
+                // Sync studentId from pending row if provided (overwrite if different)
+                if (pa.getTempStudentId() != null && !pa.getTempStudentId().isBlank()) {
+                    if (athlete.getStudentId() == null || !pa.getTempStudentId().equals(athlete.getStudentId())) {
+                        athlete.setStudentId(pa.getTempStudentId());
+                        dirty = true;
+                    }
+                }
                 if (athlete.getCompetitionType() == null) {
                     Athlete.CompetitionType ctFix = Athlete.CompetitionType.fighting;
                     if (performance.getContentType() == Performance.ContentType.QUYEN) ctFix = Athlete.CompetitionType.quyen;
@@ -255,26 +336,84 @@ public class PerformanceServiceImpl implements PerformanceService {
                     dirty = true;
                 }
                 if (performance.getContentType() == Performance.ContentType.QUYEN) {
-                    if (athlete.getFistConfigId() == null && performance.getContentId() != null) {
-                        athlete.setFistConfigId(performance.getContentId());
-                        dirty = true;
-                    }
-                    if (athlete.getSubCompetitionType() == null) {
-                        VovinamFistConfig config = vovinamFistConfigRepository.findById(performance.getContentId()).orElse(null);
-                        if (config != null) {
-                            athlete.setSubCompetitionType(config.getName());
+                    // Force-sync team members to performance content IDs so all members have the same content
+                    if (performance.getContentId() != null && !performance.getContentId().isBlank()) {
+                        if (!performance.getContentId().equals(athlete.getFistConfigId())) {
+                            athlete.setFistConfigId(performance.getContentId());
                             dirty = true;
                         }
                     }
-                } else if (athlete.getSubCompetitionType() == null && performance.getContentType() == Performance.ContentType.FIGHTING) {
-                    athlete.setSubCompetitionType("Hạng cân");
-                    dirty = true;
-                } else if (athlete.getSubCompetitionType() == null && performance.getContentType() == Performance.ContentType.MUSIC) {
-                    athlete.setSubCompetitionType("Tiết mục");
-                    dirty = true;
+                    if (performance.getFistItemId() != null && !performance.getFistItemId().isBlank()) {
+                        if (!performance.getFistItemId().equals(athlete.getFistItemId())) {
+                            athlete.setFistItemId(performance.getFistItemId());
+                            dirty = true;
+                        }
+                    }
+                    // Always set subCompetitionType to config name for Quyền (prefer contentId, fallback to fistConfigId)
+                    String cfgIdForName = performance.getContentId() != null && !performance.getContentId().isBlank()
+                            ? performance.getContentId()
+                            : performance.getFistConfigId();
+                    VovinamFistConfig config = cfgIdForName != null ?
+                            vovinamFistConfigRepository.findById(cfgIdForName).orElse(null) : null;
+                    if (config != null && config.getName() != null && !config.getName().isBlank()) {
+                        if (!config.getName().equals(athlete.getSubCompetitionType())) {
+                            athlete.setSubCompetitionType(config.getName());
+                            dirty = true;
+                        }
+                    } else if ((athlete.getSubCompetitionType() == null || athlete.getSubCompetitionType().isBlank())
+                            && teamSubCompetitionTypeFallback != null && !teamSubCompetitionTypeFallback.isBlank()) {
+                        athlete.setSubCompetitionType(teamSubCompetitionTypeFallback);
+                        dirty = true;
+                    }
+                } else if (performance.getContentType() == Performance.ContentType.FIGHTING) {
+                    if (!"Hạng cân".equals(athlete.getSubCompetitionType())) {
+                        athlete.setSubCompetitionType("Hạng cân");
+                        dirty = true;
+                    }
+                } else if (performance.getContentType() == Performance.ContentType.MUSIC) {
+                    if (!"Tiết mục".equals(athlete.getSubCompetitionType())) {
+                        athlete.setSubCompetitionType("Tiết mục");
+                        dirty = true;
+                    }
+                }
+
+                // Music: propagate musicContentId from Performance to every athlete in team
+                if (performance.getContentType() == Performance.ContentType.MUSIC) {
+                    if (performance.getMusicContentId() != null && !performance.getMusicContentId().isBlank()) {
+                        if (!performance.getMusicContentId().equals(athlete.getMusicContentId())) {
+                            athlete.setMusicContentId(performance.getMusicContentId());
+                            dirty = true;
+                        }
+                    }
                 }
                 if (dirty) {
                     athlete = athleteRepository.save(athlete);
+                }
+
+                // Final safeguard: ensure subCompetitionType is set for team members
+                if (performance.getContentType() == Performance.ContentType.QUYEN) {
+                    if (athlete.getSubCompetitionType() == null || athlete.getSubCompetitionType().isBlank()) {
+                        String cfgId = performance.getContentId() != null && !performance.getContentId().isBlank()
+                                ? performance.getContentId()
+                                : performance.getFistConfigId();
+                        if (cfgId != null && !cfgId.isBlank()) {
+                            VovinamFistConfig cfg = vovinamFistConfigRepository.findById(cfgId).orElse(null);
+                            if (cfg != null && cfg.getName() != null && !cfg.getName().isBlank()) {
+                                athlete.setSubCompetitionType(cfg.getName());
+                                athlete = athleteRepository.save(athlete);
+                            }
+                        }
+                    }
+                } else if (performance.getContentType() == Performance.ContentType.FIGHTING) {
+                    if (athlete.getSubCompetitionType() == null || athlete.getSubCompetitionType().isBlank()) {
+                        athlete.setSubCompetitionType("Hạng cân");
+                        athlete = athleteRepository.save(athlete);
+                    }
+                } else if (performance.getContentType() == Performance.ContentType.MUSIC) {
+                    if (athlete.getSubCompetitionType() == null || athlete.getSubCompetitionType().isBlank()) {
+                        athlete.setSubCompetitionType("Tiết mục");
+                        athlete = athleteRepository.save(athlete);
+                    }
                 }
 
                 pa.setAthlete(athlete);
@@ -362,10 +501,14 @@ public class PerformanceServiceImpl implements PerformanceService {
                 .competitionName(performance.getCompetition().getName())
                 .isTeam(performance.getIsTeam())
                 .teamId(performance.getTeamId())
+                .teamName(performance.getTeamName())
                 .participantsPerEntry(performance.getParticipantsPerEntry())
                 .performanceType(performance.getPerformanceType())
                 .contentType(performance.getContentType())
                 .contentId(performance.getContentId())
+                .fistConfigId(performance.getFistConfigId())
+                .fistItemId(performance.getFistItemId())
+                .musicContentId(performance.getMusicContentId())
                 .status(performance.getStatus())
                 .startTime(performance.getStartTime())
                 .endTime(performance.getEndTime())

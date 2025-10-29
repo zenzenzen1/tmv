@@ -31,6 +31,9 @@ public class Performance extends BaseEntity {
     @Column(name = "team_id")
     private String teamId;
 
+    @Column(name = "team_name")
+    private String teamName;
+
     // Số người/tiết mục (nếu có cấu hình, có thể null)
     @Column(name = "participants_per_entry")
     private Integer participantsPerEntry;
@@ -46,6 +49,16 @@ public class Performance extends BaseEntity {
 
     @Column(name = "content_id")
     private String contentId;
+
+    // Denormalized content identifiers for FE consumption
+    @Column(name = "fist_config_id")
+    private String fistConfigId; // Quyền: category/config ID
+
+    @Column(name = "fist_item_id")
+    private String fistItemId;   // Quyền: item/content ID
+
+    @Column(name = "music_content_id")
+    private String musicContentId; // Võ nhạc: content ID
 
     // Status and timing
     @Enumerated(EnumType.STRING)

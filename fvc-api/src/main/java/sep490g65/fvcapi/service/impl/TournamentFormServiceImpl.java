@@ -323,6 +323,10 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 // Extract preferred IDs for tight linking and storing into detail_sub
                 String weightClassId = textOrNull(root, "weightClassId");
                 String fistItemId    = textOrNull(root, "fistItemId");
+                if (fistItemId == null || fistItemId.isBlank()) {
+                    String qid = textOrNull(root, "quyenContentId");
+                    if (qid != null && !qid.isBlank()) fistItemId = qid;
+                }
                 String musicContentId= textOrNull(root, "musicContentId");
 
                     // First, delete existing athlete with same email and tournament_id to avoid duplicates
@@ -350,8 +354,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                     if (fistConfigId  != null && !fistConfigId.isBlank())  builder.fistConfigId(fistConfigId);
                     // Persist both config and item to support list/filters
                     if (musicContentId!= null && !musicContentId.isBlank()) builder.musicContentId(musicContentId);
-                    String quyenContentId    = textOrNull(root, "quyenContentId");
-                    if (quyenContentId    != null && !quyenContentId.isBlank()) builder.fistItemId(quyenContentId);
+                    if (fistItemId != null && !fistItemId.isBlank()) builder.fistItemId(fistItemId);
 
                     Athlete athlete = athleteService.create(builder.build());
                     
@@ -495,6 +498,15 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                         });
                     }
                 } else if ("quyen".equals(ctLowerForEnrich)) {
+                    // Ensure item ids are present in formData
+                    if (!obj.hasNonNull("quyenContentId")) {
+                        String fromReq = request.getFistItemId();
+                        if (fromReq != null && !fromReq.isBlank()) obj.put("quyenContentId", fromReq);
+                    }
+                    if (!obj.hasNonNull("fistItemId")) {
+                        String fromReq = request.getFistItemId();
+                        if (fromReq != null && !fromReq.isBlank()) obj.put("fistItemId", fromReq);
+                    }
                     if (!obj.hasNonNull("quyenCategory") && obj.hasNonNull("fistConfigId")) {
                         String cfgId = obj.get("fistConfigId").asText();
                         fistConfigRepository.findById(cfgId).ifPresent(cfg -> obj.put("quyenCategory", cfg.getName()));
@@ -523,6 +535,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                         .competitionId(form.getCompetition().getId())
                         .isTeam(true)
                         .teamId(java.util.UUID.randomUUID().toString())
+                        .teamName(root.hasNonNull("teamName") ? root.get("teamName").asText() : null)
                         .participantsPerEntry(participantsPerEntry)
                         .performanceType(Performance.PerformanceType.TEAM);
 
@@ -541,6 +554,27 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 }
                 b.contentType(ct).contentId(contentId);
 
+                // Push denormalized IDs into Performance for FE consumption
+                try {
+                    // Prefer explicit IDs from request body; fallback to formData JSON
+                    String fistConfigIdVal = request.getFistConfigId() != null && !request.getFistConfigId().isBlank()
+                            ? request.getFistConfigId()
+                            : (root.hasNonNull("fistConfigId") ? root.get("fistConfigId").asText() : null);
+
+                    String fistItemIdVal = request.getFistItemId() != null && !request.getFistItemId().isBlank()
+                            ? request.getFistItemId()
+                            : (root.hasNonNull("fistItemId") ? root.get("fistItemId").asText()
+                               : (root.hasNonNull("quyenContentId") ? root.get("quyenContentId").asText() : null));
+
+                    String musicContentIdVal = request.getMusicContentId() != null && !request.getMusicContentId().isBlank()
+                            ? request.getMusicContentId()
+                            : (root.hasNonNull("musicContentId") ? root.get("musicContentId").asText() : null);
+
+                    b.fistConfigId(fistConfigIdVal)
+                     .fistItemId(fistItemIdVal)
+                     .musicContentId(musicContentIdVal);
+                } catch (Exception ignoredSetIds) {}
+
                 // team members
                 if (isTeam) {
                     java.util.List<CreatePerformanceRequest.MemberDto> members = new java.util.ArrayList<>();
@@ -556,6 +590,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                         for (JsonNode m : membersNode) {
                             CreatePerformanceRequest.MemberDto dto = CreatePerformanceRequest.MemberDto.builder()
                                     .fullName(m.hasNonNull("fullName") ? m.get("fullName").asText() : null)
+                                    .studentId(m.hasNonNull("studentId") ? m.get("studentId").asText() : null)
                                     .email(m.hasNonNull("email") ? m.get("email").asText() : null)
                                     .phone(m.hasNonNull("phone") ? m.get("phone").asText() : null)
                                     .gender(m.hasNonNull("gender") ? m.get("gender").asText() : null)

@@ -27,7 +27,6 @@ type FormMeta = {
 export default function PublishedForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const toast = useToast();
   const [meta, setMeta] = useState<FormMeta | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,11 +49,12 @@ export default function PublishedForm() {
   const [selectedGender, setSelectedGender] = useState<string>("");
 
   // Team registration helpers
+  const [teamName, setTeamName] = useState<string>("");
   const [participantsPerEntry, setParticipantsPerEntry] = useState<
     number | undefined
   >(undefined);
   const [teamMembers, setTeamMembers] = useState<
-    Array<{ fullName: string; email: string; gender: string }>
+    Array<{ fullName: string; studentId: string }>
   >([]);
 
   // API data states
@@ -71,6 +71,7 @@ export default function PublishedForm() {
     Array<{
       id: string;
       name: string;
+      performersPerEntry?: number;
     }>
   >([]);
 
@@ -83,6 +84,7 @@ export default function PublishedForm() {
       level?: number;
       configId?: string;
       configName?: string;
+      participantsPerEntry?: number;
     }>
   >([]);
 
@@ -94,6 +96,7 @@ export default function PublishedForm() {
       level?: number;
       configId?: string;
       configName?: string;
+      participantsPerEntry?: number;
     }>
   >([]);
 
@@ -240,52 +243,25 @@ export default function PublishedForm() {
   useEffect(() => {
     let required: number | undefined = undefined;
     if (competitionType === "quyen") {
-      // Try by selected item id first (when present). Note: data sources may swap; check both arrays.
+      // Determine by selected fist item id (fistConfigId variable holds the selected item id in current UI)
       if (fistConfigId) {
-        const fromItems = (fistItems as any[]).find(
-          (i) => i.id === fistConfigId
-        );
-        const fromConfigs = (fistConfigs as any[]).find(
-          (i) => i.id === fistConfigId
-        );
-        const candidate = (fromItems || fromConfigs) as any;
+        const byIdInItems = fistItems.find((i) => i.id === fistConfigId);
+        const byIdInConfigs = fistConfigs.find((i) => i.id === fistConfigId);
+        const candidate = byIdInItems || byIdInConfigs;
         if (candidate && typeof candidate.participantsPerEntry === "number") {
           required = candidate.participantsPerEntry;
         }
       }
-      // If still unknown, try by selected button name (quyenCategory) or dropdown (quyenContent) against both lists
-      if (!required) {
-        const selectedName = (
-          quyenCategory ||
-          quyenContent ||
-          ""
-        ).toLowerCase();
-        if (selectedName) {
-          const byNameInItems = (fistItems as any[]).find(
-            (x) => (x?.name || "").toLowerCase() === selectedName
-          ) as any;
-          const byNameInConfigs = (fistConfigs as any[]).find(
-            (x) => (x?.name || "").toLowerCase() === selectedName
-          ) as any;
-          const candidate = byNameInItems || byNameInConfigs;
-          if (candidate && typeof candidate.participantsPerEntry === "number") {
-            required = candidate.participantsPerEntry;
-          }
+      // If still unknown, do not guess; leave as undefined (treated as individual)
+    }
+    if (competitionType === "music") {
+      if (musicContentId) {
+        const perf = musicContents.find((m) => m.id === musicContentId);
+        if (perf && typeof perf.performersPerEntry === "number") {
+          required = perf.performersPerEntry;
         }
       }
-      // As a last fallback, infer by keyword
-      if (!required) {
-        const keyword = (quyenCategory || quyenContent || "").toLowerCase();
-        if (keyword.includes("song")) required = 2;
-        else if (keyword.includes("tam") || keyword.includes("đa"))
-          required = 3;
-      }
-    }
-    if (competitionType === "music" && musicContentId) {
-      const perf = musicContents.find((m) => m.id === musicContentId) as any;
-      if (perf && typeof perf.performersPerEntry === "number") {
-        required = perf.performersPerEntry;
-      }
+      // No default; if not specified, keep as undefined (treated as individual)
     }
     setParticipantsPerEntry(required);
 
@@ -295,14 +271,23 @@ export default function PublishedForm() {
       const next = [...prev];
       if (next.length < extras) {
         for (let i = next.length; i < extras; i++) {
-          next.push({ fullName: "", email: "", gender: "" });
+          next.push({ fullName: "", studentId: "" });
         }
       } else if (next.length > extras) {
         next.length = extras;
       }
       return next;
     });
-  }, [competitionType, fistConfigId, musicContentId, fistItems, musicContents]);
+  }, [
+    competitionType,
+    fistConfigId,
+    musicContentId,
+    fistItems,
+    fistConfigs,
+    musicContents,
+    quyenCategory,
+    quyenContent,
+  ]);
 
   // Field validations
 
@@ -330,6 +315,9 @@ export default function PublishedForm() {
       formData.quyenCategory = quyenCategory;
       formData.quyenContent = quyenContent;
       formData.fistConfigId = fistConfigId;
+      // Also persist item id for backend approval flow
+      formData.quyenContentId = fistConfigId;
+      formData.fistItemId = fistConfigId;
     } else if (competitionType === "music") {
       formData.musicCategory = musicCategory;
       formData.musicContentId = musicContentId;
@@ -338,7 +326,14 @@ export default function PublishedForm() {
     // Team infos (for multi-performer entries)
     if (participantsPerEntry && participantsPerEntry > 1) {
       formData.participantsPerEntry = participantsPerEntry;
-      formData.teamMembers = teamMembers;
+      if (competitionType === "quyen" || competitionType === "music") {
+        formData.teamName = teamName;
+      }
+      formData.teamMembers = teamMembers.map((m) => ({
+        fullName: m.fullName,
+        studentId: m.studentId,
+        gender: selectedGender || "",
+      }));
     }
 
     // Add dynamic field values
@@ -365,16 +360,6 @@ export default function PublishedForm() {
         const isCompetitionTypeField = field.label === "Nội dung thi đấu";
 
         // Only validate fields that are actually rendered
-        const defaultFieldLabels = [
-          "Họ và tên",
-          "Email",
-          "MSSV",
-          "Số điện thoại",
-          "Giới tính",
-          "Câu lạc bộ",
-          "Nội dung thi đấu",
-        ];
-        const isCustomField = !defaultFieldLabels.includes(field.label);
         const willShow = !isCompetitionTypeField; // Same logic as rendering
 
         if (field.required && !isCompetitionTypeField && willShow) {
@@ -432,17 +417,18 @@ export default function PublishedForm() {
               idx + 2
             }: thiếu họ tên`;
           }
-          if (!m.email || !m.email.trim()) {
-            errors[`teamMember_${idx}_email`] = `Thành viên ${
+          if (!m.studentId || !m.studentId.trim()) {
+            errors[`teamMember_${idx}_studentId`] = `Thành viên ${
               idx + 2
-            }: thiếu email`;
-          }
-          if (!m.gender || !m.gender.trim()) {
-            errors[`teamMember_${idx}_gender`] = `Thành viên ${
-              idx + 2
-            }: thiếu giới tính`;
+            }: thiếu MSSV`;
           }
         });
+      }
+      if (
+        (competitionType === "quyen" || competitionType === "music") &&
+        !teamName.trim()
+      ) {
+        errors.teamName = "Vui lòng nhập tên đội";
       }
     }
 
@@ -575,23 +561,8 @@ export default function PublishedForm() {
                     const isCompetitionType =
                       field.label === "Nội dung thi đấu";
 
-                    // Use the same defaultFieldLabels as FormBuilder
-                    const defaultFieldLabels = [
-                      "Họ và tên",
-                      "Email",
-                      "MSSV",
-                      "Số điện thoại",
-                      "Giới tính",
-                      "Câu lạc bộ",
-                      "Nội dung thi đấu",
-                    ];
-                    const isCustomField = !defaultFieldLabels.includes(
-                      field.label
-                    );
-
                     console.log("Field filter result:", {
                       isCompetitionType,
-                      isCustomField,
                       willShow: !isCompetitionType,
                     });
                     return !isCompetitionType;
@@ -1031,58 +1002,71 @@ export default function PublishedForm() {
               </div>
             </div>
 
-            {/* Extra team member fields when multi-performer is required */}
+            {/* Team fields and extra members when multi-performer is required */}
             {participantsPerEntry && participantsPerEntry > 1 && (
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Thành viên bổ sung ({participantsPerEntry - 1})
-                </label>
-                <div className="space-y-4">
-                  {teamMembers.map((m, idx) => (
-                    <div
-                      key={idx}
-                      className="grid grid-cols-1 md:grid-cols-3 gap-3"
-                    >
-                      <input
-                        type="text"
-                        placeholder={`Họ và tên thành viên ${idx + 2}`}
-                        value={m.fullName}
-                        onChange={(e) => {
-                          const next = [...teamMembers];
-                          next[idx] = {
-                            ...next[idx],
-                            fullName: e.target.value,
-                          };
-                          setTeamMembers(next);
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        type="email"
-                        placeholder="Email"
-                        value={m.email}
-                        onChange={(e) => {
-                          const next = [...teamMembers];
-                          next[idx] = { ...next[idx], email: e.target.value };
-                          setTeamMembers(next);
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <select
-                        value={m.gender}
-                        onChange={(e) => {
-                          const next = [...teamMembers];
-                          next[idx] = { ...next[idx], gender: e.target.value };
-                          setTeamMembers(next);
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-4">
+                {(competitionType === "quyen" ||
+                  competitionType === "music") && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tên đội <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Nhập tên đội"
+                    />
+                    {fieldErrors.teamName && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {fieldErrors.teamName}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Thành viên bổ sung ({participantsPerEntry - 1})
+                  </label>
+                  <div className="space-y-4">
+                    {teamMembers.map((m, idx) => (
+                      <div
+                        key={idx}
+                        className="grid grid-cols-1 md:grid-cols-2 gap-3"
                       >
-                        <option value="">Chọn giới tính</option>
-                        <option value="Nam">Nam</option>
-                        <option value="Nữ">Nữ</option>
-                      </select>
-                    </div>
-                  ))}
+                        <input
+                          type="text"
+                          placeholder={`Họ và tên thành viên ${idx + 2}`}
+                          value={m.fullName}
+                          onChange={(e) => {
+                            const next = [...teamMembers];
+                            next[idx] = {
+                              ...next[idx],
+                              fullName: e.target.value,
+                            };
+                            setTeamMembers(next);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <input
+                          type="text"
+                          placeholder="MSSV"
+                          value={m.studentId}
+                          onChange={(e) => {
+                            const next = [...teamMembers];
+                            next[idx] = {
+                              ...next[idx],
+                              studentId: e.target.value,
+                            };
+                            setTeamMembers(next);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

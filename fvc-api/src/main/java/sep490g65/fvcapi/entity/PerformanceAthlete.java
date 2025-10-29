@@ -36,6 +36,9 @@ public class PerformanceAthlete extends BaseEntity {
     @Column(name = "temp_phone")
     private String tempPhone;
 
+    @Column(name = "temp_student_id")
+    private String tempStudentId;
+
     @Column(name = "temp_gender")
     private String tempGender; // MALE/FEMALE (text) để linh hoạt khi chưa map enum
 }

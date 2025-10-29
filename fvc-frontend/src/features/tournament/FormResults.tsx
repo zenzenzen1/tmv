@@ -215,7 +215,7 @@ export default function FormResults() {
       },
       {
         key: "category",
-        title: "Nội dung thi đấu",
+        title: "Nội dung",
         className: "whitespace-nowrap text-[15px]",
       },
       {

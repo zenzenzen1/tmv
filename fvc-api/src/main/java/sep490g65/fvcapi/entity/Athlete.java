@@ -27,7 +27,7 @@ public class Athlete extends BaseEntity {
     @Column(nullable = false)
     private String fullName;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String email;
 
     @Column(name = "student_id")

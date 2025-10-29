@@ -23,6 +23,7 @@ public class CreatePerformanceRequest {
     private Boolean isTeam;
     
     private String teamId;
+    private String teamName;
     
     @NotNull(message = "Performance type is required")
     private Performance.PerformanceType performanceType;
@@ -31,6 +32,11 @@ public class CreatePerformanceRequest {
     private Performance.ContentType contentType;
     
     private String contentId;
+
+    // Denormalized content identifiers for quick FE rendering
+    private String fistConfigId;   // Quyền: category/config ID
+    private String fistItemId;     // Quyền: item/content ID
+    private String musicContentId; // Võ nhạc: content ID
 
     // Optional: tạo performance từ danh sách athlete sẵn có
     private List<String> athleteIds;
@@ -47,6 +53,7 @@ public class CreatePerformanceRequest {
     @AllArgsConstructor
     public static class MemberDto {
         private String fullName;
+        private String studentId;
         private String email;
         private String phone;
         private String gender; // MALE/FEMALE
