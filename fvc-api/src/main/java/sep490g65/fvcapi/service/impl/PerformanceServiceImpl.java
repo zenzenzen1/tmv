@@ -284,6 +284,38 @@ public class PerformanceServiceImpl implements PerformanceService {
             }
         }
 
+        // Ensure MUSIC performances propagate musicContentId to athletes
+        try {
+            if (performance.getContentType() == Performance.ContentType.MUSIC && performance.getContentId() != null) {
+                List<PerformanceAthlete> musicRows = performanceAthleteRepository.findByPerformanceId(id);
+                for (PerformanceAthlete pa : musicRows) {
+                    try {
+                        Athlete a = pa.getAthlete();
+                        if (a != null && a.getMusicContentId() == null) {
+                            a.setMusicContentId(performance.getContentId());
+                            athleteRepository.save(a);
+                        }
+                    } catch (Exception ignoredSetMusic) {}
+                }
+            }
+        } catch (Exception ignoredMusicLoop) {}
+
+        // Ensure QUYEN performances propagate fistConfigId to athletes
+        try {
+            if (performance.getContentType() == Performance.ContentType.QUYEN && performance.getContentId() != null) {
+                List<PerformanceAthlete> quyenRows = performanceAthleteRepository.findByPerformanceId(id);
+                for (PerformanceAthlete pa : quyenRows) {
+                    try {
+                        Athlete a = pa.getAthlete();
+                        if (a != null && a.getFistConfigId() == null) {
+                            a.setFistConfigId(performance.getContentId());
+                            athleteRepository.save(a);
+                        }
+                    } catch (Exception ignoredSetQuyen) {}
+                }
+            }
+        } catch (Exception ignoredQuyenLoop) {}
+
         performance.setStatus(Performance.PerformanceStatus.IN_PROGRESS);
         performanceRepository.save(performance);
         return convertToResponse(performance);
