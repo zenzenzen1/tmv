@@ -9,6 +9,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.entity.Athlete;
 import sep490g65.fvcapi.repository.AthleteRepository;
+import sep490g65.fvcapi.repository.PerformanceAthleteRepository;
+import sep490g65.fvcapi.repository.SubmittedApplicationFormRepository;
+import sep490g65.fvcapi.entity.PerformanceAthlete;
 import sep490g65.fvcapi.repository.WeightClassRepository;
 import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
@@ -24,6 +27,8 @@ public class AthleteService {
     private final VovinamFistItemRepository fistItemRepository;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository fistConfigRepository;
     private final MusicIntegratedPerformanceRepository musicRepository;
+    private final PerformanceAthleteRepository performanceAthleteRepository;
+    private final SubmittedApplicationFormRepository submittedApplicationFormRepository;
 
     @Transactional
     public Athlete upsert(Athlete prototype) {
@@ -153,6 +158,49 @@ public class AthleteService {
             }
         } catch (Exception ignored) {}
         return null;
+    }
+    
+    // Resolve team info via Performance linkage and submission
+    public TeamInfo resolveTeamInfo(Athlete a) {
+        TeamInfo info = new TeamInfo();
+        try {
+            if (a == null || a.getId() == null) return info;
+            java.util.List<PerformanceAthlete> links = performanceAthleteRepository.findByAthleteId(a.getId());
+            if (links == null || links.isEmpty()) return info;
+            // Prefer the first link (or could add logic to pick latest)
+            PerformanceAthlete pa = links.get(0);
+            if (pa.getPerformance() != null) {
+                String perfId = pa.getPerformance().getId();
+                info.setPerformanceId(perfId);
+                info.setTeamName(pa.getPerformance().getTeamName());
+                // Try to resolve registrant email from submitted form by performanceId
+                submittedApplicationFormRepository.findOneByPerformanceId(perfId).ifPresent(s -> {
+                    String mail = s.getEmail();
+                    if (mail != null && !mail.isBlank()) {
+                        info.setRegistrantEmail(mail);
+                    } else {
+                        // Fallback: try to parse email from formData JSON
+                        try {
+                            String formJson = s.getFormData();
+                            if (formJson != null) {
+                                com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(formJson);
+                                if (node != null && node.hasNonNull("email")) {
+                                    info.setRegistrantEmail(node.get("email").asText(""));
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                });
+            }
+        } catch (Exception ignored) {}
+        return info;
+    }
+    
+    @lombok.Data
+    public static class TeamInfo {
+        private String performanceId;
+        private String teamName;
+        private String registrantEmail;
     }
     
     @Transactional

@@ -1,4 +1,3 @@
-
 import axios, { AxiosError } from "axios";
 import type {
   AxiosInstance,
@@ -92,8 +91,13 @@ apiClient.interceptors.response.use(
       ? new Date().getTime() - customConfig.metadata.startTime.getTime()
       : 0;
 
-    // Log error in development
-    if (import.meta.env.DEV) {
+    // Log error in development (skip 400/404 for submissions endpoints - expected behavior)
+    const isSubmissionsEndpoint = error.config?.url?.includes("/submissions");
+    const isExpectedError =
+      isSubmissionsEndpoint &&
+      (error.response?.status === 400 || error.response?.status === 404);
+
+    if (import.meta.env.DEV && !isExpectedError) {
       console.error(
         `❌ API Error: ${error.config?.method?.toUpperCase()} ${
           error.config?.url
@@ -144,7 +148,7 @@ apiClient.interceptors.response.use(
     // Handle specific status codes
     if (error.response?.status === 401) {
       // Unauthorized - JWT cookie will be cleared by backend
-      console.warn('🔒 Unauthorized access - please login again');
+      console.warn("🔒 Unauthorized access - please login again");
     }
 
     return Promise.reject(errorResponse);

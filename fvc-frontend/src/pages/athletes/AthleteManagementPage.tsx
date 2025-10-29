@@ -1,4 +1,11 @@
-import { useEffect, useState, useMemo } from "react";
+import {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import CommonTable, {
   type TableColumn,
 } from "../../components/common/CommonTable";
@@ -22,6 +29,7 @@ type AthleteRow = {
   tournament: string;
   status: "ĐÃ ĐẤU" | "HOÀN ĐẤU" | "VI PHẠM" | "CHỜ ĐẤU" | "ĐANG ĐẤU" | "-";
   isTeam?: boolean;
+  performanceId?: string;
 };
 
 type AthleteApi = {
@@ -78,6 +86,7 @@ export default function AthleteManagementPage({
   const [page, setPage] = useState(1);
   const [pageSize] = useState(5);
   const [total, setTotal] = useState(0);
+  const [isFetching, setIsFetching] = useState(false);
   const [nameQuery, setNameQuery] = useState("");
   const [debouncedName, setDebouncedName] = useState("");
 
@@ -91,9 +100,18 @@ export default function AthleteManagementPage({
   }, [nameQuery]);
 
   // Debounce name search to reduce request volume
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    // Clear any pending debounce
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
     const t = setTimeout(() => setDebouncedName(nameQuery.trim()), 300);
-    return () => clearTimeout(t);
+    debounceTimeoutRef.current = t;
+    return () => {
+      if (t) clearTimeout(t);
+      debounceTimeoutRef.current = null;
+    };
   }, [nameQuery]);
 
   // Listen for refetch events from form approval
@@ -152,6 +170,7 @@ export default function AthleteManagementPage({
   const [musicContents, setMusicContents] = useState<
     Array<{ id: string; name: string; performersPerEntry?: number }>
   >([]);
+  const latestRequestIdRef = useRef(0);
 
   // Team detail modal state
   const [teamModalOpen, setTeamModalOpen] = useState(false);
@@ -171,9 +190,30 @@ export default function AthleteManagementPage({
     Record<string, { teamName: string; email: string }>
   >({});
 
+  // Map performanceId -> team detail members parsed from submissions (like ListPage)
+  const [performanceMembersMap, setPerformanceMembersMap] = useState<
+    Record<
+      string,
+      {
+        teamName: string;
+        members: Array<{
+          fullName: string;
+          studentId?: string;
+          gender?: string;
+          email?: string;
+        }>;
+      }
+    >
+  >({});
+
   // Cache performance details by id
   const [performanceCache, setPerformanceCache] = useState<
     Record<string, Record<string, unknown>>
+  >({});
+
+  // Group current fetched athletes by performanceId to reconstruct team members
+  const [athletesByPerformance, setAthletesByPerformance] = useState<
+    Record<string, AthleteApi[]>
   >({});
 
   // Filter states - closed by default
@@ -219,6 +259,7 @@ export default function AthleteManagementPage({
   useEffect(() => {
     (async () => {
       try {
+        // Only proceed when tournament is selected
         const qs = new URLSearchParams();
         qs.set("page", String(page - 1));
         qs.set("size", String(pageSize));
@@ -226,6 +267,9 @@ export default function AthleteManagementPage({
         if (!selectedTournament) {
           return;
         }
+        // mark fetching only when we actually send request
+        setIsFetching(true);
+        const requestId = ++latestRequestIdRef.current;
         qs.set("tournamentId", selectedTournament);
         if (debouncedName) qs.set("name", debouncedName);
         if (genderFilter) qs.set("gender", genderFilter);
@@ -257,26 +301,39 @@ export default function AthleteManagementPage({
           (res.data as unknown as PaginationResponse<AthleteApi>);
         const content: AthleteApi[] = pageData?.content ?? [];
 
+        // Group by performanceId for team detail reconstruction
+        const grouped: Record<string, AthleteApi[]> = {};
+        for (const a of content) {
+          const pid = (a.performanceId || "").toString().trim();
+          if (!pid) continue;
+          if (!grouped[pid]) grouped[pid] = [];
+          grouped[pid].push(a);
+        }
+        if (requestId !== latestRequestIdRef.current) return; // stale
+        setAthletesByPerformance(grouped);
+
         // Debug: Log raw data from API
-        console.log(
-          "Raw athlete data from API:",
-          content.map((a) => ({
-            name: a.fullName,
-            competitionType: a.competitionType,
-            subCompetitionType: a.subCompetitionType,
-            detailSubCompetitionType: a.detailSubCompetitionType,
-            detailSubId: a.detailSubId,
-            detailSubLabel: a.detailSubLabel,
-            // Check all properties
-            allProps: Object.keys(a).reduce((acc, key) => {
-              acc[key] = (a as Record<string, unknown>)[key];
-              return acc;
-            }, {} as Record<string, unknown>),
-          }))
-        );
+        if (import.meta.env.DEV) {
+          console.log(
+            "Raw athlete data from API:",
+            content.map((a) => ({
+              name: a.fullName,
+              competitionType: a.competitionType,
+              subCompetitionType: a.subCompetitionType,
+              detailSubCompetitionType: a.detailSubCompetitionType,
+              detailSubId: a.detailSubId,
+              detailSubLabel: a.detailSubLabel,
+              // Check all properties
+              allProps: Object.keys(a).reduce((acc, key) => {
+                acc[key] = (a as Record<string, unknown>)[key];
+                return acc;
+              }, {} as Record<string, unknown>),
+            }))
+          );
+        }
 
         // Debug: Check if there are any weight-related fields
-        if (content.length > 0) {
+        if (import.meta.env.DEV && content.length > 0) {
           const firstAthlete = content[0];
           console.log(
             "First athlete all properties:",
@@ -415,18 +472,20 @@ export default function AthleteManagementPage({
                 normalizeWeight(rawDetailLabel) === want;
 
               // Debug logging
-              console.log("Đối kháng filtering debug:", {
-                subCompetitionFilter,
-                rawSub,
-                rawDetail,
-                rawDetailLabel,
-                want,
-                normalizedDetail: normalizeWeight(rawDetail),
-                normalizedSub: normalizeWeight(rawSub),
-                normalizedDetailLabel: normalizeWeight(rawDetailLabel),
-                okSubDetail,
-                athlete: a.fullName,
-              });
+              if (import.meta.env.DEV) {
+                console.log("Đối kháng filtering debug:", {
+                  subCompetitionFilter,
+                  rawSub,
+                  rawDetail,
+                  rawDetailLabel,
+                  want,
+                  normalizedDetail: normalizeWeight(rawDetail),
+                  normalizedSub: normalizeWeight(rawSub),
+                  normalizedDetailLabel: normalizeWeight(rawDetailLabel),
+                  okSubDetail,
+                  athlete: a.fullName,
+                });
+              }
             }
           } else if (activeTab === "music") {
             // Match by selected content name in detail
@@ -436,7 +495,7 @@ export default function AthleteManagementPage({
               : true;
 
             // Debug logging
-            if (subCompetitionFilter) {
+            if (import.meta.env.DEV && subCompetitionFilter) {
               console.log("Võ nhạc filtering debug:", {
                 subCompetitionFilter,
                 rawDetail,
@@ -459,7 +518,10 @@ export default function AthleteManagementPage({
               : true;
 
             // Debug logging
-            if (subCompetitionFilter || detailCompetitionFilter) {
+            if (
+              import.meta.env.DEV &&
+              (subCompetitionFilter || detailCompetitionFilter)
+            ) {
               console.log("Quyền filtering debug:", {
                 subCompetitionFilter,
                 detailCompetitionFilter,
@@ -538,13 +600,21 @@ export default function AthleteManagementPage({
           for (const pid of missing) {
             try {
               const pRes = await api.get(`/v1/performances/${pid}`);
-              const dataObj = pRes.data as Record<string, unknown>;
+              const root = pRes.data as unknown as {
+                data?: Record<string, unknown>;
+              };
+              const perfObj =
+                root && root.data
+                  ? (root.data as Record<string, unknown>)
+                  : (pRes.data as unknown as Record<string, unknown>);
               setPerformanceCache((prev) => ({
                 ...prev,
-                [pid]: dataObj as Record<string, unknown>,
+                [pid]: perfObj,
               }));
             } catch (err) {
-              console.warn("Load performance failed", pid, err);
+              if (import.meta.env.DEV) {
+                console.warn("Load performance failed", pid, err as unknown);
+              }
             }
           }
         } catch {
@@ -608,18 +678,34 @@ export default function AthleteManagementPage({
               (perf?.["registrantEmail"] as string) ||
               (perf?.["email"] as string) ||
               "";
+            // Backend-enriched fields
+            const backendTeamName = (a as unknown as Record<string, unknown>)[
+              "teamName"
+            ] as string;
+            const backendRegistrantEmail = (
+              a as unknown as Record<string, unknown>
+            )["registrantEmail"] as string;
             const enriched = isTeam
               ? teamRegistrantMap[keyForLookup]
               : undefined;
             const displayName = isTeam
-              ? perfTeamName || enriched?.teamName || rawTeamName || a.fullName
+              ? perfTeamName ||
+                backendTeamName ||
+                enriched?.teamName ||
+                rawTeamName ||
+                a.fullName
               : a.fullName;
 
             return {
               id: a.id,
               stt: (page - 1) * pageSize + idx + 1,
               name: displayName,
-              email: isTeam ? perfEmail || enriched?.email || a.email : a.email,
+              email: isTeam
+                ? perfEmail ||
+                  backendRegistrantEmail ||
+                  enriched?.email ||
+                  a.email
+                : a.email,
               gender: a.gender === "FEMALE" ? "Nữ" : "Nam",
               competitionType:
                 a.competitionType === "fighting"
@@ -648,15 +734,22 @@ export default function AthleteManagementPage({
                   ? "VI PHẠM"
                   : "-",
               isTeam,
+              performanceId: perfId,
             };
           }
         );
+        if (requestId !== latestRequestIdRef.current) return; // stale
         setRows(mapped);
         setTotal(totalElements);
       } catch (e) {
         console.error("Failed to load athletes", e);
-        setRows([]);
-        setTotal(0);
+        // setRows([]); // Removed as per new logic
+        // setTotal(0); // Removed as per new logic
+      } finally {
+        // Only clear fetching if this is the latest request
+        if (latestRequestIdRef.current === latestRequestIdRef.current) {
+          setIsFetching(false);
+        }
       }
     })();
   }, [
@@ -680,6 +773,16 @@ export default function AthleteManagementPage({
     performanceCache,
   ]);
 
+  // Stable computed table data to avoid re-mapping on every render
+  const tableData = useMemo(
+    () =>
+      rows.map((row, index) => ({
+        ...row,
+        stt: (page - 1) * pageSize + index + 1,
+      })),
+    [rows, page, pageSize]
+  );
+
   // Reset to first page when filters/search change
   useEffect(() => {
     setPage(1);
@@ -694,18 +797,141 @@ export default function AthleteManagementPage({
     teamFilter,
   ]);
 
-  // Reset competition filters when competition type changes
-  useEffect(() => {
+  // Reset all filters when competition type changes
+  // Use useLayoutEffect to reset before paint, preventing screen flicker
+  useLayoutEffect(() => {
+    // Clear any pending debounce timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+      debounceTimeoutRef.current = null;
+    }
+    // Clear rows immediately to prevent showing stale data during transition
+    setRows([]);
+    setTotal(0);
+    // Reset search (clear debounced immediately)
+    setNameQuery("");
+    setDebouncedName("");
+    // Reset competition-specific filters
     setSubCompetitionFilter("");
     setDetailCompetitionFilter("");
     setShowCompetitionFilter(false);
+    // Reset general filters
+    setGenderFilter("");
+    setStatusFilter("");
+    setShowGenderFilter(false);
+    setShowStatusFilter(false);
+    // Reset page to first
+    setPage(1);
     // Default to Cá nhân for Quyền/Võ nhạc when switching tab
     if (activeTab === "quyen" || activeTab === "music") {
       setTeamFilter("PERSON");
     } else {
       setTeamFilter("ALL");
     }
+    // Clear athletes grouping cache when switching tabs
+    setAthletesByPerformance({});
   }, [activeTab]);
+
+  // Open team detail modal and fetch members (best-effort across possible response shapes)
+  const openTeamDetail = useCallback(
+    async (row: AthleteRow) => {
+      setTeamModalOpen(true);
+      setTeamModalLoading(true);
+      try {
+        const pid = row.performanceId;
+        // Prefer members parsed from submissions (same as ListPage)
+        if (pid && performanceMembersMap[pid]) {
+          const info = performanceMembersMap[pid];
+          setTeamModalData({
+            teamName: info.teamName || row.name,
+            members: info.members || [],
+          });
+          setTeamModalLoading(false);
+          return;
+        }
+        // Next, try grouping current fetched athletes by performanceId
+        if (
+          pid &&
+          athletesByPerformance[pid] &&
+          athletesByPerformance[pid].length > 0
+        ) {
+          const list = athletesByPerformance[pid];
+          const members = list.map((a) => ({
+            fullName: a.fullName,
+            studentId: a.studentId || undefined,
+            gender: a.gender || undefined,
+            email: a.email || undefined,
+          }));
+          setTeamModalData({ teamName: row.name, members });
+          setTeamModalLoading(false);
+          return;
+        }
+        if (!pid) {
+          setTeamModalData({ teamName: row.name, members: [] });
+          setTeamModalLoading(false);
+          return;
+        }
+        let perf: Record<string, unknown> | undefined = performanceCache[pid];
+        if (!perf) {
+          try {
+            const pRes = await api.get(`/v1/performances/${pid}`);
+            const root = pRes.data as unknown as {
+              data?: Record<string, unknown>;
+            };
+            perf =
+              root && root.data
+                ? (root.data as Record<string, unknown>)
+                : (pRes.data as unknown as Record<string, unknown>);
+            setPerformanceCache(
+              (prev: Record<string, Record<string, unknown>>) => ({
+                ...prev,
+                [pid]: perf as Record<string, unknown>,
+              })
+            );
+          } catch (err) {
+            console.warn("Load performance failed in modal", pid, err);
+          }
+        }
+        const teamName = (
+          (perf?.["teamName"] as string) ||
+          row.name ||
+          ""
+        ).toString();
+        type PerfAthlete = {
+          fullName?: unknown;
+          email?: unknown;
+          studentId?: unknown;
+          gender?: unknown;
+        };
+        const rawAthletes = Array.isArray(
+          (perf as Record<string, unknown>)?.athletes
+        )
+          ? ((perf as Record<string, unknown>)?.athletes as unknown[]) || []
+          : [];
+        const athletes: Array<{
+          fullName: string;
+          studentId?: string;
+          gender?: string;
+          email?: string;
+        }> = rawAthletes.map((a: unknown) => {
+          const rec = (a as PerfAthlete) || {};
+          return {
+            fullName: String(rec.fullName ?? ""),
+            studentId: rec.studentId != null ? String(rec.studentId) : "",
+            gender: rec.gender != null ? String(rec.gender) : "",
+            email: rec.email != null ? String(rec.email) : "",
+          };
+        });
+        setTeamModalData({ teamName, members: athletes });
+      } catch (e) {
+        console.error("Open team detail failed", e);
+        setTeamModalData({ teamName: row.name, members: [] });
+      } finally {
+        setTeamModalLoading(false);
+      }
+    },
+    [performanceCache, performanceMembersMap, athletesByPerformance]
+  );
 
   const columns: TableColumn<AthleteRow>[] = useMemo(() => {
     const base: TableColumn<AthleteRow>[] = [
@@ -839,7 +1065,7 @@ export default function AthleteManagementPage({
     }
 
     return base;
-  }, [activeTab, teamFilter]);
+  }, [activeTab, teamFilter, openTeamDetail]);
 
   // Load tournaments from database
   useEffect(() => {
@@ -978,6 +1204,18 @@ export default function AthleteManagementPage({
           preferredForms.length > 0 ? preferredForms : allForms;
 
         const map: Record<string, { teamName: string; email: string }> = {};
+        const perfMembers: Record<
+          string,
+          {
+            teamName: string;
+            members: Array<{
+              fullName: string;
+              studentId?: string;
+              gender?: string;
+              email?: string;
+            }>;
+          }
+        > = {};
 
         for (const form of formsToUse) {
           const formId = String(form["id"] || "");
@@ -986,9 +1224,9 @@ export default function AthleteManagementPage({
             const subsRes = await api.get<{
               content?: Array<Record<string, unknown>>;
             }>(API_ENDPOINTS.TOURNAMENT_FORMS.SUBMISSIONS(formId), {
+              // Backend enforces size<=100; with all=true it returns unpaged
+              // so we avoid sending page/size to pass validation
               all: true,
-              page: 0,
-              size: 500,
             });
             const root2 = subsRes.data as unknown as Record<string, unknown>;
             const pageData =
@@ -1031,13 +1269,55 @@ export default function AthleteManagementPage({
                 .replace(/\s+/g, " ")
                 .trim();
               if (!map[key]) map[key] = { teamName, email };
+
+              // Build performanceId -> members map for team detail modal
+              const perfId = String(
+                (formData["performanceId"] as string) || ""
+              ).trim();
+              if (perfId) {
+                const rawMembers = Array.isArray(formData["teamMembers"])
+                  ? (formData["teamMembers"] as Array<Record<string, unknown>>)
+                  : [];
+                const captain = {
+                  fullName: String((formData["fullName"] as string) || ""),
+                  studentId: (formData["studentId"] as string) || undefined,
+                  gender: (formData["gender"] as string) || undefined,
+                } as { fullName: string; studentId?: string; gender?: string };
+                const memberList: Array<{
+                  fullName: string;
+                  studentId?: string;
+                  gender?: string;
+                  email?: string;
+                }> = [
+                  captain,
+                  ...rawMembers.map((m) => ({
+                    fullName: String((m["fullName"] as string) || ""),
+                    studentId: (m["studentId"] as string) || undefined,
+                    gender: (m["gender"] as string) || undefined,
+                    email: (m["email"] as string) || undefined,
+                  })),
+                ].filter((m) => m.fullName && m.fullName.trim());
+                if (!perfMembers[perfId]) {
+                  perfMembers[perfId] = { teamName, members: memberList };
+                }
+              }
             }
-          } catch {
-            // Ignore per-form errors, continue
+          } catch (err) {
+            // Silently ignore 400/404 errors for forms without submissions or invalid form IDs
+            // These are expected for forms that don't have submissions yet
+            const status = (err as { response?: { status?: number } })?.response
+              ?.status;
+            if (status === 400 || status === 404) {
+              // Expected: form may not exist or have no submissions
+              continue;
+            }
+            // Only log unexpected errors
+            console.warn(`Failed to load submissions for form ${formId}:`, err);
           }
         }
 
         setTeamRegistrantMap(map);
+        setPerformanceMembersMap(perfMembers);
       } catch (e) {
         console.error("Failed to load team registrants map", e);
         setTeamRegistrantMap({});
@@ -1113,14 +1393,6 @@ export default function AthleteManagementPage({
     } catch (error) {
       console.error("Export failed:", error);
     }
-  };
-
-  // Open team detail modal and fetch members (best-effort across possible response shapes)
-  const openTeamDetail = async (row: AthleteRow) => {
-    // Temporarily disable API fetch until backend endpoint is available
-    setTeamModalOpen(true);
-    setTeamModalLoading(false);
-    setTeamModalData({ teamName: row.name, members: [] });
   };
 
   const closeTeamDetail = () => {
@@ -1554,19 +1826,22 @@ export default function AthleteManagementPage({
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow pb-6">
+      <div className="bg-white rounded-lg shadow pb-6 relative">
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">
             {COMPETITION_TYPES[activeTab]}
           </h2>
         </div>
 
+        {/* non-intrusive loading overlay to prevent flicker */}
+        {isFetching && tableData.length === 0 && (
+          <div className="absolute inset-0 z-10 bg-white/40 pointer-events-none animate-pulse" />
+        )}
+
         <CommonTable
-          data={rows.map((row, index) => ({
-            ...row,
-            stt: (page - 1) * pageSize + index + 1,
-          }))}
+          data={tableData}
           columns={columns}
+          keyField="id"
           page={page}
           pageSize={pageSize}
           total={total}
@@ -1598,30 +1873,54 @@ export default function AthleteManagementPage({
                 Đang tải...
               </div>
             ) : teamModalData && teamModalData.members.length > 0 ? (
-              <div>
-                <div className="mb-2 text-sm text-gray-700">
-                  <span className="font-medium">Đội:</span>{" "}
-                  {teamModalData.teamName}
+              <div className="max-h-[70vh] overflow-auto">
+                {/* Header section */}
+                <div className="mb-6">
+                  <div className="mb-2 text-sm font-medium text-gray-700">
+                    Thông tin thành viên
+                  </div>
                 </div>
-                <div className="max-h-80 overflow-auto border rounded">
-                  <table className="w-full table-auto">
-                    <thead className="bg-gray-50 text-xs text-gray-600">
+
+                {/* Members table */}
+                <div className="mb-6">
+                  <table className="w-full table-auto border border-gray-200 rounded-md overflow-hidden">
+                    <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-3 py-2 text-left">Họ tên</th>
-                        <th className="px-3 py-2 text-left">MSSV</th>
-                        <th className="px-3 py-2 text-left">Giới tính</th>
-                        <th className="px-3 py-2 text-left">Email</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-1/3">
+                          Họ tên
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-1/3">
+                          MSSV
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-1/6">
+                          Giới tính
+                        </th>
                       </tr>
                     </thead>
-                    <tbody className="text-sm">
-                      {teamModalData.members.map((m, i) => (
-                        <tr key={i} className="border-t">
-                          <td className="px-3 py-2">{m.fullName}</td>
-                          <td className="px-3 py-2">{m.studentId || ""}</td>
-                          <td className="px-3 py-2">{m.gender || ""}</td>
-                          <td className="px-3 py-2">{m.email || ""}</td>
-                        </tr>
-                      ))}
+                    <tbody className="divide-y divide-gray-100">
+                      {teamModalData.members.map((m, i) => {
+                        const displayGender = (g?: string) => {
+                          if (!g) return "";
+                          const v = String(g).trim().toUpperCase();
+                          if (["FEMALE", "NỮ", "NU", "F"].includes(v))
+                            return "Nữ";
+                          if (["MALE", "NAM", "M"].includes(v)) return "Nam";
+                          return g;
+                        };
+                        return (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-sm text-gray-900 break-words">
+                              {m.fullName || ""}
+                            </td>
+                            <td className="px-3 py-2 text-sm text-gray-700 break-words">
+                              {m.studentId || ""}
+                            </td>
+                            <td className="px-3 py-2 text-sm text-gray-700">
+                              {displayGender(m.gender)}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1631,9 +1930,9 @@ export default function AthleteManagementPage({
                 Không tìm thấy chi tiết thành viên cho đội này.
               </div>
             )}
-            <div className="mt-4 text-right">
+            <div className="mt-4 flex justify-end border-t pt-4">
               <button
-                className="px-4 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+                className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-medium border border-gray-300 hover:bg-gray-200"
                 onClick={closeTeamDetail}
               >
                 Đóng

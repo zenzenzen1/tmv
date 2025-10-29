@@ -890,9 +890,8 @@ export default function SubmittedFormsPage() {
 
         setError("");
 
-        // Only fetch data if a specific form is selected
-
-        if (!selectedFormId) {
+        // Only fetch data if both form type and a specific form are selected
+        if (!selectedFormId || !formTypeFilter) {
           setRows([]);
 
           setTotalElements(0);
@@ -901,7 +900,6 @@ export default function SubmittedFormsPage() {
         }
 
         // Use FormResults API endpoint for specific form submissions
-
         const res = await api.get<{
           content: any[];
 
@@ -1857,7 +1855,7 @@ export default function SubmittedFormsPage() {
 
           {/* Hình thức: Cá nhân / Đồng đội */}
 
-          {selectedFormId && (
+          {selectedFormId && formTypeFilter && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Hình thức
@@ -1928,10 +1926,11 @@ export default function SubmittedFormsPage() {
             <select
               value={status}
               onChange={(e) => {
+                if (!selectedFormId) return;
                 setPage(1);
-
                 setStatus(e.target.value);
               }}
+              disabled={!selectedFormId}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
             >
               <option value="">Tất cả trạng thái</option>
@@ -1953,10 +1952,11 @@ export default function SubmittedFormsPage() {
               type="date"
               value={dateFrom}
               onChange={(e) => {
+                if (!selectedFormId) return;
                 setPage(1);
-
                 setDateFrom(e.target.value);
               }}
+              disabled={!selectedFormId}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
             />
           </div>
@@ -1970,10 +1970,11 @@ export default function SubmittedFormsPage() {
               type="date"
               value={dateTo}
               onChange={(e) => {
+                if (!selectedFormId) return;
                 setPage(1);
-
                 setDateTo(e.target.value);
               }}
+              disabled={!selectedFormId}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
             />
           </div>
@@ -1987,17 +1988,20 @@ export default function SubmittedFormsPage() {
               placeholder="Nhập email..."
               value={query}
               onChange={(e) => {
+                if (!selectedFormId) return;
                 setPage(1);
-
                 setQuery(e.target.value);
               }}
+              disabled={!selectedFormId}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
             />
           </div>
         </div>
 
         <div className="mt-4 text-sm text-gray-600">
-          Hiển thị {filteredAll.length} trong {totalElements} kết quả
+          {selectedFormId
+            ? `Hiển thị ${filteredAll.length} trong ${totalElements} kết quả`
+            : "Vui lòng chọn loại form và form cụ thể để xem kết quả"}
         </div>
       </div>
 

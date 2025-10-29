@@ -22,6 +22,10 @@ public class AthleteResolvedResponse {
     private String fistItemId;
     private String musicContentId;
     private String weightClassId;
+    // Team enrichment
+    private String performanceId;
+    private String teamName;
+    private String registrantEmail;
 
     public static AthleteResolvedResponse from(Athlete a) {
         return AthleteResolvedResponse.builder()
@@ -39,6 +43,9 @@ public class AthleteResolvedResponse {
                 .fistItemId(a.getFistItemId())
                 .musicContentId(a.getMusicContentId())
                 .weightClassId(a.getWeightClassId())
+                .performanceId(null)
+                .teamName(null)
+                .registrantEmail(null)
                 .build();
     }
 }
