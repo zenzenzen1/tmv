@@ -23,6 +23,7 @@ type ResultRow = {
   coach: string;
   phone: string;
   status: "ĐÃ DUYỆT" | "CHỜ DUYỆT" | "TỪ CHỐI";
+  formData?: string; // Add formData to store raw submission data
 };
 
 const STATUS_MAP: Record<string, ResultRow["status"]> = {
@@ -64,6 +65,19 @@ export default function FormResults() {
   const [musicContentMap, setMusicContentMap] = useState<
     Record<string, string>
   >({});
+
+  // Performance data cache for team submissions
+  const [performanceCache, setPerformanceCache] = useState<
+    Record<string, Record<string, unknown>>
+  >({});
+
+  // Fist content data for mapping
+  const [fistConfigs, setFistConfigs] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [fistItems, setFistItems] = useState<
+    Array<{ id: string; name: string; configId?: string }>
+  >([]);
 
   // Load available forms based on form type filter
   useEffect(() => {
@@ -172,12 +186,74 @@ export default function FormResults() {
         const mcMap: Record<string, string> = {};
         for (const m of musicList) if (m.id) mcMap[m.id] = m.name || "";
         setMusicContentMap(mcMap);
+
+        // Also store raw data for direct lookup
+        setFistConfigs(cfgList);
+        setFistItems(
+          itemList.map(
+            (item: {
+              id: string;
+              name: string;
+              configId?: string;
+              parentId?: string;
+              fistConfigId?: string;
+            }) => ({
+              id: item.id,
+              name: item.name,
+              configId: item.configId || item.parentId || item.fistConfigId,
+            })
+          )
+        );
       } catch {
         // Ignore failures; mapping code has fallbacks
       }
     };
     loadContentCatalogs();
   }, []);
+
+  // Load performance data for team submissions
+  useEffect(() => {
+    const loadPerformanceData = async () => {
+      const performanceIds = new Set<string>();
+
+      // Collect all performanceIds from current rows
+      rows.forEach((row) => {
+        try {
+          const parsed = row.formData ? JSON.parse(row.formData) : {};
+          if (
+            parsed.performanceId &&
+            typeof parsed.performanceId === "string"
+          ) {
+            performanceIds.add(parsed.performanceId);
+          }
+        } catch {
+          // Ignore parsing errors
+        }
+      });
+
+      // Load performance data for each unique performanceId
+      for (const perfId of performanceIds) {
+        if (!performanceCache[perfId]) {
+          try {
+            console.log(`Loading performance data for ${perfId}`);
+            const response = await api.get(`/v1/performances/${perfId}`);
+            console.log(`Performance data loaded:`, response.data);
+            setPerformanceCache((prev) => ({
+              ...prev,
+              [perfId]: response.data as Record<string, unknown>,
+            }));
+          } catch (error) {
+            console.warn(`Failed to load performance ${perfId}:`, error);
+          }
+        }
+      }
+    };
+
+    if (rows.length > 0) {
+      loadPerformanceData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   const columns: Array<TableColumn<ResultRow>> = useMemo(
     () => [
@@ -323,6 +399,13 @@ export default function FormResults() {
             parsed = {};
           }
           const status = STATUS_MAP[item.status as string] || "CHỜ DUYỆT";
+
+          // Get performance data if available
+          const performanceId = parsed.performanceId as string;
+          const performanceData = performanceId
+            ? performanceCache[performanceId]
+            : null;
+
           const compRaw = (
             (parsed.competitionType as string) || ""
           ).toLowerCase();
@@ -355,32 +438,92 @@ export default function FormResults() {
             return "";
           };
 
+          // Use performance data if available, otherwise fallback to form data
           const quyenCategory =
-            getFirstString(parsed.quyenCategory) ||
-            getFirstString(parsed.category) ||
-            // fallback by fistConfigId
-            ((): string => {
-              const id = (parsed as Record<string, unknown>)["fistConfigId"];
-              return typeof id === "string" ? fistConfigMap[id] || "" : "";
-            })();
+            performanceData?.contentType === "QUYEN" &&
+            performanceData?.contentId
+              ? // Try to find fistConfig first, then fistItem as fallback
+                ((): string => {
+                  // First try to find fistConfig by contentId
+                  const foundConfig = fistConfigs.find(
+                    (config: { id: string; name: string }) =>
+                      config.id === performanceData.contentId
+                  );
+                  if (foundConfig) return foundConfig.name;
+
+                  // If not found as fistConfig, try as fistItem and get its config
+                  const foundItem = fistItems.find(
+                    (item: { id: string; name: string; configId?: string }) =>
+                      item.id === performanceData.contentId
+                  );
+                  if (foundItem && foundItem.configId) {
+                    const itemConfig = fistConfigs.find(
+                      (config: { id: string; name: string }) =>
+                        config.id === foundItem.configId
+                    );
+                    if (itemConfig) return itemConfig.name;
+                  }
+
+                  return "";
+                })()
+              : getFirstString(parsed.quyenCategory) ||
+                getFirstString(parsed.category) ||
+                // fallback by fistConfigId
+                ((): string => {
+                  const id = (parsed as Record<string, unknown>)[
+                    "fistConfigId"
+                  ];
+                  return typeof id === "string" ? fistConfigMap[id] || "" : "";
+                })();
+
           const quyenContent =
-            getFirstString(parsed.quyenContent) ||
-            getFirstString((parsed as Record<string, unknown>).fistContent) ||
-            getFirstString((parsed as Record<string, unknown>).fistItem) ||
-            getFirstString((parsed as Record<string, unknown>).fistItemName) ||
-            getFirstString(
-              (parsed as Record<string, unknown>).quyenContentName
-            ) ||
-            getFirstString((parsed as Record<string, unknown>).contentName) ||
-            getFirstString(parsed.content) ||
-            // fallback by quyenContentId or fistItemId
-            ((): string => {
-              const qid = (parsed as Record<string, unknown>)["quyenContentId"];
-              if (typeof qid === "string" && qid) return fistItemMap[qid] || "";
-              const fid = (parsed as Record<string, unknown>)["fistItemId"];
-              if (typeof fid === "string" && fid) return fistItemMap[fid] || "";
-              return "";
-            })();
+            performanceData?.contentType === "QUYEN" &&
+            performanceData?.contentId
+              ? // Try to find fistItem first, then fistConfig as fallback
+                ((): string => {
+                  // First try to find fistItem by contentId
+                  const foundItem = fistItems.find(
+                    (item: { id: string; name: string; configId?: string }) =>
+                      item.id === performanceData.contentId
+                  );
+                  if (foundItem) return foundItem.name;
+
+                  // If not found as fistItem, try as fistConfig
+                  const foundConfig = fistConfigs.find(
+                    (config: { id: string; name: string }) =>
+                      config.id === performanceData.contentId
+                  );
+                  if (foundConfig) return foundConfig.name;
+
+                  return "";
+                })()
+              : getFirstString(parsed.quyenContent) ||
+                getFirstString(
+                  (parsed as Record<string, unknown>).fistContent
+                ) ||
+                getFirstString((parsed as Record<string, unknown>).fistItem) ||
+                getFirstString(
+                  (parsed as Record<string, unknown>).fistItemName
+                ) ||
+                getFirstString(
+                  (parsed as Record<string, unknown>).quyenContentName
+                ) ||
+                getFirstString(
+                  (parsed as Record<string, unknown>).contentName
+                ) ||
+                getFirstString(parsed.content) ||
+                // fallback by quyenContentId or fistItemId
+                ((): string => {
+                  const qid = (parsed as Record<string, unknown>)[
+                    "quyenContentId"
+                  ];
+                  if (typeof qid === "string" && qid)
+                    return fistItemMap[qid] || "";
+                  const fid = (parsed as Record<string, unknown>)["fistItemId"];
+                  if (typeof fid === "string" && fid)
+                    return fistItemMap[fid] || "";
+                  return "";
+                })();
           // For fighting, try to get weight class name from formData or fallback to "Đối kháng"
           let fightingCategory = "";
           if (compRaw === "fighting") {
@@ -423,15 +566,18 @@ export default function FormResults() {
               : compRaw === "fighting"
               ? fightingCategory
               : compRaw === "music"
-              ? (parsed.musicCategory as string) ||
-                ((): string => {
-                  const id = (parsed as Record<string, unknown>)[
-                    "musicContentId"
-                  ];
-                  return typeof id === "string"
-                    ? musicContentMap[id] || ""
-                    : "";
-                })()
+              ? performanceData?.contentType === "MUSIC" &&
+                performanceData?.contentId
+                ? musicContentMap[performanceData.contentId as string] || ""
+                : (parsed.musicCategory as string) ||
+                  ((): string => {
+                    const id = (parsed as Record<string, unknown>)[
+                      "musicContentId"
+                    ];
+                    return typeof id === "string"
+                      ? musicContentMap[id] || ""
+                      : "";
+                  })()
               : (parsed.category as string) || "";
 
           console.log("FormResults category mapping:", {
@@ -442,6 +588,13 @@ export default function FormResults() {
             musicCategory: parsed.musicCategory,
             categoryVi,
             parsed: parsed,
+            performanceId,
+            performanceData,
+            fistConfigMap: Object.keys(fistConfigMap).length,
+            fistItemMap: Object.keys(fistItemMap).length,
+            musicContentMap: Object.keys(musicContentMap).length,
+            fistConfigs: fistConfigs.length,
+            fistItems: fistItems.length,
           });
           if (compRaw === "quyen") {
             console.log("FormResults parsed quyen:", {
@@ -507,6 +660,7 @@ export default function FormResults() {
             coach: parsed.coach || "",
             phone: parsed.phone || parsed.phoneNumber || "",
             status,
+            formData: item.formData, // Store raw form data for Performance lookup
           } as ResultRow;
         });
         // Client-side filter by name, type, and status when applied
@@ -541,6 +695,7 @@ export default function FormResults() {
       }
     };
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     id,
     selectedFormId,

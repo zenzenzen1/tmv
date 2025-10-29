@@ -399,9 +399,31 @@ export default function AthleteManagementPage({
             // Resolve category similar to ListPage for Quyền
             let resolvedCategory = a.subCompetitionType || "-";
             if (a.competitionType === "quyen") {
+              // Prefer category name by config id
               if (a.fistConfigId) {
                 const fc = fistConfigs.find((x) => x.id === a.fistConfigId);
-                if (fc) resolvedCategory = fc.name;
+                if (fc && fc.name) {
+                  resolvedCategory = fc.name;
+                } else {
+                  // Fallback: some data mistakenly stores item id into fistConfigId
+                  // Try to resolve via item -> its configId -> config name
+                  const itemByConfigId = fistItems.find(
+                    (it) => it.id === a.fistConfigId
+                  );
+                  if (itemByConfigId && itemByConfigId.configId) {
+                    const cfg = fistConfigs.find(
+                      (x) => x.id === itemByConfigId.configId
+                    );
+                    if (cfg && cfg.name) resolvedCategory = cfg.name;
+                  }
+                }
+              } else if (a.fistItemId) {
+                // If only item exists, derive category from item's configId
+                const it = fistItems.find((x) => x.id === a.fistItemId);
+                if (it && it.configId) {
+                  const cfg = fistConfigs.find((x) => x.id === it.configId);
+                  if (cfg && cfg.name) resolvedCategory = cfg.name;
+                }
               }
             }
 
@@ -547,8 +569,9 @@ export default function AthleteManagementPage({
                 const cat = (row.subCompetitionType || "").trim();
                 const item = (row.detailSubCompetitionType || "").trim();
                 if (activeTab === "quyen") {
-                  if (cat && item && cat !== item) return `${cat} - ${item}`;
-                  return cat || item || "-";
+                  // Always show "category - item" when item exists, per requirement
+                  if (item) return `${cat ? `${cat} - ` : ""}${item}`;
+                  return cat || "-";
                 }
                 // music: just item name if available
                 return item || "-";
@@ -638,18 +661,23 @@ export default function AthleteManagementPage({
             (it: {
               id: string;
               name: string;
-              description?: string;
+              description?: string | null;
               status?: boolean;
-              configId?: string;
               parentId?: string;
               fistConfigId?: string;
+              config?: { id?: string };
+              configId?: string;
             }) => ({
               id: it.id,
               name: it.name,
               description: it.description,
               status: it.status,
               configId:
-                it.configId || it.parentId || it.fistConfigId || undefined,
+                it.configId ||
+                it.parentId ||
+                it.fistConfigId ||
+                it.config?.id ||
+                undefined,
             })
           )
         );

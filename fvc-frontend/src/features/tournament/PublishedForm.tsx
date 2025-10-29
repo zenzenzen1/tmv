@@ -434,6 +434,32 @@ export default function PublishedForm() {
 
     // Competition type validation is handled above, no need to check meta.fields again
 
+    // Team member MSSV uniqueness validation (additional members)
+    try {
+      const captainStudentId = String(dynamicValues.studentId || "")
+        .trim()
+        .toUpperCase();
+      const seen: Record<string, number[]> = {};
+      teamMembers.forEach((m, idx) => {
+        const sid = String(m.studentId || "")
+          .trim()
+          .toUpperCase();
+        if (!sid) return;
+        if (!seen[sid]) seen[sid] = [];
+        seen[sid].push(idx);
+        if (captainStudentId && sid === captainStudentId) {
+          errors[`teamMembers.${idx}.studentId`] = "MSSV trùng với người nộp";
+        }
+      });
+      Object.entries(seen).forEach(([sid, idxs]) => {
+        if (idxs.length > 1) {
+          idxs.forEach((i) => {
+            errors[`teamMembers.${i}.studentId`] = "MSSV thành viên bị trùng";
+          });
+        }
+      });
+    } catch {}
+
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
@@ -448,6 +474,52 @@ export default function PublishedForm() {
       console.log("Participants per entry:", participantsPerEntry);
       show("Vui lòng kiểm tra lại thông tin", "error");
       return;
+    }
+
+    // Server-side duplication check against existing submissions in this form (MSSV uniqueness)
+    try {
+      const resp = await api.get(`/v1/tournament-forms/${id}/submissions`, {
+        params: { all: true },
+      });
+      const root = resp.data as Record<string, any>;
+      const pageData = (root?.data as Record<string, any>) ?? root;
+      const submitted = (pageData?.content as Array<any>) ?? [];
+      const existingIds = new Set<string>();
+      const toUpper = (s?: string) => (s || "").trim().toUpperCase();
+      for (const row of submitted) {
+        let fdObj: any = {};
+        try {
+          fdObj = row?.formData ? JSON.parse(row.formData) : {};
+        } catch {}
+        const sid = toUpper(fdObj?.studentId);
+        if (sid) existingIds.add(sid);
+        const members: Array<any> = Array.isArray(fdObj?.teamMembers)
+          ? fdObj.teamMembers
+          : [];
+        for (const m of members) {
+          const msid = toUpper(m?.studentId);
+          if (msid) existingIds.add(msid);
+        }
+      }
+      const captainSid = toUpper(String(dynamicValues.studentId || ""));
+      if (captainSid && existingIds.has(captainSid)) {
+        errors["studentId"] = "MSSV đã đăng ký trong form này";
+      }
+      teamMembers.forEach((m, idx) => {
+        const sid = toUpper(m?.studentId || "");
+        if (sid && existingIds.has(sid)) {
+          errors[`teamMembers.${idx}.studentId`] =
+            "MSSV đã đăng ký trong form này";
+        }
+      });
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
+        show("MSSV đã tồn tại trong form này", "error");
+        return;
+      }
+    } catch (dupErr) {
+      // nếu gọi kiểm tra lỗi mạng, không chặn submit, nhưng log lại
+      console.warn("Could not verify duplicate MSSV against DB", dupErr);
     }
 
     try {
@@ -484,7 +556,17 @@ export default function PublishedForm() {
       navigate("/");
     } catch (error) {
       console.error("Submission error:", error);
-      show("Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", "error");
+      try {
+        const resp: any = (error as any)?.response?.data;
+        const msg: string =
+          resp?.message ||
+          (error as any)?.message ||
+          "Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.";
+        // Chỉ hiển thị toast theo thông điệp server, không gắn lỗi vào field
+        show(msg, "error");
+      } catch {
+        show("Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", "error");
+      }
     }
   };
 
@@ -869,9 +951,19 @@ export default function PublishedForm() {
                           key={config.id}
                           type="button"
                           onClick={() => {
-                            setCompetitionType("quyen");
-                            setQuyenCategory(config.name);
-                            setQuyenContent(""); // reset selected content when category changes
+                            // Toggle only sub-competition selection; do not change competitionType
+                            if (quyenCategory === config.name) {
+                              setQuyenCategory("");
+                              setQuyenContent("");
+                              setFistConfigId("");
+                            } else {
+                              setQuyenCategory(config.name);
+                              setQuyenContent(""); // reset selected content when category changes
+                              // Auto-select competition type = quyen when picking a subcompetition
+                              if (competitionType !== "quyen") {
+                                setCompetitionType("quyen");
+                              }
+                            }
                           }}
                           className={`rounded-full border px-3 py-1.5 text-xs ${
                             quyenCategory === config.name
@@ -1062,8 +1154,17 @@ export default function PublishedForm() {
                             };
                             setTeamMembers(next);
                           }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            fieldErrors[`teamMembers.${idx}.studentId`]
+                              ? "border-red-400"
+                              : "border-gray-300"
+                          }`}
                         />
+                        {fieldErrors[`teamMembers.${idx}.studentId`] && (
+                          <div className="md:col-span-2 text-xs text-red-600 -mt-2">
+                            {fieldErrors[`teamMembers.${idx}.studentId`]}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

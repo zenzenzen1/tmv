@@ -8,11 +8,9 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 import ErrorMessage from "@/components/common/ErrorMessage";
 
-import Pagination from "@/components/common/Pagination";
-
 import { useEffect, useMemo, useMemo as useReactMemo, useState } from "react";
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import api from "@/services/api";
 
@@ -477,6 +475,15 @@ type SubmittedRow = {
 
 export default function SubmittedFormsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const initialFormIdFromUrl = (() => {
+    try {
+      const sp = new URLSearchParams(location.search);
+      return sp.get("formId") || "";
+    } catch {
+      return "";
+    }
+  })();
 
   const [rows, setRows] = useState<SubmittedRow[]>([]);
 
@@ -510,7 +517,19 @@ export default function SubmittedFormsPage() {
     "COMPETITION" | "CLUB" | ""
   >("");
 
-  const [selectedFormId, setSelectedFormId] = useState<string>("");
+  const [selectedFormId, setSelectedFormId] = useState<string>(
+    initialFormIdFromUrl ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("submittedForms:selectedFormId") || ""
+        : "")
+  );
+
+  useEffect(() => {
+    try {
+      if (selectedFormId)
+        localStorage.setItem("submittedForms:selectedFormId", selectedFormId);
+    } catch {}
+  }, [selectedFormId]);
 
   const [availableForms, setAvailableForms] = useState<
     Array<{ id: string; name: string; formType: string }>
@@ -537,6 +556,9 @@ export default function SubmittedFormsPage() {
   const [competitionFilter, setCompetitionFilter] = useState<
     "ALL" | "fighting" | "quyen" | "music"
   >("ALL");
+
+  // Catalog maps for resolving IDs -> names (align with FormResults)
+  // (deduplicated declarations)
 
   // Get toast context with safe handling
 
@@ -668,15 +690,37 @@ export default function SubmittedFormsPage() {
           ).length
         );
 
-        setAvailableForms(
-          filteredForms.map((form: any) => ({
-            id: form.id,
-
-            name: form.formTitle || form.name || "Không có tên",
-
-            formType: form.formType,
-          }))
-        );
+        const mappedForms = filteredForms.map((form: any) => ({
+          id: form.id,
+          name: form.formTitle || form.name || "Không có tên",
+          formType: form.formType,
+        }));
+        setAvailableForms(mappedForms);
+        // Prefer formId from URL if present and exists; otherwise keep blank
+        if (!selectedFormId) {
+          const formIdFromUrl = (() => {
+            try {
+              return (
+                new URLSearchParams(window.location.search).get("formId") || ""
+              );
+            } catch {
+              return "";
+            }
+          })();
+          if (
+            formIdFromUrl &&
+            mappedForms.some((f) => f.id === formIdFromUrl)
+          ) {
+            setSelectedFormId(formIdFromUrl);
+          }
+        }
+        // If currently selected form no longer exists under this type, clear selection
+        if (
+          selectedFormId &&
+          !mappedForms.some((f) => f.id === selectedFormId)
+        ) {
+          setSelectedFormId("");
+        }
       } catch (error) {
         console.error("Error loading forms:", error);
       }
@@ -684,6 +728,63 @@ export default function SubmittedFormsPage() {
 
     loadForms();
   }, [formTypeFilter]);
+
+  // Load catalogs once for ID -> label mapping
+  useEffect(() => {
+    const loadCatalogs = async () => {
+      try {
+        // Weight classes
+        const wcRes = await api.get<{
+          content: Array<{
+            id: string;
+            weightClass?: string;
+            minWeight?: number;
+            maxWeight?: number;
+          }>;
+        }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
+        const wcList = wcRes.data?.content || [];
+        const wcMap: Record<string, string> = {};
+        for (const wc of wcList) {
+          const label =
+            wc.weightClass && wc.weightClass.trim()
+              ? wc.weightClass
+              : [wc.minWeight, wc.maxWeight].every((v) => typeof v === "number")
+              ? `${wc.minWeight}-${wc.maxWeight}kg`
+              : "";
+          if (wc.id) wcMap[wc.id] = label;
+        }
+        setWeightClassMap(wcMap);
+      } catch {}
+      try {
+        const cfgRes = await api.get<{
+          content: Array<{ id: string; name: string }>;
+        }>(API_ENDPOINTS.FIST_CONTENTS.BASE);
+        const cfgMap: Record<string, string> = {};
+        for (const c of cfgRes.data?.content || [])
+          if (c.id) cfgMap[c.id] = c.name || "";
+        setFistConfigMap(cfgMap);
+      } catch {}
+      try {
+        const itemRes = await api.get<{
+          content: Array<{ id: string; name: string }>;
+        }>(API_ENDPOINTS.FIST_CONTENTS.ITEMS);
+        const itMap: Record<string, string> = {};
+        for (const it of itemRes.data?.content || [])
+          if (it.id) itMap[it.id] = it.name || "";
+        setFistItemMap(itMap);
+      } catch {}
+      try {
+        const musicRes = await api.get<{
+          content: Array<{ id: string; name: string }>;
+        }>(API_ENDPOINTS.MUSIC_CONTENTS.BASE);
+        const mcMap: Record<string, string> = {};
+        for (const m of musicRes.data?.content || [])
+          if (m.id) mcMap[m.id] = m.name || "";
+        setMusicContentMap(mcMap);
+      } catch {}
+    };
+    loadCatalogs();
+  }, []);
 
   // Load form definition when form is selected
 
@@ -844,10 +945,11 @@ export default function SubmittedFormsPage() {
           const mapped: SubmittedRow[] = content.map((raw) => {
             const item = raw as {
               id: number;
-
               formData?: string;
-
               status?: string;
+              reviewerNote?: string;
+              createdAt?: string;
+              submittedAt?: string;
             };
 
             let parsed: Record<string, unknown> = {};
@@ -873,51 +975,93 @@ export default function SubmittedFormsPage() {
                 ? "Võ nhạc"
                 : "";
 
-            // Extract category like FormResults, prefer ID -> label via catalogs
+            // Extract category like FormResults with ID fallbacks
+            const getFirstString = (v: any): string => {
+              if (Array.isArray(v)) return v.length ? getFirstString(v[0]) : "";
+              if (v && typeof v === "object") {
+                const obj = v as Record<string, any>;
+                if (typeof obj.name === "string" && obj.name) return obj.name;
+                if (typeof obj.title === "string" && obj.title)
+                  return obj.title;
+                if (typeof obj.label === "string" && obj.label)
+                  return obj.label;
+                for (const k of Object.keys(obj)) {
+                  const val = obj[k];
+                  if (typeof val === "string" && val) return val;
+                }
+                return "";
+              }
+              if (typeof v === "string" || typeof v === "number")
+                return String(v);
+              return "";
+            };
             let categoryVi = "";
 
             if (compRaw === "fighting") {
-              const weightClass = (parsed.weightClass as string) || "";
-              const weightClassId = (parsed.weightClassId as string) || "";
-              if (weightClass && weightClass.trim()) {
-                categoryVi = weightClass;
-              } else if (weightClassId && weightClassMap[weightClassId]) {
-                categoryVi = weightClassMap[weightClassId];
-              } else if (weightClassId) {
-                categoryVi = weightClassId;
-              } else {
-                categoryVi = "Đối kháng";
+              categoryVi = (parsed.weightClass as string) || "";
+              if (!categoryVi && parsed.weightClassId) {
+                const id = String(parsed.weightClassId);
+                categoryVi = weightClassMap[id] || id || "Đối kháng";
               }
+              if (!categoryVi) categoryVi = "Đối kháng";
             } else if (compRaw === "quyen") {
-              const cfgId = (parsed.fistConfigId as string) || "";
-              const itemId =
-                (parsed.fistItemId as string) ||
-                (parsed.quyenContentId as string) ||
-                "";
-              const quyenCategory = (parsed.quyenCategory as string) || "";
-              const quyenContent = (parsed.quyenContent as string) || "";
-              const cfgName = cfgId ? fistConfigMap[cfgId] : "";
-              const itemName = itemId ? fistItemMap[itemId] : "";
-              const cat = (cfgName || quyenCategory || "").trim();
-              const item = (itemName || quyenContent || "").trim();
-              if (cat && item && cat !== item) categoryVi = `${cat} - ${item}`;
-              else categoryVi = cat || item || "Quyền";
+              const quyenCategory =
+                getFirstString((parsed as any).quyenCategory) ||
+                ((): string => {
+                  const id = (parsed as any).fistConfigId;
+                  return typeof id === "string" ? fistConfigMap[id] || "" : "";
+                })();
+              const quyenContent =
+                getFirstString((parsed as any).quyenContent) ||
+                getFirstString((parsed as any).fistContent) ||
+                getFirstString((parsed as any).fistItem) ||
+                getFirstString((parsed as any).fistItemName) ||
+                getFirstString((parsed as any).quyenContentName) ||
+                getFirstString((parsed as any).contentName) ||
+                getFirstString((parsed as any).content) ||
+                ((): string => {
+                  const qid = (parsed as any).quyenContentId;
+                  if (typeof qid === "string" && qid)
+                    return fistItemMap[qid] || "";
+                  const fid = (parsed as any).fistItemId;
+                  if (typeof fid === "string" && fid)
+                    return fistItemMap[fid] || "";
+                  return "";
+                })();
+              categoryVi = `${quyenCategory}${
+                quyenContent ? ` - ${quyenContent}` : ""
+              }`;
             } else if (compRaw === "music") {
-              const mid = (parsed.musicContentId as string) || "";
-              const musicCategory = (parsed.musicCategory as string) || "";
-              if (mid && musicContentMap[mid])
-                categoryVi = musicContentMap[mid];
-              else if (musicCategory && musicCategory.trim())
-                categoryVi = musicCategory;
-              else categoryVi = "Võ nhạc";
+              categoryVi =
+                (parsed.musicCategory as string) ||
+                ((): string => {
+                  const id = (parsed as any).musicContentId;
+                  return typeof id === "string"
+                    ? musicContentMap[id] || ""
+                    : "";
+                })() ||
+                "Võ nhạc";
             }
+
+            const submittedAt = (() => {
+              const candidates = [
+                (parsed as any).submittedAtClient,
+                (parsed as any).submittedAt,
+                (parsed as any).createdAt,
+              ];
+              for (const v of candidates) {
+                if (typeof v === "string" && v.trim()) return v;
+                if (typeof v === "number") {
+                  const ms = v > 1e12 ? v : v * 1000;
+                  return new Date(ms).toISOString();
+                }
+              }
+              return "";
+            })();
 
             return {
               id: String(item.id),
-
-              submittedAt:
-                item.createdAt || item.submittedAt || new Date().toISOString(),
-
+              submittedAt,
               fullName: (parsed.fullName as string) || "",
 
               teamName: (parsed.teamName as string) || "",
@@ -927,9 +1071,7 @@ export default function SubmittedFormsPage() {
               studentCode: (parsed.studentId as string) || "",
 
               phone: parsed.phone || parsed.phoneNumber || "",
-
               note: item.reviewerNote ?? "",
-
               formData: item.formData,
 
               competitionType: compVi,
@@ -1870,7 +2012,6 @@ export default function SubmittedFormsPage() {
           data={
             paginated.map((r, idx) => ({
               ...r,
-
               stt: (page - 1) * pageSize + idx + 1,
             })) as any
           }
@@ -2209,7 +2350,7 @@ export default function SubmittedFormsPage() {
                         </div>
 
                         <div className="mt-1 text-sm text-gray-900">
-                          {value.toString()}
+                          {String(value as any)}
                         </div>
                       </div>
                     ));
@@ -2323,7 +2464,7 @@ function exportCsv(rows: SubmittedRow[]) {
     escapeCsv(r.note),
 
     ...Array.from(allowedFormFields).map((fieldKey) =>
-      escapeCsv(r[fieldKey] || "")
+      escapeCsv((r as any)[fieldKey] || "")
     ),
   ]);
 
