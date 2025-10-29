@@ -104,7 +104,7 @@ export interface UpdateProfileRequest {
   eduMail?: string;
   studentCode?: string;
   gender?: string;
-  dob?: string;
+  dob?: string; // Frontend sends as string, backend converts to LocalDate
 }
 
 export interface ChangePasswordRequest {

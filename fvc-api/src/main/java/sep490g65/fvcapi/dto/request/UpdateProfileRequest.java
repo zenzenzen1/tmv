@@ -26,5 +26,5 @@ public class UpdateProfileRequest {
     
     private String gender;
     
-    private LocalDate dob;
+    private String dob; // Frontend sends as string, will be converted to LocalDate in service
 }

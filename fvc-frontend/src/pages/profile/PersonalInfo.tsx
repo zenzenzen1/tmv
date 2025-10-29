@@ -10,15 +10,16 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Alert,
 } from '@mui/material';
 import { Person, Email, School, Badge } from '@mui/icons-material';
 import { useState } from 'react';
 import profileService from '@/services/profileService';
+import { useToast } from '@/components/common/ToastContext';
 import type { UpdateProfileRequest } from '@/types';
 
 export default function PersonalInfo() {
   const { user } = useAuth();
+  const toast = useToast();
   
   // Debug: Log user data
   console.log('User data:', user);
@@ -48,32 +49,25 @@ export default function PersonalInfo() {
   };
 
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      setError(null);
-      setSuccess(false);
 
       const updateData: UpdateProfileRequest = {
-        fullName: formData.fullName || undefined,
-        personalMail: formData.personalMail || undefined,
-        eduMail: formData.eduMail || undefined,
-        studentCode: formData.studentCode || undefined,
-        gender: formData.gender || undefined,
-        dob: formData.dob || undefined,
+        fullName: formData.fullName?.trim() || undefined,
+        personalMail: formData.personalMail?.trim() || undefined,
+        eduMail: formData.eduMail?.trim() || undefined,
+        studentCode: formData.studentCode?.trim() || undefined,
+        gender: formData.gender?.trim() || undefined,
+        dob: formData.dob?.trim() || undefined,
       };
 
       await profileService.updateProfile(updateData);
-      setSuccess(true);
+      toast.success('Profile updated successfully!');
       setIsEditing(false);
-      
-      // Hide success message after 3 seconds
-      setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update profile');
+      toast.error(err.response?.data?.message || 'Failed to update profile');
     } finally {
       setIsSaving(false);
     }
@@ -99,20 +93,6 @@ export default function PersonalInfo() {
           Thông tin cá nhân
         </Typography>
       </Box>
-
-      {/* Success Message */}
-      {success && (
-        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(false)}>
-          Profile updated successfully!
-        </Alert>
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
 
       <Box sx={{ display: 'flex', gap: 4, flexDirection: { xs: 'column', md: 'row' } }}>
         {/* Avatar Section */}

@@ -14,6 +14,7 @@ import sep490g65.fvcapi.exception.custom.ValidationException;
 import sep490g65.fvcapi.repository.UserRepository;
 import sep490g65.fvcapi.service.UserService;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -96,8 +97,14 @@ public class UserServiceImpl implements UserService {
         }
         
         // Update dob
-        if (request.getDob() != null) {
-            user.setDob(request.getDob());
+        if (request.getDob() != null && !request.getDob().trim().isEmpty()) {
+            try {
+                LocalDate dob = LocalDate.parse(request.getDob().trim());
+                user.setDob(dob);
+            } catch (Exception e) {
+                log.warn("Invalid date format for dob: {}", request.getDob());
+                throw new ValidationException("dob", "Invalid date format. Please use YYYY-MM-DD format");
+            }
         }
         
         User updatedUser = userRepository.save(user);
