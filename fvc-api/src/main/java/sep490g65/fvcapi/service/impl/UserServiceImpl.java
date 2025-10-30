@@ -16,6 +16,7 @@ import sep490g65.fvcapi.service.UserService;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -45,11 +46,11 @@ public class UserServiceImpl implements UserService {
     public ProfileResponse updateProfile(String email, UpdateProfileRequest request) {
         log.info("Updating profile for email: {}", email);
         
-        List<User> users = userRepository.findAllByPersonalMailIgnoreCase(email);
+        Optional<User> users = userRepository.findByPersonalMail(email);
         if (users.isEmpty()) {
             throw new ResourceNotFoundException("User not found");
         }
-        User user = users.get(0); // Get first user if duplicates exist
+        User user = users.get(); 
         
         // Update fullName
         if (request.getFullName() != null && !request.getFullName().trim().isEmpty()) {

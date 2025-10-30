@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 import sep490g65.fvcapi.entity.User;
 
 import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, String> {
@@ -21,7 +22,7 @@ public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByEduMailIgnoreCase(String eduMail);
     
     // Handle duplicates by returning List (use first element)
-    java.util.List<User> findAllByPersonalMailIgnoreCase(String personalMail);
-    java.util.List<User> findAllByEduMailIgnoreCase(String eduMail);
+    List<User> findAllByPersonalMailIgnoreCase(String personalMail);
+    List<User> findAllByEduMailIgnoreCase(String eduMail);
 }
 
