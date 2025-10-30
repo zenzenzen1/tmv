@@ -33,6 +33,7 @@ import BracketBuilder from "./pages/brackets/BracketBuilder";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
 import FormBuilder from "./features/tournament/FormBuilder";
+import UserManagementPage from "./pages/user-management/UserManagementPage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -154,6 +155,9 @@ export default function App() {
         {/* Arrange */}
         <Route path="arrange" element={<ArrangeOrderWrapper />} />
         <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
+
+        {/* User Management */}
+        <Route path="users" element={<UserManagementPage />} />
       </Route>
 
       {/* Legacy redirects to /manage */}

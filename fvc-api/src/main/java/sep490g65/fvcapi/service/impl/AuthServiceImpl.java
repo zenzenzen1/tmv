@@ -58,10 +58,9 @@ public class AuthServiceImpl implements AuthService {
 
             log.info("Step 3: Password verified successfully");
 
-            // Generate token for email
-            log.info("Step 4: Generating token");
-            String token = jwtUtils.generateTokenFromEmail(user.getPersonalMail());
-            log.info("Token generated: {}", token.substring(0, Math.min(20, token.length())) + "...");
+
+            // Generate token for email (can be used for future JWT integration)
+            jwtUtils.generateTokenFromEmail(user.getPersonalMail());
 
             log.info("Step 5: Building response");
             LoginResponse response = LoginResponse.builder()
@@ -94,4 +93,5 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("Login failed", e);
         }
     }
+
 }
