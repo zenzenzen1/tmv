@@ -29,6 +29,8 @@ import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
+import ProjectionScreen from "./pages/performance/ProjectionScreen";
+import JudgeScoringScreen from "./pages/performance/JudgeScoringScreen";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -76,6 +78,10 @@ export default function App() {
       {/* Public Home */}
       <Route path="/home" element={<Home />} />
       <Route path="dashboard" element={<DashboardPage />} />
+
+      {/* PERFORMANCE PUBLIC */}
+      <Route path="/performance/projection" element={<ProjectionScreen />} />
+      <Route path="/performance/judge" element={<JudgeScoringScreen />} />
 
       {/* Protected app routes under /manage */}
       <Route

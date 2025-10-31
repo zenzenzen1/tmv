@@ -124,6 +124,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 .formType(request.getFormType())
                 .competition(comp)
                 .status(request.getStatus() != null ? request.getStatus() : sep490g65.fvcapi.enums.FormStatus.DRAFT)
+                .endDate(request.getEndDate())
                 .build();
 
         // attach fields if provided
@@ -196,6 +197,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 .formType(f.getFormType())
                 .competitionId(f.getCompetition() != null ? f.getCompetition().getId() : null)
                 .status(f.getStatus())
+                .endDate(f.getEndDate())
                 .createdAt(f.getCreatedAt())
                 .fields(fields)
                 .build();
@@ -213,6 +215,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
             f.setCompetition(c);
         }
         if (request.getStatus() != null) f.setStatus(request.getStatus());
+        if (request.getEndDate() != null) f.setEndDate(request.getEndDate());
         // upsert fields
         if (request.getFields() != null) {
             java.util.Map<String, sep490g65.fvcapi.entity.ApplicationFormField> existing = new java.util.HashMap<>();
@@ -585,6 +588,38 @@ public class TournamentFormServiceImpl implements TournamentFormService {
         }
         // resolve user from email (only if exists, don't create new user)
         sep490g65.fvcapi.entity.User user = userRepository.findByPersonalMail(request.getEmail()).orElse(null);
+
+        // Server-side validation: competitionType must be present and non-empty
+        try {
+            JsonNode validateRoot = objectMapper.readTree(request.getFormDataJson());
+            String compType = (validateRoot != null && validateRoot.hasNonNull("competitionType"))
+                    ? validateRoot.get("competitionType").asText("").trim()
+                    : "";
+            if (compType.isEmpty()) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.BAD_REQUEST,
+                        "Nội dung thi đấu (competitionType) là bắt buộc"
+                );
+            }
+        } catch (org.springframework.web.server.ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "Dữ liệu form không hợp lệ"
+            );
+        }
+
+        // Reject submissions after endDate if configured
+        try {
+            java.time.LocalDateTime end = form.getEndDate();
+            if (end != null && java.time.LocalDateTime.now().isAfter(end)) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.GONE,
+                        "Form đã hết hạn nộp đăng ký"
+                );
+            }
+        } catch (org.springframework.web.server.ResponseStatusException ex) { throw ex; }
 
         sep490g65.fvcapi.entity.SubmittedApplicationForm s = sep490g65.fvcapi.entity.SubmittedApplicationForm.builder()
                 .applicationFormConfig(form)

@@ -20,6 +20,7 @@ public class FormDetailResponse {
     private ApplicationFormType formType;
     private String competitionId;
     private FormStatus status;
+    private LocalDateTime endDate;
     private LocalDateTime createdAt;
     private java.util.List<FormFieldDto> fields;
 }

@@ -513,9 +513,10 @@ export default function SubmittedFormsPage() {
 
   // New form type filters
 
+  // Fixed: always manage competition registration forms; remove type selector
   const [formTypeFilter, setFormTypeFilter] = useState<
     "COMPETITION" | "CLUB" | ""
-  >("");
+  >("COMPETITION");
 
   const [selectedFormId, setSelectedFormId] = useState<string>(
     initialFormIdFromUrl ||
@@ -629,13 +630,7 @@ export default function SubmittedFormsPage() {
 
   useEffect(() => {
     const loadForms = async () => {
-      if (!formTypeFilter) {
-        setAvailableForms([]);
-
-        setSelectedFormDefinition(null);
-
-        return;
-      }
+      // formTypeFilter is fixed to COMPETITION; always load and filter to competition forms
 
       try {
         const response = await api.get<{
@@ -713,6 +708,10 @@ export default function SubmittedFormsPage() {
           ) {
             setSelectedFormId(formIdFromUrl);
           }
+        }
+        // If no form selected, default to the first competition form
+        if (!selectedFormId && mappedForms.length > 0) {
+          setSelectedFormId(mappedForms[0].id);
         }
         // If currently selected form no longer exists under this type, clear selection
         if (
@@ -891,7 +890,7 @@ export default function SubmittedFormsPage() {
         setError("");
 
         // Only fetch data if both form type and a specific form are selected
-        if (!selectedFormId || !formTypeFilter) {
+        if (!selectedFormId) {
           setRows([]);
 
           setTotalElements(0);
@@ -1796,38 +1795,12 @@ export default function SubmittedFormsPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
-          {/* Form Type Filter */}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Loại form
-            </label>
-
-            <select
-              value={formTypeFilter}
-              onChange={(e) => {
-                setFormTypeFilter(
-                  e.target.value as "COMPETITION" | "CLUB" | ""
-                );
-
-                setSelectedFormId("");
-
-                setPage(1);
-              }}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
-            >
-              <option value="">Chọn loại form</option>
-
-              <option value="COMPETITION">Form đăng ký giải</option>
-
-              <option value="CLUB">Form đăng ký CLB</option>
-            </select>
-          </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {/* Form Type Filter removed - default to competition registration */}
 
           {/* Specific Form Filter */}
 
-          {formTypeFilter && (
+          {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Form cụ thể
@@ -1851,11 +1824,11 @@ export default function SubmittedFormsPage() {
                 ))}
               </select>
             </div>
-          )}
+          }
 
           {/* Hình thức: Cá nhân / Đồng đội */}
 
-          {selectedFormId && formTypeFilter && (
+          {selectedFormId && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Hình thức
@@ -1887,7 +1860,7 @@ export default function SubmittedFormsPage() {
 
           {/* Thể thức thi đấu (chỉ hiện với Form đăng ký giải) */}
 
-          {selectedFormId && formTypeFilter === "COMPETITION" && (
+          {selectedFormId && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Thể thức thi đấu

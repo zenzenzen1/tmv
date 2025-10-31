@@ -75,6 +75,7 @@ const FormBuilder: React.FC = () => {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [competitionId, setCompetitionId] = useState<string>("");
   const [formStatus, setFormStatus] = useState<string | undefined>(undefined);
+  const [endDate, setEndDate] = useState<string>("");
   const [competitions, setCompetitions] = useState<
     Array<{ id: string; name: string }>
   >([]);
@@ -234,6 +235,14 @@ const FormBuilder: React.FC = () => {
             if (response.data.status) {
               setFormStatus(response.data.status);
             }
+            // Nếu backend có trả endDate, bind vào state (không có cũng không sao)
+            try {
+              const anyRes: any = response.data as any;
+              if (anyRes.endDate) {
+                const iso = new Date(anyRes.endDate).toISOString();
+                setEndDate(iso.slice(0, 16));
+              }
+            } catch {}
 
             // Clear existing questions first, then load form fields
             setQuestions([]);
@@ -725,6 +734,7 @@ const FormBuilder: React.FC = () => {
         competitionId: competitionId,
         status: "DRAFT",
         fields: fields,
+        endDate: endDate ? new Date(endDate).toISOString() : undefined,
       };
 
       console.log("Questions state (draft):", questions);
@@ -1094,6 +1104,7 @@ const FormBuilder: React.FC = () => {
         competitionId: competitionId,
         status: "PUBLISH",
         fields: fields,
+        endDate: endDate ? new Date(endDate).toISOString() : undefined,
       };
 
       console.log("Questions state:", questions);
@@ -1229,6 +1240,65 @@ const FormBuilder: React.FC = () => {
                     {descriptionValidation.errorMessage}
                   </p>
                 )}
+              </div>
+
+              {/* End Date (ngày kết thúc hiển thị form) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ngày kết thúc (tự ẩn form sau thời điểm này)
+                </label>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const tomorrow = new Date();
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        tomorrow.setHours(23, 59, 0, 0);
+                        setEndDate(tomorrow.toISOString().slice(0, 16));
+                      }}
+                      className="px-3 py-1 text-xs bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors"
+                    >
+                      Ngày mai 23:59
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextWeek = new Date();
+                        nextWeek.setDate(nextWeek.getDate() + 7);
+                        nextWeek.setHours(23, 59, 0, 0);
+                        setEndDate(nextWeek.toISOString().slice(0, 16));
+                      }}
+                      className="px-3 py-1 text-xs bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors"
+                    >
+                      Tuần sau
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextMonth = new Date();
+                        nextMonth.setMonth(nextMonth.getMonth() + 1);
+                        nextMonth.setHours(23, 59, 0, 0);
+                        setEndDate(nextMonth.toISOString().slice(0, 16));
+                      }}
+                      className="px-3 py-1 text-xs bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 transition-colors"
+                    >
+                      Tháng sau
+                    </button>
+                  </div>
+                  <input
+                    type="datetime-local"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    min={new Date().toISOString().slice(0, 16)}
+                  />
+                  {endDate && (
+                    <p className="text-xs text-gray-500">
+                      Hết hạn: {new Date(endDate).toLocaleString("vi-VN")}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Standard Fields */}
@@ -1905,6 +1975,7 @@ const FormBuilder: React.FC = () => {
               </div>
             </div>
           </div>
+
           {/* Preview Modal */}
           {showPreview && (
             <FormPreviewModal

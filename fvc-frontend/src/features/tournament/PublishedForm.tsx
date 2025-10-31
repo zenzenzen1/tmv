@@ -22,6 +22,7 @@ type FormMeta = {
   status?: string;
   formType?: string;
   fields?: FormField[];
+  endDate?: string;
 };
 
 export default function PublishedForm() {
@@ -30,6 +31,7 @@ export default function PublishedForm() {
   const [meta, setMeta] = useState<FormMeta | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [expired, setExpired] = useState<boolean>(false);
   const [dynamicValues, setDynamicValues] = useState<
     Record<string, string | string[]>
   >({});
@@ -115,6 +117,14 @@ export default function PublishedForm() {
         }
 
         setMeta(res.data);
+        try {
+          const ed = (res.data as any)?.endDate as string | undefined;
+          if (ed) {
+            const now = Date.now();
+            const endTs = Date.parse(ed);
+            if (!Number.isNaN(endTs) && now > endTs) setExpired(true);
+          }
+        } catch {}
         console.log("PublishedForm - Loaded form data:", res.data);
         console.log(
           "PublishedForm - Fields count:",
@@ -623,6 +633,11 @@ export default function PublishedForm() {
       <div className="max-w-4xl mx-auto px-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-6">{meta.name}</h1>
+          {expired && (
+            <div className="mb-6 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-yellow-800">
+              Form đã hết thời hạn đăng ký.
+            </div>
+          )}
           {meta.description && (
             <p className="text-gray-600 mb-6">{meta.description}</p>
           )}
@@ -1176,9 +1191,14 @@ export default function PublishedForm() {
             <div className="pt-6">
               <button
                 type="submit"
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium"
+                disabled={expired}
+                className={`w-full py-3 px-4 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  expired
+                    ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
+                }`}
               >
-                Đăng ký
+                {expired ? "Đã hết hạn" : "Đăng ký"}
               </button>
             </div>
           </form>
