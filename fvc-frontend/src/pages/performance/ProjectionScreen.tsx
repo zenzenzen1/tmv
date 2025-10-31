@@ -87,7 +87,7 @@ const ProjectionScreen: React.FC = () => {
               className="flex flex-col text-center items-center justify-center border-2 border-gray-200 rounded-xl bg-white px-2 py-6 min-w-[65px] md:min-w-[70px] shadow-sm text-xs sm:text-base"
             >
               <div className="text-gray-500 text-[15px] md:text-[16px] mb-1 font-semibold">
-                Giám định {idx + 1}
+                Assesor {idx + 1}
               </div>
               <div className="text-2xl md:text-2xl font-bold tracking-wide text-black">
                 {score}
@@ -121,7 +121,7 @@ const ProjectionScreen: React.FC = () => {
                     <td>{idx + 1}</td>
                     <td>+{item.score}</td>
                     <td>{item.time}</td>
-                    <td>Giám định {item.judge}</td>
+                    <td>Assesor {item.judge}</td>
                   </tr>
                 ))}
               </tbody>

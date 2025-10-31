@@ -18,7 +18,7 @@ const JudgeScoringScreen: React.FC = () => {
       <div className="w-full max-w-[700px] bg-white border-0 rounded-xl shadow p-4 flex flex-col gap-6 items-center">
         <div className="w-full flex flex-row items-center justify-between mb-4">
           <span className="text-base text-black font-semibold">
-            Giám định số: <strong>{judgeNumber}</strong>
+            Assesor số: <strong>{judgeNumber}</strong>
           </span>
           <span className="px-4 py-1 rounded text-xs bg-green-100 text-green-700 border border-green-400 font-semibold">
             Trạng thái: {status}

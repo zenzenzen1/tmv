@@ -1002,32 +1002,31 @@ export default function SubmittedFormsPage() {
               }
               if (!categoryVi) categoryVi = "Đối kháng";
             } else if (compRaw === "quyen") {
-              const quyenCategory =
-                getFirstString((parsed as any).quyenCategory) ||
-                ((): string => {
-                  const id = (parsed as any).fistConfigId;
-                  return typeof id === "string" ? fistConfigMap[id] || "" : "";
-                })();
-              const quyenContent =
-                getFirstString((parsed as any).quyenContent) ||
-                getFirstString((parsed as any).fistContent) ||
-                getFirstString((parsed as any).fistItem) ||
-                getFirstString((parsed as any).fistItemName) ||
-                getFirstString((parsed as any).quyenContentName) ||
-                getFirstString((parsed as any).contentName) ||
-                getFirstString((parsed as any).content) ||
-                ((): string => {
-                  const qid = (parsed as any).quyenContentId;
-                  if (typeof qid === "string" && qid)
-                    return fistItemMap[qid] || "";
-                  const fid = (parsed as any).fistItemId;
-                  if (typeof fid === "string" && fid)
-                    return fistItemMap[fid] || "";
-                  return "";
-                })();
-              categoryVi = `${quyenCategory}${
-                quyenContent ? ` - ${quyenContent}` : ""
-              }`;
+              const isUuid = (s: string) =>
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                  s
+                );
+              // Config name: prefer text, else map from id (quyenCategory or fistConfigId)
+              const cfgRaw =
+                getFirstString((parsed as any).quyenCategory) || "";
+              const cfgName = (() => {
+                if (cfgRaw && !isUuid(cfgRaw)) return cfgRaw;
+                if (cfgRaw && fistConfigMap[cfgRaw])
+                  return fistConfigMap[cfgRaw];
+                const id = String((parsed as any).fistConfigId || "");
+                return id ? fistConfigMap[id] || id : "";
+              })();
+              // Item name: prefer text quyenContent, else map from ids
+              const itemName = (() => {
+                const text = getFirstString((parsed as any).quyenContent) || "";
+                if (text && !isUuid(text)) return text;
+                const qid = String((parsed as any).quyenContentId || "");
+                if (qid) return fistItemMap[qid] || qid;
+                const fid = String((parsed as any).fistItemId || "");
+                if (fid) return fistItemMap[fid] || fid;
+                return "";
+              })();
+              categoryVi = [cfgName, itemName].filter(Boolean).join(" - ");
             } else if (compRaw === "music") {
               categoryVi =
                 (parsed.musicCategory as string) ||
@@ -1550,7 +1549,14 @@ export default function SubmittedFormsPage() {
     }
 
     return cols;
-  }, [rows, formStyle]);
+  }, [
+    rows,
+    formStyle,
+    weightClassMap,
+    fistConfigMap,
+    fistItemMap,
+    musicContentMap,
+  ]);
 
   const filteredAll = useReactMemo(() => {
     let data = rows;

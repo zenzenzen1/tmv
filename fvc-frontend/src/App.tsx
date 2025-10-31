@@ -31,6 +31,7 @@ import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
 import ProjectionScreen from "./pages/performance/ProjectionScreen";
 import JudgeScoringScreen from "./pages/performance/JudgeScoringScreen";
+import JudgeDashboard from "./pages/judge/JudgeDashboard";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -141,6 +142,13 @@ export default function App() {
         <Route path="tournament-forms" element={<TournamentFormList />} />
         <Route path="tournament-forms/new" element={<FormBuilder />} />
         <Route path="tournament-forms/:id/edit" element={<FormBuilder />} />
+
+        {/* Judge */}
+        <Route
+          path="judge"
+          element={<Navigate to="judge/dashboard" replace />}
+        />
+        <Route path="judge/dashboard" element={<JudgeDashboard />} />
       </Route>
 
       {/* Legacy redirects to /manage */}

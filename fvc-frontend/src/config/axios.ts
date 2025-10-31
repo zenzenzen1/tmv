@@ -5,6 +5,7 @@ import type {
   InternalAxiosRequestConfig,
 } from "axios";
 import type { BaseResponse, ErrorResponse } from "../types/api";
+import { useAuthStore } from "../stores/authStore";
 
 // Extend AxiosRequestConfig to include metadata
 interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
@@ -145,10 +146,22 @@ apiClient.interceptors.response.use(
       };
     }
 
-    // Handle specific status codes
-    if (error.response?.status === 401) {
-      // Unauthorized - JWT cookie will be cleared by backend
-      console.warn("🔒 Unauthorized access - please login again");
+    // Handle specific status codes for authentication errors
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // Unauthorized/Forbidden - token expired or invalid
+      console.warn("🔒 Authentication failed - redirecting to login");
+
+      // Clear auth state
+      const { logout } = useAuthStore.getState();
+      logout();
+
+      // Redirect to login page
+      if (
+        typeof window !== "undefined" &&
+        window.location.pathname !== "/login"
+      ) {
+        window.location.href = "/login";
+      }
     }
 
     return Promise.reject(errorResponse);

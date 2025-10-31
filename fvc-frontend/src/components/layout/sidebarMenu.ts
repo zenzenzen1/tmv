@@ -6,6 +6,7 @@ export type MenuItem = {
 
 export const defaultMenuItems: MenuItem[] = [
   { key: "tournaments", label: "Danh sách giải đấu" },
+  { key: "arrange", label: "Quản lý trận đấu" },
   {
     section: "Quản lí form",
     key: "tournamentForm",

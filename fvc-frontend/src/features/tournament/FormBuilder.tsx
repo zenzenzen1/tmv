@@ -149,40 +149,7 @@ const FormBuilder: React.FC = () => {
         ) {
           setCompetitionId(competitionsRes.data.content[0].id.toString());
         }
-
-        // Load weight classes
-        const weightClassesRes = await api.get<{
-          content: Array<{
-            id: string;
-            weightClass: string;
-            gender: string;
-            minWeight: number;
-            maxWeight: number;
-          }>;
-          totalElements: number;
-        }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
-        setWeightClasses(weightClassesRes.data?.content || []);
-
-        // Load fist configs (Đa luyện, Đơn luyện)
-        const fistConfigsRes = await api.get<{
-          content: Array<{ id: string; name: string }>;
-          totalElements: number;
-        }>(API_ENDPOINTS.FIST_CONTENTS.BASE);
-        setFistConfigs(fistConfigsRes.data?.content || []);
-
-        // Load fist items (Đơn luyện 1, Đơn luyện 2, etc.)
-        const fistItemsRes = await api.get<{
-          content: Array<{ id: string; name: string }>;
-          totalElements: number;
-        }>(API_ENDPOINTS.FIST_CONTENTS.ITEMS);
-        setFistItems(fistItemsRes.data?.content || []);
-
-        // Load music contents
-        const musicContentsRes = await api.get<{
-          content: Array<{ id: string; name: string }>;
-          totalElements: number;
-        }>(API_ENDPOINTS.MUSIC_CONTENTS.BASE);
-        setMusicContents(musicContentsRes.data?.content || []);
+        // The rest will be loaded per selected competition
       } catch (error) {
         console.error("Error loading data:", error);
         toast.error("Không thể tải dữ liệu");
@@ -191,6 +158,245 @@ const FormBuilder: React.FC = () => {
 
     loadData();
   }, [toast]);
+
+  // Load competition-specific contents when a competition is picked
+  useEffect(() => {
+    const loadCompetitionDetails = async () => {
+      if (!competitionId) return;
+      try {
+        type CompetitionDetail = {
+          weightClasses?: Array<{
+            id: string;
+            weightClass: string;
+            gender: string;
+            minWeight: number;
+            maxWeight: number;
+          }>;
+          vovinamFistConfigs?: Array<{ id: string; name: string }>;
+          fistConfigItemSelections?: Record<
+            string,
+            Array<{ id: string; name: string }>
+          >;
+          musicPerformances?: Array<{ id: string; name: string }>;
+        };
+
+        const res = await api.get<
+          CompetitionDetail | { data: CompetitionDetail }
+        >(API_ENDPOINTS.COMPETITIONS.BY_ID(competitionId));
+        const rawUnknown = (res as unknown as { data: unknown }).data;
+        const isWrapped = (
+          val: unknown
+        ): val is { data: CompetitionDetail } => {
+          return (
+            typeof val === "object" &&
+            val !== null &&
+            "data" in (val as Record<string, unknown>)
+          );
+        };
+        const comp: CompetitionDetail = isWrapped(rawUnknown)
+          ? rawUnknown.data
+          : (rawUnknown as CompetitionDetail);
+        // Weight classes
+        setWeightClasses(comp?.weightClasses || []);
+        // Fist configs and items mapping
+        let configs: Array<{ id: string; name: string }> = [];
+
+        // Build items array with configId from mapping or item list
+        const items: Array<{ id: string; name: string; configId?: string }> =
+          [];
+        const selections = comp?.fistConfigItemSelections || {};
+        const idsFromSelections = Object.keys(selections || {});
+        const idsFromConfigs = (
+          comp?.vovinamFistConfigs ||
+          (
+            comp as unknown as {
+              fistConfigs?: Array<{ id: string; name: string }>;
+            }
+          )?.fistConfigs ||
+          (
+            comp as unknown as {
+              vovinamConfigs?: Array<{ id: string; name: string }>;
+            }
+          )?.vovinamConfigs ||
+          []
+        ).map((c) => c.id);
+        const idsFromDirect =
+          (comp as unknown as { vovinamFistConfigIds?: string[] })
+            ?.vovinamFistConfigIds || [];
+
+        const mergedIds = Array.from(
+          new Set<string>([
+            ...idsFromConfigs,
+            ...idsFromSelections,
+            ...idsFromDirect,
+          ])
+        );
+
+        if (mergedIds.length > 0) {
+          try {
+            const fetched = await Promise.all(
+              mergedIds.map(async (cfgId) => {
+                try {
+                  const r = await api.get<
+                    | { id: string; name: string }
+                    | { data: { id: string; name: string } }
+                  >(API_ENDPOINTS.FIST_CONTENTS.BY_ID(cfgId));
+                  const rawUnknown = (r as unknown as { data: unknown }).data;
+                  const isWrapped = (
+                    val: unknown
+                  ): val is { data: { id: string; name: string } } =>
+                    typeof val === "object" &&
+                    val !== null &&
+                    "data" in (val as Record<string, unknown>);
+                  const rec = (
+                    isWrapped(rawUnknown)
+                      ? rawUnknown.data
+                      : (rawUnknown as { id: string; name: string })
+                  ) as { id: string; name: string };
+                  return {
+                    id: rec.id || cfgId,
+                    name: rec.name || `Nhóm ${cfgId}`,
+                  };
+                } catch {
+                  const arr = selections[cfgId] || [];
+                  const fallbackName = (
+                    arr[0] as { configName?: string } | undefined
+                  )?.configName;
+                  return { id: cfgId, name: fallbackName || `Nhóm ${cfgId}` };
+                }
+              })
+            );
+            configs = fetched;
+          } catch {
+            configs = mergedIds.map((cfgId) => {
+              const arr = selections[cfgId] || [];
+              const fallbackName = (
+                arr[0] as { configName?: string } | undefined
+              )?.configName;
+              return { id: cfgId, name: fallbackName || `Nhóm ${cfgId}` };
+            });
+          }
+        }
+        console.log("FormBuilder: competition detail loaded", {
+          comp,
+          weightClasses: comp?.weightClasses?.length || 0,
+          vovinamFistConfigs: comp?.vovinamFistConfigs?.length || 0,
+          selectionsKeys: Object.keys(selections || {}),
+        });
+        setFistConfigs(configs);
+        Object.keys(selections || {}).forEach((cfgId) => {
+          const arr = selections[cfgId] || [];
+          arr.forEach((it: { id: string; name: string }) =>
+            items.push({ id: it.id, name: it.name, configId: cfgId })
+          );
+        });
+        // If BE didn't return selections but we have configs, fetch items by config id
+        if (items.length === 0 && configs.length > 0) {
+          try {
+            const itemGroups = await Promise.all(
+              configs.map(async (cfg) => {
+                try {
+                  const resItems = await api.get<
+                    | { content?: Array<{ id: string; name: string }> }
+                    | {
+                        data?: {
+                          content?: Array<{ id: string; name: string }>;
+                        };
+                      }
+                  >(API_ENDPOINTS.FIST_CONTENTS.ITEMS_BY_CONFIG(cfg.id));
+                  const rawUnknown = (resItems as unknown as { data: unknown })
+                    .data;
+                  const raw = rawUnknown as
+                    | { content?: Array<{ id: string; name: string }> }
+                    | {
+                        data?: {
+                          content?: Array<{ id: string; name: string }>;
+                        };
+                      };
+                  const content: Array<{ id: string; name: string }> =
+                    (raw as { content?: Array<{ id: string; name: string }> })
+                      .content ||
+                    (
+                      raw as {
+                        data?: {
+                          content?: Array<{ id: string; name: string }>;
+                        };
+                      }
+                    ).data?.content ||
+                    [];
+                  return content.map((it) => ({
+                    id: it.id,
+                    name: it.name,
+                    configId: cfg.id,
+                  }));
+                } catch {
+                  return [] as Array<{
+                    id: string;
+                    name: string;
+                    configId?: string;
+                  }>;
+                }
+              })
+            );
+            itemGroups.flat().forEach((it) => items.push(it));
+          } catch {
+            // ignore fetch
+          }
+        }
+        // fallback: flat list of items
+        if (items.length === 0) {
+          const flatItems =
+            (
+              comp as unknown as {
+                fistItems?: Array<{
+                  id: string;
+                  name: string;
+                  configId?: string;
+                }>;
+              }
+            )?.fistItems ||
+            (
+              comp as unknown as {
+                vovinamFistItems?: Array<{
+                  id: string;
+                  name: string;
+                  configId?: string;
+                }>;
+              }
+            )?.vovinamFistItems ||
+            [];
+          flatItems.forEach((it) =>
+            items.push({ id: it.id, name: it.name, configId: it.configId })
+          );
+        }
+        // If nothing from competition, fallback to all configs/items (temporary)
+        if (configs.length === 0 && items.length === 0) {
+          console.warn(
+            "FormBuilder: Competition has no mapped Quyền (configs/items empty)"
+          );
+          toast.warning("Giải này chưa cấu hình Quyền (Đơn/Đa luyện)");
+        }
+
+        console.log("FormBuilder: derived Quyền", {
+          configCount: configs.length,
+          itemCount: items.length,
+          sampleConfigs: configs.slice(0, 5),
+          sampleItems: items.slice(0, 5),
+        });
+        setFistItems(items);
+
+        // Music contents
+        setMusicContents(comp?.musicPerformances || []);
+      } catch (e) {
+        console.warn("Không thể tải nội dung theo giải", e);
+        setWeightClasses([]);
+        setFistConfigs([]);
+        setFistItems([]);
+        setMusicContents([]);
+      }
+    };
+    loadCompetitionDetails();
+  }, [competitionId, toast]);
 
   // Load form data when editing
   useEffect(() => {
@@ -237,12 +443,14 @@ const FormBuilder: React.FC = () => {
             }
             // Nếu backend có trả endDate, bind vào state (không có cũng không sao)
             try {
-              const anyRes: any = response.data as any;
+              const anyRes = response.data as unknown as { endDate?: string };
               if (anyRes.endDate) {
                 const iso = new Date(anyRes.endDate).toISOString();
                 setEndDate(iso.slice(0, 16));
               }
-            } catch {}
+            } catch {
+              /* ignore */
+            }
 
             // Clear existing questions first, then load form fields
             setQuestions([]);
@@ -1632,20 +1840,20 @@ const FormBuilder: React.FC = () => {
                     </label>
                     <div className="ml-6 mt-2">
                       <div className="flex items-center flex-wrap gap-2 mb-2">
-                        {fistItems.map((item) => (
+                        {fistConfigs.map((cfg) => (
                           <button
-                            key={item.id}
+                            key={cfg.id}
                             type="button"
                             onClick={() =>
-                              handleInputChange("quyenCategory", item.id)
+                              handleInputChange("quyenCategory", cfg.id)
                             }
                             className={`rounded-full border px-3 py-1.5 text-xs ${
-                              formData.quyenCategory === item.id
+                              formData.quyenCategory === cfg.id
                                 ? "border-blue-500 text-blue-600 bg-blue-50"
                                 : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
                             }`}
                           >
-                            {item.name}
+                            {cfg.name}
                           </button>
                         ))}
                       </div>
@@ -1667,26 +1875,15 @@ const FormBuilder: React.FC = () => {
                               return null;
                             }
 
-                            // Find the selected item (fistItem)
-                            const selectedItem = fistItems.find(
-                              (item) => item.id === formData.quyenCategory
+                            const filteredItems = fistItems.filter(
+                              (it) => it.configId === formData.quyenCategory
                             );
-
-                            // If item selected, show fistConfigs that match item's configId
-                            const filteredConfigs =
-                              selectedItem && selectedItem.configId
-                                ? fistConfigs.filter(
-                                    (config) =>
-                                      config.id === selectedItem.configId
-                                  )
-                                : [];
-
                             return (
-                              filteredConfigs &&
-                              filteredConfigs.length > 0 &&
-                              filteredConfigs.map((config) => (
-                                <option key={config.id} value={config.id}>
-                                  {config.name}
+                              filteredItems &&
+                              filteredItems.length > 0 &&
+                              filteredItems.map((it) => (
+                                <option key={it.id} value={it.id}>
+                                  {it.name}
                                 </option>
                               ))
                             );

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../services/api";
-import { fistContentService } from "../../services/fistContent";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import { useToast } from "../../components/common/ToastContext";
 
@@ -118,13 +117,15 @@ export default function PublishedForm() {
 
         setMeta(res.data);
         try {
-          const ed = (res.data as any)?.endDate as string | undefined;
+          const ed = (res.data as unknown as { endDate?: string })?.endDate;
           if (ed) {
             const now = Date.now();
             const endTs = Date.parse(ed);
             if (!Number.isNaN(endTs) && now > endTs) setExpired(true);
           }
-        } catch {}
+        } catch {
+          /* ignore */
+        }
         console.log("PublishedForm - Loaded form data:", res.data);
         console.log(
           "PublishedForm - Fields count:",
@@ -181,60 +182,115 @@ export default function PublishedForm() {
           }
         }
 
-        // Load weight classes
-        try {
-          const weightClassesRes = await api.get<{
-            content: Array<{
-              id: string;
-              weightClass: string;
-              gender: string;
-              minWeight: number;
-              maxWeight: number;
-            }>;
-            totalElements: number;
-          }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
-          setWeightClasses(weightClassesRes.data?.content || []);
-        } catch (weightError) {
-          console.warn("Failed to load weight classes:", weightError);
-          setWeightClasses([]);
-        }
-
-        // Load music contents
-        try {
-          const musicContentsRes = await api.get<{
-            content: Array<{ id: string; name: string }>;
-            totalElements: number;
-          }>(API_ENDPOINTS.MUSIC_CONTENTS.BASE);
-          setMusicContents(musicContentsRes.data?.content || []);
-        } catch (musicError) {
-          console.warn("Failed to load music contents:", musicError);
-          setMusicContents([]);
-        }
-
         // Only load competition-related data for COMPETITION_REGISTRATION forms
         if (res.data.formType === "COMPETITION_REGISTRATION") {
-          // Load fist configs (Đa luyện, Đơn luyện)
+          // Map options based on the selected competition of this form
           try {
-            const fistConfigsRes = await fistContentService.list({ size: 100 });
-            console.log("PublishedForm - Fist configs loaded:", fistConfigsRes);
-            // Swap: Use configs as items for dropdown
-            setFistItems(fistConfigsRes.content || []);
-          } catch (configError) {
-            console.warn("Failed to load fist configs:", configError);
-            setFistItems([]);
-          }
+            const compId: string | undefined = (
+              res.data as unknown as { competitionId?: string }
+            )?.competitionId;
+            if (!compId) throw new Error("Missing competitionId in form meta");
+            type CompetitionDetail = {
+              weightClasses?: Array<{
+                id: string;
+                weightClass: string;
+                gender: string;
+                minWeight: number;
+                maxWeight: number;
+              }>;
+              vovinamFistConfigs?: Array<{ id: string; name: string }>;
+              fistConfigItemSelections?: Record<
+                string,
+                Array<{ id: string; name: string }>
+              >;
+              musicPerformances?: Array<{ id: string; name: string }>;
+            };
+            const compRes = await api.get<
+              CompetitionDetail | { data: CompetitionDetail }
+            >(API_ENDPOINTS.COMPETITIONS.BY_ID(compId));
+            const rawUnknown = (compRes as unknown as { data: unknown }).data;
+            const isWrapped = (
+              val: unknown
+            ): val is { data: CompetitionDetail } => {
+              return (
+                typeof val === "object" &&
+                val !== null &&
+                "data" in (val as Record<string, unknown>)
+              );
+            };
+            const comp: CompetitionDetail = isWrapped(rawUnknown)
+              ? rawUnknown.data
+              : (rawUnknown as CompetitionDetail);
 
-          // Load fist items (Đơn luyện 1, Đơn luyện 2, etc.)
-          try {
-            const fistItemsRes = await fistContentService.listItems({
-              size: 100,
+            setWeightClasses(comp?.weightClasses || []);
+            setMusicContents(comp?.musicPerformances || []);
+            const cfgs = comp?.vovinamFistConfigs || [];
+            const cfgsWithMeta = (cfgs as Array<Record<string, unknown>>).map(
+              (c) => ({
+                id: c.id,
+                name: c.name,
+                description: (c as { description?: string | null }).description,
+                level: (c as { level?: number }).level,
+                configId: (c as { configId?: string }).configId,
+                configName: (c as { configName?: string }).configName,
+                participantsPerEntry:
+                  typeof (c as { participantsPerEntry?: unknown })
+                    .participantsPerEntry === "number"
+                    ? ((c as { participantsPerEntry?: number })
+                        .participantsPerEntry as number)
+                    : undefined,
+              })
+            );
+            setFistConfigs(
+              cfgsWithMeta as Array<{
+                id: string;
+                name: string;
+                description?: string | null;
+                level?: number;
+                configId?: string;
+                configName?: string;
+                participantsPerEntry?: number;
+              }>
+            );
+            const items: Array<{
+              id: string;
+              name: string;
+              configId?: string;
+              participantsPerEntry?: number;
+            }> = [];
+            const selections = comp?.fistConfigItemSelections || {};
+            Object.keys(selections).forEach((cfgId) => {
+              (selections[cfgId] || []).forEach((it: unknown) =>
+                items.push({
+                  id: (it as { id: string }).id,
+                  name: (it as { name: string }).name,
+                  configId: cfgId,
+                  participantsPerEntry:
+                    typeof (it as { participantsPerEntry?: unknown })
+                      .participantsPerEntry === "number"
+                      ? ((it as { participantsPerEntry?: number })
+                          .participantsPerEntry as number)
+                      : undefined,
+                })
+              );
             });
-            console.log("PublishedForm - Fist items loaded:", fistItemsRes);
-            // Swap: Use items as configs for buttons
-            setFistConfigs(fistItemsRes.content || []);
-          } catch (itemError) {
-            console.warn("Failed to load fist items:", itemError);
+            setFistItems(
+              items as Array<{
+                id: string;
+                name: string;
+                description?: string | null;
+                level?: number;
+                configId?: string;
+                configName?: string;
+                participantsPerEntry?: number;
+              }>
+            );
+          } catch (err) {
+            console.warn("Failed to load competition-mapped options:", err);
+            setWeightClasses([]);
+            setMusicContents([]);
             setFistConfigs([]);
+            setFistItems([]);
           }
         } else {
           // Not a competition form, show error
@@ -253,7 +309,6 @@ export default function PublishedForm() {
   useEffect(() => {
     let required: number | undefined = undefined;
     if (competitionType === "quyen") {
-      // Determine by selected fist item id (fistConfigId variable holds the selected item id in current UI)
       if (fistConfigId) {
         const byIdInItems = fistItems.find((i) => i.id === fistConfigId);
         const byIdInConfigs = fistConfigs.find((i) => i.id === fistConfigId);
@@ -262,21 +317,100 @@ export default function PublishedForm() {
           required = candidate.participantsPerEntry;
         }
       }
-      // If still unknown, do not guess; leave as undefined (treated as individual)
+      // If undefined, try fetching metadata from backend for item/config
+      if (!required && fistConfigId) {
+        (async () => {
+          try {
+            const itemRes = await api.get(
+              API_ENDPOINTS.FIST_CONTENTS.ITEM_BY_ID(fistConfigId)
+            );
+            const itemUnknown = (itemRes as unknown as { data?: unknown }).data;
+            const itemData = ((itemUnknown as { data?: unknown })?.data ??
+              itemUnknown) as Record<string, unknown> | undefined;
+            const itemRequired =
+              (itemData?.participantsPerEntry as number) ||
+              (itemData?.performersPerEntry as number);
+            if (typeof itemRequired === "number") {
+              setParticipantsPerEntry(itemRequired);
+              return;
+            }
+            // Fallback: fetch config-level meta if available
+            const itemConfigId =
+              (itemData?.configId as string) ||
+              fistItems.find((i) => i.id === fistConfigId)?.configId ||
+              undefined;
+            if (itemConfigId) {
+              try {
+                const cfgRes = await api.get(
+                  API_ENDPOINTS.FIST_CONTENTS.BY_ID(itemConfigId)
+                );
+                const cfgUnknown = (cfgRes as unknown as { data?: unknown })
+                  .data;
+                const cfgData = ((cfgUnknown as { data?: unknown })?.data ??
+                  cfgUnknown) as Record<string, unknown> | undefined;
+                const cfgRequired =
+                  (cfgData?.participantsPerEntry as number) ||
+                  (cfgData?.performersPerEntry as number);
+                if (typeof cfgRequired === "number") {
+                  setParticipantsPerEntry(cfgRequired);
+                }
+              } catch {
+                /* ignore */
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+        })();
+      }
+      // If undefined, treat as individual (no team fields).
     }
     if (competitionType === "music") {
       if (musicContentId) {
         const perf = musicContents.find((m) => m.id === musicContentId);
         if (perf && typeof perf.performersPerEntry === "number") {
           required = perf.performersPerEntry;
+        } else {
+          // Try to fetch performersPerEntry from backend if not present in list
+          (async () => {
+            try {
+              const res = await api.get(
+                API_ENDPOINTS.MUSIC_CONTENTS.BY_ID(musicContentId)
+              );
+              const rawUnknown = (res as unknown as { data?: unknown }).data;
+              const data = ((rawUnknown as { data?: unknown })?.data ||
+                rawUnknown) as Record<string, unknown>;
+              const performers = data?.performersPerEntry as number;
+              if (typeof performers === "number") {
+                setParticipantsPerEntry(performers);
+                return;
+              }
+            } catch {
+              /* ignore */
+            }
+          })();
         }
       }
       // No default; if not specified, keep as undefined (treated as individual)
     }
     setParticipantsPerEntry(required);
+  }, [
+    competitionType,
+    fistConfigId,
+    musicContentId,
+    fistItems,
+    fistConfigs,
+    musicContents,
+    quyenCategory,
+    quyenContent,
+  ]);
 
-    // Keep teamMembers length = max(required - 1, 0). We already have one main registrant in standard fields
-    const extras = required && required > 1 ? required - 1 : 0;
+  // Resize team members whenever participantsPerEntry changes (including async fetch)
+  useEffect(() => {
+    const extras =
+      participantsPerEntry && participantsPerEntry > 1
+        ? participantsPerEntry - 1
+        : 0;
     setTeamMembers((prev) => {
       const next = [...prev];
       if (next.length < extras) {
@@ -288,16 +422,7 @@ export default function PublishedForm() {
       }
       return next;
     });
-  }, [
-    competitionType,
-    fistConfigId,
-    musicContentId,
-    fistItems,
-    fistConfigs,
-    musicContents,
-    quyenCategory,
-    quyenContent,
-  ]);
+  }, [participantsPerEntry]);
 
   // Field validations
 
@@ -312,23 +437,35 @@ export default function PublishedForm() {
   };
 
   const buildFormDataJson = (): string => {
+    // Derive competitionType robustly at serialization time
+    const derivedType: typeof competitionType =
+      competitionType && competitionType.length > 0
+        ? competitionType
+        : quyenCategory || fistConfigId
+        ? "quyen"
+        : weightClassId
+        ? "fighting"
+        : musicContentId
+        ? "music"
+        : "";
+
     const formData: Record<string, unknown> = {
-      competitionType,
+      competitionType: derivedType,
       submittedAtClient: new Date().toISOString(), // Add client timestamp
     };
 
     // Add competition-specific data
-    if (competitionType === "fighting") {
+    if (derivedType === "fighting") {
       formData.weightClass = weightClass;
       formData.weightClassId = weightClassId;
-    } else if (competitionType === "quyen") {
-      formData.quyenCategory = quyenCategory;
-      formData.quyenContent = quyenContent;
-      formData.fistConfigId = fistConfigId;
-      // Also persist item id for backend approval flow
-      formData.quyenContentId = fistConfigId;
+    } else if (derivedType === "quyen") {
+      formData.quyenCategory = quyenCategory; // config (Đơn/Song/Đa luyện)
+      formData.quyenContent = quyenContent; // item display name
+      // IDs: config vs item
+      formData.fistConfigId = quyenCategory;
+      formData.quyenContentId = fistConfigId; // selected item id
       formData.fistItemId = fistConfigId;
-    } else if (competitionType === "music") {
+    } else if (derivedType === "music") {
       formData.musicCategory = musicCategory;
       formData.musicContentId = musicContentId;
     }
@@ -336,7 +473,7 @@ export default function PublishedForm() {
     // Team infos (for multi-performer entries)
     if (participantsPerEntry && participantsPerEntry > 1) {
       formData.participantsPerEntry = participantsPerEntry;
-      if (competitionType === "quyen" || competitionType === "music") {
+      if (derivedType === "quyen" || derivedType === "music") {
         formData.teamName = teamName;
       }
       formData.teamMembers = teamMembers.map((m) => ({
@@ -408,9 +545,19 @@ export default function PublishedForm() {
       errors.musicContent = "Vui lòng chọn nội dung thi đấu";
     }
 
-    // Check if competition type is selected
-    console.log("Validation - competitionType:", competitionType);
-    if (!competitionType) {
+    // Check if competition type is selected (robustly)
+    const effectiveType =
+      competitionType && competitionType.length > 0
+        ? competitionType
+        : quyenCategory || fistConfigId
+        ? "quyen"
+        : weightClassId
+        ? "fighting"
+        : musicContentId
+        ? "music"
+        : "";
+    console.log("Validation - competitionType(effective):", effectiveType);
+    if (!effectiveType) {
       console.log("Validation failed - no competition type selected");
       errors.competitionType = "Vui lòng chọn nội dung thi đấu";
     }
@@ -461,14 +608,16 @@ export default function PublishedForm() {
           errors[`teamMembers.${idx}.studentId`] = "MSSV trùng với người nộp";
         }
       });
-      Object.entries(seen).forEach(([sid, idxs]) => {
+      for (const idxs of Object.values(seen)) {
         if (idxs.length > 1) {
           idxs.forEach((i) => {
             errors[`teamMembers.${i}.studentId`] = "MSSV thành viên bị trùng";
           });
         }
-      });
-    } catch {}
+      }
+    } catch {
+      /* ignore */
+    }
 
     setFieldErrors(errors);
 
@@ -491,23 +640,33 @@ export default function PublishedForm() {
       const resp = await api.get(`/v1/tournament-forms/${id}/submissions`, {
         params: { all: true },
       });
-      const root = resp.data as Record<string, any>;
-      const pageData = (root?.data as Record<string, any>) ?? root;
-      const submitted = (pageData?.content as Array<any>) ?? [];
+      const rootUnknown = resp.data as unknown;
+      const pageDataUnknown =
+        (rootUnknown as Record<string, unknown>)?.data ?? rootUnknown;
+      const contentUnknown = (pageDataUnknown as { content?: unknown })
+        ?.content;
+      const submitted = Array.isArray(contentUnknown)
+        ? (contentUnknown as unknown[])
+        : [];
       const existingIds = new Set<string>();
       const toUpper = (s?: string) => (s || "").trim().toUpperCase();
       for (const row of submitted) {
-        let fdObj: any = {};
+        let fdObj: Record<string, unknown> = {};
         try {
-          fdObj = row?.formData ? JSON.parse(row.formData) : {};
-        } catch {}
-        const sid = toUpper(fdObj?.studentId);
+          const r = row as Record<string, unknown>;
+          const fd = typeof r.formData === "string" ? r.formData : "";
+          fdObj = fd ? (JSON.parse(fd) as Record<string, unknown>) : {};
+        } catch {
+          /* ignore */
+        }
+        const sid = toUpper(fdObj?.studentId as string | undefined);
         if (sid) existingIds.add(sid);
-        const members: Array<any> = Array.isArray(fdObj?.teamMembers)
-          ? fdObj.teamMembers
+        const membersUnknown = (fdObj?.teamMembers as unknown) || [];
+        const members = Array.isArray(membersUnknown)
+          ? (membersUnknown as Array<Record<string, unknown>>)
           : [];
         for (const m of members) {
-          const msid = toUpper(m?.studentId);
+          const msid = toUpper(m?.studentId as string | undefined);
           if (msid) existingIds.add(msid);
         }
       }
@@ -516,8 +675,8 @@ export default function PublishedForm() {
         errors["studentId"] = "MSSV đã đăng ký trong form này";
       }
       teamMembers.forEach((m, idx) => {
-        const sid = toUpper(m?.studentId || "");
-        if (sid && existingIds.has(sid)) {
+        const s = toUpper(m?.studentId || "");
+        if (s && existingIds.has(s)) {
           errors[`teamMembers.${idx}.studentId`] =
             "MSSV đã đăng ký trong form này";
         }
@@ -534,6 +693,16 @@ export default function PublishedForm() {
 
     try {
       const formDataJson = buildFormDataJson();
+      const effectiveType =
+        competitionType && competitionType.length > 0
+          ? competitionType
+          : quyenCategory || fistConfigId
+          ? "quyen"
+          : weightClassId
+          ? "fighting"
+          : musicContentId
+          ? "music"
+          : "";
 
       const submissionData = {
         fullName: dynamicValues.fullName || "",
@@ -542,9 +711,11 @@ export default function PublishedForm() {
         club: dynamicValues.club || "Không có",
         gender: dynamicValues.gender || "",
         formDataJson,
+        competitionType: effectiveType,
         weightClassId:
           competitionType === "fighting" ? weightClassId : undefined,
-        fistConfigId: competitionType === "quyen" ? fistConfigId : undefined,
+        // For Quyền: configId = category, itemId = selected content
+        fistConfigId: competitionType === "quyen" ? quyenCategory : undefined,
         fistItemId: competitionType === "quyen" ? fistConfigId : undefined,
         musicContentId:
           competitionType === "music" ? musicContentId : undefined,
@@ -567,10 +738,12 @@ export default function PublishedForm() {
     } catch (error) {
       console.error("Submission error:", error);
       try {
-        const resp: any = (error as any)?.response?.data;
+        const respUnknown = (
+          error as unknown as { response?: { data?: unknown } }
+        )?.response?.data;
         const msg: string =
-          resp?.message ||
-          (error as any)?.message ||
+          (respUnknown as { message?: string })?.message ||
+          (error as unknown as { message?: string })?.message ||
           "Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.";
         // Chỉ hiển thị toast theo thông điệp server, không gắn lỗi vào field
         show(msg, "error");
@@ -961,18 +1134,18 @@ export default function PublishedForm() {
                   </label>
                   <div className="ml-6 mt-2">
                     <div className="flex items-center flex-wrap gap-2 mb-2">
-                      {fistItems.map((config) => (
+                      {fistConfigs.map((cfg) => (
                         <button
-                          key={config.id}
+                          key={cfg.id}
                           type="button"
                           onClick={() => {
                             // Toggle only sub-competition selection; do not change competitionType
-                            if (quyenCategory === config.name) {
+                            if (quyenCategory === cfg.id) {
                               setQuyenCategory("");
                               setQuyenContent("");
                               setFistConfigId("");
                             } else {
-                              setQuyenCategory(config.name);
+                              setQuyenCategory(cfg.id);
                               setQuyenContent(""); // reset selected content when category changes
                               // Auto-select competition type = quyen when picking a subcompetition
                               if (competitionType !== "quyen") {
@@ -981,12 +1154,12 @@ export default function PublishedForm() {
                             }
                           }}
                           className={`rounded-full border px-3 py-1.5 text-xs ${
-                            quyenCategory === config.name
+                            quyenCategory === cfg.id
                               ? "border-blue-500 text-blue-600 bg-blue-50"
                               : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
                           }`}
                         >
-                          {config.name}
+                          {cfg.name}
                         </button>
                       ))}
                     </div>
@@ -999,9 +1172,7 @@ export default function PublishedForm() {
                         onChange={(e) => {
                           const id = e.target.value;
                           setFistConfigId(id);
-                          const item = fistConfigs.find(
-                            (item) => item.id === id
-                          );
+                          const item = fistItems.find((it) => it.id === id);
                           setQuyenContent(item?.name || "");
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1013,19 +1184,10 @@ export default function PublishedForm() {
                             return null;
                           }
 
-                          // Find the selected category (VovinamFistConfig) by name
-                          const selectedCategory = fistItems.find(
-                            (cfg) => cfg.name === quyenCategory
+                          // Show items (VovinamFistItem) belonging to the selected category id
+                          const filteredItems = fistItems.filter(
+                            (item) => item.configId === quyenCategory
                           );
-
-                          // Show items (VovinamFistItem) that belong to this category by configId
-                          const filteredItems =
-                            selectedCategory && selectedCategory.id
-                              ? fistConfigs.filter(
-                                  (item) =>
-                                    item.configId === selectedCategory.id
-                                )
-                              : [];
 
                           return (
                             filteredItems &&
