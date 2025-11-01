@@ -20,7 +20,6 @@ import sep490g65.fvcapi.utils.ResponseUtils;
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
 public class UserController {
 
     private final UserService userService;

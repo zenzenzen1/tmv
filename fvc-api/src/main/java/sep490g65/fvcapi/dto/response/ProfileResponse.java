@@ -7,12 +7,13 @@ import lombok.NoArgsConstructor;
 import sep490g65.fvcapi.enums.SystemRole;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginResponse {
+public class ProfileResponse {
     
     private String id;
     private String fullName;
@@ -22,5 +23,8 @@ public class LoginResponse {
     private String gender;
     private LocalDate dob;
     private SystemRole systemRole;
-    private String message;
+    private Boolean status;
+    private Boolean isInChallenge;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

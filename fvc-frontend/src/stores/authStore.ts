@@ -123,11 +123,14 @@ export const useAuthStore = create<AuthStore>()(
 if (typeof window !== "undefined") {
   (async () => {
     try {
+      useAuthStore.getState().setLoading(true);
       const data = await authService.getCurrentUser();
       useAuthStore.getState().setUser(data);
       useAuthStore.setState({ isAuthenticated: true });
+      useAuthStore.getState().setLoading(false);
     } catch {
       // not logged in; ignore
+      useAuthStore.getState().setLoading(false);
     }
   })();
 }

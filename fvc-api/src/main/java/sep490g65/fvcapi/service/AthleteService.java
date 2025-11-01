@@ -16,6 +16,7 @@ import sep490g65.fvcapi.repository.AthleteRepository;
 import sep490g65.fvcapi.repository.WeightClassRepository;
 import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
+import sep490g65.fvcapi.service.CompetitionOrderService;
 
 import java.util.UUID;
 import java.util.ArrayList;
@@ -28,6 +29,7 @@ public class AthleteService {
     private final AthleteRepository athleteRepository;
     private final WeightClassRepository weightClassRepository;
     private final VovinamFistItemRepository fistItemRepository;
+    private final CompetitionOrderService competitionOrderService;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository fistConfigRepository;
     private final MusicIntegratedPerformanceRepository musicRepository;
 

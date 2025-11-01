@@ -27,8 +27,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         log.info("[UserDetailsService] Load by email: {}", normalizedEmail);
 
         // Only personal mail is allowed as username
-        User user = userRepository.findByPersonalMailIgnoreCase(normalizedEmail)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + normalizedEmail));
+        java.util.List<User> users = userRepository.findAllByPersonalMailIgnoreCase(normalizedEmail);
+        if (users.isEmpty()) {
+            throw new UsernameNotFoundException("User not found with email: " + normalizedEmail);
+        }
+        
+        User user = users.get(0); // Get first user if duplicates exist
 
         log.info("[UserDetailsService] Found user {}, role={}, hash_present={}",
                 user.getId(), user.getSystemRole(), user.getHashPassword() != null);
