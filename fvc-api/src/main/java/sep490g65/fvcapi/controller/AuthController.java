@@ -33,7 +33,7 @@ public class AuthController {
     private final UserRepository userRepository;
     
     @Value("${spring.security.jwt.expiration}")
-    private int tokenValidityInSeconds;
+    private int tokenValidityInMs;
 
     @PostMapping("/login")
     public ResponseEntity<BaseResponse<LoginResponse>> login(
@@ -44,26 +44,31 @@ public class AuthController {
             log.info("Login attempt for email: {}", request.getEmail());
             
             LoginResponse loginResponse = authService.login(request);
+            log.info("Login succeeded for: {}", request.getEmail());
             
             // Generate JWT token
             String token = jwtUtils.generateTokenFromEmail(request.getEmail());
+            log.info("Token generated successfully");
             
             // Create HttpOnly cookie
             Cookie cookie = new Cookie("jwt", token);
             cookie.setHttpOnly(true);
             cookie.setSecure(false); // Set to true in production with HTTPS
             cookie.setPath("/");
-            cookie.setMaxAge(tokenValidityInSeconds); // in application.properties
+            cookie.setMaxAge(tokenValidityInMs / 1000); // Convert milliseconds to seconds
             response.addCookie(cookie);
+            
+            log.info("Cookie set: path={}, maxAge={}", cookie.getPath(), cookie.getMaxAge());
             
             log.info("Login successful for user: {}", request.getEmail());
             
             return ResponseEntity.ok(ResponseUtils.success("Login successful", loginResponse));
-            
         } catch (Exception e) {
-            log.error("Login failed for email: {} - {}", request.getEmail(), e.getMessage());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ResponseUtils.error("Invalid email or password", "AUTH_FAILED"));
+            log.error("=== EXCEPTION IN LOGIN CONTROLLER ===");
+            log.error("Exception type: {}", e.getClass().getName());
+            log.error("Exception message: {}", e.getMessage());
+            log.error("Stack trace:", e);
+            throw e; // Re-throw to let GlobalExceptionHandler handle it
         }
     }
 
@@ -91,12 +96,14 @@ public class AuthController {
         }
 
         String email = authentication.getName();
-        User user = userRepository.findByPersonalMailIgnoreCase(email)
-                .orElse(null);
-        if (user == null) {
+        java.util.List<User> users = userRepository.findAllByPersonalMailIgnoreCase(email);
+        
+        if (users.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ResponseUtils.error("Unauthorized", "UNAUTHORIZED"));
         }
+        
+        User user = users.get(0); // Get first user if duplicates exist
 
         LoginResponse data = LoginResponse.builder()
                 .id(user.getId())
@@ -104,11 +111,26 @@ public class AuthController {
                 .personalMail(user.getPersonalMail())
                 .eduMail(user.getEduMail())
                 .studentCode(user.getStudentCode())
+                .gender(user.getGender())
+                .dob(user.getDob())
                 .systemRole(user.getSystemRole())
                 .message("OK")
                 .build();
 
         return ResponseEntity.ok(ResponseUtils.success("OK", data));
+    }
+    
+    @GetMapping("/test-cookie")
+    public ResponseEntity<BaseResponse<String>> testCookie(jakarta.servlet.http.HttpServletRequest request) {
+        if (request.getCookies() != null) {
+            String cookies = java.util.Arrays.stream(request.getCookies())
+                    .map(c -> c.getName() + "=" + c.getValue())
+                    .collect(java.util.stream.Collectors.joining(", "));
+            log.info("Cookies received: {}", cookies);
+            return ResponseEntity.ok(ResponseUtils.success("Cookies found: " + cookies));
+        }
+        log.warn("No cookies found in request");
+        return ResponseEntity.ok(ResponseUtils.success("No cookies"));
     }
 
 }

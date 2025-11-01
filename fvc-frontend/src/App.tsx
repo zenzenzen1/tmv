@@ -1,10 +1,12 @@
 import { Route, Routes, Navigate } from "react-router-dom";
 import "./App.css";
-import { useIsAuthenticated } from "./stores/authStore";
+import { useIsAuthenticated, useAuthStore } from "./stores/authStore";
 
 // Pages
 import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
+import ProfilePage from "./pages/profile/ProfilePage";
+import ProfileLayout from "./components/layout/ProfileLayout";
 import SubmittedFormsPage from "./pages/submitted-forms/ListPage";
 import FormListPage from "./pages/forms/ListPage";
 import FormBuilderPage from "./pages/forms/BuilderPage";
@@ -37,6 +39,13 @@ export default function App() {
   const isAuthenticated = useIsAuthenticated();
 
   function Protected({ children }: { children: React.ReactElement }) {
+    // Wait for hydration to complete
+    const isLoading = useAuthStore((state) => state.isLoading);
+    
+    if (isLoading) {
+      return <div>Loading...</div>; // Or a proper loading component
+    }
+    
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
     }
@@ -57,6 +66,18 @@ export default function App() {
           )
         }
       />
+
+      {/* Profile page with its own layout */}
+      <Route
+        path="/profile"
+        element={
+          <Protected>
+            <ProfileLayout />
+          </Protected>
+        }
+      >
+        <Route index element={<ProfilePage />} />
+      </Route>
 
       {/* Landing redirect */}
       <Route
@@ -94,9 +115,9 @@ export default function App() {
         {/* default */}
         <Route index element={<Navigate to="tournaments" replace />} />
 
-        {/* Dashboard/Home (optional) */}
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="home" element={<Home />} />
+      {/* Dashboard/Home (optional) */}
+      <Route path="dashboard" element={<DashboardPage />} />
+      <Route path="home" element={<Home />} />
 
         {/* Tournaments */}
         <Route path="tournaments" element={<TournamentListPage />} />
