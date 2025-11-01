@@ -1,60 +1,209 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../../services/api';
 import { API_ENDPOINTS } from '../../config/endpoints';
 import { useToast } from '../../components/common/ToastContext';
+import {
+  CommonTable,
+  type TableColumn,
+} from '../../components/common/CommonTable';
 
-type FormConfig = {
+type FormRow = {
   id: string;
   name: string;
   description: string;
   formType: string;
+  fieldCount: number;
   createdAt: string;
   updatedAt: string;
-  fieldCount: number;
+  status: "DRAFT" | "PUBLISH" | "ARCHIVED" | "POSTPONE";
 };
 
 export default function FormListPage() {
   const navigate = useNavigate();
-  const { error: toastError } = useToast();
-  const [forms, setForms] = useState<FormConfig[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+  const [page, setPage] = useState<number>(1);
+  const pageSize = 10;
+  const [rows, setRows] = useState<FormRow[]>([]);
+  const [total, setTotal] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [searchText, setSearchText] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<
+    "ALL" | "DRAFT" | "PUBLISH" | "ARCHIVED" | "POSTPONE"
+  >("ALL");
 
-  useEffect(() => {
-    loadForms();
-  }, []);
+  const columns: Array<TableColumn<FormRow>> = useMemo(
+    () => [
+      {
+        key: "name",
+        title: "Tên Form",
+        className: "text-[15px] w-64",
+      },
+      {
+        key: "description",
+        title: "Mô tả",
+        className: "text-[15px] w-96",
+      },
+      {
+        key: "formType",
+        title: "Loại Form",
+        className: "text-[15px] w-40",
+        render: (r: FormRow) => (
+          <span className="text-sm">
+            {r.formType === 'CLUB_REGISTRATION' ? 'Đăng ký câu lạc bộ' : 'Đăng ký giải đấu'}
+          </span>
+        ),
+      },
+      {
+        key: "fieldCount",
+        title: "Số câu hỏi",
+        className: "text-[15px] w-24 text-center",
+        render: (r: FormRow) => (
+          <span className="text-sm">{r.fieldCount}</span>
+        ),
+      },
+      {
+        key: "createdAt",
+        title: "Ngày tạo",
+        className: "text-[15px] w-36",
+        render: (r: FormRow) => (
+          <span className="text-sm">
+            {new Date(r.createdAt).toLocaleDateString('vi-VN')}
+          </span>
+        ),
+      },
+      {
+        key: "status",
+        title: "Trạng thái",
+        className: "text-[15px] w-40",
+        render: (r: FormRow) => (
+          <div className="flex items-center gap-2">
+            <select
+              className={`rounded-md px-2 py-1 text-xs border ${
+                r.status === "PUBLISH"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : r.status === "ARCHIVED"
+                  ? "bg-rose-50 text-rose-600 border-rose-200"
+                  : r.status === "POSTPONE"
+                  ? "bg-gray-100 text-gray-700 border-gray-300"
+                  : "bg-amber-50 text-amber-700 border-amber-200"
+              }`}
+              value={r.status}
+              onChange={async (e) => {
+                const val = e.target.value as FormRow["status"];
+                try {
+                  // Optimistic update
+                  setRows((prev) =>
+                    prev.map((row) =>
+                      row.id === r.id ? { ...row, status: val } : row
+                    )
+                  );
+                  await apiService.put<void>(
+                    `${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${r.id}`,
+                    { status: val }
+                  );
+                  toast.success("Cập nhật trạng thái thành công");
+                  loadForms(); // Refresh data
+                } catch (err) {
+                  console.error("Failed to update status", err);
+                  // Rollback optimistic update on failure
+                  setRows((prev) =>
+                    prev.map((row) =>
+                      row.id === r.id ? { ...row, status: r.status } : row
+                    )
+                  );
+                  toast.error("Cập nhật trạng thái thất bại");
+                }
+              }}
+            >
+              <option value="DRAFT">Draft</option>
+              <option value="PUBLISH">Đã xuất bản</option>
+              <option value="ARCHIVED">Lưu trữ</option>
+              <option value="POSTPONE">Hoãn</option>
+            </select>
+          </div>
+        ),
+        sortable: false,
+      },
+      {
+        key: "actions",
+        title: "Thao tác",
+        className: "text-[15px] whitespace-nowrap w-40",
+        render: (r: FormRow) => (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleViewForm(r.id)}
+              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
+            >
+              Xem
+            </button>
+            <button
+              onClick={() => handleEditForm(r.id)}
+              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
+            >
+              Sửa
+            </button>
+          </div>
+        ),
+        sortable: false,
+      },
+    ],
+    [toast]
+  );
 
   const loadForms = async () => {
     try {
       setLoading(true);
-      setError(null);
       
       const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE);
       
       if (response.success && response.data) {
-        const formsData: FormConfig[] = response.data.map((form: any) => ({
+        const allForms: FormRow[] = response.data.map((form: any) => ({
           id: form.id,
           name: form.name,
-          description: form.description,
-          formType: form.formType,
-          createdAt: form.createdAt,
-          updatedAt: form.updatedAt,
-          fieldCount: form.fields?.length || 0
+          description: form.description || "",
+          formType: form.formType || "CLUB_REGISTRATION",
+          fieldCount: form.fields?.length || 0,
+          createdAt: form.createdAt || "",
+          updatedAt: form.updatedAt || "",
+          status: (form.status as FormRow["status"]) || "DRAFT",
         }));
-        
-        setForms(formsData);
+
+        // Client-side filtering
+        const filtered = allForms.filter((row) => {
+          const matchesText = searchText
+            ? (row.name + " " + row.description)
+                .toLowerCase()
+                .includes(searchText.toLowerCase())
+            : true;
+          const matchesStatus =
+            statusFilter === "ALL"
+              ? true
+              : row.status === statusFilter;
+          return matchesText && matchesStatus;
+        });
+
+        setTotal(filtered.length);
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        setRows(filtered.slice(start, end));
       } else {
-        setError(response.message || 'Failed to fetch forms');
-        toastError(response.message || 'Tải danh sách form thất bại');
+        setRows([]);
+        setTotal(0);
       }
     } catch (err: any) {
-      setError(err?.message || 'Lỗi khi tải danh sách form');
-      toastError(err?.message || 'Tải danh sách form thất bại');
+      console.error("Error loading forms:", err);
+      toast.error(err?.message || 'Tải danh sách form thất bại');
+      setRows([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadForms();
+  }, [page, searchText, statusFilter]);
 
   const handleEditForm = (formId: string) => {
     navigate(`/manage/forms/${formId}/edit`); 
@@ -68,117 +217,57 @@ export default function FormListPage() {
     navigate('/manage/forms/new');
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('vi-VN');
-  };
-
   return (
-    <div className="flex justify-center">
-      <div className="w-full max-w-5xl space-y-4">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate(-1)}
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-            >
-              ⟵ Quay lại
-            </button>
-            <h1 className="text-[15px] font-semibold text-gray-900">Quản lý Form</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCreateNew}
-              className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3]"
-            >
-              + Tạo Form Mới
-            </button>
-          </div>
-        </div>
-
-        {/* Card */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          {loading && (
-            <div className="text-center py-8 text-gray-600">
-              Đang tải danh sách form...
-            </div>
-          )}
-
-          {error && (
-            <div className="text-red-600 text-center py-8">
-              {error}
-            </div>
-          )}
-
-          {!loading && !error && (
-            <>
-              <div className="mb-4">
-                <div className="text-sm text-gray-600">
-                  <span className="font-semibold">{forms.length}</span> form đã tạo
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {forms.map((form) => (
-                  <div
-                    key={form.id}
-                    className="rounded-lg border border-gray-200 bg-white p-4 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => handleEditForm(form.id)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-[14px] font-semibold text-gray-900">
-                            {form.name}
-                          </h3>
-                          <span className="rounded-md border px-2 py-1 text-[11px] font-semibold text-gray-600">
-                            {form.formType === 'CLUB_REGISTRATION' ? 'Đăng ký câu lạc bộ' : 'Đăng ký giải đấu'}
-                          </span>
-                        </div>
-                        <p className="text-[13px] text-gray-600 mb-2">
-                          {form.description}
-                        </p>
-                        <div className="flex items-center gap-4 text-[12px] text-gray-500">
-                          <span>{form.fieldCount} câu hỏi</span>
-                          <span>Tạo: {formatDate(form.createdAt)}</span>
-                          <span>Cập nhật: {formatDate(form.updatedAt)}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewForm(form.id);
-                          }}
-                          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[12px] font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                        >
-                          Xem trước
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditForm(form.id);
-                          }}
-                          className="rounded-md bg-[#2563eb] px-3 py-2 text-[12px] font-medium text-white shadow-sm hover:bg-[#1f4ec3]"
-                        >
-                          Chỉnh sửa
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {forms.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <div className="text-[14px] mb-2">Chưa có form nào</div>
-                    <div className="text-[12px]">Nhấn "Tạo Form Mới" để bắt đầu</div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+    <div className="px-6 pb-10 w-full">
+      <div className="flex items-center justify-between py-4">
+        <h1 className="text-[15px] font-semibold text-gray-800">
+          Quản lý Form
+        </h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCreateNew}
+            className="rounded-md bg-[#377CFB] px-3 py-2 text-white text-sm shadow hover:bg-[#2f6ae0]"
+          >
+            + Tạo form mới
+          </button>
         </div>
       </div>
+
+      <div className="mb-4 flex items-center gap-2">
+        <input
+          value={searchText}
+          onChange={(e) => {
+            setPage(1);
+            setSearchText(e.target.value);
+          }}
+          placeholder="Tìm tên form / mô tả..."
+          className="w-80 rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setPage(1);
+            setStatusFilter(e.target.value as any);
+          }}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+        >
+          <option value="ALL">Tất cả trạng thái</option>
+          <option value="PUBLISH">Đã xuất bản</option>
+          <option value="ARCHIVED">Lưu trữ</option>
+          <option value="POSTPONE">Hoãn</option>
+          <option value="DRAFT">Draft</option>
+        </select>
+      </div>
+
+      <CommonTable<FormRow>
+        columns={columns}
+        data={rows}
+        keyField="id"
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+      />
     </div>
   );
 }
