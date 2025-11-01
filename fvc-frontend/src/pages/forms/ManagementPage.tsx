@@ -72,15 +72,15 @@ export default function FormManagementPage() {
   };
 
   const handleEdit = (formId: string) => {
-    navigate(`/manage/forms/edit/${formId}`);
+    navigate(`/manage/forms/${formId}/edit`);
   };
 
   const handleView = (formId: string) => {
-    navigate(`/manage/forms/view/${formId}`);
+    navigate(`/manage/forms/${formId}/view`);
   };
 
   const handleCreate = () => {
-    navigate("/manage/forms/edit/new");
+    navigate("/manage/forms/new");
   };
 
   const formatDate = (dateString: string) => {

@@ -1,6 +1,7 @@
 package sep490g65.fvcapi.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -24,12 +25,14 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import sep490g65.fvcapi.constants.MessageConstants;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ApplicationFormServiceImpl implements ApplicationFormService {
 
     private final ApplicationFormConfigRepository applicationFormConfigRepository;
@@ -46,10 +49,36 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
     @Override
     @Transactional(readOnly = true)
     public ApplicationFormConfigResponse getById(String id) {
-        ApplicationFormConfig config = applicationFormConfigRepository
-                .findByIdWithFields(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Form config not found with id: " + id));
-        return mapToResponse(config);
+        log.info("Getting form by ID: {}", id);
+        
+        // First try with findByIdWithFields (includes fields)
+        Optional<ApplicationFormConfig> configOpt = applicationFormConfigRepository.findByIdWithFields(id);
+        
+        if (configOpt.isPresent()) {
+            log.info("Found form with fields: {}", id);
+            return mapToResponse(configOpt.get());
+        }
+        
+        // If not found, try regular findById (maybe fields weren't loaded)
+        log.debug("Form not found with fields, trying regular findById: {}", id);
+        configOpt = applicationFormConfigRepository.findById(id);
+        
+        if (configOpt.isPresent()) {
+            log.info("Found form without fields, loading fields separately: {}", id);
+            ApplicationFormConfig config = configOpt.get();
+            
+            // Re-fetch with fields to ensure fields are loaded
+            config = applicationFormConfigRepository.findByIdWithFields(id)
+                    .orElse(config); // Fallback to config without fields if query fails
+            
+            return mapToResponse(config);
+        }
+        
+        // Check if form exists at all
+        boolean exists = applicationFormConfigRepository.existsById(id);
+        log.warn("Form with ID {} not found. Exists in DB: {}", id, exists);
+        
+        throw new ResourceNotFoundException("Form config not found with id: " + id);
     }
 
     @Override

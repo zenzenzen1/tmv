@@ -143,12 +143,33 @@ export default function FormEditPage() {
         // Load form theo ID
         const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id));
         
+        console.log('Form detail response:', response);
+        
         if (response.success && response.data) {
+          console.log('Form data:', response.data);
           setTitle(response.data.name || "");
           setDescription(response.data.description || "");
-          setEndDate(response.data.endDate ? new Date(response.data.endDate).toISOString().split('T')[0] : "");
           
-          const formFields = response.data.fields?.map((field: any) => ({
+          // Parse endDate correctly for datetime-local input
+          if (response.data.endDate) {
+            try {
+              const endDateObj = new Date(response.data.endDate);
+              // Format for datetime-local input: YYYY-MM-DDTHH:mm
+              const year = endDateObj.getFullYear();
+              const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+              const day = String(endDateObj.getDate()).padStart(2, '0');
+              const hours = String(endDateObj.getHours()).padStart(2, '0');
+              const minutes = String(endDateObj.getMinutes()).padStart(2, '0');
+              setEndDate(`${year}-${month}-${day}T${hours}:${minutes}`);
+            } catch (e) {
+              console.error('Error parsing endDate:', e);
+              setEndDate("");
+            }
+          } else {
+            setEndDate("");
+          }
+          
+          const formFields = (response.data.fields || []).map((field: any) => ({
             id: field.id || crypto.randomUUID(),
             label: field.label || "",
             name: field.name || "",
@@ -156,12 +177,17 @@ export default function FormEditPage() {
             required: field.required || false,
             sortOrder: field.sortOrder || 0,
             options: field.options || "",
-          })) || [];
+          }));
           
+          console.log('Mapped form fields:', formFields);
           setFields(formFields);
         } else {
-          // Fallback: tạo form mới nếu không tìm thấy
-          await createDefaultForm();
+          console.warn('Form not found:', id);
+          toast.error(`Không tìm thấy form với ID: ${id}`);
+          // Navigate back to forms list after a delay
+          setTimeout(() => {
+            navigate('/manage/forms');
+          }, 2000);
         }
       } else {
         // Fallback: load form CLB_REGISTRATION mặc định
@@ -170,9 +196,27 @@ export default function FormEditPage() {
         if (response.success && response.data) {
           setTitle(response.data.name || "");
           setDescription(response.data.description || "");
-          setEndDate(response.data.endDate ? new Date(response.data.endDate).toISOString().split('T')[0] : "");
           
-          const formFields = response.data.fields?.map((field: any) => ({
+          // Parse endDate correctly for datetime-local input
+          if (response.data.endDate) {
+            try {
+              const endDateObj = new Date(response.data.endDate);
+              // Format for datetime-local input: YYYY-MM-DDTHH:mm
+              const year = endDateObj.getFullYear();
+              const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+              const day = String(endDateObj.getDate()).padStart(2, '0');
+              const hours = String(endDateObj.getHours()).padStart(2, '0');
+              const minutes = String(endDateObj.getMinutes()).padStart(2, '0');
+              setEndDate(`${year}-${month}-${day}T${hours}:${minutes}`);
+            } catch (e) {
+              console.error('Error parsing endDate:', e);
+              setEndDate("");
+            }
+          } else {
+            setEndDate("");
+          }
+          
+          const formFields = (response.data.fields || []).map((field: any) => ({
             id: field.id || crypto.randomUUID(),
             label: field.label || "",
             name: field.name || "",
@@ -180,7 +224,7 @@ export default function FormEditPage() {
             required: field.required || false,
             sortOrder: field.sortOrder || 0,
             options: field.options || "",
-          })) || [];
+          }));
           
           setFields(formFields);
         } else {
@@ -188,10 +232,20 @@ export default function FormEditPage() {
           await createDefaultForm();
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading form config:", error);
-      // Try to create default form
-      await createDefaultForm();
+      const errorMessage = error?.response?.data?.message || error?.message || "Không thể tải cấu hình form";
+      toast.error(`Lỗi: ${errorMessage}`);
+      
+      // If 404, navigate back to forms list
+      if (error?.response?.status === 404) {
+        setTimeout(() => {
+          navigate('/manage/forms');
+        }, 2000);
+      } else {
+        // For other errors, try to create default form
+        await createDefaultForm();
+      }
     } finally {
       setLoading(false);
     }
