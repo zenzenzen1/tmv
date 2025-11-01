@@ -147,25 +147,44 @@ export default function FormEditPage() {
         
         if (response.success && response.data) {
           console.log('Form data:', response.data);
+          console.log('EndDate from API:', response.data.endDate);
           setTitle(response.data.name || "");
           setDescription(response.data.description || "");
           
           // Parse endDate correctly for datetime-local input
           if (response.data.endDate) {
             try {
-              const endDateObj = new Date(response.data.endDate);
-              // Format for datetime-local input: YYYY-MM-DDTHH:mm
-              const year = endDateObj.getFullYear();
-              const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
-              const day = String(endDateObj.getDate()).padStart(2, '0');
-              const hours = String(endDateObj.getHours()).padStart(2, '0');
-              const minutes = String(endDateObj.getMinutes()).padStart(2, '0');
-              setEndDate(`${year}-${month}-${day}T${hours}:${minutes}`);
+              // Handle both ISO string and LocalDateTime formats
+              let endDateObj: Date;
+              if (typeof response.data.endDate === 'string') {
+                // If it's already a string, try to parse it
+                endDateObj = new Date(response.data.endDate);
+              } else {
+                endDateObj = new Date(response.data.endDate);
+              }
+              
+              // Check if date is valid
+              if (isNaN(endDateObj.getTime())) {
+                console.warn('Invalid endDate:', response.data.endDate);
+                setEndDate("");
+              } else {
+                // Format for datetime-local input: YYYY-MM-DDTHH:mm
+                // Use local time, not UTC
+                const year = endDateObj.getFullYear();
+                const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+                const day = String(endDateObj.getDate()).padStart(2, '0');
+                const hours = String(endDateObj.getHours()).padStart(2, '0');
+                const minutes = String(endDateObj.getMinutes()).padStart(2, '0');
+                const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                console.log('Parsed endDate:', formattedDate);
+                setEndDate(formattedDate);
+              }
             } catch (e) {
-              console.error('Error parsing endDate:', e);
+              console.error('Error parsing endDate:', e, 'Raw value:', response.data.endDate);
               setEndDate("");
             }
           } else {
+            console.log('No endDate in response');
             setEndDate("");
           }
           
@@ -200,19 +219,37 @@ export default function FormEditPage() {
           // Parse endDate correctly for datetime-local input
           if (response.data.endDate) {
             try {
-              const endDateObj = new Date(response.data.endDate);
-              // Format for datetime-local input: YYYY-MM-DDTHH:mm
-              const year = endDateObj.getFullYear();
-              const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
-              const day = String(endDateObj.getDate()).padStart(2, '0');
-              const hours = String(endDateObj.getHours()).padStart(2, '0');
-              const minutes = String(endDateObj.getMinutes()).padStart(2, '0');
-              setEndDate(`${year}-${month}-${day}T${hours}:${minutes}`);
+              // Handle both ISO string and LocalDateTime formats
+              let endDateObj: Date;
+              if (typeof response.data.endDate === 'string') {
+                // If it's already a string, try to parse it
+                endDateObj = new Date(response.data.endDate);
+              } else {
+                endDateObj = new Date(response.data.endDate);
+              }
+              
+              // Check if date is valid
+              if (isNaN(endDateObj.getTime())) {
+                console.warn('Invalid endDate:', response.data.endDate);
+                setEndDate("");
+              } else {
+                // Format for datetime-local input: YYYY-MM-DDTHH:mm
+                // Use local time, not UTC
+                const year = endDateObj.getFullYear();
+                const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+                const day = String(endDateObj.getDate()).padStart(2, '0');
+                const hours = String(endDateObj.getHours()).padStart(2, '0');
+                const minutes = String(endDateObj.getMinutes()).padStart(2, '0');
+                const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                console.log('Parsed endDate (by type):', formattedDate);
+                setEndDate(formattedDate);
+              }
             } catch (e) {
-              console.error('Error parsing endDate:', e);
+              console.error('Error parsing endDate:', e, 'Raw value:', response.data.endDate);
               setEndDate("");
             }
           } else {
+            console.log('No endDate in response (by type)');
             setEndDate("");
           }
           
