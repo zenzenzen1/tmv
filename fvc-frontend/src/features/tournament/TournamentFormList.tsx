@@ -109,7 +109,7 @@ export default function TournamentFormList() {
               }}
             >
               <option value="draft">Draff</option>
-              <option value="publish">Đã xuất bản</option>
+              <option value="publish">Đã công khai</option>
               <option value="archived">Lưu trữ</option>
               <option value="postpone">Hoãn</option>
             </select>
@@ -247,7 +247,7 @@ export default function TournamentFormList() {
           className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
         >
           <option value="ALL">Tất cả trạng thái</option>
-          <option value="PUBLISH">Đã xuất bản</option>
+          <option value="PUBLISH">Đã công khai</option>
           <option value="ARCHIVED">Lưu trữ</option>
           <option value="POSTPONE">Hoãn</option>
           <option value="DRAFT">Draft</option>

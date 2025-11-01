@@ -131,7 +131,7 @@ export default function FormListPage() {
           const getStatusBadge = (status: string) => {
             const statusMap = {
               DRAFT: { label: "Draft", className: "bg-amber-50 text-amber-700 border-amber-200" },
-              PUBLISH: { label: "Đã xuất bản", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+              PUBLISH: { label: "Đã công khai", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
               ARCHIVED: { label: "Lưu trữ", className: "bg-rose-50 text-rose-600 border-rose-200" },
               POSTPONE: { label: "Hoãn", className: "bg-gray-100 text-gray-700 border-gray-300" },
             };
@@ -250,7 +250,7 @@ export default function FormListPage() {
           className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
         >
           <option value="ALL">Tất cả trạng thái</option>
-          <option value="PUBLISH">Đã xuất bản</option>
+          <option value="PUBLISH">Đã công khai</option>
           <option value="ARCHIVED">Lưu trữ</option>
           <option value="POSTPONE">Hoãn</option>
           <option value="DRAFT">Draft</option>
