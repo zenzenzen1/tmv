@@ -111,10 +111,19 @@ export const API_ENDPOINTS = {
 
   // Draw management
   DRAWS: {
-    PERFORM: "/api/draws/perform",
-    HISTORY: "/api/draws/history/{competitionId}/{weightClassId}",
-    FINAL: "/api/draws/final/{competitionId}/{weightClassId}",
-    FINALIZE: "/api/draws/finalize/{drawSessionId}",
+    PERFORM: "/v1/draws/perform",
+    HISTORY: "/v1/draws/history/{competitionId}/{weightClassId}",
+    FINAL: "/v1/draws/final/{competitionId}/{weightClassId}",
+    FINALIZE: "/v1/draws/finalize/{drawSessionId}",
+  },
+
+  // Match/Scoring management
+  MATCHES: {
+    SCOREBOARD: "/v1/matches/{matchId}/scoreboard",
+    EVENTS: "/v1/matches/{matchId}/events",
+    SCORE: "/v1/matches/score",
+    CONTROL: "/v1/matches/control",
+    UNDO: "/v1/matches/{matchId}/undo",
   },
 
   // Common endpoints

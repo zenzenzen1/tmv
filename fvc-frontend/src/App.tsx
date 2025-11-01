@@ -31,6 +31,8 @@ import BracketBuilder from "./pages/brackets/BracketBuilder";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
 import FormBuilder from "./features/tournament/FormBuilder";
+import MatchScoringPage from "./pages/scoring/MatchScoringPage";
+import SelectMatchPage from "./pages/scoring/SelectMatchPage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -130,6 +132,10 @@ export default function App() {
         <Route path="music-content" element={<MusicContentListPage />} />
         <Route path="brackets" element={<BracketBuilder />} />
 
+        {/* Scoring */}
+        <Route path="scoring" element={<SelectMatchPage />} />
+        <Route path="scoring/:matchId" element={<MatchScoringPage />} />
+
         {/* Arrange */}
         <Route path="arrange" element={<ArrangeOrderWrapper />} />
         <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
@@ -164,7 +170,8 @@ export default function App() {
       <Route path="/form-builder/:id" element={<FormBuilder />} />
       <Route path="/results/:id" element={<FormResults />} />
       <Route path="/published-form/:id" element={<PublishedForm />} />
-
+      <Route path="/scoring" element={<SelectMatchPage />} />
+      <Route path="/scoring/:matchId" element={<MatchScoringPage />} />
       {/* 404 */}
       <Route path="*" element={<div>404 Not Found</div>} />
     </Routes>
