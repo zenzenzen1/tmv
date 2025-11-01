@@ -9,4 +9,5 @@ public interface UserService {
     UserResponse createUser(CreateUserRequest request);
     Page<UserResponse> getAllUsers(Pageable pageable);
     Page<UserResponse> searchUsers(Pageable pageable, String query, String role, Boolean status);
+    void deleteUser(String userId);
 }

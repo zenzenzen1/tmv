@@ -32,6 +32,7 @@ import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
 import FormBuilder from "./features/tournament/FormBuilder";
 import UserManagementPage from "./pages/user-management/UserManagementPage";
+import RegisterPage from "./pages/auth/RegisterPage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -46,6 +47,7 @@ export default function App() {
   // Nếu đã login → hiển thị layout chính
   return (
     <Routes>
+      <Route path="/register" element={<RegisterPage />} />
       {/* Auth */}
       <Route
         path="/login"

@@ -128,21 +128,21 @@ public class AthleteService {
     }
     
     @Transactional
-    public void arrangeOrder(String tournamentId, String contentId, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
+    public void arrangeOrder(String tournamentId, String contentId) {
         // For now, ignore contentId and set order for provided athletes
-        List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(competitionType, competitionId);
-        Collections.shuffle(athletes);
-        for (int i = 0; i < athletes.size(); i++) {
-            // CompetitionOrder
-            CompetitionOrder competitionOrder = competitionOrderService.create(CreateCompetitionOrderRequest.builder()
-                    .orderIndex(i + 1)
-                    .competitionId(competitionId)
-                    .contentSelectionId(null)
-                    .build());
-            var athlete = athletes.get(i);
-            athlete.setCompetitionOrderObject(competitionOrder);
-            athleteRepository.save(athlete);
-        }
+        // List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(competitionType, competitionId);
+        // Collections.shuffle(athletes);
+        // for (int i = 0; i < athletes.size(); i++) {
+        //     // CompetitionOrder
+        //     CompetitionOrder competitionOrder = competitionOrderService.create(CreateCompetitionOrderRequest.builder()
+        //             .orderIndex(i + 1)
+        //             .competitionId(competitionId)
+        //             .contentSelectionId(null)
+        //             .build());
+        //     var athlete = athletes.get(i);
+        //     athlete.setCompetitionOrderObject(competitionOrder);
+        //     athleteRepository.save(athlete);
+        // }
         // int order = 1;
         // for (Athlete athlete : athletes) {
         //     athlete.setCompetitionOrder(order);

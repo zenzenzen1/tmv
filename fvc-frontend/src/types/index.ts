@@ -27,6 +27,7 @@ export interface User {
   eduMail?: string;
   studentCode?: string;
   role: UserRole;
+  systemRole?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -65,7 +66,20 @@ export interface FvcRegisterRequest {
   personalMail: string;
   eduMail?: string;
   password: string;
-  studentCode?: string;
+  confirmPassword: string;
+  studentCode: string;
+  dob: string; // ISO date string
+  gender: "MALE" | "FEMALE" | "OTHER";
+}
+
+export interface FvcRegisterResponse {
+  id: string;
+  fullName: string;
+  personalMail: string;
+  eduMail?: string | null;
+  studentCode: string;
+  systemRole: string;
+  message: string;
 }
 
 export interface FvcUserResponse {

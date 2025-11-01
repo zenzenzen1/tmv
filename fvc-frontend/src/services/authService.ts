@@ -1,6 +1,6 @@
 import apiService from "./api";
 import { API_ENDPOINTS } from "../config/endpoints";
-import type { LoginRequest } from "../types";
+import type { LoginRequest, FvcRegisterRequest, FvcRegisterResponse } from "../types";
 import type { BaseResponse } from "../types/api";
 
 class AuthService {
@@ -30,6 +30,21 @@ class AuthService {
   async logout(): Promise<void> {
     await apiService.post(API_ENDPOINTS.AUTH.LOGOUT);
     // JWT cookie is automatically cleared by backend
+  }
+
+  /**
+   * Register new user
+   * @param userData - Registration data
+   * @returns Promise<FvcRegisterResponse>
+   */
+  async register(userData: FvcRegisterRequest): Promise<FvcRegisterResponse> {
+    const response = await apiService.post<FvcRegisterResponse>(
+      API_ENDPOINTS.AUTH.REGISTER,
+      userData
+    );
+    
+    const data = (response as BaseResponse<FvcRegisterResponse>).data;
+    return data;
   }
 
   /**
