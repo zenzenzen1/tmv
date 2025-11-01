@@ -16,6 +16,7 @@ import sep490g65.fvcapi.entity.ApplicationFormField;
 import sep490g65.fvcapi.enums.ApplicationFormType;
 import sep490g65.fvcapi.enums.FormStatus;
 import sep490g65.fvcapi.exception.BusinessException;
+import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.repository.ApplicationFormConfigRepository;
 import sep490g65.fvcapi.service.ApplicationFormService;
 
@@ -47,7 +48,7 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
     public ApplicationFormConfigResponse getById(String id) {
         ApplicationFormConfig config = applicationFormConfigRepository
                 .findByIdWithFields(id)
-                .orElseThrow(() -> new RuntimeException("Form config not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Form config not found with id: " + id));
         return mapToResponse(config);
     }
 
@@ -94,7 +95,7 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
     public ApplicationFormConfigResponse getByFormType(ApplicationFormType formType) {
         ApplicationFormConfig config = applicationFormConfigRepository
                 .findByFormTypeWithFields(formType)
-                .orElseThrow(() -> new RuntimeException("Form config not found for type: " + formType));
+                .orElseThrow(() -> new ResourceNotFoundException("Form config not found for type: " + formType));
 
         return mapToResponse(config);
     }
@@ -110,6 +111,52 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         }
         
         ApplicationFormConfig config = configs.get(0); // Get the most recent one
+
+        // Validate business rules for update
+        validateFormUpdate(request, config);
+
+        // Update basic info
+        config.setName(request.getName());
+        config.setDescription(request.getDescription());
+        config.setEndDate(request.getEndDate());
+        if (request.getStatus() != null) {
+            config.setStatus(request.getStatus());
+        }
+
+        // Ensure slug exists when publishing
+        if (config.getStatus() == FormStatus.PUBLISH && config.getPublicSlug() == null) {
+            config.setPublicSlug(generateUniqueSlug(config.getName()));
+        }
+
+        // Clear existing fields and add new ones
+        config.getFields().clear();
+
+        if (request.getFields() != null) {
+            List<ApplicationFormField> newFields = request.getFields().stream()
+                    .map(fieldRequest -> ApplicationFormField.builder()
+                            .label(fieldRequest.getLabel())
+                            .name(fieldRequest.getName())
+                            .fieldType(fieldRequest.getFieldType())
+                            .required(fieldRequest.getRequired())
+                            .options(fieldRequest.getOptions())
+                            .sortOrder(fieldRequest.getSortOrder())
+                            .applicationFormConfig(config)
+                            .build())
+                    .collect(Collectors.toList());
+
+            config.getFields().addAll(newFields);
+        }
+
+        ApplicationFormConfig savedConfig = applicationFormConfigRepository.save(config);
+        return mapToResponse(savedConfig);
+    }
+
+    @Override
+    @Transactional
+    public ApplicationFormConfigResponse updateById(String id, UpdateApplicationFormConfigRequest request) {
+        ApplicationFormConfig config = applicationFormConfigRepository
+                .findByIdWithFields(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Form config not found with id: " + id));
 
         // Validate business rules for update
         validateFormUpdate(request, config);
