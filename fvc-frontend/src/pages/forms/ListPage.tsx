@@ -23,7 +23,7 @@ export default function FormListPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const [page, setPage] = useState<number>(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState<number>(10);
   const [rows, setRows] = useState<FormRow[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
@@ -201,7 +201,7 @@ export default function FormListPage() {
 
   useEffect(() => {
     loadForms();
-  }, [page, searchText, statusFilter]);
+  }, [page, pageSize, searchText, statusFilter, loadForms]);
 
   const handleEditForm = (formId: string) => {
     navigate(`/manage/forms/${formId}/edit`); 
@@ -265,6 +265,14 @@ export default function FormListPage() {
         pageSize={pageSize}
         total={total}
         onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          // Reset to first page and update page size
+          // This will trigger useEffect to reload data
+          setPage(1);
+          setPageSize(size);
+        }}
+        showPageSizeSelector={true}
+        pageSizeOptions={[5, 10, 15, 20]}
       />
     </div>
   );

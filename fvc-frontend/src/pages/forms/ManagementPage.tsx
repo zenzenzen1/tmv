@@ -337,9 +337,13 @@ export default function FormManagementPage() {
         totalElements={totalElements}
         pageSize={pageSize}
         onPageChange={setPage}
-        onPageSizeChange={setPageSize}
+        onPageSizeChange={(size) => {
+          // Reset to first page when changing page size
+          setPage(1);
+          setPageSize(size);
+        }}
         showPageSizeSelector={true}
-        pageSizeOptions={[5, 10, 20, 50]}
+        pageSizeOptions={[5, 10, 15, 20]}
       />
     </div>
   );

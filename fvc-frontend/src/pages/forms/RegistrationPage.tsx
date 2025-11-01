@@ -236,9 +236,52 @@ export default function FormRegistrationPage() {
     }
   };
 
+  // Generate smart placeholder based on field type and name
+  const getPlaceholder = (field: FormField): string => {
+    const fieldName = field.name.toLowerCase();
+    const fieldLabel = field.label.toLowerCase();
+    
+    // Email field
+    if (field.fieldType === 'EMAIL' || fieldName.includes('email')) {
+      return 'example@email.com';
+    }
+    
+    // Phone field
+    if (fieldName.includes('phone') || fieldName.includes('sdt') || fieldName.includes('so_dien_thoai') || 
+        fieldLabel.includes('số điện thoại') || fieldLabel.includes('phone')) {
+      return '0123456789';
+    }
+    
+    // Student ID field
+    if (fieldName.includes('mssv') || fieldName.includes('student') || 
+        fieldLabel.includes('mssv') || fieldLabel.includes('mã số sinh viên')) {
+      return 'HE123456';
+    }
+    
+    // Date field - no placeholder needed
+    if (field.fieldType === 'DATE') {
+      return '';
+    }
+    
+    // Name field
+    if (fieldName.includes('ten') || fieldName.includes('name') || fieldLabel.includes('tên')) {
+      return 'Nguyễn Văn A';
+    }
+    
+    // Description/Bio field
+    if (fieldName.includes('mo_ta') || fieldName.includes('mota') || fieldName.includes('bio') || 
+        fieldLabel.includes('mô tả') || fieldLabel.includes('giới thiệu')) {
+      return '';
+    }
+    
+    // Default: empty placeholder (label is enough)
+    return '';
+  };
+
   const renderField = (field: FormField) => {
     const value = formData[field.name] || '';
     const hasError = fieldErrors[field.name];
+    const placeholder = getPlaceholder(field);
     const errorClass = hasError 
       ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500';
@@ -254,7 +297,7 @@ export default function FormRegistrationPage() {
                 className={`w-full rounded-lg border-2 px-4 py-3 text-sm transition-all duration-200 focus:outline-none focus:ring-2 ${errorClass}`}
                 value={value}
                 onChange={(e) => handleInputChange(field.name, e.target.value)}
-                placeholder={`Nhập ${field.label.toLowerCase()}`}
+                placeholder={placeholder || undefined}
                 required={field.required}
               />
             ) : (
@@ -263,7 +306,7 @@ export default function FormRegistrationPage() {
                 className={`w-full rounded-lg border-2 px-4 py-3 text-sm transition-all duration-200 focus:outline-none focus:ring-2 ${errorClass}`}
                 value={value}
                 onChange={(e) => handleInputChange(field.name, e.target.value)}
-                placeholder={`Nhập ${field.label.toLowerCase()}`}
+                placeholder={placeholder || undefined}
                 required={field.required}
               />
             )}
@@ -286,7 +329,7 @@ export default function FormRegistrationPage() {
               className={`w-full rounded-lg border-2 px-4 py-3 text-sm transition-all duration-200 focus:outline-none focus:ring-2 ${errorClass}`}
               value={value}
               onChange={(e) => handleInputChange(field.name, e.target.value)}
-              placeholder={`Nhập ${field.label.toLowerCase()}`}
+              placeholder={placeholder || 'example@email.com'}
               required={field.required}
             />
             {hasError && (
@@ -413,7 +456,7 @@ export default function FormRegistrationPage() {
               className={`w-full rounded-lg border-2 px-4 py-3 text-sm transition-all duration-200 focus:outline-none focus:ring-2 ${errorClass}`}
               value={value}
               onChange={(e) => handleInputChange(field.name, e.target.value)}
-              placeholder={`Nhập ${field.label.toLowerCase()}`}
+              placeholder={placeholder || undefined}
               required={field.required}
             />
             {hasError && (
