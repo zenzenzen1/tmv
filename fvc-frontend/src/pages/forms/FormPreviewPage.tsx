@@ -80,7 +80,7 @@ export default function FormPreviewPage() {
   const getStatusBadge = (status: string) => {
     const statusMap = {
       DRAFT: { label: "Nháp", className: "bg-gray-100 text-gray-800" },
-      PUBLISH: { label: "Đã xuất bản", className: "bg-green-100 text-green-800" },
+      PUBLISH: { label: "Đã công khai", className: "bg-green-100 text-green-800" },
       ARCHIVED: { label: "Đã lưu trữ", className: "bg-yellow-100 text-yellow-800" },
       POSTPONE: { label: "Tạm hoãn", className: "bg-orange-100 text-orange-800" },
     };

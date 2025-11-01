@@ -101,6 +101,9 @@ export default function App() {
       <Route path="/home" element={<Home />} />
       <Route path="dashboard" element={<DashboardPage />} />
 
+      {/* Public Form Registration - Guest access */}
+      <Route path="/public/forms/:slug" element={<FormRegistrationPage />} />
+
       {/* Protected app routes under /manage */}
       <Route
         path="/manage"

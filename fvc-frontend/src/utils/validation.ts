@@ -86,20 +86,27 @@ export const validatePhoneNumber = (
     return { isValid: true };
   }
   
-  // Remove all non-digit characters
-  const cleanPhone = phone.replace(/\D/g, '');
+  // Normalize phone: remove spaces, dashes, parentheses but keep + and digits
+  const normalizedPhone = phone.replace(/[\s\-\(\)]/g, '');
   
   if (country === 'VN') {
-    // Vietnamese phone number patterns
-    // Mobile: 09x, 08x, 07x, 03x, 05x (10-11 digits)
-    // Landline: 02x (10-11 digits)
-    const vnMobileRegex = /^(09|08|07|03|05)[0-9]{8,9}$/;
-    const vnLandlineRegex = /^02[0-9]{8,9}$/;
+    // Vietnamese phone number patterns matching backend: ^(0|\\+84)[3-9]\\d{8}$
+    // Format: 0x... (10 digits) or +84x... (12 digits)
+    // Where x is 3-9
+    let testPhone = normalizedPhone;
     
-    if (!vnMobileRegex.test(cleanPhone) && !vnLandlineRegex.test(cleanPhone)) {
+    // If starts with 84 without +, add +
+    if (testPhone.startsWith('84') && testPhone.length === 11) {
+      testPhone = '+' + testPhone;
+    }
+    
+    // Backend pattern: ^(0|\\+84)[3-9]\\d{8}$
+    const vnPhoneRegex = /^(0|\+84)[3-9]\d{8}$/;
+    
+    if (!vnPhoneRegex.test(testPhone)) {
       return {
         isValid: false,
-        errorMessage: customMessage || 'Số điện thoại không hợp lệ (định dạng Việt Nam)'
+        errorMessage: customMessage || 'Số điện thoại không hợp lệ. Định dạng: 0x... hoặc +84x... (x là số 3-9, tổng 10 hoặc 12 số)'
       };
     }
   }
@@ -132,14 +139,14 @@ export const validateStudentId = (
   const trimmedId = studentId.trim();
   
   if (format === 'VN') {
-    // Vietnamese student ID format: typically 8-10 digits
-    // Common patterns: 20xx xxxx (year + 4 digits) or similar
-    const vnStudentIdRegex = /^[0-9]{8,10}$/;
+    // Vietnamese student ID format matching backend: ^(HE|SE|SS|SP)?\\d{6,8}$
+    // Optional prefix (HE, SE, SS, SP) + 6-8 digits
+    const vnStudentIdRegex = /^(HE|SE|SS|SP)?\d{6,8}$/i;
     
     if (!vnStudentIdRegex.test(trimmedId)) {
       return {
         isValid: false,
-        errorMessage: customMessage || 'MSSV không hợp lệ (8-10 chữ số)'
+        errorMessage: customMessage || 'MSSV không hợp lệ. Định dạng: (HE|SE|SS|SP)? + 6-8 chữ số'
       };
     }
   }

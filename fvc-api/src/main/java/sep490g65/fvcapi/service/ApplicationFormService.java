@@ -20,6 +20,8 @@ public interface ApplicationFormService {
 
     ApplicationFormConfigResponse update(ApplicationFormType formType, UpdateApplicationFormConfigRequest request);
 
+    ApplicationFormConfigResponse updateById(String id, UpdateApplicationFormConfigRequest request);
+
     ApplicationFormConfigResponse createDefaultClubRegistrationForm();
 
     Page<ApplicationFormConfigResponse> listPaginated(int page, int size, String search, String dateFrom, String dateTo, String status);
