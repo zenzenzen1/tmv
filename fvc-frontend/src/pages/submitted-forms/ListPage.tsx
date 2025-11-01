@@ -327,93 +327,103 @@ export default function SubmittedFormsPage() {
       try {
         const d = new Date(v);
         if (Number.isNaN(d.getTime())) return v;
-        return d.toLocaleDateString("vi-VN");
+        // Format: dd/MM/yyyy HH:mm
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
       } catch {
         return v;
       }
     };
 
-    // Lấy các trường form data được định nghĩa trong fieldDisplayNames
-    const allowedFormFields = new Set<string>();
-    rows.forEach(row => {
-      const formFields = extractFormDataFields(row.formData);
-      Object.keys(formFields).forEach(key => {
-        const lowerKey = key.toLowerCase();
-        // Loại bỏ các trường tên vì đã hiển thị trong cột "Họ và tên"
-        const isNameField = ["fullName", "name", "hovaten", "ten"].includes(lowerKey);
-        if (!isNameField) {
-          // Chỉ hiển thị các trường được định nghĩa trong fieldDisplayNames
-          if (Object.keys(fieldDisplayNames).some(definedKey => 
-            definedKey.toLowerCase() === lowerKey || 
-            lowerKey.includes(definedKey.toLowerCase()) ||
-            definedKey.toLowerCase().includes(lowerKey)
-          )) {
-            allowedFormFields.add(key);
-          }
-        }
-      });
-    });
-
-    // Tạo cột cho các trường form data được phép
-    const formDataColumns: TableColumn<SubmittedRow>[] = Array.from(allowedFormFields)
-      .map(fieldKey => ({
-        key: fieldKey,
-        title: getFieldDisplayName(fieldKey),
-        render: (row: SubmittedRow) => row[fieldKey] || "",
-        className: "max-w-xs",
-      }));
-
     return [
       {
         key: "stt",
         title: "STT",
-        render: (row: SubmittedRow) => row.stt,
+        render: (row: SubmittedRow) => (
+          <span className="text-sm font-medium text-gray-900">{row.stt}</span>
+        ),
         sortable: false,
         className: "w-16 text-center",
       },
       {
         key: "submittedAt",
-        title: "Thời gian nộp",
+        title: "Thời gian",
         sortable: true,
-        render: (r) => formatDate(r.submittedAt),
-      },
-      { 
-        key: "formName", 
-        title: "Tên form", 
-        sortable: true,
-        render: (r: SubmittedRow) => (
-          <span className="text-sm font-medium">
-            {r.formName || "Không xác định"}
+        render: (r) => (
+          <span className="text-sm text-gray-600 whitespace-nowrap">
+            {formatDate(r.submittedAt)}
           </span>
         ),
-        className: "max-w-xs",
+        className: "w-36",
       },
-      { key: "fullName", title: "Họ và tên", sortable: true },
-      { key: "email", title: "Email", sortable: true },
-      { key: "studentCode", title: "MSSV", sortable: true },
-      { key: "note", title: "Mô tả ngắn về bản thân" },
-      ...formDataColumns, // Thêm các cột form data động (bao gồm số điện thoại)
+      {
+        key: "fullName",
+        title: "Họ và tên",
+        sortable: true,
+        render: (r: SubmittedRow) => (
+          <div className="font-medium text-gray-900 truncate max-w-[200px]" title={r.fullName}>
+            {r.fullName || "-"}
+          </div>
+        ),
+        className: "min-w-[150px] max-w-[200px]",
+      },
+      {
+        key: "email",
+        title: "Email",
+        sortable: true,
+        render: (r: SubmittedRow) => (
+          <div className="text-sm text-gray-600 truncate max-w-[200px]" title={r.email}>
+            {r.email || "-"}
+          </div>
+        ),
+        className: "min-w-[150px] max-w-[200px]",
+      },
+      {
+        key: "studentCode",
+        title: "MSSV",
+        sortable: true,
+        render: (r: SubmittedRow) => (
+          <span className="text-sm font-medium text-gray-700">{r.studentCode || "-"}</span>
+        ),
+        className: "w-24",
+      },
+      {
+        key: "formName",
+        title: "Form",
+        sortable: true,
+        render: (r: SubmittedRow) => (
+          <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
+            {r.formName || "N/A"}
+          </span>
+        ),
+        className: "w-32",
+      },
       {
         key: "actions",
-        title: "Thao tác",
+        title: "",
         sortable: false,
-        className: "w-32",
+        className: "w-28",
         render: (row: SubmittedRow) => (
           <button
             type="button"
-            aria-label={`Xem form #${row.id}`}
+            aria-label={`Xem chi tiết form #${row.id}`}
             onClick={() => setViewingRow(row)}
-            className="inline-flex items-center gap-1 rounded-md bg-[#2563eb] px-3 py-1.5 text-[12px] font-medium text-white shadow hover:bg-[#1e4fd9] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/40"
+            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
-              <path d="M12 5c-5 0-9 5-9 7s4 7 9 7 9-5 9-7-4-7-9-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+              <path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
             </svg>
-            Xem form
+            Chi tiết
           </button>
         ),
       },
     ];
-  }, [rows]);
+  }, []);
 
   const filtered = useReactMemo(() => {
     if (!query.trim()) return rows;
@@ -716,7 +726,6 @@ export default function SubmittedFormsPage() {
     </div>
   );
 }
-
 function exportCsv(rows: SubmittedRow[]) {
   if (!rows || rows.length === 0) {
     // Replace alert with toast once toast context is available here
@@ -801,3 +810,4 @@ function escapeCsv(value?: string) {
   }
   return s;
 }
+

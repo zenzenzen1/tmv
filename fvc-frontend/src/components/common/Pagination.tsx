@@ -117,58 +117,6 @@ export default function Pagination({
                 // Show all pages if 5 or fewer
                 for (let p = 1; p <= totalPages; p++) items.push(p);
               } else {
-<<<<<<< HEAD
-                // Always show first page and page 2
-                items.push(1);
-                items.push(2);
-                
-                // Calculate what to show in the middle
-                let start = Math.max(3, currentPage - 1);
-                let end = Math.min(totalPages - 1, currentPage + 1);
-                
-                // If we're on pages 1-3, show pages 3-5
-                if (currentPage <= 3) {
-                  start = 3;
-                  end = Math.min(5, totalPages - 1);
-                  if (end >= 3) {
-                    for (let p = start; p <= end; p++) {
-                      items.push(p);
-                    }
-                  }
-                  // Add ellipsis if there's a gap before last page
-                  if (end < totalPages - 1) {
-                    items.push('ellipsis');
-                  }
-                } 
-                // If we're near the end (last 2 pages), show pages near the end
-                else if (currentPage >= totalPages - 2) {
-                  start = Math.max(3, totalPages - 4);
-                  if (start > 3) {
-                    items.push('ellipsis');
-                  }
-                  for (let p = start; p <= totalPages - 1; p++) {
-                    items.push(p);
-                  }
-                } 
-                // We're in the middle
-                else {
-                  // Add ellipsis if there's a gap after page 2
-                  if (start > 3) {
-                    items.push('ellipsis');
-                  }
-                  // Add pages around current
-                  for (let p = start; p <= end; p++) {
-                    items.push(p);
-                  }
-                  // Add ellipsis if there's a gap before last page
-                  if (end < totalPages - 1) {
-                    items.push('ellipsis');
-                  }
-                }
-                
-                // Always show last page
-                items.push(totalPages);
-=======
                 // Always show first page
                 items.push(1);
                 
@@ -202,7 +150,6 @@ export default function Pagination({
                 if (totalPages > 1) {
                   items.push(totalPages);
                 }
->>>>>>> e8fc4a398d59aaf2afc464ce400840095ab57511
               }
 
               return items.map((it, idx) => {

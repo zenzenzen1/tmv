@@ -13,10 +13,12 @@ import sep490g65.fvcapi.enums.ApplicationFormStatus;
 public interface SubmittedApplicationFormRepository extends JpaRepository<SubmittedApplicationForm, Long> {
 
     @EntityGraph(attributePaths = {"applicationFormConfig", "user"})
-    @Query("SELECT s FROM SubmittedApplicationForm s " +
-           "WHERE (:type IS NULL OR s.formType = :type)")
+    @Query(value = "SELECT s FROM SubmittedApplicationForm s " +
+           "WHERE (:type IS NULL OR s.formType = :type) " +
+           "AND (:status IS NULL OR s.status = :status)", nativeQuery = false)
     Page<SubmittedApplicationForm> search(
             @Param("type") ApplicationFormType type,
+            @Param("status") ApplicationFormStatus status,
             Pageable pageable
     );
 

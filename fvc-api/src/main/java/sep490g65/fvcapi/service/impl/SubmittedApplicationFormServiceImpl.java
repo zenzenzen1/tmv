@@ -54,7 +54,22 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
     public PaginationResponse<SubmittedApplicationFormResponse> list(RequestParam params, ApplicationFormType type) {
         Sort sort = Sort.by(params.isAscending() ? Sort.Direction.ASC : Sort.Direction.DESC, params.getSortBy());
         Pageable pageable = PageRequest.of(params.getPage(), params.getSize(), sort);
-        Page<SubmittedApplicationForm> page = repository.search(type, pageable);
+        
+        // Parse status
+        ApplicationFormStatus status = null;
+        if (params.getStatusFilter() != null) {
+            try {
+                status = ApplicationFormStatus.valueOf(params.getStatusFilter().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // Invalid status, ignore
+            }
+        }
+        
+        Page<SubmittedApplicationForm> page = repository.search(
+            type, 
+            status, 
+            pageable
+        );
         return ResponseUtils.createPaginatedResponse(page.map(this::toDto));
     }
     
