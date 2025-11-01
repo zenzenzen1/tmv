@@ -128,9 +128,33 @@ export default function FormListPage() {
       {
         key: "actions",
         title: "Thao tác",
-        className: "text-[15px] whitespace-nowrap w-40",
+        className: "text-[15px] whitespace-nowrap w-52",
         render: (r: FormRow) => (
           <div className="flex items-center gap-2">
+            {r.status === "PUBLISH" && (
+              <button
+                onClick={async () => {
+                  try {
+                    // Get public link from API
+                    const response = await apiService.get<any>(`${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${r.id}`);
+                    if (response.success && response.data?.publicLink) {
+                      const fullUrl = `${window.location.origin}${response.data.publicLink}`;
+                      await navigator.clipboard.writeText(fullUrl);
+                      toast.success('Đã copy link công khai!');
+                    } else {
+                      toast.error('Form chưa có link công khai');
+                    }
+                  } catch (e) {
+                    console.error('Failed to get public link', e);
+                    toast.error('Không thể lấy link công khai');
+                  }
+                }}
+                className="rounded-md bg-emerald-500 px-3 py-1 text-xs text-white hover:bg-emerald-600"
+                title="Copy link công khai"
+              >
+                📋 Link
+              </button>
+            )}
             <button
               onClick={() => handleViewForm(r.id)}
               className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
@@ -223,15 +247,15 @@ export default function FormListPage() {
         <h1 className="text-[15px] font-semibold text-gray-800">
           Quản lý Form
         </h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleCreateNew}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCreateNew}
             className="rounded-md bg-[#377CFB] px-3 py-2 text-white text-sm shadow hover:bg-[#2f6ae0]"
-          >
+            >
             + Tạo form mới
-          </button>
+            </button>
+          </div>
         </div>
-      </div>
 
       <div className="mb-4 flex items-center gap-2">
         <input

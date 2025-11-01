@@ -35,6 +35,8 @@ export default function FormEditPage() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [publicLink, setPublicLink] = useState<string | null>(null);
+  const [formStatus, setFormStatus] = useState<string>("DRAFT");
 
   const openPreview = () => {
     setShowPreview(true);
@@ -148,6 +150,8 @@ export default function FormEditPage() {
         if (response.success && response.data) {
           console.log('Form data:', response.data);
           console.log('EndDate from API:', response.data.endDate);
+          setPublicLink(response.data.publicLink || null);
+          setFormStatus(response.data.status || "DRAFT");
           setTitle(response.data.name || "");
           setDescription(response.data.description || "");
           
@@ -264,6 +268,8 @@ export default function FormEditPage() {
           }));
           
           setFields(formFields);
+          setPublicLink(response.data.publicLink || null);
+          setFormStatus(response.data.status || "DRAFT");
         } else {
           // If no config exists, create default one
           await createDefaultForm();
@@ -478,14 +484,30 @@ export default function FormEditPage() {
       if (id === 'new') {
         // Tạo form mới
         response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE, requestData);
+      } else if (id && id !== 'new') {
+        // Cập nhật form cũ theo ID
+        response = await apiService.put<any>(`${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${id}`, requestData);
       } else {
-        // Cập nhật form cũ
+        // Cập nhật form theo type (fallback)
         response = await apiService.put<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_TYPE('CLUB_REGISTRATION'), requestData);
       }
       
       if (response.success) {
         const message = status === 'PUBLISH' ? "Đã lưu và publish thành công!" : "Đã lưu bản nháp thành công!";
         toast.success(message);
+        
+        // Update public link and status if published
+        if (status === 'PUBLISH' && response.data?.publicLink) {
+          setPublicLink(response.data.publicLink);
+          setFormStatus('PUBLISH');
+        } else if (status === 'DRAFT') {
+          setFormStatus('DRAFT');
+        }
+        
+        // Update ID if it's a new form
+        if (id === 'new' && response.data?.id) {
+          navigate(`/manage/forms/${response.data.id}/edit`, { replace: true });
+        }
       } else {
         toast.error("Lỗi khi lưu: " + (response.message || "Unknown error"));
       }
@@ -559,6 +581,54 @@ export default function FormEditPage() {
           </button>
           </div>
         </div>
+
+        {/* Public Link Display */}
+        {formStatus === 'PUBLISH' && publicLink && (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  <h3 className="text-sm font-semibold text-green-800">Form đã được công khai</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}${publicLink}`}
+                    className="flex-1 rounded-md border border-green-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(`${window.location.origin}${publicLink}`);
+                        toast.success('Đã copy link công khai!');
+                      } catch (e) {
+                        toast.error('Không thể copy link');
+                      }
+                    }}
+                    className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    Copy link
+                  </button>
+                  <a
+                    href={publicLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md border border-green-600 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    Mở link
+                  </a>
+                </div>
+                <p className="mt-2 text-xs text-green-600">
+                  Link này có thể được chia sẻ với bất kỳ ai để họ đăng ký. Không cần đăng nhập.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Confirm Publish Toast */}
         {confirmPublishOpen && (
