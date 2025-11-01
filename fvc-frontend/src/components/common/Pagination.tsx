@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface PaginationProps {
   currentPage: number;
@@ -19,8 +19,25 @@ export default function Pagination({
   onPageChange,
   onPageSizeChange,
   showPageSizeSelector = true,
-  pageSizeOptions = [5, 10, 20, 50]
+  pageSizeOptions = [5, 10, 15, 20]
 }: PaginationProps) {
+  const [pageInput, setPageInput] = useState<string>('');
+
+  const handlePageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value === '' || (/^\d+$/.test(value) && parseInt(value) >= 1 && parseInt(value) <= totalPages)) {
+      setPageInput(value);
+    }
+  };
+
+  const handlePageInputSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pageNum = parseInt(pageInput);
+    if (pageNum >= 1 && pageNum <= totalPages) {
+      onPageChange(pageNum);
+      setPageInput('');
+    }
+  };
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalElements);
 
@@ -95,18 +112,44 @@ export default function Pagination({
             {/* Page numbers with ellipsis */}
             {(() => {
               const items: (number | 'ellipsis')[] = [];
-              const maxButtons = 7; // including first/last if applicable
-              if (totalPages <= maxButtons) {
+              
+              if (totalPages <= 5) {
+                // Show all pages if 5 or fewer
                 for (let p = 1; p <= totalPages; p++) items.push(p);
               } else {
-                const windowSize = 3; // pages around current
-                const start = Math.max(2, currentPage - 1);
-                const end = Math.min(totalPages - 1, currentPage + 1);
+                // Always show first page
                 items.push(1);
-                if (start > 2) items.push('ellipsis');
-                for (let p = start; p <= end; p++) items.push(p);
-                if (end < totalPages - 1) items.push('ellipsis');
-                items.push(totalPages);
+                
+                // Calculate window around current page
+                let start = Math.max(2, currentPage - 1);
+                let end = Math.min(totalPages - 1, currentPage + 1);
+                
+                // Adjust window if we're near the beginning or end
+                if (currentPage <= 3) {
+                  end = Math.min(5, totalPages - 1);
+                } else if (currentPage >= totalPages - 2) {
+                  start = Math.max(totalPages - 4, 2);
+                }
+                
+                // Add ellipsis after first page if needed
+                if (start > 2) {
+                  items.push('ellipsis');
+                }
+                
+                // Add pages in window
+                for (let p = start; p <= end; p++) {
+                  items.push(p);
+                }
+                
+                // Add ellipsis before last page if needed
+                if (end < totalPages - 1) {
+                  items.push('ellipsis');
+                }
+                
+                // Always show last page (if more than 1 page)
+                if (totalPages > 1) {
+                  items.push(totalPages);
+                }
               }
 
               return items.map((it, idx) => {
@@ -136,6 +179,31 @@ export default function Pagination({
                 );
               });
             })()}
+            
+            {/* Page input for jumping to specific page */}
+            {totalPages > 7 && (
+              <div className="relative inline-flex items-center px-2 py-2 ring-1 ring-inset ring-gray-300 bg-white">
+                <form onSubmit={handlePageInputSubmit} className="flex items-center gap-1">
+                  <label htmlFor="page-jump" className="sr-only">Đi đến trang</label>
+                  <input
+                    id="page-jump"
+                    type="text"
+                    value={pageInput}
+                    onChange={handlePageInputChange}
+                    placeholder="Trang"
+                    className="w-12 px-1 py-0.5 text-sm text-center border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    inputMode="numeric"
+                  />
+                  <button
+                    type="submit"
+                    className="px-2 py-0.5 text-xs text-blue-600 hover:text-blue-800 font-medium focus:outline-none"
+                    title="Đi đến trang"
+                  >
+                    →
+                  </button>
+                </form>
+              </div>
+            )}
             
             {/* Next button */}
             <button

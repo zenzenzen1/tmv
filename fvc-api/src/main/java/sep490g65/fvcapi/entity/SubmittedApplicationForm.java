@@ -29,7 +29,7 @@ public class SubmittedApplicationForm extends BaseEntity {
     private String formData;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = true)
     private User user;
 
     @Enumerated(EnumType.STRING)
