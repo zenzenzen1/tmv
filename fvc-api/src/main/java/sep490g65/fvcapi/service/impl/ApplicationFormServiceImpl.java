@@ -365,11 +365,40 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
     }
 
     private String generateUniqueSlug(String base) {
-        String normalized = base == null ? "form" : base.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
-        String candidate = normalized + "-" + UUID.randomUUID().toString().substring(0, 8);
-        while (applicationFormConfigRepository.existsByPublicSlug(candidate)) {
-            candidate = normalized + "-" + UUID.randomUUID().toString().substring(0, 8);
-        }
+        // Generate a secure, encrypted slug using Base64 URL-safe encoding
+        // Combines two UUIDs (32 bytes = 256 bits entropy) for maximum security
+        // The link will be hard to guess and appears encrypted
+        java.util.Base64.Encoder encoder = java.util.Base64.getUrlEncoder().withoutPadding();
+        String candidate;
+        int attempts = 0;
+        
+        do {
+            UUID uuid1 = UUID.randomUUID();
+            UUID uuid2 = UUID.randomUUID();
+            
+            // Convert UUIDs to byte arrays
+            java.nio.ByteBuffer buffer = java.nio.ByteBuffer.allocate(32);
+            buffer.putLong(uuid1.getMostSignificantBits());
+            buffer.putLong(uuid1.getLeastSignificantBits());
+            buffer.putLong(uuid2.getMostSignificantBits());
+            buffer.putLong(uuid2.getLeastSignificantBits());
+            
+            // Encode to Base64 URL-safe string
+            byte[] combinedBytes = buffer.array();
+            String encodedSlug = encoder.encodeToString(combinedBytes);
+            
+            // Prefix with 'f' to indicate form (optional, can be removed)
+            candidate = "f" + encodedSlug;
+            attempts++;
+            
+            if (attempts >= 10) {
+                log.warn("Failed to generate unique slug after 10 attempts, using UUID fallback");
+                // Fallback: use simple UUID if too many collisions (extremely rare)
+                candidate = "f" + UUID.randomUUID().toString().replace("-", "");
+                break;
+            }
+        } while (applicationFormConfigRepository.existsByPublicSlug(candidate));
+        
         return candidate;
     }
 
