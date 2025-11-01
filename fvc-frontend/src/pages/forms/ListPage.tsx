@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../../services/api';
 import { API_ENDPOINTS } from '../../config/endpoints';
@@ -31,6 +31,57 @@ export default function FormListPage() {
   const [statusFilter, setStatusFilter] = useState<
     "ALL" | "DRAFT" | "PUBLISH" | "ARCHIVED" | "POSTPONE"
   >("ALL");
+
+  const loadForms = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE);
+      
+      if (response.success && response.data) {
+        const allForms: FormRow[] = response.data.map((form: any) => ({
+          id: form.id,
+          name: form.name,
+          description: form.description || "",
+          formType: form.formType || "CLUB_REGISTRATION",
+          fieldCount: form.fields?.length || 0,
+          createdAt: form.createdAt || "",
+          updatedAt: form.updatedAt || "",
+          status: (form.status as FormRow["status"]) || "DRAFT",
+        }));
+
+        // Client-side filtering
+        const filtered = allForms.filter((row) => {
+          const matchesText = searchText
+            ? (row.name + " " + row.description)
+                .toLowerCase()
+                .includes(searchText.toLowerCase())
+            : true;
+          const matchesStatus =
+            statusFilter === "ALL"
+              ? true
+              : row.status === statusFilter;
+          return matchesText && matchesStatus;
+        });
+
+        setTotal(filtered.length);
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        setRows(filtered.slice(start, end));
+      } else {
+        setRows([]);
+        setTotal(0);
+      }
+    } catch (err: any) {
+      console.error("Error loading forms:", err);
+      toast.error(err?.message || 'Tải danh sách form thất bại');
+      setRows([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchText, statusFilter, page, pageSize, toast]);
+
 
   const columns: Array<TableColumn<FormRow>> = useMemo(
     () => [
@@ -76,53 +127,26 @@ export default function FormListPage() {
         key: "status",
         title: "Trạng thái",
         className: "text-[15px] w-40",
-        render: (r: FormRow) => (
-          <div className="flex items-center gap-2">
-            <select
-              className={`rounded-md px-2 py-1 text-xs border ${
-                r.status === "PUBLISH"
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : r.status === "ARCHIVED"
-                  ? "bg-rose-50 text-rose-600 border-rose-200"
-                  : r.status === "POSTPONE"
-                  ? "bg-gray-100 text-gray-700 border-gray-300"
-                  : "bg-amber-50 text-amber-700 border-amber-200"
-              }`}
-              value={r.status}
-              onChange={async (e) => {
-                const val = e.target.value as FormRow["status"];
-                try {
-                  // Optimistic update
-                  setRows((prev) =>
-                    prev.map((row) =>
-                      row.id === r.id ? { ...row, status: val } : row
-                    )
-                  );
-                  await apiService.put<void>(
-                    `${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${r.id}`,
-                    { status: val }
-                  );
-                  toast.success("Cập nhật trạng thái thành công");
-                  loadForms(); // Refresh data
-                } catch (err) {
-                  console.error("Failed to update status", err);
-                  // Rollback optimistic update on failure
-                  setRows((prev) =>
-                    prev.map((row) =>
-                      row.id === r.id ? { ...row, status: r.status } : row
-                    )
-                  );
-                  toast.error("Cập nhật trạng thái thất bại");
-                }
-              }}
-            >
-              <option value="DRAFT">Draft</option>
-              <option value="PUBLISH">Đã xuất bản</option>
-              <option value="ARCHIVED">Lưu trữ</option>
-              <option value="POSTPONE">Hoãn</option>
-            </select>
-          </div>
-        ),
+        render: (r: FormRow) => {
+          const getStatusBadge = (status: string) => {
+            const statusMap = {
+              DRAFT: { label: "Draft", className: "bg-amber-50 text-amber-700 border-amber-200" },
+              PUBLISH: { label: "Đã xuất bản", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+              ARCHIVED: { label: "Lưu trữ", className: "bg-rose-50 text-rose-600 border-rose-200" },
+              POSTPONE: { label: "Hoãn", className: "bg-gray-100 text-gray-700 border-gray-300" },
+            };
+            const statusInfo = statusMap[status as keyof typeof statusMap] || { 
+              label: status, 
+              className: "bg-gray-100 text-gray-700 border-gray-300" 
+            };
+            return (
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusInfo.className}`}>
+                {statusInfo.label}
+              </span>
+            );
+          };
+          return <div className="flex items-center gap-2">{getStatusBadge(r.status)}</div>;
+        },
         sortable: false,
       },
       {
@@ -174,56 +198,6 @@ export default function FormListPage() {
     ],
     [toast]
   );
-
-  const loadForms = async () => {
-    try {
-      setLoading(true);
-      
-      const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE);
-      
-      if (response.success && response.data) {
-        const allForms: FormRow[] = response.data.map((form: any) => ({
-          id: form.id,
-          name: form.name,
-          description: form.description || "",
-          formType: form.formType || "CLUB_REGISTRATION",
-          fieldCount: form.fields?.length || 0,
-          createdAt: form.createdAt || "",
-          updatedAt: form.updatedAt || "",
-          status: (form.status as FormRow["status"]) || "DRAFT",
-        }));
-
-        // Client-side filtering
-        const filtered = allForms.filter((row) => {
-          const matchesText = searchText
-            ? (row.name + " " + row.description)
-                .toLowerCase()
-                .includes(searchText.toLowerCase())
-            : true;
-          const matchesStatus =
-            statusFilter === "ALL"
-              ? true
-              : row.status === statusFilter;
-          return matchesText && matchesStatus;
-        });
-
-        setTotal(filtered.length);
-        const start = (page - 1) * pageSize;
-        const end = start + pageSize;
-        setRows(filtered.slice(start, end));
-      } else {
-        setRows([]);
-        setTotal(0);
-      }
-    } catch (err: any) {
-      console.error("Error loading forms:", err);
-      toast.error(err?.message || 'Tải danh sách form thất bại');
-      setRows([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     loadForms();

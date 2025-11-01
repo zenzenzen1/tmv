@@ -164,9 +164,70 @@ export default function FormRegistrationPage() {
     try {
       setSubmitting(true);
       
+      // Map dynamic form data to SubmittedFormData structure
+      // Extract common fields based on field names
+      const mappedFormData: any = {};
+      
+      // Map fields by common names
+      Object.keys(formData).forEach(key => {
+        const value = formData[key];
+        
+        // Map common field names
+        if (key.toLowerCase().includes('ho_ten') || key.toLowerCase().includes('hoten') || key.toLowerCase().includes('fullname') || key === 'fullName') {
+          mappedFormData.fullName = String(value || '').trim();
+        } else if (key.toLowerCase().includes('ten') || key === 'name') {
+          mappedFormData.name = String(value || '').trim();
+        } else if (key.toLowerCase().includes('email')) {
+          mappedFormData.email = String(value || '').trim();
+        } else if (key.toLowerCase().includes('phone') || key.toLowerCase().includes('sdt') || key.toLowerCase().includes('so_dien_thoai')) {
+          // Normalize phone number to backend format (0x... or +84x...)
+          let phoneValue = String(value || '').trim();
+          // Remove spaces and special chars except + and digits
+          phoneValue = phoneValue.replace(/[\s\-\(\)]/g, '');
+          // If starts with 84 but not +84, add +
+          if (phoneValue.startsWith('84') && !phoneValue.startsWith('+84')) {
+            phoneValue = '+' + phoneValue;
+          }
+          // If starts with country code without +, add it
+          if (phoneValue.length > 0 && !phoneValue.startsWith('0') && !phoneValue.startsWith('+84')) {
+            // Assume it's local format without 0
+            if (/^[3-9]\d{8,9}$/.test(phoneValue)) {
+              phoneValue = '0' + phoneValue;
+            }
+          }
+          mappedFormData.phone = phoneValue;
+        } else if (key.toLowerCase().includes('mssv') || key.toLowerCase().includes('student') || key.toLowerCase().includes('studentcode')) {
+          mappedFormData.studentCode = String(value || '').trim().toUpperCase();
+        } else if (key.toLowerCase().includes('mo_ta') || key.toLowerCase().includes('mota') || key.toLowerCase().includes('bio') || key.toLowerCase().includes('reason')) {
+          mappedFormData.reason = String(value || '').trim();
+        } else if (key.toLowerCase().includes('club')) {
+          mappedFormData.club = String(value || '').trim();
+        }
+      });
+      
+      // Ensure at least fullName or name exists
+      if (!mappedFormData.fullName && !mappedFormData.name) {
+        // Try to find any name-like field
+        const nameField = Object.keys(formData).find(k => 
+          k.toLowerCase().includes('ho') || 
+          k.toLowerCase().includes('ten') || 
+          k.toLowerCase().includes('name')
+        );
+        if (nameField) {
+          mappedFormData.fullName = String(formData[nameField] || '').trim();
+        }
+      }
+      
+      // Clean up empty values (optional fields)
+      Object.keys(mappedFormData).forEach(key => {
+        if (mappedFormData[key] === '' || mappedFormData[key] === null || mappedFormData[key] === undefined) {
+          delete mappedFormData[key];
+        }
+      });
+      
       const response = await apiService.post<any>(API_ENDPOINTS.SUBMITTED_FORMS.BASE, {
         formType: formConfig.formType,
-        formData: JSON.stringify(formData),
+        formData: mappedFormData, // Send as object, not string
         applicationFormConfigId: formConfig.id
       });
 

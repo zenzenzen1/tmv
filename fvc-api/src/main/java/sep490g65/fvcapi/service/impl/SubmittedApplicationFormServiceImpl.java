@@ -15,6 +15,8 @@ import sep490g65.fvcapi.entity.SubmittedApplicationForm;
 import sep490g65.fvcapi.enums.ApplicationFormType;
 import sep490g65.fvcapi.enums.ApplicationFormStatus;
 import sep490g65.fvcapi.repository.SubmittedApplicationFormRepository;
+import sep490g65.fvcapi.repository.UserRepository;
+import sep490g65.fvcapi.repository.ApplicationFormConfigRepository;
 import sep490g65.fvcapi.service.SubmittedApplicationFormService;
 import sep490g65.fvcapi.utils.ResponseUtils;
 
@@ -24,6 +26,8 @@ import sep490g65.fvcapi.utils.ResponseUtils;
 public class SubmittedApplicationFormServiceImpl implements SubmittedApplicationFormService {
 
     private final SubmittedApplicationFormRepository repository;
+    private final UserRepository userRepository;
+    private final ApplicationFormConfigRepository applicationFormConfigRepository;
     
 
     private SubmittedApplicationFormResponse toDto(SubmittedApplicationForm s) {
@@ -64,16 +68,16 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
                 .status(ApplicationFormStatus.PENDING)
                 .build();
         
-        // Set user if provided
+        // Set user if provided (optional - guest can submit forms)
         if (request.getUserId() != null && !request.getUserId().trim().isEmpty()) {
-            // TODO: Load user from repository and set it
-            // entity.setUser(userRepository.findById(request.getUserId()).orElse(null));
+            userRepository.findById(request.getUserId()).ifPresent(entity::setUser);
         }
+        // If no userId provided, user remains null (guest submission)
         
         // Set application form config if provided
         if (request.getApplicationFormConfigId() != null && !request.getApplicationFormConfigId().trim().isEmpty()) {
-            // TODO: Load config from repository and set it
-            // entity.setApplicationFormConfig(configRepository.findById(request.getApplicationFormConfigId()).orElse(null));
+            applicationFormConfigRepository.findById(request.getApplicationFormConfigId())
+                    .ifPresent(entity::setApplicationFormConfig);
         }
         
         // Save entity

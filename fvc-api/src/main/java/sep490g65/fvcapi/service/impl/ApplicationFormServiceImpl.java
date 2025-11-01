@@ -410,12 +410,14 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
                 .findByEndDateBeforeAndStatus(now, FormStatus.PUBLISH);
         
         for (ApplicationFormConfig form : expiredForms) {
-            form.setStatus(FormStatus.DRAFT);
+            // Auto-archive expired published forms
+            form.setStatus(FormStatus.ARCHIVED);
             applicationFormConfigRepository.save(form);
+            log.info("Auto-archived expired form: {} (ID: {})", form.getName(), form.getId());
         }
         
         if (!expiredForms.isEmpty()) {
-            System.out.println("Auto-unpublished " + expiredForms.size() + " expired forms");
+            log.info("Auto-archived {} expired forms", expiredForms.size());
         }
     }
 

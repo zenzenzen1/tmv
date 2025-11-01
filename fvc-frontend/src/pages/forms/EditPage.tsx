@@ -404,7 +404,10 @@ export default function FormEditPage() {
     }
   };
 
-  const handleSave = async (status: 'PUBLISH' | 'DRAFT' = 'PUBLISH') => {
+  const handleSave = async (status?: 'PUBLISH' | 'DRAFT') => {
+    // If no status specified, keep current status or default to DRAFT for new forms
+    const targetStatus = status || (formStatus !== 'PUBLISH' ? formStatus : 'DRAFT');
+    
     try {
       if (status === 'PUBLISH') {
       setSaving(true);
@@ -467,7 +470,7 @@ export default function FormEditPage() {
         name: title,
         description: description,
         formType: "CLUB_REGISTRATION",
-        status: status,
+        status: targetStatus,
         endDate: endDate ? new Date(endDate).toISOString() : null,
         fields: fields.map(field => ({
           id: field.id,
@@ -493,15 +496,24 @@ export default function FormEditPage() {
       }
       
       if (response.success) {
-        const message = status === 'PUBLISH' ? "Đã lưu và publish thành công!" : "Đã lưu bản nháp thành công!";
+        const message = status === 'PUBLISH' 
+          ? "Đã publish thành công!" 
+          : status === 'DRAFT'
+          ? "Đã lưu bản nháp thành công!"
+          : "Đã lưu thành công!";
         toast.success(message);
         
         // Update public link and status if published
         if (status === 'PUBLISH' && response.data?.publicLink) {
           setPublicLink(response.data.publicLink);
           setFormStatus('PUBLISH');
-        } else if (status === 'DRAFT') {
-          setFormStatus('DRAFT');
+        } else if (status === 'DRAFT' || !status) {
+          // Keep current status or set to DRAFT
+          if (response.data?.status) {
+            setFormStatus(response.data.status);
+          } else if (status === 'DRAFT') {
+            setFormStatus('DRAFT');
+          }
         }
         
         // Update ID if it's a new form
@@ -516,11 +528,16 @@ export default function FormEditPage() {
       toast.error("Lỗi khi lưu: " + (error?.message || "Network error"));
     } finally {
       if (status === 'PUBLISH') {
-      setSaving(false);
+        setSaving(false);
       } else {
         setSavingDraft(false);
       }
     }
+  };
+
+  // Separate handler for just saving (without publishing)
+  const handleSaveOnly = async () => {
+    await handleSave(formStatus === 'PUBLISH' ? undefined : 'DRAFT');
   };
 
   // Confirm publish toast state
@@ -538,6 +555,29 @@ export default function FormEditPage() {
     } finally {
       setPendingPublish(false);
       setConfirmPublishOpen(false);
+    }
+  };
+
+  // Confirm postpone toast state
+  const [confirmPostponeOpen, setConfirmPostponeOpen] = useState(false);
+  const [pendingPostpone, setPendingPostpone] = useState(false);
+
+  const requestPostpone = () => {
+    setConfirmPostponeOpen(true);
+  };
+
+  const confirmPostpone = async () => {
+    try {
+      setPendingPostpone(true);
+      await handleSave('POSTPONE');
+      setFormStatus('POSTPONE');
+      toast.success('Form đã được hoãn thành công');
+    } catch (err: any) {
+      console.error("Error postponing form:", err);
+      toast.error("Lỗi khi hoãn form: " + (err?.message || "Network error"));
+    } finally {
+      setPendingPostpone(false);
+      setConfirmPostponeOpen(false);
     }
   };
 
@@ -566,19 +606,28 @@ export default function FormEditPage() {
               Xem trước
             </button>
             <button 
-              onClick={() => handleSave('DRAFT')} 
+              onClick={handleSaveOnly} 
               disabled={savingDraft || saving}
               className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[13px] font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
             >
-              {savingDraft ? "Đang lưu..." : "Save Draft"}
+              {savingDraft ? "Đang lưu..." : "Lưu"}
             </button>
             <button 
               onClick={requestPublish} 
-              disabled={saving || savingDraft}
-            className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50"
-          >
-              {saving ? "Đang lưu..." : (id === 'new' ? "TẠO & PUBLISH" : "SỬA & PUBLISH")}
-          </button>
+              disabled={saving || savingDraft || pendingPostpone}
+              className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50"
+            >
+              {saving ? "Đang publish..." : "Publish"}
+            </button>
+            {formStatus === 'PUBLISH' && (
+              <button 
+                onClick={requestPostpone} 
+                disabled={saving || savingDraft || pendingPostpone}
+                className="rounded-md bg-orange-500 px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-orange-600 disabled:opacity-50"
+              >
+                {pendingPostpone ? "Đang hoãn..." : "Hoãn"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -625,6 +674,37 @@ export default function FormEditPage() {
                 <p className="mt-2 text-xs text-green-600">
                   Link này có thể được chia sẻ với bất kỳ ai để họ đăng ký. Không cần đăng nhập.
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirm Postpone Toast */}
+        {confirmPostponeOpen && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999]">
+            <div className="flex items-center gap-3 rounded-lg border border-orange-300 bg-orange-50 px-4 py-3 shadow-lg">
+              <div className="text-orange-600">
+                <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="text-[13px] text-orange-800">
+                Bạn chắc chắn muốn hoãn form này chứ?
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setConfirmPostponeOpen(false)}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={confirmPostpone}
+                  disabled={pendingPostpone}
+                  className="rounded-md bg-orange-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {pendingPostpone ? "Đang xử lý..." : "Xác nhận hoãn"}
+                </button>
               </div>
             </div>
           </div>
