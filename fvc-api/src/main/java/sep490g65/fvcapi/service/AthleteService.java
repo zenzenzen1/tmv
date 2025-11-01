@@ -17,10 +17,9 @@ import sep490g65.fvcapi.repository.AthleteRepository;
 import sep490g65.fvcapi.repository.WeightClassRepository;
 import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
+import sep490g65.fvcapi.service.CompetitionOrderService;
 
 import java.util.UUID;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,6 +30,7 @@ public class AthleteService {
     private final AthleteRepository athleteRepository;
     private final WeightClassRepository weightClassRepository;
     private final VovinamFistItemRepository fistItemRepository;
+    private final CompetitionOrderService competitionOrderService;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository fistConfigRepository;
     private final MusicIntegratedPerformanceRepository musicRepository;
 
@@ -131,9 +131,9 @@ public class AthleteService {
     }
     
     @Transactional
-    public void arrangeOrder(String tournamentId, String contentId, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
-        log.info("🎲 [Arrange Order] Starting arrangement for tournamentId: {}, contentId: {}, total athletes: {}", 
-                tournamentId, contentId, orders.size());
+    public void arrangeOrder(String competitionId, String competitionType, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
+        log.info("🎲 [Arrange Order] Starting arrangement for competitionId: {}, competitionType: {}, total athletes: {}", 
+                competitionId, competitionType, orders.size());
         
         int successCount = 0;
         int failCount = 0;

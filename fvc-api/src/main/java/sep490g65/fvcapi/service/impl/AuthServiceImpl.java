@@ -2,9 +2,7 @@ package sep490g65.fvcapi.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import sep490g65.fvcapi.dto.request.LoginRequest;
@@ -13,6 +11,8 @@ import sep490g65.fvcapi.entity.User;
 import sep490g65.fvcapi.repository.UserRepository;
 import sep490g65.fvcapi.service.AuthService;
 import sep490g65.fvcapi.utils.JwtUtils;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -25,37 +25,73 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse login(LoginRequest request) {
+        log.info("=== LOGIN START ===");
         log.info("Attempting login for email: {}", request.getEmail());
         
         try {
             // Find user by personal email only
-            User user = userRepository.findByPersonalMailIgnoreCase(request.getEmail().trim())
-                .orElseThrow(() -> new BadCredentialsException("User not found"));
+            log.info("Step 1: Finding user by email: {}", request.getEmail());
+            List<User> users = userRepository.findAllByPersonalMailIgnoreCase(request.getEmail().trim());
+            
+            if (users.isEmpty()) {
+                log.error("User not found for email: {}", request.getEmail());
+                throw new BadCredentialsException("Invalid email or password");
+            }
+            
+            // If there are duplicates, log a warning and use the first one
+            if (users.size() > 1) {
+                log.warn("Multiple users found with email: {}. Using the first one. Total found: {}", request.getEmail(), users.size());
+            }
+            
+            User user = users.get(0);
+            log.info("User found: {}", user.getPersonalMail());
 
             // Log hash visibility and compare with BCrypt
-            log.info("[Auth] Comparing password for email={}, hash_present={}", request.getEmail().trim(), user.getHashPassword() != null);
-            if (!passwordEncoder.matches(request.getPassword(), user.getHashPassword())) {
+            log.info("Step 2: Comparing password for email={}, hash_present={}", request.getEmail().trim(), user.getHashPassword() != null);
+            boolean passwordMatches = passwordEncoder.matches(request.getPassword(), user.getHashPassword());
+            log.info("Password match result: {}", passwordMatches);
+            
+            if (!passwordMatches) {
+                log.error("Password mismatch for user: {}", request.getEmail());
                 throw new BadCredentialsException("Invalid email or password");
             }
 
-            log.info("Login successful for user: {}", request.getEmail());
+            log.info("Step 3: Password verified successfully");
 
-            // Generate token for email
-            String token = jwtUtils.generateTokenFromEmail(user.getPersonalMail());
 
-            return LoginResponse.builder()
+            // Generate token for email (can be used for future JWT integration)
+            jwtUtils.generateTokenFromEmail(user.getPersonalMail());
+
+            log.info("Step 5: Building response");
+            LoginResponse response = LoginResponse.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
                 .personalMail(user.getPersonalMail())
                 .eduMail(user.getEduMail())
                 .studentCode(user.getStudentCode())
+                .gender(user.getGender())
+                .dob(user.getDob())
                 .systemRole(user.getSystemRole())
                 .message("Login successful")
                 .build();
+            
+            log.info("Step 6: Response built successfully");
+            log.info("Response data - name: {}, gender: {}, dob: {}", 
+                response.getFullName(), response.getGender(), response.getDob());
+            log.info("=== LOGIN SUCCESS ===");
+            
+            return response;
 
-        } catch (AuthenticationException e) {
+        } catch (BadCredentialsException e) {
+            log.error("=== LOGIN FAILED - BadCredentials ===");
             log.error("Login failed for email: {} - {}", request.getEmail(), e.getMessage());
-            throw new BadCredentialsException("Invalid email or password");
+            throw e;
+        } catch (Exception e) {
+            log.error("=== LOGIN FAILED - UNEXPECTED ERROR ===");
+            log.error("Unexpected error during login for email: {}", request.getEmail(), e);
+            log.error("Error type: {}, Message: {}", e.getClass().getName(), e.getMessage());
+            throw new RuntimeException("Login failed", e);
         }
     }
+
 }

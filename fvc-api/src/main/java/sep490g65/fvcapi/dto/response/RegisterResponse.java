@@ -6,21 +6,17 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import sep490g65.fvcapi.enums.SystemRole;
 
-import java.time.LocalDate;
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginResponse {
+public class RegisterResponse {
     
     private String id;
     private String fullName;
     private String personalMail;
     private String eduMail;
     private String studentCode;
-    private String gender;
-    private LocalDate dob;
     private SystemRole systemRole;
     private String message;
 }

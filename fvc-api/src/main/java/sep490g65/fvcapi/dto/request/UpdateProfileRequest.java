@@ -1,10 +1,10 @@
-package sep490g65.fvcapi.dto.response;
+package sep490g65.fvcapi.dto.request;
 
+import jakarta.validation.constraints.Email;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import sep490g65.fvcapi.enums.SystemRole;
 
 import java.time.LocalDate;
 
@@ -12,15 +12,19 @@ import java.time.LocalDate;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginResponse {
+public class UpdateProfileRequest {
     
-    private String id;
     private String fullName;
+    
+    @Email(message = "Email should be valid")
     private String personalMail;
+    
+    @Email(message = "Email should be valid")
     private String eduMail;
+    
     private String studentCode;
+    
     private String gender;
-    private LocalDate dob;
-    private SystemRole systemRole;
-    private String message;
+    
+    private String dob; // Frontend sends as string, will be converted to LocalDate in service
 }

@@ -29,8 +29,10 @@ public class ArrangeFistOrderRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class AthleteOrder {
+        @NotBlank(message = "Athlete ID is required")
         private String athleteId;
+        
+        @NotNull(message = "Order is required")
         private Integer orderIndex;
     }
-
 }

@@ -45,6 +45,7 @@ export default function TournamentSidebar({
     brackets: "/manage/brackets",
     memberManagement: "/member-management",
     scoring: "/manage/scoring",
+    users: "/manage/users",
   };
 
   const isControlled =
