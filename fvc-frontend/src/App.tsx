@@ -134,9 +134,12 @@ export default function App() {
         <Route path="fist-content/:id/items" element={<FistItemsPage />} />
         <Route path="music-content" element={<MusicContentListPage />} />
 
-        {/* Arrange */}
-        <Route path="arrange" element={<ArrangeOrderWrapper />} />
-        <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
+        {/* Performance */}
+        <Route path="performance" element={<ArrangeOrderWrapper />} />
+        <Route
+          path="performance/fist-order"
+          element={<ArrangeOrderWrapper />}
+        />
 
         {/* Tournament Forms */}
         <Route path="tournament-forms" element={<TournamentFormList />} />
@@ -162,7 +165,7 @@ export default function App() {
       />
       <Route
         path="/arrange/*"
-        element={<Navigate to="/manage/arrange" replace />}
+        element={<Navigate to="/manage/performance" replace />}
       />
       <Route
         path="/form-list"

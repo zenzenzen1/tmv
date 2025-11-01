@@ -35,7 +35,7 @@ export default function TournamentSidebar({
 
   const keyToPath: Record<string, string> = {
     tournaments: "/manage/tournaments",
-    arrange: "/manage/arrange",
+    arrange: "/manage/performance",
     tournamentForm: "/manage/tournament-forms",
     weightClassPage: "/manage/weight-class",
     athletes: "/manage/athletes",

@@ -30,6 +30,9 @@ type AthleteRow = {
   status: "ĐÃ ĐẤU" | "HOÀN ĐẤU" | "VI PHẠM" | "CHỜ ĐẤU" | "ĐANG ĐẤU" | "-";
   isTeam?: boolean;
   performanceId?: string;
+  fistConfigId?: string | null;
+  fistItemId?: string | null;
+  musicContentId?: string | null;
 };
 
 type AthleteApi = {
@@ -735,6 +738,9 @@ export default function AthleteManagementPage({
                   : "-",
               isTeam,
               performanceId: perfId,
+              fistConfigId: a.fistConfigId,
+              fistItemId: a.fistItemId,
+              musicContentId: a.musicContentId,
             };
           }
         );
@@ -1010,13 +1016,27 @@ export default function AthleteManagementPage({
         title: "Nội dung",
         className: "whitespace-nowrap",
         render: (row: AthleteRow) => {
-          const cat = (row.subCompetitionType || "").trim();
-          const item = (row.detailSubCompetitionType || "").trim();
           if (activeTab === "quyen") {
-            if (item) return `${cat ? `${cat} - ` : ""}${item}`;
-            return cat || "-";
+            // Display configName-itemName format
+            const configName = row.fistConfigId
+              ? fistConfigs.find((c) => c.id === row.fistConfigId)?.name || ""
+              : "";
+            const itemName = row.fistItemId
+              ? fistItems.find((i) => i.id === row.fistItemId)?.name || ""
+              : "";
+            if (configName && itemName) {
+              return `${configName} - ${itemName}`;
+            }
+            return configName || itemName || "-";
           }
-          return item || "-";
+          // For music, show musicContent name
+          if (row.musicContentId) {
+            return (
+              musicContents.find((m) => m.id === row.musicContentId)?.name ||
+              row.musicContentId
+            );
+          }
+          return "-";
         },
         sortable: true,
       });
@@ -1065,7 +1085,14 @@ export default function AthleteManagementPage({
     }
 
     return base;
-  }, [activeTab, teamFilter, openTeamDetail]);
+  }, [
+    activeTab,
+    teamFilter,
+    openTeamDetail,
+    fistConfigs,
+    fistItems,
+    musicContents,
+  ]);
 
   // Load tournaments from database
   useEffect(() => {
