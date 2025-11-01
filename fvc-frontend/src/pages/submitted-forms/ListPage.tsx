@@ -587,15 +587,94 @@ export default function SubmittedFormsPage() {
                 </div>
               </div>
 
-              {/* Form Data */}
+              {/* Form Data - Thông tin người đăng ký */}
               <div>
                 <h4 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                  Dữ liệu form
+                  Thông tin người đăng ký
                 </h4>
-                <div className="rounded-md bg-gray-50 p-4">
-                  <pre className="whitespace-pre-wrap text-xs leading-relaxed text-gray-800">
-{typeof viewingRow.formData === 'string' ? viewingRow.formData : JSON.stringify(viewingRow.formData, null, 2)}
-                  </pre>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {(() => {
+                    // Parse formData
+                    let formDataObj: any = {};
+                    try {
+                      formDataObj = typeof viewingRow.formData === 'string' 
+                        ? JSON.parse(viewingRow.formData) 
+                        : viewingRow.formData;
+                    } catch {
+                      formDataObj = {};
+                    }
+
+                    // Map các trường thông tin người đăng ký
+                    const infoFields: Array<{ key: string; label: string; value: string }> = [];
+                    
+                    // Họ và tên
+                    const fullName = formDataObj.fullName || formDataObj.name || formDataObj.hovaten || formDataObj.hoTen || '';
+                    if (fullName) {
+                      infoFields.push({ key: 'fullName', label: 'Họ và tên', value: fullName });
+                    }
+
+                    // Email
+                    const email = formDataObj.email || formDataObj.mail || '';
+                    if (email) {
+                      infoFields.push({ key: 'email', label: 'Email', value: email });
+                    }
+
+                    // MSSV
+                    const studentCode = formDataObj.studentCode || formDataObj.mssv || formDataObj.msv || '';
+                    if (studentCode) {
+                      infoFields.push({ key: 'studentCode', label: 'MSSV', value: studentCode });
+                    }
+
+                    // Số điện thoại
+                    const phone = formDataObj.phone || formDataObj.sdt || formDataObj.so_dien_thoai || formDataObj.mobile || '';
+                    if (phone) {
+                      infoFields.push({ key: 'phone', label: 'Số điện thoại', value: phone });
+                    }
+
+                    // Mô tả / Lý do
+                    const reason = formDataObj.reason || formDataObj.mo_ta || formDataObj.mota || formDataObj.description || formDataObj.bio || '';
+                    if (reason) {
+                      infoFields.push({ key: 'reason', label: 'Mô tả ngắn về bản thân', value: reason });
+                    }
+
+                    // Các trường khác (loại bỏ null, empty, và các trường đã hiển thị)
+                    const excludedKeys = ['fullName', 'name', 'hovaten', 'hoTen', 'email', 'mail', 
+                                         'studentCode', 'mssv', 'msv', 'phone', 'sdt', 'so_dien_thoai', 'mobile',
+                                         'reason', 'mo_ta', 'mota', 'description', 'bio', 'club'];
+                    
+                    Object.entries(formDataObj).forEach(([key, value]) => {
+                      const lowerKey = key.toLowerCase();
+                      if (!excludedKeys.includes(lowerKey) && 
+                          value !== null && 
+                          value !== undefined && 
+                          value !== '' &&
+                          typeof value === 'string') {
+                        infoFields.push({ 
+                          key, 
+                          label: getFieldDisplayName(key), 
+                          value: String(value) 
+                        });
+                      }
+                    });
+
+                    // Hiển thị các trường
+                    if (infoFields.length === 0) {
+                      return (
+                        <div className="col-span-2 rounded-md bg-gray-50 p-3 text-center text-sm text-gray-500">
+                          Không có thông tin bổ sung
+                        </div>
+                      );
+                    }
+
+                    return infoFields.map((field) => (
+                      <div key={field.key} className="rounded-md bg-gray-50 p-3">
+                        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                          {field.label}
+                        </div>
+                        <div className="mt-1 text-sm text-gray-900">{field.value}</div>
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
             </div>
