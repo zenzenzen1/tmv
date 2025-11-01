@@ -152,6 +152,9 @@ type SubmittedRow = {
   studentCode: string;
   phone: string;
   note: string;
+  formType?: string;
+  formName?: string;
+  applicationFormConfigId?: string;
   stt?: number;
   formData?: any;
   [key: string]: any; // Cho phép các trường động từ form data
@@ -163,7 +166,7 @@ export default function SubmittedFormsPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [page, setPage] = useState<number>(1); // CommonTable is 1-based
-  const [pageSize] = useState<number>(10); // fixed page size
+  const [pageSize, setPageSize] = useState<number>(10);
   const [totalElements, setTotalElements] = useState<number>(0);
   const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
   
@@ -186,7 +189,7 @@ export default function SubmittedFormsPage() {
           size: number;
           totalElements: number;
         }>("/v1/submitted-forms", {
-          // fixed form type: club registration
+          // Only show club registration forms
           type: "CLUB_REGISTRATION",
           page: page - 1,
           size: pageSize,
@@ -226,6 +229,9 @@ export default function SubmittedFormsPage() {
               phone: phoneFromForm,
               note: s.reviewerNote ?? "",
               formData: s.formData,
+              formType: s.formType || "",
+              formName: s.applicationFormConfigName || "", // Form name from backend
+              applicationFormConfigId: s.applicationFormConfigId || "", // Form config ID
               ...formFields, // Spread tất cả các trường form data vào row
             } as SubmittedRow;
           });
@@ -371,6 +377,17 @@ export default function SubmittedFormsPage() {
         sortable: true,
         render: (r) => formatDate(r.submittedAt),
       },
+      { 
+        key: "formName", 
+        title: "Tên form", 
+        sortable: true,
+        render: (r: SubmittedRow) => (
+          <span className="text-sm font-medium">
+            {r.formName || "Không xác định"}
+          </span>
+        ),
+        className: "max-w-xs",
+      },
       { key: "fullName", title: "Họ và tên", sortable: true },
       { key: "email", title: "Email", sortable: true },
       { key: "studentCode", title: "MSSV", sortable: true },
@@ -436,8 +453,8 @@ export default function SubmittedFormsPage() {
 
         {/* Header */}
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Kết quả đăng ký</h2>
-          <p className="text-gray-600">Đăng kí tham gia FPTU Vovinam Club FALL 2025</p>
+          <h2 className="text-2xl font-bold text-gray-900">Kết quả đăng ký câu lạc bộ</h2>
+          <p className="text-gray-600">Tổng hợp các form đăng ký tham gia câu lạc bộ</p>
         </div>
 
         {/* Statistics Cards */}
@@ -538,6 +555,12 @@ export default function SubmittedFormsPage() {
             pageSize={pageSize}
             total={totalElements}
             onPageChange={(p) => setPage(p)}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1); // Reset to first page when changing page size
+            }}
+            showPageSizeSelector={true}
+            pageSizeOptions={[5, 10, 15]}
           />
         )}
 

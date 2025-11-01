@@ -35,6 +35,7 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
                 .reviewerNote(s.getReviewerNote())
                 .userId(s.getUser() != null ? s.getUser().getId() : null)
                 .applicationFormConfigId(s.getApplicationFormConfig() != null ? s.getApplicationFormConfig().getId() : null)
+                .applicationFormConfigName(s.getApplicationFormConfig() != null ? s.getApplicationFormConfig().getName() : null)
                 .userFullName(s.getUser() != null ? s.getUser().getFullName() : null)
                 .userPersonalMail(s.getUser() != null ? s.getUser().getPersonalMail() : null)
                 .userEduMail(s.getUser() != null ? s.getUser().getEduMail() : null)
