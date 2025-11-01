@@ -7,6 +7,7 @@ import { fistContentService } from "../../services/fistContent";
 import type { PaginationResponse } from "../../types/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { CompetitionType } from "./ArrangeOrderWrapper";
+// Merge: Keep HEAD formatting for better readability
 import {
   competitionOrderService,
   type CreateCompetitionOrderRequest,
@@ -32,7 +33,7 @@ type AthleteApi = {
   fullName: string;
   email: string;
   gender: "MALE" | "FEMALE";
-  competitionType: "fighting" | "quyen" | "music";
+  competitionType: CompetitionType;
   subCompetitionType?: string | null;
   detailSubCompetitionType?: string | null;
   studentId?: string | null;
@@ -52,7 +53,6 @@ const STATUS_COLORS = {
 };
 
 const COMPETITION_TYPES = {
-  fighting: "Đối kháng",
   quyen: "Quyền",
   music: "Võ nhạc",
 };
@@ -97,17 +97,18 @@ export default function ArrangeOrderPage({
   const [tournaments, setTournaments] = useState<
     Array<{ id: string; name: string }>
   >([]);
+  const [isArranging, setIsArranging] = useState(false);
 
   // API data for dynamic filters
-  const [weightClasses, setWeightClasses] = useState<
-    Array<{
-      id: string;
-      weightClass: string;
-      gender: string;
-      minWeight: number;
-      maxWeight: number;
-    }>
-  >([]);
+  // const [weightClasses, setWeightClasses] = useState<
+  //   Array<{
+  //     id: string;
+  //     weightClass: string;
+  //     gender: string;
+  //     minWeight: number;
+  //     maxWeight: number;
+  //   }>
+  // >([]);
   // Derived categories no longer needed for fixed buttons UI
   // Keeping state removed to avoid unused warnings
   // Fist content data for quyen filtering
@@ -217,8 +218,8 @@ export default function ArrangeOrderPage({
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "")
             .toLowerCase();
-        const normalizeWeight = (s: string) =>
-          (s || "").replace(/[^0-9]+/g, "");
+        // const normalizeWeight = (s: string) =>
+        //   (s || "").replace(/[^0-9]+/g, "");
         const filteredRaw: AthleteApi[] = content.filter((a: AthleteApi) => {
           const okName = debouncedName
             ? (a.fullName || "")
@@ -240,14 +241,7 @@ export default function ArrangeOrderPage({
           const rawSub = a.subCompetitionType || "";
           const rawDetail = a.detailSubCompetitionType || "";
           let okSubDetail = true;
-          if (activeTab === "fighting") {
-            if (subCompetitionFilter) {
-              const want = normalizeWeight(subCompetitionFilter);
-              okSubDetail =
-                normalizeWeight(rawDetail) === want ||
-                normalizeWeight(rawSub) === want;
-            }
-          } else if (activeTab === "music") {
+          if (activeTab === "music") {
             // Match by selected content name in detail
             const okDetail = subCompetitionFilter
               ? strip(rawDetail) === strip(subCompetitionFilter)
@@ -275,9 +269,7 @@ export default function ArrangeOrderPage({
             email: a.email,
             gender: a.gender === "FEMALE" ? "Nữ" : "Nam",
             competitionType:
-              a.competitionType === "fighting"
-                ? "Đối kháng"
-                : a.competitionType === "quyen"
+              a.competitionType === "quyen"
                 ? "Quyền"
                 : a.competitionType === "music"
                 ? "Võ nhạc"
@@ -393,7 +385,6 @@ export default function ArrangeOrderPage({
       //         sortable: true,
       //       } as TableColumn<AthleteRow>,
       //     ]
-      //   :
       ...[
         {
           key: "detailSubCompetitionType",
@@ -454,17 +445,17 @@ export default function ArrangeOrderPage({
     const loadFilterData = async () => {
       try {
         // Load weight classes
-        const weightClassesRes = await api.get<{
-          content: Array<{
-            id: string;
-            weightClass: string;
-            gender: string;
-            minWeight: number;
-            maxWeight: number;
-          }>;
-          totalElements: number;
-        }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
-        setWeightClasses(weightClassesRes.data?.content || []);
+        // const weightClassesRes = await api.get<{
+        //   content: Array<{
+        //     id: string;
+        //     weightClass: string;
+        //     gender: string;
+        //     minWeight: number;
+        //     maxWeight: number;
+        //   }>;
+        //   totalElements: number;
+        // }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
+        // setWeightClasses(weightClassesRes.data?.content || []);
 
         // Load fist configs (Đa luyện, Đơn luyện)
         const fistConfigsRes = await fistContentService.list({ size: 100 });
@@ -589,6 +580,7 @@ export default function ArrangeOrderPage({
         // In a more sophisticated implementation, you might want to create separate orders for each athlete
         const firstAthlete = athletes[0];
 
+        // Merge: Keep HEAD implementation - use fistItems for quyen competitions
         // Find the content selection ID if it's a quyền competition
         let contentSelectionId: string | undefined;
         if (
@@ -794,58 +786,6 @@ export default function ArrangeOrderPage({
             </div>
 
             {/* Dynamic Competition Filter */}
-            {activeTab === "fighting" && (
-              <div className="relative filter-dropdown">
-                <button
-                  onClick={() =>
-                    setShowCompetitionFilter(!showCompetitionFilter)
-                  }
-                  className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  Hạng cân
-                </button>
-                {showCompetitionFilter && (
-                  <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-300 rounded shadow-lg z-20">
-                    <div className="p-2 space-y-1">
-                      <label className="flex items-center cursor-pointer">
-                        <input
-                          type="radio"
-                          name="subCompetitionFilter"
-                          className="mr-2 h-3 w-3 text-blue-600"
-                          checked={subCompetitionFilter === ""}
-                          onChange={() => setSubCompetitionFilter("")}
-                        />
-                        <span className="text-sm text-gray-700">Tất cả</span>
-                      </label>
-                      {weightClasses.map((wc) => {
-                        const weightDisplay =
-                          wc.weightClass || `${wc.minWeight}-${wc.maxWeight}kg`;
-                        return (
-                          <label
-                            key={wc.id}
-                            className="flex items-center cursor-pointer"
-                          >
-                            <input
-                              type="radio"
-                              name="subCompetitionFilter"
-                              className="mr-2 h-3 w-3 text-blue-600"
-                              checked={subCompetitionFilter === weightDisplay}
-                              onChange={() =>
-                                setSubCompetitionFilter(weightDisplay)
-                              }
-                            />
-                            <span className="text-sm text-gray-700">
-                              {weightDisplay}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {activeTab === "quyen" && (
               <div className="flex items-center flex-wrap gap-2">
                 {fistConfigs.map((config) => (
@@ -981,7 +921,7 @@ export default function ArrangeOrderPage({
                 : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
-            Sắp xếp
+            {isArranging ? "Đang sắp xếp..." : "Sắp xếp"}
           </button>
           <button
             onClick={handleExportExcel}

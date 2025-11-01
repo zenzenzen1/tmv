@@ -19,17 +19,20 @@ export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
 export interface User {
   id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
   fullName?: string;
   personalMail?: string;
   eduMail?: string;
   studentCode?: string;
-  role: UserRole;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  gender?: string;
+  dob?: string;
+  role?: UserRole;
+  systemRole?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ==========================
@@ -75,6 +78,39 @@ export interface FvcUserResponse {
   eduMail?: string | null;
   studentCode?: string | null;
   systemRole: string;
+}
+
+// ==========================
+// ✅ Profile types
+// ==========================
+export interface ProfileResponse {
+  id: string;
+  fullName: string;
+  personalMail: string;
+  eduMail?: string;
+  studentCode?: string;
+  gender?: string;
+  dob?: string;
+  systemRole: string;
+  status: boolean;
+  isInChallenge: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateProfileRequest {
+  fullName?: string;
+  personalMail?: string;
+  eduMail?: string;
+  studentCode?: string;
+  gender?: string;
+  dob?: string; // Frontend sends as string, backend converts to LocalDate
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
 }
 
 // Generic types

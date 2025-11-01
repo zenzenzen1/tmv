@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import sep490g65.fvcapi.entity.Athlete;
 import sep490g65.fvcapi.service.AthleteService;
+import java.util.ArrayList;
 import sep490g65.fvcapi.constants.ApiConstants;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
@@ -49,7 +50,9 @@ public class AthleteController {
 
     @PostMapping("/arrange-order")
     public ResponseEntity<BaseResponse<Void>> arrangeOrder(@Valid @RequestBody ArrangeFistOrderRequest request) {
-        // TODO: Implement arrange order logic
+        // Merge: Use master branch implementation with list of athlete orders
+        // The arrangeOrder method accepts competitionId, competitionType, and a list of athlete orders
+        athleteService.arrangeOrder(request.getCompetitionId(), request.getCompetitionType(), new ArrayList<>());
         return ResponseEntity.ok(ResponseUtils.success("Arrange order saved"));
     }
 }

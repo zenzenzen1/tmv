@@ -4,7 +4,6 @@ export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: "/v1/auth/login",
     ME: "/v1/auth/me",
-    REGISTER: "/v1/auth/register",
     REFRESH: "/v1/auth/refresh",
     LOGOUT: "/v1/auth/logout",
     FORGOT_PASSWORD: "/v1/auth/forgot-password",
@@ -12,9 +11,17 @@ export const API_ENDPOINTS = {
     VERIFY_EMAIL: "/v1/auth/verify-email",
   },
 
+  // Profile management
+  PROFILE: {
+    GET: "/v1/profile",
+    UPDATE: "/v1/profile",
+    CHANGE_PASSWORD: "/v1/profile/change-password"
+  },
   // User management
   USERS: {
     BASE: "/v1/users",
+    CREATE: "/v1/users/create",
+    SEARCH: "/v1/users/search",
     PROFILE: "/v1/users/profile",
     UPDATE_PROFILE: "/v1/users/profile",
     CHANGE_PASSWORD: "/v1/users/change-password",
@@ -93,10 +100,14 @@ export const API_ENDPOINTS = {
     ARRANGE_ORDER: "/v1/athletes/arrange-order",
   },
 
-  // Club Members
-  CLUB_MEMBERS: {
-    BASE: "/v1/clubs/members",
-    BY_ID: (id: string) => `/v1/clubs/members/${id}`,
+  // Competition Orders
+  COMPETITION_ORDERS: {
+    BASE: "/v1/competition-orders",
+    BY_ID: (id: string) => `/v1/competition-orders/${id}`,
+    BY_COMPETITION: (competitionId: string) => `/v1/competition-orders/competition/${competitionId}`,
+    BY_COMPETITION_AND_CONTENT: (competitionId: string, contentSelectionId: string) => 
+      `/v1/competition-orders/competition/${competitionId}/content/${contentSelectionId}`,
+    BULK: "/v1/competition-orders/bulk",
   },
 
   // Club Members

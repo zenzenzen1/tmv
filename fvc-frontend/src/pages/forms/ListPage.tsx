@@ -1,193 +1,317 @@
-import { useState, useEffect } from "react";
+// Merge: Add CommonTable from master for table rendering
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import apiService from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import { useToast } from "../../components/common/ToastContext";
+import {
+  CommonTable,
+  type TableColumn,
+} from "../../components/common/CommonTable";
 
-type FormConfig = {
+type FormRow = {
   id: string;
   name: string;
   description: string;
   formType: string;
+  fieldCount: number;
   createdAt: string;
   updatedAt: string;
-  fieldCount: number;
+  status: "DRAFT" | "PUBLISH" | "ARCHIVED" | "POSTPONE";
 };
 
 export default function FormListPage() {
   const navigate = useNavigate();
-  const { error: toastError } = useToast();
-  const [forms, setForms] = useState<FormConfig[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [rows, setRows] = useState<FormRow[]>([]);
+  const [total, setTotal] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [searchText, setSearchText] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<
+    "ALL" | "DRAFT" | "PUBLISH" | "ARCHIVED" | "POSTPONE"
+  >("ALL");
 
-  useEffect(() => {
-    loadForms();
-  }, []);
-
-  const loadForms = async () => {
+  // Merge: Combine HEAD's CLUB_REGISTRATION filtering with master's search/status filtering and pagination
+  const loadForms = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
-
       const response = await apiService.get<any>(
         API_ENDPOINTS.APPLICATION_FORMS.BASE
       );
 
       if (response.success && response.data) {
-        const formsData: FormConfig[] = response.data
-          .filter((form: any) => form.formType === "CLUB_REGISTRATION") // Only show CLUB forms
-          .map((form: any) => ({
-            id: form.id,
-            name: form.name,
-            description: form.description,
-            formType: form.formType,
-            createdAt: form.createdAt,
-            updatedAt: form.updatedAt,
-            fieldCount: form.fields?.length || 0,
-          }));
+        // Filter for CLUB_REGISTRATION forms (from HEAD)
+        const clubForms = response.data.filter(
+          (form: any) => form.formType === "CLUB_REGISTRATION"
+        );
 
-        setForms(formsData);
+        // Map to FormRow (from master)
+        const allForms: FormRow[] = clubForms.map((form: any) => ({
+          id: form.id,
+          name: form.name,
+          description: form.description || "",
+          formType: form.formType || "CLUB_REGISTRATION",
+          fieldCount: form.fields?.length || 0,
+          createdAt: form.createdAt || "",
+          updatedAt: form.updatedAt || "",
+          status: (form.status as FormRow["status"]) || "DRAFT",
+        }));
+
+        // Client-side filtering (from master)
+        const filtered = allForms.filter((row) => {
+          const matchesText = searchText
+            ? (row.name + " " + row.description)
+                .toLowerCase()
+                .includes(searchText.toLowerCase())
+            : true;
+          const matchesStatus =
+            statusFilter === "ALL" ? true : row.status === statusFilter;
+          return matchesText && matchesStatus;
+        });
+
+        setTotal(filtered.length);
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        setRows(filtered.slice(start, end));
       } else {
-        setError(response.message || "Failed to fetch forms");
-        toastError(response.message || "Tải danh sách form thất bại");
+        setRows([]);
+        setTotal(0);
       }
     } catch (err: any) {
-      setError(err?.message || "Lỗi khi tải danh sách form");
-      toastError(err?.message || "Tải danh sách form thất bại");
+      console.error("Error loading forms:", err);
+      toast.error(err?.message || "Tải danh sách form thất bại");
+      setRows([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchText, statusFilter, page, pageSize, toast]);
 
-  const handleEditForm = (formId: string) => {
-    navigate(`/manage/forms/${formId}/edit`);
-  };
+  const handleEditForm = useCallback(
+    (formId: string) => {
+      navigate(`/manage/forms/${formId}/edit`);
+    },
+    [navigate]
+  );
 
-  const handleViewForm = (formId: string) => {
-    navigate(`/manage/forms/${formId}/view`);
-  };
+  const handleViewForm = useCallback(
+    (formId: string) => {
+      navigate(`/manage/forms/${formId}/view`);
+    },
+    [navigate]
+  );
 
-  const handleCreateNew = () => {
-    navigate("/manage/forms/new");
-  };
+  const columns: Array<TableColumn<FormRow>> = useMemo(
+    () => [
+      {
+        key: "name",
+        title: "Tên Form",
+        className: "text-[15px] w-64",
+      },
+      {
+        key: "description",
+        title: "Mô tả",
+        className: "text-[15px] w-96",
+      },
+      {
+        key: "formType",
+        title: "Loại Form",
+        className: "text-[15px] w-40",
+        render: (r: FormRow) => (
+          <span className="text-sm">
+            {r.formType === "CLUB_REGISTRATION"
+              ? "Đăng ký câu lạc bộ"
+              : "Đăng ký giải đấu"}
+          </span>
+        ),
+      },
+      {
+        key: "fieldCount",
+        title: "Số câu hỏi",
+        className: "text-[15px] w-24 text-center",
+        render: (r: FormRow) => <span className="text-sm">{r.fieldCount}</span>,
+      },
+      {
+        key: "createdAt",
+        title: "Ngày tạo",
+        className: "text-[15px] w-36",
+        render: (r: FormRow) => (
+          <span className="text-sm">
+            {new Date(r.createdAt).toLocaleDateString("vi-VN")}
+          </span>
+        ),
+      },
+      {
+        key: "status",
+        title: "Trạng thái",
+        className: "text-[15px] w-40",
+        render: (r: FormRow) => {
+          const getStatusBadge = (status: string) => {
+            const statusMap = {
+              DRAFT: {
+                label: "Draft",
+                className: "bg-amber-50 text-amber-700 border-amber-200",
+              },
+              PUBLISH: {
+                label: "Đã công khai",
+                className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+              },
+              ARCHIVED: {
+                label: "Lưu trữ",
+                className: "bg-rose-50 text-rose-600 border-rose-200",
+              },
+              POSTPONE: {
+                label: "Hoãn",
+                className: "bg-gray-100 text-gray-700 border-gray-300",
+              },
+            };
+            const statusInfo = statusMap[status as keyof typeof statusMap] || {
+              label: status,
+              className: "bg-gray-100 text-gray-700 border-gray-300",
+            };
+            return (
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusInfo.className}`}
+              >
+                {statusInfo.label}
+              </span>
+            );
+          };
+          return (
+            <div className="flex items-center gap-2">
+              {getStatusBadge(r.status)}
+            </div>
+          );
+        },
+        sortable: false,
+      },
+      {
+        key: "actions",
+        title: "Thao tác",
+        className: "text-[15px] whitespace-nowrap w-52",
+        render: (r: FormRow) => (
+          <div className="flex items-center gap-2">
+            {r.status === "PUBLISH" && (
+              <button
+                onClick={async () => {
+                  try {
+                    // Get public link from API
+                    const response = await apiService.get<any>(
+                      `${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${r.id}`
+                    );
+                    if (response.success && response.data?.publicLink) {
+                      const fullUrl = `${window.location.origin}${response.data.publicLink}`;
+                      await navigator.clipboard.writeText(fullUrl);
+                      toast.success("Đã copy link công khai!");
+                    } else {
+                      toast.error("Form chưa có link công khai");
+                    }
+                  } catch (e) {
+                    console.error("Failed to get public link", e);
+                    toast.error("Không thể lấy link công khai");
+                  }
+                }}
+                className="rounded-md bg-emerald-500 px-3 py-1 text-xs text-white hover:bg-emerald-600"
+                title="Copy link công khai"
+              >
+                📋 Link
+              </button>
+            )}
+            <button
+              onClick={() => handleViewForm(r.id)}
+              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
+            >
+              Xem
+            </button>
+            <button
+              onClick={() => handleEditForm(r.id)}
+              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
+            >
+              Sửa
+            </button>
+          </div>
+        ),
+        sortable: false,
+      },
+    ],
+    [toast, handleEditForm, handleViewForm]
+  );
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("vi-VN");
-  };
+  useEffect(() => {
+    loadForms();
+  }, [page, pageSize, searchText, statusFilter, loadForms]);
 
   return (
-    <div className="flex justify-center">
-      <div className="w-full max-w-5xl space-y-4">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate(-1)}
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-            >
-              ⟵ Quay lại
-            </button>
-            <h1 className="text-[15px] font-semibold text-gray-900">
-              Quản lý Form
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCreateNew}
-              className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3]"
-            >
-              + Tạo Form Mới
-            </button>
-          </div>
-        </div>
-
-        {/* Card */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          {loading && (
-            <div className="text-center py-8 text-gray-600">
-              Đang tải danh sách form...
-            </div>
-          )}
-
-          {error && (
-            <div className="text-red-600 text-center py-8">{error}</div>
-          )}
-
-          {!loading && !error && (
-            <>
-              <div className="mb-4">
-                <div className="text-sm text-gray-600">
-                  <span className="font-semibold">{forms.length}</span> form đã
-                  tạo
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {forms.map((form) => (
-                  <div
-                    key={form.id}
-                    className="rounded-lg border border-gray-200 bg-white p-4 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => handleEditForm(form.id)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-[14px] font-semibold text-gray-900">
-                            {form.name}
-                          </h3>
-                          <span className="rounded-md border px-2 py-1 text-[11px] font-semibold text-gray-600">
-                            {form.formType === "CLUB_REGISTRATION"
-                              ? "Đăng ký câu lạc bộ"
-                              : "Đăng ký giải đấu"}
-                          </span>
-                        </div>
-                        <p className="text-[13px] text-gray-600 mb-2">
-                          {form.description}
-                        </p>
-                        <div className="flex items-center gap-4 text-[12px] text-gray-500">
-                          <span>{form.fieldCount} câu hỏi</span>
-                          <span>Tạo: {formatDate(form.createdAt)}</span>
-                          <span>Cập nhật: {formatDate(form.updatedAt)}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewForm(form.id);
-                          }}
-                          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[12px] font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                        >
-                          Xem trước
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditForm(form.id);
-                          }}
-                          className="rounded-md bg-[#2563eb] px-3 py-2 text-[12px] font-medium text-white shadow-sm hover:bg-[#1f4ec3]"
-                        >
-                          Chỉnh sửa
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {forms.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <div className="text-[14px] mb-2">Chưa có form nào</div>
-                    <div className="text-[12px]">
-                      Nhấn "Tạo Form Mới" để bắt đầu
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+    <div className="px-6 pb-10 w-full">
+      <div className="flex items-center justify-between py-4">
+        <h1 className="text-[15px] font-semibold text-gray-800">
+          Quản lý Form
+        </h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate("/manage/forms/new")}
+            className="rounded-md bg-[#377CFB] px-3 py-2 text-white text-sm shadow hover:bg-[#2f6ae0]"
+          >
+            + Tạo form mới
+          </button>
         </div>
       </div>
+
+      {loading && (
+        <div className="text-center py-8 text-gray-600">
+          Đang tải danh sách form...
+        </div>
+      )}
+
+      {!loading && (
+        <>
+          <div className="mb-4 flex items-center gap-2">
+            <input
+              value={searchText}
+              onChange={(e) => {
+                setPage(1);
+                setSearchText(e.target.value);
+              }}
+              placeholder="Tìm tên form / mô tả..."
+              className="w-80 rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setPage(1);
+                setStatusFilter(e.target.value as any);
+              }}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="PUBLISH">Đã công khai</option>
+              <option value="ARCHIVED">Lưu trữ</option>
+              <option value="POSTPONE">Hoãn</option>
+              <option value="DRAFT">Draft</option>
+            </select>
+          </div>
+
+          <CommonTable<FormRow>
+            columns={columns}
+            data={rows}
+            keyField="id"
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              // Reset to first page and update page size
+              // This will trigger useEffect to reload data
+              setPage(1);
+              setPageSize(size);
+            }}
+            showPageSizeSelector={true}
+            pageSizeOptions={[5, 10, 15, 20]}
+          />
+        </>
+      )}
     </div>
   );
 }

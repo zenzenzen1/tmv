@@ -27,7 +27,6 @@ type FormMeta = {
 export default function PublishedForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const toast = useToast();
   const [meta, setMeta] = useState<FormMeta | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -289,6 +288,7 @@ export default function PublishedForm() {
     }
     setParticipantsPerEntry(required);
 
+    // Merge: Keep HEAD implementation - use fieldErrors state for validation
     // Keep teamMembers length = max(required - 1, 0). We already have one main registrant in standard fields
     const extras = required && required > 1 ? required - 1 : 0;
     setTeamMembers((prev) => {
@@ -302,9 +302,18 @@ export default function PublishedForm() {
       }
       return next;
     });
-  }, [competitionType, fistConfigId, musicContentId, fistItems, musicContents]);
+  }, [
+    competitionType,
+    fistConfigId,
+    musicContentId,
+    fistItems,
+    fistConfigs,
+    musicContents,
+    quyenCategory,
+    quyenContent,
+  ]);
 
-  // Field validations
+  // Field validations - Merge: HEAD uses fieldErrors state instead of individual validation memoized values
 
   const parseOptions = (opts?: string): string[] => {
     if (!opts) return [];
@@ -322,7 +331,7 @@ export default function PublishedForm() {
       submittedAtClient: new Date().toISOString(), // Add client timestamp
     };
 
-    // Add competition-specific data
+    // Merge: Keep HEAD implementation - add competition-specific data
     if (competitionType === "fighting") {
       formData.weightClass = weightClass;
       formData.weightClassId = weightClassId;
@@ -458,7 +467,7 @@ export default function PublishedForm() {
 
     try {
       const formDataJson = buildFormDataJson();
-
+      // Merge: Keep HEAD implementation for submission payload construction
       const submissionData = {
         fullName: dynamicValues.fullName || "",
         email: dynamicValues.email || "",
@@ -485,11 +494,41 @@ export default function PublishedForm() {
         API_ENDPOINTS.TOURNAMENT_FORMS.SUBMISSIONS(id as string),
         submissionData
       );
-
+      // Merge: Use toast notification from HEAD, keep success message
       show("Đăng ký thành công!", "success");
+      window.dispatchEvent(new Event("forms:changed"));
       navigate("/");
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Submission error:", error);
+      // Merge: Keep HEAD's toast notification, but add master's specific error handling for duplicate email/MSSV
+      const err = error as {
+        response?: { status?: number; data?: { message?: string } };
+        message?: string;
+      };
+      const status = err?.response?.status;
+      const serverMsg = (err?.response?.data as { message?: string })?.message;
+      if (
+        status === 409 ||
+        (typeof serverMsg === "string" &&
+          serverMsg.toLowerCase().includes("email"))
+      ) {
+        show(
+          "Email này đã đăng ký cho form này. Mỗi email chỉ được đăng ký một lần.",
+          "error"
+        );
+        return;
+      }
+      if (
+        status === 409 ||
+        (typeof serverMsg === "string" &&
+          serverMsg.toLowerCase().includes("mssv"))
+      ) {
+        show(
+          "MSSV này đã được đăng ký cho form này. Mỗi MSSV chỉ được đăng ký một lần.",
+          "error"
+        );
+        return;
+      }
       show("Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", "error");
     }
   };
@@ -542,6 +581,7 @@ export default function PublishedForm() {
     );
   }
 
+  // Merge: Keep HEAD implementation - dynamic field rendering is more flexible
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">

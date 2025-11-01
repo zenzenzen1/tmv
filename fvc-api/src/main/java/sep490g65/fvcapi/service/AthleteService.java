@@ -6,14 +6,21 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaContext;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
+import sep490g65.fvcapi.dto.request.CreateCompetitionOrderRequest;
 import sep490g65.fvcapi.entity.Athlete;
+import sep490g65.fvcapi.entity.CompetitionOrder;
 import sep490g65.fvcapi.repository.AthleteRepository;
 import sep490g65.fvcapi.repository.WeightClassRepository;
 import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
+import sep490g65.fvcapi.service.CompetitionOrderService;
 
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -22,6 +29,7 @@ public class AthleteService {
     private final AthleteRepository athleteRepository;
     private final WeightClassRepository weightClassRepository;
     private final VovinamFistItemRepository fistItemRepository;
+    private final CompetitionOrderService competitionOrderService;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository fistConfigRepository;
     private final MusicIntegratedPerformanceRepository musicRepository;
 
@@ -55,8 +63,7 @@ public class AthleteService {
             String name,
             Athlete.Gender gender,
             Athlete.AthleteStatus status,
-            Pageable pageable
-    ) {
+            Pageable pageable) {
         Specification<Athlete> spec = Specification.where(null);
         if (tournamentId != null && !tournamentId.isBlank()) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("tournamentId"), tournamentId));
@@ -122,10 +129,37 @@ public class AthleteService {
         return null;
     }
     
+    /**
+     * Arranges competition order for athletes in a competition.
+     * Merge: Master branch implementation creates CompetitionOrder entities for athletes.
+     * 
+     * @param competitionId The competition ID
+     * @param competitionType The competition type as string (will be converted to enum)
+     * @param orders List of athlete orders (currently unused but reserved for future use)
+     */
     @Transactional
-    public void arrangeOrder(String competitionId, Athlete.CompetitionType competitionType) {
-        // TODO: Implement arrange order logic
+    public void arrangeOrder(String competitionId, String competitionType, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
+        // For now, ignore contentId and set order for provided athletes
+        List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(
+            Athlete.CompetitionType.valueOf(competitionType), competitionId);
+        Collections.shuffle(athletes);
+        for (int i = 0; i < athletes.size(); i++) {
+            // CompetitionOrder
+            CompetitionOrder competitionOrder = competitionOrderService.create(CreateCompetitionOrderRequest.builder()
+                    .orderIndex(i + 1)
+                    .competitionId(competitionId)
+                    .contentSelectionId(null)
+                    .build());
+            var athlete = athletes.get(i);
+            athlete.setCompetitionOrderObject(competitionOrder);
+            athleteRepository.save(athlete);
+        }
+        // Legacy code commented out for reference:
+        // int order = 1;
+        // for (Athlete athlete : athletes) {
+        //     athlete.setCompetitionOrder(order);
+        //     athleteRepository.save(athlete);
+        //     order++;
+        // }
     }
 }
-
-

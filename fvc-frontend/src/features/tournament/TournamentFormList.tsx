@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
@@ -157,6 +157,121 @@ export default function TournamentFormList() {
       setLoading(false);
     }
   }, [currentPage, pageSize, toastError]);
+
+  // Merge: Keep HEAD's loadForms function, add master's columns definition
+  const columns: Array<TableColumn<FormRow>> = useMemo(
+    () => [
+      {
+        key: "tournament",
+        title: "Giải đấu",
+        className: "text-[15px] w-64",
+      },
+      {
+        key: "formTitle",
+        title: "Tiêu đề Form",
+        className: "text-[15px] w-96",
+      },
+      {
+        key: "participants",
+        title: "Số người tham gia",
+        className: "text-[15px] w-24 text-center",
+      },
+      {
+        key: "createdAt",
+        title: "Ngày tạo",
+        className: "text-[15px] w-36",
+      },
+      {
+        key: "status",
+        title: "Trạng thái",
+        className: "text-[15px] w-40",
+        render: (r: FormRow) => (
+          <div className="flex items-center gap-2">
+            <select
+              className={`rounded-md px-2 py-1 text-xs border ${
+                r.status === "publish"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : r.status === "archived"
+                  ? "bg-rose-50 text-rose-600 border-rose-200"
+                  : r.status === "postpone"
+                  ? "bg-gray-100 text-gray-700 border-gray-300"
+                  : "bg-amber-50 text-amber-700 border-amber-200"
+              }`}
+              value={r.status}
+              onChange={async (e) => {
+                const val = e.target.value as FormRow["status"];
+                const map: Record<FormRow["status"], string> = {
+                  draft: "DRAFT",
+                  publish: "PUBLISH",
+                  archived: "ARCHIVED",
+                  postpone: "POSTPONE",
+                };
+                try {
+                  // optimistic update
+                  setRows((prev) =>
+                    prev.map((row) =>
+                      row.id === r.id ? { ...row, status: val } : row
+                    )
+                  );
+                  await api.patch<void>(
+                    `${API_ENDPOINTS.TOURNAMENT_FORMS.BASE}/${r.id}/status`,
+                    { status: map[val] }
+                  );
+                  // Notify Home to refresh published list
+                  window.dispatchEvent(new Event("forms:changed"));
+                  // hard refresh to reflect backend truth
+                  setPage((p) => p);
+                  toast.success("Cập nhật trạng thái thành công");
+                } catch (err) {
+                  console.error("Failed to update status", err);
+                  // rollback optimistic update on failure
+                  setRows((prev) =>
+                    prev.map((row) =>
+                      row.id === r.id ? { ...row, status: r.status } : row
+                    )
+                  );
+                  toast.error("Cập nhật trạng thái thất bại");
+                }
+              }}
+            >
+              <option value="draft">Draff</option>
+              <option value="publish">Đã công khai</option>
+              <option value="archived">Lưu trữ</option>
+              <option value="postpone">Hoãn</option>
+            </select>
+          </div>
+        ),
+        sortable: false,
+      },
+      {
+        key: "actions",
+        title: "Thao tác",
+        className: "text-[15px] whitespace-nowrap w-40",
+        render: (r: FormRow) => (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                navigate(`/results/${r.id}`, {
+                  state: { tournamentName: r.tournament },
+                })
+              }
+              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
+            >
+              Xem kết quả
+            </button>
+            <button
+              onClick={() => navigate(`/form-builder/${r.id}`)}
+              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
+            >
+              Sửa
+            </button>
+          </div>
+        ),
+        sortable: false,
+      },
+    ],
+    [navigate]
+  );
 
   useEffect(() => {
     (async () => {
@@ -445,6 +560,7 @@ export default function TournamentFormList() {
           )}
         </div>
       </div>
+      {/* Merge: Keep HEAD's custom card-based UI with pagination - master's CommonTable approach can be added later if needed */}
     </div>
   );
 }

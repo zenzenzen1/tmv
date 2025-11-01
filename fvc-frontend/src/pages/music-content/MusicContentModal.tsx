@@ -17,6 +17,11 @@ import {
   Stack,
 } from "@mui/material";
 import { useToast } from "../../components/common/ToastContext";
+import {
+  validateLength,
+  validateRequired,
+  validateNameSpecialChars,
+} from "../../utils/validation";
 
 const NAME_MIN = 1;
 const NAME_MAX = 120;
@@ -62,36 +67,56 @@ export default function MusicContentModal() {
     if (storeError) setError(storeError);
   }, [storeError]);
 
-  // Validate logic
-  const nameError = useMemo(() => {
-    const trimmed = name.trim();
-    if (trimmed.length < NAME_MIN) return "Vui lòng nhập nội dung võ nhạc!";
-    if (trimmed.length > NAME_MAX)
-      return `Tên quá dài (tối đa ${NAME_MAX} ký tự).`;
-    return null;
-  }, [name]);
+  // Validation logic
+  const nameValidation = useMemo(() => {
+    const requiredValidation = validateRequired(name, "Nội dung Võ nhạc");
+    if (!requiredValidation.isValid) return requiredValidation;
+    const lengthValidation = validateLength(name, {
+      min: NAME_MIN,
+      max: NAME_MAX,
+      fieldName: "Nội dung Võ nhạc",
+    });
+    if (!lengthValidation.isValid) return lengthValidation;
 
-  const descError = useMemo(() => {
-    if (description && description.length > DESC_MAX) {
-      return `Ghi chú quá dài (tối đa ${DESC_MAX} ký tự).`;
+    const specialCharsValidation = validateNameSpecialChars(
+      name,
+      "Nội dung Võ nhạc"
+    );
+    if (!specialCharsValidation.isValid) return specialCharsValidation;
+
+    // Note: Duplicate checking would require access to musicContents from store
+    // For now, we'll skip duplicate checking to avoid store dependency issues
+
+    return { isValid: true };
+  }, [name, editing]);
+
+  const descriptionValidation = useMemo(() => {
+    if (!description || description.trim() === "") {
+      return { isValid: true }; // Description is optional
     }
-    return null;
+    return validateLength(description, { max: DESC_MAX, fieldName: "Ghi chú" });
   }, [description]);
 
-  const firstError = useMemo(
-    () => nameError || descError || null,
-    [nameError, descError]
-  );
+  const isFormValid = useMemo(() => {
+    return nameValidation.isValid && descriptionValidation.isValid;
+  }, [nameValidation.isValid, descriptionValidation.isValid]);
+
+  const getValidationError = () => {
+    if (!nameValidation.isValid) return nameValidation.errorMessage;
+    if (!descriptionValidation.isValid)
+      return descriptionValidation.errorMessage;
+    return null;
+  };
 
   if (!modalOpen) return null;
 
-  const handleResultOk = (msg: string) => {
+  const handleResultOk = () => {
     setError(null);
   };
 
   const handleResultErr = (e?: unknown) => {
     // lỗi chi tiết đã được store set vào storeError -> effect ở trên sẽ hiển thị
-    if (!storeError && !firstError) {
+    if (!storeError && !getValidationError()) {
       setError("Có lỗi xảy ra. Vui lòng thử lại.");
     }
     console.error(e);
@@ -99,8 +124,8 @@ export default function MusicContentModal() {
 
   const onSaveDraft = async () => {
     // cho phép lưu nháp ngay cả khi isActive = false; nhưng vẫn cần name hợp lệ
-    if (firstError) {
-      setError(firstError);
+    if (!isFormValid) {
+      setError(getValidationError() || "Vui lòng kiểm tra lại thông tin");
       return;
     }
     setSaving(true);
@@ -123,7 +148,7 @@ export default function MusicContentModal() {
         await update(editing.id, payload as MusicContentUpdateRequest);
       else await create(payload as MusicContentCreateRequest);
 
-      handleResultOk("Đã lưu nháp thành công!");
+      handleResultOk();
       success("Đã lưu nháp nội dung");
     } catch (e) {
       handleResultErr(e);
@@ -135,8 +160,8 @@ export default function MusicContentModal() {
 
   const onSave = async () => {
     // Publish: bắt buộc name hợp lệ; isActive sẽ true
-    if (firstError) {
-      setError(firstError);
+    if (!isFormValid) {
+      setError(getValidationError() || "Vui lòng kiểm tra lại thông tin");
       return;
     }
     setSaving(true);
@@ -152,9 +177,7 @@ export default function MusicContentModal() {
         await update(editing.id, payload as MusicContentUpdateRequest);
       else await create(payload as MusicContentCreateRequest);
 
-      handleResultOk(
-        editing ? "Đã cập nhật thành công!" : "Đã tạo thành công!"
-      );
+      handleResultOk();
       success(editing ? "Đã cập nhật nội dung" : "Đã tạo nội dung");
     } catch (e) {
       handleResultErr(e);
@@ -179,9 +202,13 @@ export default function MusicContentModal() {
               setError(null);
             }}
             placeholder="Ví dụ: Võ nhạc số 1"
-            error={!!nameError}
-            helperText={nameError || " "}
-            inputProps={{ maxLength: NAME_MAX + 10 }}
+            error={!nameValidation.isValid && name !== ""}
+            helperText={
+              !nameValidation.isValid && name !== ""
+                ? nameValidation.errorMessage
+                : ""
+            }
+            inputProps={{ maxLength: NAME_MAX }}
           />
           <TextField
             label="Ghi chú"
@@ -191,9 +218,13 @@ export default function MusicContentModal() {
               setError(null);
             }}
             placeholder="VD: Áp dụng theo chuẩn Vovinam 2025"
-            error={!!descError}
-            helperText={descError || " "}
-            inputProps={{ maxLength: DESC_MAX + 50 }}
+            error={!descriptionValidation.isValid && description !== ""}
+            helperText={
+              !descriptionValidation.isValid && description !== ""
+                ? descriptionValidation.errorMessage
+                : ""
+            }
+            inputProps={{ maxLength: DESC_MAX }}
           />
           <TextField
             label="Số người/tiết mục"
@@ -222,41 +253,17 @@ export default function MusicContentModal() {
           Hủy
         </Button>
         {!editing && (
-          <Button onClick={onSaveDraft} disabled={saving} variant="outlined">
+          <Button
+            onClick={onSaveDraft}
+            disabled={saving || !isFormValid}
+            variant="outlined"
+          >
             Lưu nháp
           </Button>
         )}
         <Button
-          onClick={async () => {
-            if (nameError || descError) return;
-            setSaving(true);
-            try {
-              if (editing) {
-                await update({
-                  name: name.trim(),
-                  description: description || undefined,
-                  isActive,
-                  performersPerEntry,
-                } as unknown as MusicContentUpdateRequest);
-                success("Đã cập nhật nội dung võ nhạc");
-              } else {
-                await create({
-                  name: name.trim(),
-                  description: description || undefined,
-                  isActive,
-                  performersPerEntry,
-                } as unknown as MusicContentCreateRequest);
-                success("Đã tạo nội dung võ nhạc");
-              }
-              closeModal();
-            } catch (e: any) {
-              console.error(e);
-              toastError(e?.message || "Lưu thất bại");
-            } finally {
-              setSaving(false);
-            }
-          }}
-          disabled={saving}
+          onClick={onSave}
+          disabled={saving || !isFormValid}
           variant="contained"
         >
           Lưu

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import MultiSelect from "@/components/common/MultiSelect";
 import { useCompetitionStore } from "@/stores/competition";
 import { useWeightClassStore } from "@/stores/weightClass";
-import { toPng } from "html-to-image";
+import * as htmlToImage from "html-to-image";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { PaginationResponse } from "../../types/api";
@@ -133,7 +133,6 @@ export default function BracketBuilder() {
 
     // Use passed athleteNames or fallback to seedNames state
     const names = athleteNames || seedNames;
-
     if (n <= 1) {
       setBaseSize(1);
       setRoundsCount(1);
@@ -153,7 +152,6 @@ export default function BracketBuilder() {
     setBracketSize(size);
 
     const allRounds: Array<Array<[string, string]>> = [];
-
     if (extra > 0) {
       // Has preliminary round
       const prelimPairs: Array<[string, string]> = [];
@@ -169,7 +167,6 @@ export default function BracketBuilder() {
 
       // Main bracket: combine winners from prelim with byes
       const mainBracketPairs: Array<[string, string]> = [];
-
       // Add winners from preliminary round (pairs of 2)
       for (let i = 0; i < extra; i += 2) {
         if (i + 1 < extra) {
@@ -194,7 +191,6 @@ export default function BracketBuilder() {
       }
 
       allRounds.push(mainBracketPairs);
-
       // Create subsequent rounds
       let currentRound = mainBracketPairs;
       let winnerCounter = 1;
@@ -223,7 +219,6 @@ export default function BracketBuilder() {
         ]);
       }
       allRounds.push(firstRoundPairs);
-
       // Create subsequent rounds
       let currentRound = firstRoundPairs;
       let winnerCounter = 1;
@@ -281,7 +276,7 @@ export default function BracketBuilder() {
       // Wait a bit for CSS to apply
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const dataUrl = await toPng(bracketRef.current, {
+      const dataUrl = await htmlToImage.toPng(bracketRef.current, {
         quality: 1,
         backgroundColor: "#f5f5f5",
         pixelRatio: 2,

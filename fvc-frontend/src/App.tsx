@@ -1,10 +1,12 @@
 import { Route, Routes, Navigate } from "react-router-dom";
 import "./App.css";
-import { useIsAuthenticated } from "./stores/authStore";
+import { useIsAuthenticated, useAuthStore } from "./stores/authStore";
 
 // Pages
 import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
+import ProfilePage from "./pages/profile/ProfilePage";
+import ProfileLayout from "./components/layout/ProfileLayout";
 import SubmittedFormsPage from "./pages/submitted-forms/ListPage";
 import FormListPage from "./pages/forms/ListPage";
 import FormBuilderPage from "./pages/forms/BuilderPage";
@@ -27,13 +29,23 @@ import { ToastProvider } from "./components/common/ToastProvider";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
+import BracketBuilder from "./pages/brackets/BracketBuilder";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
+// Merge: User management route added from master branch
+import UserManagementPage from "./pages/user-management/UserManagementPage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
 
   function Protected({ children }: { children: React.ReactElement }) {
+    // Wait for hydration to complete
+    const isLoading = useAuthStore((state) => state.isLoading);
+
+    if (isLoading) {
+      return <div>Loading...</div>; // Or a proper loading component
+    }
+
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
     }
@@ -54,6 +66,18 @@ export default function App() {
           )
         }
       />
+
+      {/* Profile page with its own layout */}
+      <Route
+        path="/profile"
+        element={
+          <Protected>
+            <ProfileLayout />
+          </Protected>
+        }
+      >
+        <Route index element={<ProfilePage />} />
+      </Route>
 
       {/* Landing redirect */}
       <Route
@@ -76,6 +100,9 @@ export default function App() {
       {/* Public Home */}
       <Route path="/home" element={<Home />} />
       <Route path="dashboard" element={<DashboardPage />} />
+
+      {/* Public Form Registration - Guest access */}
+      <Route path="/public/forms/:slug" element={<FormRegistrationPage />} />
 
       {/* Protected app routes under /manage */}
       <Route
@@ -126,15 +153,19 @@ export default function App() {
         <Route path="fist-content" element={<FistContentListPage />} />
         <Route path="fist-content/:id/items" element={<FistItemsPage />} />
         <Route path="music-content" element={<MusicContentListPage />} />
+        <Route path="brackets" element={<BracketBuilder />} />
 
         {/* Arrange */}
         <Route path="arrange" element={<ArrangeOrderWrapper />} />
         <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
 
-        {/* Tournament Forms */}
+        {/* Tournament Forms - Merge: Routes from HEAD branch */}
         <Route path="tournament-forms" element={<TournamentFormList />} />
         <Route path="tournament-forms/new" element={<FormBuilder />} />
         <Route path="tournament-forms/:id/edit" element={<FormBuilder />} />
+
+        {/* User Management - Merge: Route from master branch */}
+        <Route path="users" element={<UserManagementPage />} />
       </Route>
 
       {/* Legacy redirects to /manage */}

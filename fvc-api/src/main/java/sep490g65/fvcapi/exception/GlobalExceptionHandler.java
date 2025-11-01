@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.security.authentication.BadCredentialsException;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.exception.BusinessException;
@@ -42,6 +43,14 @@ public class GlobalExceptionHandler {
                 .body(BaseResponse.error("Validation failed", "VALIDATION_ERROR"));
     }
 
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<BaseResponse<Void>> handleBadCredentialsException(
+            BadCredentialsException ex, WebRequest request) {
+        log.error("Bad credentials exception: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(BaseResponse.error("Invalid email or password", "AUTH_ERROR"));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<BaseResponse<Void>> handleMethodArgumentNotValidException(
             MethodArgumentNotValidException ex, WebRequest request) {
@@ -60,9 +69,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<BaseResponse<Void>> handleGlobalException(
             Exception ex, WebRequest request) {
-        log.error("Unexpected error occurred: {}", ex.getMessage(), ex);
+        log.error("=== UNEXPECTED ERROR OCCURRED ===");
+        log.error("Error class: {}", ex.getClass().getName());
+        log.error("Error message: {}", ex.getMessage());
+        log.error("Stack trace:", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(BaseResponse.error("An unexpected error occurred", "INTERNAL_SERVER_ERROR"));
+                .body(BaseResponse.error("An unexpected error occurred: " + ex.getClass().getSimpleName() + " - " + ex.getMessage(), "INTERNAL_SERVER_ERROR"));
     }
 
     @ExceptionHandler(ResponseStatusException.class)

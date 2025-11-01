@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { User, AuthResponse, LoginRequest } from "../types";
+import type { User, LoginRequest } from "../types";
 import authService from "../services/authService";
 import { globalErrorHandler } from "../utils/errorHandler";
 
@@ -77,7 +77,7 @@ const saveAuthState = (state: AuthState) => {
 // Auth store with localStorage persistence
 export const useAuthStore = create<AuthStore>()(
   devtools(
-    (set, get) => ({
+    (set) => ({
       ...initialState,
 
       // Login action
@@ -116,6 +116,7 @@ export const useAuthStore = create<AuthStore>()(
           const newState = {
             user: null,
             isAuthenticated: false,
+            isLoading: false,
             error: null,
           };
           set(newState);
@@ -143,6 +144,7 @@ if (typeof window !== "undefined") {
     // Only check /auth/me if we don't have auth state in localStorage
     if (!currentState.isAuthenticated) {
       try {
+        useAuthStore.getState().setLoading(true);
         const data = await authService.getCurrentUser();
         const newState = {
           user: data,
@@ -154,6 +156,7 @@ if (typeof window !== "undefined") {
         saveAuthState(newState);
       } catch {
         // not logged in; ignore
+        useAuthStore.getState().setLoading(false);
       }
     }
   })();
