@@ -50,6 +50,8 @@ public class AthleteController {
 
     @PostMapping("/arrange-order")
     public ResponseEntity<BaseResponse<Void>> arrangeOrder(@Valid @RequestBody ArrangeFistOrderRequest request) {
+        // Merge: Use master branch implementation with list of athlete orders
+        // The arrangeOrder method accepts competitionId, competitionType, and a list of athlete orders
         athleteService.arrangeOrder(request.getCompetitionId(), request.getCompetitionType(), new ArrayList<>());
         return ResponseEntity.ok(ResponseUtils.success("Arrange order saved"));
     }

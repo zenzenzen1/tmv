@@ -129,6 +129,14 @@ public class AthleteService {
         return null;
     }
     
+    /**
+     * Arranges competition order for athletes in a competition.
+     * Merge: Master branch implementation creates CompetitionOrder entities for athletes.
+     * 
+     * @param competitionId The competition ID
+     * @param competitionType The competition type as string (will be converted to enum)
+     * @param orders List of athlete orders (currently unused but reserved for future use)
+     */
     @Transactional
     public void arrangeOrder(String competitionId, String competitionType, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
         // For now, ignore contentId and set order for provided athletes
@@ -146,6 +154,7 @@ public class AthleteService {
             athlete.setCompetitionOrderObject(competitionOrder);
             athleteRepository.save(athlete);
         }
+        // Legacy code commented out for reference:
         // int order = 1;
         // for (Athlete athlete : athletes) {
         //     athlete.setCompetitionOrder(order);

@@ -32,6 +32,9 @@ public class SubmittedApplicationForm extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = true)
     private User user;
 
+    @Column(name = "email", nullable = false)
+    private String email; // Always required, for cases when user_id is null
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ApplicationFormStatus status;

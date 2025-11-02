@@ -11,13 +11,28 @@ export default function MainLayout() {
   const path = location.pathname;
   let activeKey: string | undefined;
   if (path.startsWith("/submitted-forms")) activeKey = "submittedForms";
-  else if (path.startsWith("/formList") || path.startsWith("/forms")) activeKey = "formList";
+  else if (path.startsWith("/formList") || path.startsWith("/forms"))
+    activeKey = "formList";
+  else if (path.startsWith("/tournament-forms")) activeKey = "tournamentForm";
   else activeKey = undefined;
 
   return (
-    <Box display="flex" height="100vh" width="100vw" overflow="hidden" bgcolor={(t) => t.palette.background.default}>
+    <Box
+      display="flex"
+      height="100vh"
+      width="100vw"
+      overflow="hidden"
+      bgcolor={(t) => t.palette.background.default}
+    >
       <Sidebar activeMenu={activeKey} menuItems={defaultMenuItems} />
-      <Box display="flex" flexDirection="column" flexGrow={1} minHeight="100vh" sx={{ ml: '256px' }}>
+      {/* Merge: Include Header component from master branch, preserve styling from HEAD */}
+      <Box
+        display="flex"
+        flexDirection="column"
+        flexGrow={1}
+        minHeight="100vh"
+        sx={{ ml: "256px" }}
+      >
         <Header />
         <Box component="main" flexGrow={1} overflow="auto">
           <Container maxWidth="lg" sx={{ py: 3 }}>

@@ -18,6 +18,8 @@ public class UpdateMusicContentRequest {
     private String description;
     
     private Boolean isActive;
+
+    private Integer performersPerEntry;
 }
 
 
