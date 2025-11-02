@@ -328,6 +328,9 @@ type SubmittedRow = {
   studentCode: string;
   phone: string;
   note: string;
+  formType?: string;
+  formName?: string;
+  applicationFormConfigId?: string;
   stt?: number;
   formData?: any;
   competitionType?: string;
@@ -345,7 +348,7 @@ export default function SubmittedFormsPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [page, setPage] = useState<number>(1); // CommonTable is 1-based
-  const [pageSize] = useState<number>(10); // fixed page size
+  const [pageSize, setPageSize] = useState<number>(10);
   const [totalElements, setTotalElements] = useState<number>(0);
   const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
 
@@ -527,17 +530,17 @@ export default function SubmittedFormsPage() {
           page: number;
           size: number;
           totalElements: number;
-        }>(`/v1/tournament-forms/${selectedFormId}/submissions`, {
-          params: {
-            page: page - 1,
-            size: pageSize,
-            sortBy: "createdAt",
-            sortDirection: "desc",
-            status: status || undefined,
-            dateFrom: dateFrom || undefined,
-            dateTo: dateTo || undefined,
-            search: query || undefined,
-          },
+        }>("/v1/submitted-forms", {
+          // Only show club registration forms
+          type: "CLUB_REGISTRATION",
+          page: page - 1,
+          size: pageSize,
+          sortBy: "createdAt",
+          sortDirection: "desc",
+          status: status || undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          search: query || undefined,
         });
         if (!ignore) {
           const root = res.data as Record<string, unknown>;
@@ -607,21 +610,18 @@ export default function SubmittedFormsPage() {
             }
 
             return {
-              id: String(item.id),
-              submittedAt:
-                item.createdAt || item.submittedAt || new Date().toISOString(),
-              fullName: (parsed.fullName as string) || "",
-              email: (parsed.email as string) || "",
-              studentCode: (parsed.studentId as string) || "",
-              phone: parsed.phone || parsed.phoneNumber || "",
-              note: item.reviewerNote ?? "",
-              formData: item.formData,
-              competitionType: compVi,
-              category: categoryVi,
-              club: (parsed.club as string) || "",
-              coach: (parsed.coach as string) || "",
-              gender: parsed.gender === "FEMALE" ? "Nữ" : "Nam",
-              status: item.status || "PENDING", // Add status field
+              id: String(s.id ?? idx),
+              submittedAt: s.createdAt ?? "",
+              fullName: finalName,
+              email: emailFromUser || (s.formData ? safePick(s.formData, ["email", "mail"]) : ""),
+              studentCode: codeFromUser || (s.formData ? safePick(s.formData, ["studentCode", "mssv", "msv"]) : ""),
+              phone: phoneFromForm,
+              note: s.reviewerNote ?? "",
+              formData: s.formData,
+              formType: s.formType || "",
+              formName: s.applicationFormConfigName || "", // Form name from backend
+              applicationFormConfigId: s.applicationFormConfigId || "", // Form config ID
+              ...formFields, // Spread tất cả các trường form data vào row
             } as SubmittedRow;
           });
 
@@ -717,60 +717,25 @@ export default function SubmittedFormsPage() {
       try {
         const d = new Date(v);
         if (Number.isNaN(d.getTime())) return v;
-        return d.toLocaleString("vi-VN", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        });
+        // Format: dd/MM/yyyy HH:mm
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
       } catch {
         return v;
       }
     };
 
-    // Lấy các trường form data được định nghĩa trong fieldDisplayNames
-    const allowedFormFields = new Set<string>();
-    rows.forEach((row) => {
-      const formFields = extractFormDataFields(row.formData);
-      Object.keys(formFields).forEach((key) => {
-        const lowerKey = key.toLowerCase();
-        // Loại bỏ các trường tên vì đã hiển thị trong cột "Họ và tên"
-        const isNameField = ["fullName", "name", "hovaten", "ten"].includes(
-          lowerKey
-        );
-        if (!isNameField) {
-          // Chỉ hiển thị các trường được định nghĩa trong fieldDisplayNames
-          if (
-            Object.keys(fieldDisplayNames).some(
-              (definedKey) =>
-                definedKey.toLowerCase() === lowerKey ||
-                lowerKey.includes(definedKey.toLowerCase()) ||
-                definedKey.toLowerCase().includes(lowerKey)
-            )
-          ) {
-            allowedFormFields.add(key);
-          }
-        }
-      });
-    });
-
-    // Tạo cột cho các trường form data được phép
-    const formDataColumns: TableColumn<SubmittedRow>[] = Array.from(
-      allowedFormFields
-    ).map((fieldKey) => ({
-      key: fieldKey,
-      title: getFieldDisplayName(fieldKey),
-      render: (row: SubmittedRow) => row[fieldKey] || "",
-      className: "max-w-xs",
-    }));
-
     return [
       {
         key: "stt",
         title: "STT",
-        render: (row: SubmittedRow) => row.stt,
+        render: (row: SubmittedRow) => (
+          <span className="text-sm font-medium text-gray-900">{row.stt}</span>
+        ),
         sortable: false,
         className: "w-10 text-center",
       },
@@ -778,94 +743,72 @@ export default function SubmittedFormsPage() {
         key: "submittedAt",
         title: "Thời gian",
         sortable: true,
-        render: (r) => formatDate(r.submittedAt),
-        className: "w-20",
+        render: (r) => (
+          <span className="text-sm text-gray-600 whitespace-nowrap">
+            {formatDate(r.submittedAt)}
+          </span>
+        ),
+        className: "w-36",
       },
       {
         key: "fullName",
-        title: "Họ tên",
+        title: "Họ và tên",
         sortable: true,
-        className: "w-20",
+        render: (r: SubmittedRow) => (
+          <div className="font-medium text-gray-900 truncate max-w-[200px]" title={r.fullName}>
+            {r.fullName || "-"}
+          </div>
+        ),
+        className: "min-w-[150px] max-w-[200px]",
       },
       {
         key: "email",
         title: "Email",
         sortable: true,
-        className: "w-28",
+        render: (r: SubmittedRow) => (
+          <div className="text-sm text-gray-600 truncate max-w-[200px]" title={r.email}>
+            {r.email || "-"}
+          </div>
+        ),
+        className: "min-w-[150px] max-w-[200px]",
       },
       {
         key: "studentCode",
         title: "MSSV",
         sortable: true,
-        className: "w-16",
+        render: (r: SubmittedRow) => (
+          <span className="text-sm font-medium text-gray-700">{r.studentCode || "-"}</span>
+        ),
+        className: "w-24",
       },
       {
-        key: "competitionType",
-        title: "Nội dung thi đấu",
+        key: "formName",
+        title: "Form",
         sortable: true,
-        className: "w-16",
-      },
-      {
-        key: "category",
-        title: "Hạng mục",
-        sortable: true,
-        className: "w-20",
-        render: (row: SubmittedRow) => {
-          const category = row.category || "";
-          // Truncate long text (like UUIDs) to show only first 8 characters
-          if (category.length > 8) {
-            return (
-              <span title={category} className="truncate">
-                {category.substring(0, 8)}...
-              </span>
-            );
-          }
-          return category;
-        },
-      },
-      {
-        key: "phone",
-        title: "SĐT",
-        sortable: true,
-        className: "w-16",
-      },
-      {
-        key: "gender",
-        title: "Giới tính",
-        sortable: true,
-        className: "w-12",
+        render: (r: SubmittedRow) => (
+          <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
+            {r.formName || "N/A"}
+          </span>
+        ),
+        className: "w-32",
       },
       {
         key: "actions",
-        title: "Xem",
+        title: "",
         sortable: false,
-        className: "w-16 text-center",
+        className: "w-28",
         render: (row: SubmittedRow) => (
           <button
+            type="button"
+            aria-label={`Xem chi tiết form #${row.id}`}
             onClick={() => setViewingRow(row)}
-            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded"
-            title="Xem chi tiết"
+            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-              />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+              <path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
             </svg>
+            Chi tiết
           </button>
         ),
       },
@@ -918,7 +861,7 @@ export default function SubmittedFormsPage() {
         },
       },
     ];
-  }, [rows]);
+  }, []);
 
   const filtered = useReactMemo(() => {
     let data = rows;
@@ -1049,22 +992,35 @@ export default function SubmittedFormsPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
-          {/* Form Type Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Loại form
-            </label>
-            <select
-              value={formTypeFilter}
-              onChange={(e) => {
-                setFormTypeFilter(
-                  e.target.value as "COMPETITION" | "CLUB" | ""
-                );
-                setSelectedFormId("");
-                setPage(1);
-              }}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+        {/* Header */}
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Kết quả đăng ký câu lạc bộ</h2>
+          <p className="text-gray-600">Tổng hợp các form đăng ký tham gia câu lạc bộ</p>
+        </div>
+
+        {/* Statistics Cards */}
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+            <div className="text-2xl font-bold text-blue-600">{totalElements}</div>
+            <div className="text-sm text-gray-600">Tổng số đăng ký</div>
+          </div>
+          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+            <div className="text-2xl font-bold text-green-600">{filtered.length}</div>
+            <div className="text-sm text-gray-600">Kết quả hiển thị</div>
+          </div>
+          <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+            <div className="text-2xl font-bold text-purple-600">{page}</div>
+            <div className="text-sm text-gray-600">Trang hiện tại</div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Bộ lọc</h3>
+            <button
+              onClick={() => { setStatus(""); setDateFrom(""); setDateTo(""); setQuery(""); setPage(1); }}
+              className="text-sm text-gray-500 hover:text-gray-700"
             >
               <option value="">Chọn loại form</option>
               <option value="COMPETITION">Form đăng ký giải</option>
@@ -1161,32 +1117,33 @@ export default function SubmittedFormsPage() {
           </div>
         </div>
 
-        <div className="mt-4 text-sm text-gray-600">
-          Hiển thị {filtered.length} trong {totalElements} kết quả
-        </div>
-      </div>
-
-      {error && <ErrorMessage error={error} />}
-
-      {loading ? (
-        <div className="flex justify-center py-8">
-          <LoadingSpinner />
-        </div>
-      ) : (
-        <CommonTable
-          data={
-            filtered.map((r, idx) => ({
-              ...r,
-              stt: (page - 1) * pageSize + idx + 1,
-            })) as any
-          }
-          columns={columns as any}
-          page={page}
-          pageSize={pageSize}
-          total={totalElements}
-          onPageChange={(p) => setPage(p)}
-        />
-      )}
+        {error && <ErrorMessage error={error} />}
+        
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <LoadingSpinner />
+          </div>
+        ) : (
+          <CommonTable
+            data={
+              filtered.map((r, idx) => ({
+                ...r,
+                stt: (page - 1) * pageSize + idx + 1,
+              })) as any
+            }
+            columns={columns as any}
+            page={page}
+            pageSize={pageSize}
+            total={totalElements}
+            onPageChange={(p) => setPage(p)}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1); // Reset to first page when changing page size
+            }}
+            showPageSizeSelector={true}
+            pageSizeOptions={[5, 10, 15]}
+          />
+        )}
 
       {/* View Form Modal */}
       {viewingRow && (
@@ -1238,124 +1195,91 @@ export default function SubmittedFormsPage() {
                       formData = {};
                     }
 
-                    // Get all fields from form data, excluding only content and system fields
-                    const excludeFields = [
-                      // Chỉ loại trừ nội dung thi đấu
-                      "nội dung",
-                      "content",
-                      "competitionType",
-                      "category",
-                      "weightClass",
-                      "quyenCategory",
-                      "quyenContent",
-                      "musicCategory",
-                      "musicContent",
-                      // Chỉ loại trừ các field hệ thống
-                      "submittedAtClient",
-                      "submittedAt",
-                      "createdAt",
-                      "updatedAt",
-                      "timestamp",
-                      "id",
-                      "weightClassId",
-                      "fistConfigId",
-                      "musicContentId",
-                      "quyenContentId",
-                    ];
+              {/* Form Data - Thông tin người đăng ký */}
+              <div>
+                <h4 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Thông tin người đăng ký
+                </h4>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {(() => {
+                    // Parse formData
+                    let formDataObj: any = {};
+                    try {
+                      formDataObj = typeof viewingRow.formData === 'string' 
+                        ? JSON.parse(viewingRow.formData) 
+                        : viewingRow.formData;
+                    } catch {
+                      formDataObj = {};
+                    }
 
-                    // Function to check if a value is an ID (UUID, timestamp, or numeric ID)
-                    const isId = (value: any) => {
-                      const str = value.toString();
-                      // UUID pattern
-                      if (
-                        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                          str
-                        )
-                      ) {
-                        return true;
+                    // Map các trường thông tin người đăng ký
+                    const infoFields: Array<{ key: string; label: string; value: string }> = [];
+                    
+                    // Họ và tên
+                    const fullName = formDataObj.fullName || formDataObj.name || formDataObj.hovaten || formDataObj.hoTen || '';
+                    if (fullName) {
+                      infoFields.push({ key: 'fullName', label: 'Họ và tên', value: fullName });
+                    }
+
+                    // Email
+                    const email = formDataObj.email || formDataObj.mail || '';
+                    if (email) {
+                      infoFields.push({ key: 'email', label: 'Email', value: email });
+                    }
+
+                    // MSSV
+                    const studentCode = formDataObj.studentCode || formDataObj.mssv || formDataObj.msv || '';
+                    if (studentCode) {
+                      infoFields.push({ key: 'studentCode', label: 'MSSV', value: studentCode });
+                    }
+
+                    // Số điện thoại
+                    const phone = formDataObj.phone || formDataObj.sdt || formDataObj.so_dien_thoai || formDataObj.mobile || '';
+                    if (phone) {
+                      infoFields.push({ key: 'phone', label: 'Số điện thoại', value: phone });
+                    }
+
+                    // Mô tả / Lý do
+                    const reason = formDataObj.reason || formDataObj.mo_ta || formDataObj.mota || formDataObj.description || formDataObj.bio || '';
+                    if (reason) {
+                      infoFields.push({ key: 'reason', label: 'Mô tả ngắn về bản thân', value: reason });
+                    }
+
+                    // Các trường khác (loại bỏ null, empty, và các trường đã hiển thị)
+                    const excludedKeys = ['fullName', 'name', 'hovaten', 'hoTen', 'email', 'mail', 
+                                         'studentCode', 'mssv', 'msv', 'phone', 'sdt', 'so_dien_thoai', 'mobile',
+                                         'reason', 'mo_ta', 'mota', 'description', 'bio', 'club'];
+                    
+                    Object.entries(formDataObj).forEach(([key, value]) => {
+                      const lowerKey = key.toLowerCase();
+                      if (!excludedKeys.includes(lowerKey) && 
+                          value !== null && 
+                          value !== undefined && 
+                          value !== '' &&
+                          typeof value === 'string') {
+                        infoFields.push({ 
+                          key, 
+                          label: getFieldDisplayName(key), 
+                          value: String(value) 
+                        });
                       }
-                      // Timestamp pattern (ISO date)
-                      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(str)) {
-                        return true;
-                      }
-                      // Chỉ loại trừ timestamp rất dài (16+ chữ số) - tránh loại trừ các số hợp lệ
-                      if (/^\d{16,}$/.test(str)) {
-                        return true;
-                      }
-                      return false;
-                    };
-
-                    const fields = Object.entries(formData).filter(
-                      ([key, value]) => {
-                        const lowerKey = key.toLowerCase();
-                        const valueStr = value?.toString().trim() || "";
-
-                        // Loại trừ nếu key chứa các từ khóa không mong muốn
-                        const hasExcludeKeyword = excludeFields.some(
-                          (exclude) => lowerKey.includes(exclude.toLowerCase())
-                        );
-
-                        // Chỉ loại trừ nếu value là ID thực sự dài
-                        const looksLikeId = isId(value);
-
-                        // Chỉ loại trừ nếu key hoàn toàn không có ý nghĩa (chỉ là ký tự đặc biệt)
-                        const hasUnclearKey = /^[^a-zA-Z0-9]+$/.test(key);
-
-                        // Đặc biệt: không loại trừ field có key là timestamp nhưng value là text hợp lệ
-                        // (có thể là field custom như "Mày")
-                        const isCustomFieldWithTimestampKey =
-                          /^\d{13,}$/.test(key) &&
-                          valueStr.length > 0 &&
-                          valueStr.length < 100 &&
-                          !/^\d{10,}$/.test(valueStr);
-
-                        return (
-                          value &&
-                          valueStr !== "" &&
-                          !hasExcludeKeyword &&
-                          (!looksLikeId || isCustomFieldWithTimestampKey) &&
-                          (!hasUnclearKey || isCustomFieldWithTimestampKey)
-                        );
-                      }
-                    );
-
-                    // Sort fields to show standard fields first, then custom fields
-                    const standardFields = [
-                      "fullName",
-                      "email",
-                      "studentId",
-                      "phoneNumber",
-                      "gender",
-                      "club",
-                      "may", // Thêm field "Mày"
-                    ];
-                    const sortedFields = fields.sort(([keyA], [keyB]) => {
-                      // Xử lý field custom có key timestamp (như field "Mày")
-                      const isCustomA = /^\d{13,}$/.test(keyA);
-                      const isCustomB = /^\d{13,}$/.test(keyB);
-
-                      const indexA = standardFields.indexOf(keyA);
-                      const indexB = standardFields.indexOf(keyB);
-
-                      // Nếu một trong hai là field custom với timestamp key
-                      if (isCustomA && !isCustomB) return 1; // Custom field sau standard fields
-                      if (!isCustomA && isCustomB) return -1;
-
-                      if (indexA === -1 && indexB === -1)
-                        return keyA.localeCompare(keyB);
-                      if (indexA === -1) return 1;
-                      if (indexB === -1) return -1;
-                      return indexA - indexB;
                     });
 
-                    return sortedFields.map(([key, value]) => (
-                      <div key={key} className="rounded-md bg-gray-50 p-3">
+                    // Hiển thị các trường
+                    if (infoFields.length === 0) {
+                      return (
+                        <div className="col-span-2 rounded-md bg-gray-50 p-3 text-center text-sm text-gray-500">
+                          Không có thông tin bổ sung
+                        </div>
+                      );
+                    }
+
+                    return infoFields.map((field) => (
+                      <div key={field.key} className="rounded-md bg-gray-50 p-3">
                         <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                          {getFieldDisplayName(key, selectedFormDefinition)}
+                          {field.label}
                         </div>
-                        <div className="mt-1 text-sm text-gray-900">
-                          {value.toString()}
-                        </div>
+                        <div className="mt-1 text-sm text-gray-900">{field.value}</div>
                       </div>
                     ));
                   })()}
@@ -1377,7 +1301,6 @@ export default function SubmittedFormsPage() {
     </div>
   );
 }
-
 function exportCsv(rows: SubmittedRow[]) {
   if (!rows || rows.length === 0) {
     // Replace alert with toast once toast context is available here
@@ -1471,3 +1394,4 @@ function escapeCsv(value?: string) {
   }
   return s;
 }
+
