@@ -138,23 +138,21 @@ public class AthleteService {
      * @param orders List of athlete orders (currently unused but reserved for future use)
      */
     @Transactional
-    public void arrangeOrder(String competitionId, String competitionType, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
+    public void arrangeOrder(String tournamentId, String contentId) {
         // For now, ignore contentId and set order for provided athletes
-        List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(
-            Athlete.CompetitionType.valueOf(competitionType), competitionId);
-        Collections.shuffle(athletes);
-        for (int i = 0; i < athletes.size(); i++) {
-            // CompetitionOrder
-            CompetitionOrder competitionOrder = competitionOrderService.create(CreateCompetitionOrderRequest.builder()
-                    .orderIndex(i + 1)
-                    .competitionId(competitionId)
-                    .contentSelectionId(null)
-                    .build());
-            var athlete = athletes.get(i);
-            athlete.setCompetitionOrderObject(competitionOrder);
-            athleteRepository.save(athlete);
-        }
-        // Legacy code commented out for reference:
+        // List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(competitionType, competitionId);
+        // Collections.shuffle(athletes);
+        // for (int i = 0; i < athletes.size(); i++) {
+        //     // CompetitionOrder
+        //     CompetitionOrder competitionOrder = competitionOrderService.create(CreateCompetitionOrderRequest.builder()
+        //             .orderIndex(i + 1)
+        //             .competitionId(competitionId)
+        //             .contentSelectionId(null)
+        //             .build());
+        //     var athlete = athletes.get(i);
+        //     athlete.setCompetitionOrderObject(competitionOrder);
+        //     athleteRepository.save(athlete);
+        // }
         // int order = 1;
         // for (Athlete athlete : athletes) {
         //     athlete.setCompetitionOrder(order);

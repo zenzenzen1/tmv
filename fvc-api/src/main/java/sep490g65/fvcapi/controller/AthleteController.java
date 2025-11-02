@@ -48,13 +48,11 @@ public class AthleteController {
         return ResponseEntity.ok(ResponseUtils.success("Athletes retrieved", payload));
     }
 
-    @PostMapping("/arrange-order")
-    public ResponseEntity<BaseResponse<Void>> arrangeOrder(@Valid @RequestBody ArrangeFistOrderRequest request) {
-        // Merge: Use master branch implementation with list of athlete orders
-        // The arrangeOrder method accepts competitionId, competitionType, and a list of athlete orders
-        athleteService.arrangeOrder(request.getCompetitionId(), request.getCompetitionType(), new ArrayList<>());
-        return ResponseEntity.ok(ResponseUtils.success("Arrange order saved"));
-    }
+    // @PostMapping("/arrange-order")
+    // public ResponseEntity<BaseResponse<Void>> arrangeOrder(@Valid @RequestBody ArrangeFistOrderRequest request) {
+    //     athleteService.arrangeOrder(request.getCompetitionId(), Athlete.CompetitionType.valueOf(request.getCompetitionType()));
+    //     return ResponseEntity.ok(ResponseUtils.success("Arrange order saved"));
+    // }
 }
 
 

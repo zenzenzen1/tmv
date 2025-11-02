@@ -24,5 +24,8 @@ public interface UserRepository extends JpaRepository<User, String> {
     // Handle duplicates by returning List (use first element)
     List<User> findAllByPersonalMailIgnoreCase(String personalMail);
     List<User> findAllByEduMailIgnoreCase(String eduMail);
+    
+    // Find user by either edu_mail or personal_mail
+    Optional<User> findByEduMailOrPersonalMail(String eduMail, String personalMail);
 }
 

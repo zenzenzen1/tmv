@@ -284,4 +284,28 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("Failed to search users", "USER_SEARCH_FAILED");
         }
     }
+
+    @Override
+    public void deleteUser(String userId) {
+        log.info("Attempting to delete user with id: {}", userId);
+        
+        try {
+            // Check if user exists
+            if (!userRepository.existsById(userId)) {
+                log.warn("User deletion failed: User not found with id: {}", userId);
+                throw new BusinessException("User not found", "USER_NOT_FOUND");
+            }
+            
+            // Delete user
+            userRepository.deleteById(userId);
+            log.info("User deleted successfully with id: {}", userId);
+            
+        } catch (BusinessException e) {
+            log.error("Business error during user deletion: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error during user deletion: {}", e.getMessage(), e);
+            throw new BusinessException("Failed to delete user", "USER_DELETION_FAILED");
+        }
+    }
 }
