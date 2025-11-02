@@ -27,6 +27,7 @@ export interface User {
   eduMail?: string;
   studentCode?: string;
   role: UserRole;
+  systemRole?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

@@ -93,6 +93,22 @@ export const API_ENDPOINTS = {
     ARRANGE_ORDER: "/v1/athletes/arrange-order",
   },
 
+  // Assessors
+  ASSESSORS: {
+    BASE: "/v1/assessors",
+    AVAILABLE: "/v1/assessors/available",
+    MY_ASSIGNMENTS: "/v1/assessors/my-assignments",
+    BY_COMPETITION: (competitionId: string) =>
+      `/v1/assessors/competition/${competitionId}`,
+    BY_COMPETITION_AND_SPECIALIZATION: (
+      competitionId: string,
+      specialization: string
+    ) =>
+      `/v1/assessors/competition/${competitionId}/specialization/${specialization}`,
+    ASSIGN: "/v1/assessors/assign",
+    BY_ID: (id: string) => `/v1/assessors/${id}`,
+  },
+
   // Club Members
   CLUB_MEMBERS: {
     BASE: "/v1/clubs/members",

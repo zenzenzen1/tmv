@@ -2,7 +2,6 @@ package sep490g65.fvcapi.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -55,6 +54,9 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (AuthenticationException e) {
             log.error("Login failed for email: {} - {}", request.getEmail(), e.getMessage());
+            throw new BadCredentialsException("Invalid email or password");
+        } catch (Exception e) {
+            log.error("Unexpected error during login for email: {} - {}", request.getEmail(), e.getMessage(), e);
             throw new BadCredentialsException("Invalid email or password");
         }
     }

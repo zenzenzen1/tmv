@@ -98,18 +98,58 @@ export default function ArrangeOrderPage({
     [matches, activeTab]
   );
 
-  const mockAssessors = useMemo(
-    () => [
-      "Nguyễn Văn A",
-      "Trần Thị B",
-      "Lê Văn C",
-      "Phạm Thị D",
-      "Hoàng Văn E",
-      "Vũ Thị F",
-      "Đỗ Văn G",
-    ],
-    []
-  );
+  // Available assessors from API
+  const [availableAssessors, setAvailableAssessors] = useState<
+    Array<{ id: string; fullName: string; email: string }>
+  >([]);
+
+  // Load available assessors
+  useEffect(() => {
+    const loadAssessors = async () => {
+      try {
+        const res = await api.get<
+          Array<{
+            id: string;
+            fullName: string;
+            personalMail: string;
+            eduMail?: string;
+            systemRole?: string;
+          }>
+        >(API_ENDPOINTS.ASSESSORS.AVAILABLE);
+
+        // BaseResponse structure: { success, data, ... }
+        const data = res.data || [];
+
+        console.log("Loaded assessors (raw):", data);
+
+        // Filter out ADMIN and only keep TEACHER role
+        const filtered = data
+          .filter((a) => {
+            // Only show users with TEACHER role (exclude ADMIN, ORGANIZATION_COMMITTEE, etc.)
+            const role = a.systemRole || "";
+            const isTeacher = role === "TEACHER";
+            if (!isTeacher) {
+              console.log(`Filtered out user ${a.fullName} with role: ${role}`);
+            }
+            return isTeacher;
+          })
+          .map((a) => ({
+            id: a.id,
+            fullName: a.fullName || "",
+            email: a.personalMail || a.eduMail || "",
+          }))
+          .filter((a) => a.id && a.fullName);
+
+        console.log("Loaded assessors (filtered):", filtered);
+
+        setAvailableAssessors(filtered);
+      } catch (error) {
+        console.error("Failed to load assessors:", error);
+        setAvailableAssessors([]);
+      }
+    };
+    loadAssessors();
+  }, []);
 
   // Auto-create 4 empty matches for the active type if none exist (Jira-like preset cards)
   useEffect(() => {
@@ -1203,12 +1243,37 @@ export default function ArrangeOrderPage({
     }));
   };
 
-  const saveSetup = () => {
-    if (!setupModal.matchId) return;
+  const saveSetup = async () => {
+    if (!setupModal.matchId || !selectedTournament) return;
     const selected = athletes.filter((a) =>
       setupModal.selectedIds.includes(a.id)
     );
     const names = selected.map((a) => a.name);
+
+    // Assign assessors to competition via API
+    const specialization =
+      activeTab === "quyen"
+        ? "QUYEN"
+        : activeTab === "music"
+        ? "MUSIC"
+        : "FIGHTING";
+
+    try {
+      // Assign each selected assessor
+      for (const assessorId of Object.values(setupModal.assessors)) {
+        if (assessorId) {
+          await api.post(API_ENDPOINTS.ASSESSORS.ASSIGN, {
+            userId: assessorId,
+            competitionId: selectedTournament,
+            specialization: specialization,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to assign assessors:", error);
+      // Still update UI even if API call fails
+    }
+
     setMatches((prev) =>
       prev.map((m) =>
         m.id === setupModal.matchId
@@ -1843,34 +1908,57 @@ export default function ArrangeOrderPage({
                       // judgeC (index 3) shown when judgesCount >= 4
                       // judgeD (index 4) shown when judgesCount >= 5
                       return setupModal.judgesCount >= judgeIndex + 1;
-                    }).map((role) => (
-                      <div key={role.key} className="space-y-1">
-                        <label className="block text-sm text-gray-700">
-                          {role.label}
-                          {role.subtitle && (
-                            <span className="text-gray-500">
-                              {" "}
-                              {role.subtitle}
-                            </span>
-                          )}
-                          :
-                        </label>
-                        <select
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={setupModal.assessors[role.key as string] || ""}
-                          onChange={(e) =>
-                            updateSetupAssessor(role.key, e.target.value)
-                          }
-                        >
-                          <option value="">Chọn người chấm</option>
-                          {mockAssessors.map((assessor) => (
-                            <option key={assessor} value={assessor}>
-                              {assessor}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
+                    }).map((role) => {
+                      // Filter out already selected assessors from other roles
+                      const selectedAssessorIds = Object.values(
+                        setupModal.assessors
+                      )
+                        .filter((id): id is string => Boolean(id))
+                        .filter((id) => id !== setupModal.assessors[role.key]);
+
+                      const availableForThisRole = availableAssessors.filter(
+                        (assessor) => !selectedAssessorIds.includes(assessor.id)
+                      );
+
+                      return (
+                        <div key={role.key} className="space-y-1">
+                          <label className="block text-sm text-gray-700">
+                            {role.label}
+                            {role.subtitle && (
+                              <span className="text-gray-500">
+                                {" "}
+                                {role.subtitle}
+                              </span>
+                            )}
+                            :
+                          </label>
+                          <select
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={
+                              setupModal.assessors[role.key as string] || ""
+                            }
+                            onChange={(e) =>
+                              updateSetupAssessor(role.key, e.target.value)
+                            }
+                          >
+                            <option value="">Chọn người chấm</option>
+                            {availableForThisRole.length > 0 ? (
+                              availableForThisRole.map((assessor) => (
+                                <option key={assessor.id} value={assessor.id}>
+                                  {assessor.fullName}
+                                </option>
+                              ))
+                            ) : (
+                              <option disabled>
+                                {availableAssessors.length === 0
+                                  ? "Đang tải danh sách giám định..."
+                                  : "Tất cả giám định đã được chọn"}
+                              </option>
+                            )}
+                          </select>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

@@ -32,6 +32,8 @@ import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
 import ProjectionScreen from "./pages/performance/ProjectionScreen";
 import JudgeScoringScreen from "./pages/performance/JudgeScoringScreen";
 import JudgeDashboard from "./pages/judge/JudgeDashboard";
+import AssessorLayout from "./components/layout/AssessorLayout";
+import { useIsAssessor } from "./stores/authStore";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -39,6 +41,17 @@ export default function App() {
   function Protected({ children }: { children: React.ReactElement }) {
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
+    }
+    return children;
+  }
+
+  function AssessorProtected({ children }: { children: React.ReactElement }) {
+    const isAssessor = useIsAssessor();
+    if (!isAuthenticated) {
+      return <Navigate to="/login" replace />;
+    }
+    if (!isAssessor) {
+      return <Navigate to="/manage/tournaments" replace />;
     }
     return children;
   }
@@ -145,13 +158,21 @@ export default function App() {
         <Route path="tournament-forms" element={<TournamentFormList />} />
         <Route path="tournament-forms/new" element={<FormBuilder />} />
         <Route path="tournament-forms/:id/edit" element={<FormBuilder />} />
+      </Route>
 
-        {/* Judge */}
-        <Route
-          path="judge"
-          element={<Navigate to="judge/dashboard" replace />}
-        />
-        <Route path="judge/dashboard" element={<JudgeDashboard />} />
+      {/* Assessor Dashboard - Separate route without MainLayout */}
+      <Route
+        path="/assessor"
+        element={
+          <AssessorProtected>
+            <ToastProvider>
+              <AssessorLayout />
+            </ToastProvider>
+          </AssessorProtected>
+        }
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<JudgeDashboard />} />
       </Route>
 
       {/* Legacy redirects to /manage */}
@@ -178,6 +199,10 @@ export default function App() {
       <Route
         path="/forms/*"
         element={<Navigate to="/manage/forms" replace />}
+      />
+      <Route
+        path="/manage/judge/*"
+        element={<Navigate to="/assessor/dashboard" replace />}
       />
       <Route path="/results/:id" element={<FormResults />} />
       <Route path="/published-form/:id" element={<PublishedForm />} />

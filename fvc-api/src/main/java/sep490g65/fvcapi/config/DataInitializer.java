@@ -55,6 +55,24 @@ public class DataInitializer implements CommandLineRunner {
             log.info("Created test regular user: USER001 / user123");
         }
 
+        // Create 10 assessor users if not exist
+        for (int i = 1; i <= 10; i++) {
+            String studentCode = String.format("ASSESSOR%03d", i);
+            if (!userRepository.existsByStudentCode(studentCode)) {
+                User assessorUser = new User();
+                assessorUser.setStudentCode(studentCode);
+                assessorUser.setFullName(String.format("Giám định %d", i));
+                assessorUser.setPersonalMail(String.format("assessor%d@fvc.com", i));
+                assessorUser.setEduMail(String.format("assessor%d@fpt.edu.vn", i));
+                assessorUser.setHashPassword(passwordEncoder.encode("assessor123"));
+                assessorUser.setSystemRole(SystemRole.TEACHER); // Teachers can be assessors
+                assessorUser.setStatus(true);
+                
+                userRepository.save(assessorUser);
+                log.info("Created assessor user: {} / assessor123", studentCode);
+            }
+        }
+
         // Create fist configs and items if not exist
         if (fistConfigRepository.count() == 0) {
             // Create Đa luyện config
