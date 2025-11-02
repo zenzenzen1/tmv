@@ -3,10 +3,10 @@ import type { TableColumn } from "@/components/common/CommonTable";
 // Note: This page is rendered inside the management layout, so no standalone Footer here
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ErrorMessage from "@/components/common/ErrorMessage";
-import Pagination from "@/components/common/Pagination";
-import { useEffect, useMemo, useMemo as useReactMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useMemo as useReactMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
+import { useToast } from "@/components/common/ToastContext";
 
 // Hàm để extract tất cả các trường từ form data
 function extractFormDataFields(formData: any): Record<string, string> {
@@ -159,6 +159,7 @@ type SubmittedRow = {
 
 export default function SubmittedFormsPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [rows, setRows] = useState<SubmittedRow[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
@@ -166,83 +167,99 @@ export default function SubmittedFormsPage() {
   const [pageSize] = useState<number>(10); // fixed page size
   const [totalElements, setTotalElements] = useState<number>(0);
   const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
+  const [actionLoading, setActionLoading] = useState<boolean>(false);
   
-  // Filters
-  const [status, setStatus] = useState<string>("");
+  // Filters - Default to PENDING status
+  const [status, setStatus] = useState<string>("PENDING");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
   // Search
   const [query, setQuery] = useState<string>("");
 
-  useEffect(() => {
-    let ignore = false;
-    async function fetchData() {
-      try {
-        setLoading(true);
-        setError("");
-        const res = await api.get<{
-          content: any[];
-          page: number;
-          size: number;
-          totalElements: number;
-        }>("/v1/submitted-forms", {
-          // fixed form type: club registration
-          type: "CLUB_REGISTRATION",
-          page: page - 1,
-          size: pageSize,
-          sortBy: "createdAt",
-          sortDirection: "desc",
-          status: status || undefined,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-          search: query || undefined,
-        });
-        if (!ignore) {
-          const mapped: SubmittedRow[] = (res.data?.content ?? []).map((s: any, idx: number) => {
-            const emailFromUser = s.userPersonalMail || s.userEduMail || "";
-            const codeFromUser = s.userStudentCode || "";
-            const nameFromUser = s.userFullName || "";
-            const phoneFromForm = s.formData ? safePick(s.formData, ["phone", "sdt", "mobile"]) : "";
-            
-            // Extract tất cả các trường từ form data
-            const formFields = extractFormDataFields(s.formData);
-            
-            // Logic ưu tiên tên: 1) Từ bảng user nếu có user_id, 2) Từ form_data nếu không có user_id
-            let finalName = "";
-            if (s.userId && nameFromUser) {
-              // Có user_id và có tên từ bảng user
-              finalName = nameFromUser;
-            } else {
-              // Không có user_id hoặc không có tên từ bảng user, lấy từ form_data
-              finalName = s.formData ? extractNameFromFormData(s.formData) : "";
-            }
-            
-            return {
-              id: String(s.id ?? idx),
-              submittedAt: s.createdAt ?? "",
-              fullName: finalName,
-              email: emailFromUser || (s.formData ? safePick(s.formData, ["email", "mail"]) : ""),
-              studentCode: codeFromUser || (s.formData ? safePick(s.formData, ["studentCode", "mssv", "msv"]) : ""),
-              phone: phoneFromForm,
-              note: s.reviewerNote ?? "",
-              formData: s.formData,
-              ...formFields, // Spread tất cả các trường form data vào row
-            } as SubmittedRow;
-          });
-          setRows(mapped);
-          setTotalElements(res.data?.totalElements ?? mapped.length);
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const res = await api.get<{
+        content: any[];
+        page: number;
+        size: number;
+        totalElements: number;
+      }>("/v1/submitted-forms", {
+        // fixed form type: club registration
+        type: "CLUB_REGISTRATION",
+        page: page - 1,
+        size: pageSize,
+        sortBy: "createdAt",
+        sortDirection: "desc",
+        status: status || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        search: query || undefined,
+      });
+      
+      const mapped: SubmittedRow[] = (res.data?.content ?? []).map((s: any, idx: number) => {
+        const emailFromUser = s.userPersonalMail || s.userEduMail || "";
+        const codeFromUser = s.userStudentCode || "";
+        const nameFromUser = s.userFullName || "";
+        const phoneFromForm = s.formData ? safePick(s.formData, ["phone", "sdt", "mobile"]) : "";
+        
+        // Extract tất cả các trường từ form data
+        const formFields = extractFormDataFields(s.formData);
+        
+        // Logic ưu tiên tên: 1) Từ bảng user nếu có user_id, 2) Từ form_data nếu không có user_id
+        let finalName = "";
+        if (s.userId && nameFromUser) {
+          // Có user_id và có tên từ bảng user
+          finalName = nameFromUser;
+        } else {
+          // Không có user_id hoặc không có tên từ bảng user, lấy từ form_data
+          finalName = s.formData ? extractNameFromFormData(s.formData) : "";
         }
-      } catch (e: any) {
-        if (!ignore) setError(e?.message || "Không tải được dữ liệu");
-      } finally {
-        if (!ignore) setLoading(false);
-      }
+        
+        return {
+          id: String(s.id ?? idx),
+          submittedAt: s.createdAt ?? "",
+          fullName: finalName,
+          email: emailFromUser || (s.formData ? safePick(s.formData, ["email", "mail"]) : ""),
+          studentCode: codeFromUser || (s.formData ? safePick(s.formData, ["studentCode", "mssv", "msv"]) : ""),
+          phone: phoneFromForm,
+          note: s.reviewerNote ?? "",
+          formData: s.formData,
+          ...formFields, // Spread tất cả các trường form data vào row
+        } as SubmittedRow;
+      });
+      setRows(mapped);
+      setTotalElements(res.data?.totalElements ?? mapped.length);
+    } catch (e: any) {
+      setError(e?.message || "Không tải được dữ liệu");
+    } finally {
+      setLoading(false);
     }
-    fetchData();
-    return () => {
-      ignore = true;
-    };
   }, [page, pageSize, status, dateFrom, dateTo, query]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+  
+  console.log(rows)
+
+  const handleUpdateStatus = async (id: string, newStatus: "APPROVED" | "REJECTED") => {
+    try {
+      setActionLoading(true);
+      await api.patch(`/v1/submitted-forms/${id}/status`, { status: newStatus });
+      
+      toast.success(`Đã ${newStatus === "APPROVED" ? "duyệt" : "từ chối"} form thành công`);
+      setViewingRow(null);
+      
+      // Refresh data using reusable function
+      await fetchData();
+    } catch (e: any) {
+      toast.error(e?.message || "Không thể cập nhật trạng thái");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   function safePick(jsonString: string, keys: string[]): string {
     try {
@@ -461,7 +478,7 @@ export default function SubmittedFormsPage() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-gray-900">Bộ lọc</h3>
             <button
-              onClick={() => { setStatus(""); setDateFrom(""); setDateTo(""); setQuery(""); setPage(1); }}
+              onClick={() => { setStatus("PENDING"); setDateFrom(""); setDateTo(""); setQuery(""); setPage(1); }}
               className="text-sm text-gray-500 hover:text-gray-700"
             >
               Xóa tất cả bộ lọc
@@ -476,10 +493,10 @@ export default function SubmittedFormsPage() {
                 onChange={(e) => { setPage(1); setStatus(e.target.value); }}
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
               >
-                <option value="">Tất cả trạng thái</option>
                 <option value="PENDING">Đang chờ</option>
                 <option value="APPROVED">Đã duyệt</option>
                 <option value="REJECTED">Từ chối</option>
+                <option value="">Tất cả trạng thái</option>
               </select>
             </div>
             
@@ -600,10 +617,33 @@ export default function SubmittedFormsPage() {
               </div>
             </div>
             
-            <div className="flex items-center justify-end gap-3 border-t px-6 py-4">
+            <div className="flex items-center justify-between border-t px-6 py-4">
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => handleUpdateStatus(viewingRow.id, "APPROVED")}
+                  disabled={actionLoading}
+                  className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                  </svg>
+                  {actionLoading ? "Đang xử lý..." : "Duyệt"}
+                </button>
+                <button 
+                  onClick={() => handleUpdateStatus(viewingRow.id, "REJECTED")}
+                  disabled={actionLoading}
+                  className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                    <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                  </svg>
+                  {actionLoading ? "Đang xử lý..." : "Từ chối"}
+                </button>
+              </div>
               <button 
                 onClick={() => setViewingRow(null)} 
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                disabled={actionLoading}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Đóng
               </button>

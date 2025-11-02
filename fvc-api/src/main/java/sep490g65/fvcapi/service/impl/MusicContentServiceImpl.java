@@ -32,6 +32,7 @@ public class MusicContentServiceImpl implements MusicContentService {
                 .name(e.getName())
                 .description(e.getDescription())
                 .isActive(Boolean.TRUE.equals(e.getIsActive()))
+                .performersPerEntry(e.getPerformersPerEntry())
                 .build();
     }
 
@@ -63,6 +64,7 @@ public class MusicContentServiceImpl implements MusicContentService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .isActive(request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE)
+                .performersPerEntry(request.getPerformersPerEntry() != null ? request.getPerformersPerEntry() : 1)
                 .build();
         return toDto(repository.save(e));
     }
@@ -74,6 +76,7 @@ public class MusicContentServiceImpl implements MusicContentService {
         if (request.getName() != null) e.setName(request.getName());
         if (request.getDescription() != null) e.setDescription(request.getDescription());
         if (request.getIsActive() != null) e.setIsActive(request.getIsActive());
+        if (request.getPerformersPerEntry() != null) e.setPerformersPerEntry(request.getPerformersPerEntry());
         return toDto(repository.save(e));
     }
 

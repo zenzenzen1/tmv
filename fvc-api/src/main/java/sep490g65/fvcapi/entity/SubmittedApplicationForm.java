@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import com.vladmihalcea.hibernate.type.json.JsonType;
 import org.hibernate.annotations.Type;
+import org.springframework.lang.Nullable;
+
 import sep490g65.fvcapi.enums.ApplicationFormStatus;
 import sep490g65.fvcapi.enums.ApplicationFormType;
 
@@ -29,14 +31,17 @@ public class SubmittedApplicationForm extends BaseEntity {
     private String formData;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = true)
+    @JoinColumn(name = "user_id")
     private User user;
+
+    @Column(name = "email", nullable = true)
+    private String email; // Always required, for cases when user_id is null
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ApplicationFormStatus status;
 
-    @Column(length = 255)
+    @Column(name = "reviewer_note", length = 255, columnDefinition = "VARCHAR(255)")
     private String reviewerNote;
 
     @ManyToOne(fetch = FetchType.LAZY)

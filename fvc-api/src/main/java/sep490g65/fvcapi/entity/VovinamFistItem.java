@@ -37,5 +37,9 @@ public class VovinamFistItem extends BaseEntity {
 
     private Integer level;
 
+    // Number of performers required per entry (e.g., Don luyen=1, Song luyen=2)
+    @Column(name = "participants_per_entry")
+    private Integer participantsPerEntry;
+
 }
 

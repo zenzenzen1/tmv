@@ -129,6 +129,14 @@ public class AthleteService {
         return null;
     }
     
+    /**
+     * Arranges competition order for athletes in a competition.
+     * Merge: Master branch implementation creates CompetitionOrder entities for athletes.
+     * 
+     * @param competitionId The competition ID
+     * @param competitionType The competition type as string (will be converted to enum)
+     * @param orders List of athlete orders (currently unused but reserved for future use)
+     */
     @Transactional
     public void arrangeOrder(String tournamentId, String contentId) {
         // For now, ignore contentId and set order for provided athletes
