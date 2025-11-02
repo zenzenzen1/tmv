@@ -17,7 +17,7 @@ import Home from "./pages/Home";
 import TournamentListPage from "./pages/tournament/ListPage";
 import CompetitionFormPage from "./pages/tournament/CompetitionFormPage";
 import FormResults from "./features/tournament/FormResults";
-// import FormBuilder from "./features/tournament/FormBuilder";
+import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
 import TournamentFormList from "./features/tournament/TournamentFormList";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
@@ -32,10 +32,15 @@ import MusicContentListPage from "./pages/music-content/ListPage";
 import BracketBuilder from "./pages/brackets/BracketBuilder";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
+<<<<<<< HEAD
 import FormBuilder from "./features/tournament/FormBuilder";
 import MatchScoringPage from "./pages/scoring/MatchScoringPage";
 import SelectMatchPage from "./pages/scoring/SelectMatchPage";
+=======
+// Merge: User management route added from master branch
+>>>>>>> a4c6e9ef630e34335f12d975ce1deae1ec16dcbf
 import UserManagementPage from "./pages/user-management/UserManagementPage";
+import RegisterPage from "./pages/auth/RegisterPage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -43,11 +48,11 @@ export default function App() {
   function Protected({ children }: { children: React.ReactElement }) {
     // Wait for hydration to complete
     const isLoading = useAuthStore((state) => state.isLoading);
-    
+
     if (isLoading) {
       return <div>Loading...</div>; // Or a proper loading component
     }
-    
+
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
     }
@@ -57,6 +62,7 @@ export default function App() {
   // Nếu đã login → hiển thị layout chính
   return (
     <Routes>
+      <Route path="/register" element={<RegisterPage />} />
       {/* Auth */}
       <Route
         path="/login"
@@ -103,6 +109,9 @@ export default function App() {
       <Route path="/home" element={<Home />} />
       <Route path="dashboard" element={<DashboardPage />} />
 
+      {/* Public Form Registration - Guest access */}
+      <Route path="/public/forms/:slug" element={<FormRegistrationPage />} />
+
       {/* Protected app routes under /manage */}
       <Route
         path="/manage"
@@ -117,9 +126,9 @@ export default function App() {
         {/* default */}
         <Route index element={<Navigate to="tournaments" replace />} />
 
-      {/* Dashboard/Home (optional) */}
-      <Route path="dashboard" element={<DashboardPage />} />
-      <Route path="home" element={<Home />} />
+        {/* Dashboard/Home (optional) */}
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="home" element={<Home />} />
 
         {/* Tournaments */}
         <Route path="tournaments" element={<TournamentListPage />} />
@@ -162,7 +171,12 @@ export default function App() {
         <Route path="arrange" element={<ArrangeOrderWrapper />} />
         <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
 
-        {/* User Management */}
+        {/* Tournament Forms - Merge: Routes from HEAD branch */}
+        <Route path="tournament-forms" element={<TournamentFormList />} />
+        <Route path="tournament-forms/new" element={<FormBuilder />} />
+        <Route path="tournament-forms/:id/edit" element={<FormBuilder />} />
+
+        {/* User Management - Merge: Route from master branch */}
         <Route path="users" element={<UserManagementPage />} />
       </Route>
 
@@ -191,8 +205,6 @@ export default function App() {
         path="/forms/*"
         element={<Navigate to="/manage/forms" replace />}
       />
-      <Route path="/form-builder" element={<FormBuilder />} />
-      <Route path="/form-builder/:id" element={<FormBuilder />} />
       <Route path="/results/:id" element={<FormResults />} />
       <Route path="/published-form/:id" element={<PublishedForm />} />
       <Route path="/scoring" element={<SelectMatchPage />} />

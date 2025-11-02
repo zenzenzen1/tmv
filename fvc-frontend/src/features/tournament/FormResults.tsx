@@ -41,7 +41,55 @@ export default function FormResults() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation() as { state?: { tournamentName?: string } };
 
+  // New filter states
+  const [formTypeFilter, setFormTypeFilter] = useState<
+    "COMPETITION" | "CLUB" | ""
+  >("");
+  const [selectedFormId, setSelectedFormId] = useState<string>("");
+  const [availableForms, setAvailableForms] = useState<
+    Array<{ id: string; name: string; formType: string }>
+  >([]);
+
   const tournamentName = location?.state?.tournamentName ?? "";
+
+  // Load available forms based on form type filter
+  useEffect(() => {
+    const loadForms = async () => {
+      if (!formTypeFilter) {
+        setAvailableForms([]);
+        return;
+      }
+
+      try {
+        const response = await api.get("/v1/tournament-forms", {
+          params: { size: 100 },
+        });
+
+        const forms = response.data?.content || [];
+        const filteredForms = forms.filter((form: any) => {
+          if (formTypeFilter === "COMPETITION") {
+            return form.formType === "COMPETITION_REGISTRATION";
+          } else if (formTypeFilter === "CLUB") {
+            return form.formType === "CLUB_REGISTRATION";
+          }
+          return false;
+        });
+
+        setAvailableForms(
+          filteredForms.map((form: any) => ({
+            id: form.id,
+            name: form.formTitle || form.name || "Không có tên",
+            formType: form.formType,
+          }))
+        );
+      } catch (error) {
+        console.error("Error loading forms:", error);
+        toast.error("Không thể tải danh sách form");
+      }
+    };
+
+    loadForms();
+  }, [formTypeFilter, toast]);
 
   const columns: Array<TableColumn<ResultRow>> = useMemo(
     () => [
@@ -160,7 +208,10 @@ export default function FormResults() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!id) return;
+      // Use selectedFormId if available, otherwise fallback to id from URL
+      const formId = selectedFormId || id;
+      if (!formId) return;
+
       try {
         setLoading(true);
         const applyingFilter =
@@ -170,7 +221,7 @@ export default function FormResults() {
         const targetPage = applyingFilter ? 0 : page - 1;
         const targetSize = applyingFilter ? 100 : pageSize; // backend max 100
         const resp = await api.get(
-          `/v1/tournament-forms/${id}/submissions?page=${targetPage}&size=${targetSize}`
+          `/v1/tournament-forms/${formId}/submissions?page=${targetPage}&size=${targetSize}`
         );
         const root = resp.data as Record<string, unknown>;
         const pageData = (root["data"] as Record<string, unknown>) ?? root;
@@ -240,14 +291,54 @@ export default function FormResults() {
             getFirstString((parsed as Record<string, unknown>).contentName) ||
             getFirstString(parsed.content) ||
             "";
+          // For fighting, try to get weight class name from formData or fallback to "Đối kháng"
+          let fightingCategory = "";
+          if (compRaw === "fighting") {
+            fightingCategory = (parsed.weightClass as string) || "";
+            // If weightClass is empty but we have weightClassId, try to extract from formData
+            if (!fightingCategory && parsed.weightClassId) {
+              // Look for weight class info in the formData
+              const weightClassInfo =
+                parsed.weightClassInfo ||
+                parsed.weightClassName ||
+                parsed.weightClassDisplay;
+              fightingCategory = weightClassInfo || "Đối kháng";
+            }
+            // If still empty, try to create a readable name from weightClassId
+            if (!fightingCategory && parsed.weightClassId) {
+              // Extract readable info from the ID or create a generic name
+              const weightClassId = parsed.weightClassId as string;
+              if (weightClassId.includes("-")) {
+                // If ID contains weight range info, use it
+                fightingCategory = weightClassId;
+              } else {
+                // Otherwise, use a generic name
+                fightingCategory = "Đối kháng";
+              }
+            }
+            if (!fightingCategory) {
+              fightingCategory = "Đối kháng";
+            }
+          }
+
           const categoryVi =
             compRaw === "quyen"
               ? `${quyenCategory}${quyenContent ? ` - ${quyenContent}` : ""}`
               : compRaw === "fighting"
-              ? (parsed.weightClass as string) || ""
+              ? fightingCategory
               : compRaw === "music"
               ? (parsed.musicCategory as string) || ""
               : (parsed.category as string) || "";
+
+          console.log("FormResults category mapping:", {
+            compRaw,
+            weightClass: parsed.weightClass,
+            quyenCategory,
+            quyenContent,
+            musicCategory: parsed.musicCategory,
+            categoryVi,
+            parsed: parsed,
+          });
           if (compRaw === "quyen") {
             console.log("FormResults parsed quyen:", {
               raw: parsed,
@@ -310,7 +401,7 @@ export default function FormResults() {
             studentId: parsed.studentId || "",
             club: parsed.club || "",
             coach: parsed.coach || "",
-            phone: parsed.phone || "",
+            phone: parsed.phone || parsed.phoneNumber || "",
             status,
           } as ResultRow;
         });
@@ -347,7 +438,15 @@ export default function FormResults() {
       }
     };
     fetchData();
-  }, [id, page, reloadKey, searchText, typeFilter, statusFilter]);
+  }, [
+    id,
+    selectedFormId,
+    page,
+    reloadKey,
+    searchText,
+    typeFilter,
+    statusFilter,
+  ]);
 
   // Listen for form submissions elsewhere to refresh results
   useEffect(() => {
@@ -369,7 +468,12 @@ export default function FormResults() {
                 Quay lại
               </button>
               <div className="text-lg font-semibold text-gray-800">
-                Kết quả - Đăng kí tham gia Giải đấu
+                Kết quả -{" "}
+                {formTypeFilter === "COMPETITION"
+                  ? "Đăng ký giải đấu"
+                  : formTypeFilter === "CLUB"
+                  ? "Đăng ký CLB"
+                  : "Đăng ký tham gia"}
               </div>
               <span className="text-lg font-semibold text-[#2563eb]">
                 {tournamentName}
@@ -383,6 +487,42 @@ export default function FormResults() {
           </div>
 
           <div className="mb-3 flex flex-wrap items-center gap-2">
+            {/* Form Type Filter */}
+            <select
+              value={formTypeFilter}
+              onChange={(e) => {
+                setFormTypeFilter(
+                  e.target.value as "COMPETITION" | "CLUB" | ""
+                );
+                setSelectedFormId("");
+                setPage(1);
+              }}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Chọn loại form</option>
+              <option value="COMPETITION">Form đăng ký giải</option>
+              <option value="CLUB">Form đăng ký CLB</option>
+            </select>
+
+            {/* Specific Form Filter */}
+            {formTypeFilter && (
+              <select
+                value={selectedFormId}
+                onChange={(e) => {
+                  setSelectedFormId(e.target.value);
+                  setPage(1);
+                }}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+              >
+                <option value="">Chọn form cụ thể</option>
+                {availableForms.map((form) => (
+                  <option key={form.id} value={form.id}>
+                    {form.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
             <input
               value={searchText}
               onChange={(e) => {

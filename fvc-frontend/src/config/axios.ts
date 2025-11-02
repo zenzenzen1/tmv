@@ -59,16 +59,16 @@ apiClient.interceptors.response.use(
 
     // Log response in development
     if (import.meta.env.DEV) {
-      console.log(
-        `✅ API Response: ${response.config.method?.toUpperCase()} ${
-          response.config.url
-        }`,
-        {
-          status: response.status,
-          duration: `${duration}ms`,
-          data: response.data,
-        }
-      );
+    //   console.log(
+    //     `✅ API Response: ${response.config.method?.toUpperCase()} ${
+    //       response.config.url
+    //     }`,
+    //     {
+    //       status: response.status,
+    //       duration: `${duration}ms`,
+    //       data: response.data,
+    //     }
+    //   );
     }
 
     // Handle API-level errors

@@ -39,6 +39,10 @@ public class MusicIntegratedPerformance extends BaseEntity {
     @Column(name = "is_active")
     private Boolean isActive;
 
+    // Number of performers per entry (team size) for this performance
+    @Column(name = "performers_per_entry")
+    private Integer performersPerEntry;
+
     // Many-to-many relationship with Competition through junction table
     @OneToMany(mappedBy = "musicIntegratedPerformance", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<CompetitionMusicIntegratedPerformance> competitionRelations;
