@@ -19,6 +19,7 @@ public class SubmittedApplicationFormResponse {
     private String reviewerNote;
     private String userId;
     private String applicationFormConfigId;
+    private String applicationFormConfigName; // Form name from ApplicationFormConfig
 
     // Flattened user info for convenience on FE
     private String userFullName;

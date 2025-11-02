@@ -36,7 +36,7 @@ public class SubmittedApplicationForm extends BaseEntity {
     @Column(nullable = false, length = 30)
     private ApplicationFormStatus status;
 
-    @Column(length = 255)
+    @Column(name = "reviewer_note", length = 255, columnDefinition = "VARCHAR(255)")
     private String reviewerNote;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -152,6 +152,9 @@ type SubmittedRow = {
   studentCode: string;
   phone: string;
   note: string;
+  formType?: string;
+  formName?: string;
+  applicationFormConfigId?: string;
   stt?: number;
   formData?: any;
   [key: string]: any; // Cho phép các trường động từ form data
@@ -163,7 +166,7 @@ export default function SubmittedFormsPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [page, setPage] = useState<number>(1); // CommonTable is 1-based
-  const [pageSize] = useState<number>(10); // fixed page size
+  const [pageSize, setPageSize] = useState<number>(10);
   const [totalElements, setTotalElements] = useState<number>(0);
   const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
   
@@ -186,7 +189,7 @@ export default function SubmittedFormsPage() {
           size: number;
           totalElements: number;
         }>("/v1/submitted-forms", {
-          // fixed form type: club registration
+          // Only show club registration forms
           type: "CLUB_REGISTRATION",
           page: page - 1,
           size: pageSize,
@@ -226,6 +229,9 @@ export default function SubmittedFormsPage() {
               phone: phoneFromForm,
               note: s.reviewerNote ?? "",
               formData: s.formData,
+              formType: s.formType || "",
+              formName: s.applicationFormConfigName || "", // Form name from backend
+              applicationFormConfigId: s.applicationFormConfigId || "", // Form config ID
               ...formFields, // Spread tất cả các trường form data vào row
             } as SubmittedRow;
           });
@@ -321,82 +327,103 @@ export default function SubmittedFormsPage() {
       try {
         const d = new Date(v);
         if (Number.isNaN(d.getTime())) return v;
-        return d.toLocaleDateString("vi-VN");
+        // Format: dd/MM/yyyy HH:mm
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
       } catch {
         return v;
       }
     };
 
-    // Lấy các trường form data được định nghĩa trong fieldDisplayNames
-    const allowedFormFields = new Set<string>();
-    rows.forEach(row => {
-      const formFields = extractFormDataFields(row.formData);
-      Object.keys(formFields).forEach(key => {
-        const lowerKey = key.toLowerCase();
-        // Loại bỏ các trường tên vì đã hiển thị trong cột "Họ và tên"
-        const isNameField = ["fullName", "name", "hovaten", "ten"].includes(lowerKey);
-        if (!isNameField) {
-          // Chỉ hiển thị các trường được định nghĩa trong fieldDisplayNames
-          if (Object.keys(fieldDisplayNames).some(definedKey => 
-            definedKey.toLowerCase() === lowerKey || 
-            lowerKey.includes(definedKey.toLowerCase()) ||
-            definedKey.toLowerCase().includes(lowerKey)
-          )) {
-            allowedFormFields.add(key);
-          }
-        }
-      });
-    });
-
-    // Tạo cột cho các trường form data được phép
-    const formDataColumns: TableColumn<SubmittedRow>[] = Array.from(allowedFormFields)
-      .map(fieldKey => ({
-        key: fieldKey,
-        title: getFieldDisplayName(fieldKey),
-        render: (row: SubmittedRow) => row[fieldKey] || "",
-        className: "max-w-xs",
-      }));
-
     return [
       {
         key: "stt",
         title: "STT",
-        render: (row: SubmittedRow) => row.stt,
+        render: (row: SubmittedRow) => (
+          <span className="text-sm font-medium text-gray-900">{row.stt}</span>
+        ),
         sortable: false,
         className: "w-16 text-center",
       },
       {
         key: "submittedAt",
-        title: "Thời gian nộp",
+        title: "Thời gian",
         sortable: true,
-        render: (r) => formatDate(r.submittedAt),
+        render: (r) => (
+          <span className="text-sm text-gray-600 whitespace-nowrap">
+            {formatDate(r.submittedAt)}
+          </span>
+        ),
+        className: "w-36",
       },
-      { key: "fullName", title: "Họ và tên", sortable: true },
-      { key: "email", title: "Email", sortable: true },
-      { key: "studentCode", title: "MSSV", sortable: true },
-      { key: "note", title: "Mô tả ngắn về bản thân" },
-      ...formDataColumns, // Thêm các cột form data động (bao gồm số điện thoại)
+      {
+        key: "fullName",
+        title: "Họ và tên",
+        sortable: true,
+        render: (r: SubmittedRow) => (
+          <div className="font-medium text-gray-900 truncate max-w-[200px]" title={r.fullName}>
+            {r.fullName || "-"}
+          </div>
+        ),
+        className: "min-w-[150px] max-w-[200px]",
+      },
+      {
+        key: "email",
+        title: "Email",
+        sortable: true,
+        render: (r: SubmittedRow) => (
+          <div className="text-sm text-gray-600 truncate max-w-[200px]" title={r.email}>
+            {r.email || "-"}
+          </div>
+        ),
+        className: "min-w-[150px] max-w-[200px]",
+      },
+      {
+        key: "studentCode",
+        title: "MSSV",
+        sortable: true,
+        render: (r: SubmittedRow) => (
+          <span className="text-sm font-medium text-gray-700">{r.studentCode || "-"}</span>
+        ),
+        className: "w-24",
+      },
+      {
+        key: "formName",
+        title: "Form",
+        sortable: true,
+        render: (r: SubmittedRow) => (
+          <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
+            {r.formName || "N/A"}
+          </span>
+        ),
+        className: "w-32",
+      },
       {
         key: "actions",
-        title: "Thao tác",
+        title: "",
         sortable: false,
-        className: "w-32",
+        className: "w-28",
         render: (row: SubmittedRow) => (
           <button
             type="button"
-            aria-label={`Xem form #${row.id}`}
+            aria-label={`Xem chi tiết form #${row.id}`}
             onClick={() => setViewingRow(row)}
-            className="inline-flex items-center gap-1 rounded-md bg-[#2563eb] px-3 py-1.5 text-[12px] font-medium text-white shadow hover:bg-[#1e4fd9] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/40"
+            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
-              <path d="M12 5c-5 0-9 5-9 7s4 7 9 7 9-5 9-7-4-7-9-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+              <path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
             </svg>
-            Xem form
+            Chi tiết
           </button>
         ),
       },
     ];
-  }, [rows]);
+  }, []);
 
   const filtered = useReactMemo(() => {
     if (!query.trim()) return rows;
@@ -436,8 +463,8 @@ export default function SubmittedFormsPage() {
 
         {/* Header */}
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Kết quả đăng ký</h2>
-          <p className="text-gray-600">Đăng kí tham gia FPTU Vovinam Club FALL 2025</p>
+          <h2 className="text-2xl font-bold text-gray-900">Kết quả đăng ký câu lạc bộ</h2>
+          <p className="text-gray-600">Tổng hợp các form đăng ký tham gia câu lạc bộ</p>
         </div>
 
         {/* Statistics Cards */}
@@ -538,6 +565,12 @@ export default function SubmittedFormsPage() {
             pageSize={pageSize}
             total={totalElements}
             onPageChange={(p) => setPage(p)}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1); // Reset to first page when changing page size
+            }}
+            showPageSizeSelector={true}
+            pageSizeOptions={[5, 10, 15]}
           />
         )}
 
@@ -587,15 +620,94 @@ export default function SubmittedFormsPage() {
                 </div>
               </div>
 
-              {/* Form Data */}
+              {/* Form Data - Thông tin người đăng ký */}
               <div>
                 <h4 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                  Dữ liệu form
+                  Thông tin người đăng ký
                 </h4>
-                <div className="rounded-md bg-gray-50 p-4">
-                  <pre className="whitespace-pre-wrap text-xs leading-relaxed text-gray-800">
-{typeof viewingRow.formData === 'string' ? viewingRow.formData : JSON.stringify(viewingRow.formData, null, 2)}
-                  </pre>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {(() => {
+                    // Parse formData
+                    let formDataObj: any = {};
+                    try {
+                      formDataObj = typeof viewingRow.formData === 'string' 
+                        ? JSON.parse(viewingRow.formData) 
+                        : viewingRow.formData;
+                    } catch {
+                      formDataObj = {};
+                    }
+
+                    // Map các trường thông tin người đăng ký
+                    const infoFields: Array<{ key: string; label: string; value: string }> = [];
+                    
+                    // Họ và tên
+                    const fullName = formDataObj.fullName || formDataObj.name || formDataObj.hovaten || formDataObj.hoTen || '';
+                    if (fullName) {
+                      infoFields.push({ key: 'fullName', label: 'Họ và tên', value: fullName });
+                    }
+
+                    // Email
+                    const email = formDataObj.email || formDataObj.mail || '';
+                    if (email) {
+                      infoFields.push({ key: 'email', label: 'Email', value: email });
+                    }
+
+                    // MSSV
+                    const studentCode = formDataObj.studentCode || formDataObj.mssv || formDataObj.msv || '';
+                    if (studentCode) {
+                      infoFields.push({ key: 'studentCode', label: 'MSSV', value: studentCode });
+                    }
+
+                    // Số điện thoại
+                    const phone = formDataObj.phone || formDataObj.sdt || formDataObj.so_dien_thoai || formDataObj.mobile || '';
+                    if (phone) {
+                      infoFields.push({ key: 'phone', label: 'Số điện thoại', value: phone });
+                    }
+
+                    // Mô tả / Lý do
+                    const reason = formDataObj.reason || formDataObj.mo_ta || formDataObj.mota || formDataObj.description || formDataObj.bio || '';
+                    if (reason) {
+                      infoFields.push({ key: 'reason', label: 'Mô tả ngắn về bản thân', value: reason });
+                    }
+
+                    // Các trường khác (loại bỏ null, empty, và các trường đã hiển thị)
+                    const excludedKeys = ['fullName', 'name', 'hovaten', 'hoTen', 'email', 'mail', 
+                                         'studentCode', 'mssv', 'msv', 'phone', 'sdt', 'so_dien_thoai', 'mobile',
+                                         'reason', 'mo_ta', 'mota', 'description', 'bio', 'club'];
+                    
+                    Object.entries(formDataObj).forEach(([key, value]) => {
+                      const lowerKey = key.toLowerCase();
+                      if (!excludedKeys.includes(lowerKey) && 
+                          value !== null && 
+                          value !== undefined && 
+                          value !== '' &&
+                          typeof value === 'string') {
+                        infoFields.push({ 
+                          key, 
+                          label: getFieldDisplayName(key), 
+                          value: String(value) 
+                        });
+                      }
+                    });
+
+                    // Hiển thị các trường
+                    if (infoFields.length === 0) {
+                      return (
+                        <div className="col-span-2 rounded-md bg-gray-50 p-3 text-center text-sm text-gray-500">
+                          Không có thông tin bổ sung
+                        </div>
+                      );
+                    }
+
+                    return infoFields.map((field) => (
+                      <div key={field.key} className="rounded-md bg-gray-50 p-3">
+                        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                          {field.label}
+                        </div>
+                        <div className="mt-1 text-sm text-gray-900">{field.value}</div>
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
             </div>
@@ -614,7 +726,6 @@ export default function SubmittedFormsPage() {
     </div>
   );
 }
-
 function exportCsv(rows: SubmittedRow[]) {
   if (!rows || rows.length === 0) {
     // Replace alert with toast once toast context is available here
@@ -699,3 +810,4 @@ function escapeCsv(value?: string) {
   }
   return s;
 }
+
