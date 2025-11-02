@@ -35,6 +35,8 @@ export default function FormEditPage() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [publicLink, setPublicLink] = useState<string | null>(null);
+  const [formStatus, setFormStatus] = useState<string>("DRAFT");
 
   const openPreview = () => {
     setShowPreview(true);
@@ -143,12 +145,54 @@ export default function FormEditPage() {
         // Load form theo ID
         const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_ID(id));
         
+        console.log('Form detail response:', response);
+        
         if (response.success && response.data) {
+          console.log('Form data:', response.data);
+          console.log('EndDate from API:', response.data.endDate);
+          setPublicLink(response.data.publicLink || null);
+          setFormStatus(response.data.status || "DRAFT");
           setTitle(response.data.name || "");
           setDescription(response.data.description || "");
-          setEndDate(response.data.endDate ? new Date(response.data.endDate).toISOString().split('T')[0] : "");
           
-          const formFields = response.data.fields?.map((field: any) => ({
+          // Parse endDate correctly for datetime-local input
+          if (response.data.endDate) {
+            try {
+              // Handle both ISO string and LocalDateTime formats
+              let endDateObj: Date;
+              if (typeof response.data.endDate === 'string') {
+                // If it's already a string, try to parse it
+                endDateObj = new Date(response.data.endDate);
+              } else {
+                endDateObj = new Date(response.data.endDate);
+              }
+              
+              // Check if date is valid
+              if (isNaN(endDateObj.getTime())) {
+                console.warn('Invalid endDate:', response.data.endDate);
+                setEndDate("");
+              } else {
+                // Format for datetime-local input: YYYY-MM-DDTHH:mm
+                // Use local time, not UTC
+                const year = endDateObj.getFullYear();
+                const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+                const day = String(endDateObj.getDate()).padStart(2, '0');
+                const hours = String(endDateObj.getHours()).padStart(2, '0');
+                const minutes = String(endDateObj.getMinutes()).padStart(2, '0');
+                const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                console.log('Parsed endDate:', formattedDate);
+                setEndDate(formattedDate);
+              }
+            } catch (e) {
+              console.error('Error parsing endDate:', e, 'Raw value:', response.data.endDate);
+              setEndDate("");
+            }
+          } else {
+            console.log('No endDate in response');
+            setEndDate("");
+          }
+          
+          const formFields = (response.data.fields || []).map((field: any) => ({
             id: field.id || crypto.randomUUID(),
             label: field.label || "",
             name: field.name || "",
@@ -156,12 +200,17 @@ export default function FormEditPage() {
             required: field.required || false,
             sortOrder: field.sortOrder || 0,
             options: field.options || "",
-          })) || [];
+          }));
           
+          console.log('Mapped form fields:', formFields);
           setFields(formFields);
         } else {
-          // Fallback: tạo form mới nếu không tìm thấy
-          await createDefaultForm();
+          console.warn('Form not found:', id);
+          toast.error(`Không tìm thấy form với ID: ${id}`);
+          // Navigate back to forms list after a delay
+          setTimeout(() => {
+            navigate('/manage/forms');
+          }, 2000);
         }
       } else {
         // Fallback: load form CLB_REGISTRATION mặc định
@@ -170,9 +219,45 @@ export default function FormEditPage() {
         if (response.success && response.data) {
           setTitle(response.data.name || "");
           setDescription(response.data.description || "");
-          setEndDate(response.data.endDate ? new Date(response.data.endDate).toISOString().split('T')[0] : "");
           
-          const formFields = response.data.fields?.map((field: any) => ({
+          // Parse endDate correctly for datetime-local input
+          if (response.data.endDate) {
+            try {
+              // Handle both ISO string and LocalDateTime formats
+              let endDateObj: Date;
+              if (typeof response.data.endDate === 'string') {
+                // If it's already a string, try to parse it
+                endDateObj = new Date(response.data.endDate);
+              } else {
+                endDateObj = new Date(response.data.endDate);
+              }
+              
+              // Check if date is valid
+              if (isNaN(endDateObj.getTime())) {
+                console.warn('Invalid endDate:', response.data.endDate);
+                setEndDate("");
+              } else {
+                // Format for datetime-local input: YYYY-MM-DDTHH:mm
+                // Use local time, not UTC
+                const year = endDateObj.getFullYear();
+                const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+                const day = String(endDateObj.getDate()).padStart(2, '0');
+                const hours = String(endDateObj.getHours()).padStart(2, '0');
+                const minutes = String(endDateObj.getMinutes()).padStart(2, '0');
+                const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                console.log('Parsed endDate (by type):', formattedDate);
+                setEndDate(formattedDate);
+              }
+            } catch (e) {
+              console.error('Error parsing endDate:', e, 'Raw value:', response.data.endDate);
+              setEndDate("");
+            }
+          } else {
+            console.log('No endDate in response (by type)');
+            setEndDate("");
+          }
+          
+          const formFields = (response.data.fields || []).map((field: any) => ({
             id: field.id || crypto.randomUUID(),
             label: field.label || "",
             name: field.name || "",
@@ -180,18 +265,30 @@ export default function FormEditPage() {
             required: field.required || false,
             sortOrder: field.sortOrder || 0,
             options: field.options || "",
-          })) || [];
+          }));
           
           setFields(formFields);
+          setPublicLink(response.data.publicLink || null);
+          setFormStatus(response.data.status || "DRAFT");
         } else {
           // If no config exists, create default one
           await createDefaultForm();
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading form config:", error);
-      // Try to create default form
-      await createDefaultForm();
+      const errorMessage = error?.response?.data?.message || error?.message || "Không thể tải cấu hình form";
+      toast.error(`Lỗi: ${errorMessage}`);
+      
+      // If 404, navigate back to forms list
+      if (error?.response?.status === 404) {
+        setTimeout(() => {
+          navigate('/manage/forms');
+        }, 2000);
+      } else {
+        // For other errors, try to create default form
+        await createDefaultForm();
+      }
     } finally {
       setLoading(false);
     }
@@ -307,7 +404,10 @@ export default function FormEditPage() {
     }
   };
 
-  const handleSave = async (status: 'PUBLISH' | 'DRAFT' = 'PUBLISH') => {
+  const handleSave = async (status?: 'PUBLISH' | 'DRAFT') => {
+    // If no status specified, keep current status or default to DRAFT for new forms
+    const targetStatus = status || (formStatus !== 'PUBLISH' ? formStatus : 'DRAFT');
+    
     try {
       if (status === 'PUBLISH') {
       setSaving(true);
@@ -370,7 +470,7 @@ export default function FormEditPage() {
         name: title,
         description: description,
         formType: "CLUB_REGISTRATION",
-        status: status,
+        status: targetStatus,
         endDate: endDate ? new Date(endDate).toISOString() : null,
         fields: fields.map(field => ({
           id: field.id,
@@ -387,14 +487,39 @@ export default function FormEditPage() {
       if (id === 'new') {
         // Tạo form mới
         response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE, requestData);
+      } else if (id && id !== 'new') {
+        // Cập nhật form cũ theo ID
+        response = await apiService.put<any>(`${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${id}`, requestData);
       } else {
-        // Cập nhật form cũ
+        // Cập nhật form theo type (fallback)
         response = await apiService.put<any>(API_ENDPOINTS.APPLICATION_FORMS.BY_TYPE('CLUB_REGISTRATION'), requestData);
       }
       
       if (response.success) {
-        const message = status === 'PUBLISH' ? "Đã lưu và publish thành công!" : "Đã lưu bản nháp thành công!";
+        const message = status === 'PUBLISH' 
+          ? "Đã publish thành công!" 
+          : status === 'DRAFT'
+          ? "Đã lưu bản nháp thành công!"
+          : "Đã lưu thành công!";
         toast.success(message);
+        
+        // Update public link and status if published
+        if (status === 'PUBLISH' && response.data?.publicLink) {
+          setPublicLink(response.data.publicLink);
+          setFormStatus('PUBLISH');
+        } else if (status === 'DRAFT' || !status) {
+          // Keep current status or set to DRAFT
+          if (response.data?.status) {
+            setFormStatus(response.data.status);
+          } else if (status === 'DRAFT') {
+            setFormStatus('DRAFT');
+          }
+        }
+        
+        // Update ID if it's a new form
+        if (id === 'new' && response.data?.id) {
+          navigate(`/manage/forms/${response.data.id}/edit`, { replace: true });
+        }
       } else {
         toast.error("Lỗi khi lưu: " + (response.message || "Unknown error"));
       }
@@ -403,11 +528,16 @@ export default function FormEditPage() {
       toast.error("Lỗi khi lưu: " + (error?.message || "Network error"));
     } finally {
       if (status === 'PUBLISH') {
-      setSaving(false);
+        setSaving(false);
       } else {
         setSavingDraft(false);
       }
     }
+  };
+
+  // Separate handler for just saving (without publishing)
+  const handleSaveOnly = async () => {
+    await handleSave(formStatus === 'PUBLISH' ? undefined : 'DRAFT');
   };
 
   // Confirm publish toast state
@@ -425,6 +555,29 @@ export default function FormEditPage() {
     } finally {
       setPendingPublish(false);
       setConfirmPublishOpen(false);
+    }
+  };
+
+  // Confirm postpone toast state
+  const [confirmPostponeOpen, setConfirmPostponeOpen] = useState(false);
+  const [pendingPostpone, setPendingPostpone] = useState(false);
+
+  const requestPostpone = () => {
+    setConfirmPostponeOpen(true);
+  };
+
+  const confirmPostpone = async () => {
+    try {
+      setPendingPostpone(true);
+      await handleSave('POSTPONE');
+      setFormStatus('POSTPONE');
+      toast.success('Form đã được hoãn thành công');
+    } catch (err: any) {
+      console.error("Error postponing form:", err);
+      toast.error("Lỗi khi hoãn form: " + (err?.message || "Network error"));
+    } finally {
+      setPendingPostpone(false);
+      setConfirmPostponeOpen(false);
     }
   };
 
@@ -453,21 +606,109 @@ export default function FormEditPage() {
               Xem trước
             </button>
             <button 
-              onClick={() => handleSave('DRAFT')} 
+              onClick={handleSaveOnly} 
               disabled={savingDraft || saving}
               className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[13px] font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
             >
-              {savingDraft ? "Đang lưu..." : "Save Draft"}
+              {savingDraft ? "Đang lưu..." : "Lưu"}
             </button>
             <button 
               onClick={requestPublish} 
-              disabled={saving || savingDraft}
-            className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50"
-          >
-              {saving ? "Đang lưu..." : (id === 'new' ? "TẠO & PUBLISH" : "SỬA & PUBLISH")}
-          </button>
+              disabled={saving || savingDraft || pendingPostpone}
+              className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50"
+            >
+              {saving ? "Đang publish..." : "Publish"}
+            </button>
+            {formStatus === 'PUBLISH' && (
+              <button 
+                onClick={requestPostpone} 
+                disabled={saving || savingDraft || pendingPostpone}
+                className="rounded-md bg-orange-500 px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-orange-600 disabled:opacity-50"
+              >
+                {pendingPostpone ? "Đang hoãn..." : "Hoãn"}
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Public Link Display */}
+        {formStatus === 'PUBLISH' && publicLink && (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  <h3 className="text-sm font-semibold text-green-800">Form đã được công khai</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}${publicLink}`}
+                    className="flex-1 rounded-md border border-green-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(`${window.location.origin}${publicLink}`);
+                        toast.success('Đã copy link công khai!');
+                      } catch (e) {
+                        toast.error('Không thể copy link');
+                      }
+                    }}
+                    className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    Copy link
+                  </button>
+                  <a
+                    href={publicLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md border border-green-600 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    Mở link
+                  </a>
+                </div>
+                <p className="mt-2 text-xs text-green-600">
+                  Link này có thể được chia sẻ với bất kỳ ai để họ đăng ký. Không cần đăng nhập.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirm Postpone Toast */}
+        {confirmPostponeOpen && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999]">
+            <div className="flex items-center gap-3 rounded-lg border border-orange-300 bg-orange-50 px-4 py-3 shadow-lg">
+              <div className="text-orange-600">
+                <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="text-[13px] text-orange-800">
+                Bạn chắc chắn muốn hoãn form này chứ?
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setConfirmPostponeOpen(false)}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={confirmPostpone}
+                  disabled={pendingPostpone}
+                  className="rounded-md bg-orange-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {pendingPostpone ? "Đang xử lý..." : "Xác nhận hoãn"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Confirm Publish Toast */}
         {confirmPublishOpen && (

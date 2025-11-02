@@ -29,6 +29,8 @@ export default function FormBuilderPage() {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftFormId, setDraftFormId] = useState<string | null>(null);
 
   // Base fields that are always present and not draggable/deletable
   const baseFields = useMemo(() => [
@@ -90,14 +92,15 @@ export default function FormBuilderPage() {
     setFields(baseFields);
   }, [baseFields]);
 
-  const handleSave = async () => {
+  const handleSaveDraft = async () => {
     try {
-      setSaving(true);
+      setSavingDraft(true);
 
       const requestData = {
         name: title,
         description: description,
         formType: "CLUB_REGISTRATION",
+        status: "DRAFT",
         fields: fields.map(field => ({
           id: field.id.startsWith("base-") ? null : field.id, // Don't send ID for base fields if they are new
           label: field.label,
@@ -109,11 +112,63 @@ export default function FormBuilderPage() {
         }))
       };
 
-      const response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE, requestData);
+      let response;
+      // If draftFormId exists, update the existing draft; otherwise create a new one
+      if (draftFormId) {
+        response = await apiService.put<any>(`${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${draftFormId}`, requestData);
+      } else {
+        response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE, requestData);
+      }
+
+      if (response.success) {
+        toast.success("Đã lưu nháp form thành công!");
+        // Store the form ID if this is the first save
+        if (!draftFormId && response.data?.id) {
+          setDraftFormId(response.data.id);
+        }
+        // Stay on the page after saving draft
+      } else {
+        toast.error("Lỗi khi lưu nháp: " + (response.message || "Unknown error"));
+      }
+    } catch (error: any) {
+      console.error("Error saving draft:", error);
+      toast.error("Lỗi khi lưu nháp: " + (error?.message || "Network error"));
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+
+      const requestData = {
+        name: title,
+        description: description,
+        formType: "CLUB_REGISTRATION",
+        status: "PUBLISH",
+        fields: fields.map(field => ({
+          id: field.id.startsWith("base-") ? null : field.id, // Don't send ID for base fields if they are new
+          label: field.label,
+          name: field.name,
+          fieldType: field.fieldType,
+          required: field.required,
+          options: field.options || null,
+          sortOrder: field.sortOrder,
+        }))
+      };
+
+      let response;
+      // If draftFormId exists, update and publish the existing form; otherwise create a new one
+      if (draftFormId) {
+        response = await apiService.put<any>(`${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${draftFormId}`, requestData);
+      } else {
+        response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE, requestData);
+      }
 
       if (response.success) {
         toast.success("Đã tạo form thành công!");
-        navigate('/formList');
+        navigate('/manage/forms');
       } else {
         toast.error("Lỗi khi tạo form: " + (response.message || "Unknown error"));
       }
@@ -141,7 +196,13 @@ export default function FormBuilderPage() {
             <span className="rounded-md border px-2 py-1 text-[11px] font-semibold text-gray-600">CLB</span>
           </div>
           <div className="flex items-center gap-2">
-            <button className="rounded-md border px-3 py-2 text-[13px] text-gray-700 shadow-sm hover:bg-gray-50">Lưu nháp</button>
+            <button
+              onClick={handleSaveDraft}
+              disabled={savingDraft || saving}
+              className="rounded-md border px-3 py-2 text-[13px] text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingDraft ? "Đang lưu..." : "Lưu nháp"}
+            </button>
             <button
               onClick={handleSave}
               disabled={saving}

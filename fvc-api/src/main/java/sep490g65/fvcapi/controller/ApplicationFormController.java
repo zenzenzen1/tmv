@@ -72,21 +72,6 @@ public class ApplicationFormController {
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, data));
     }
 
-    @PutMapping("/type/{formType}")
-    public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> update(
-            @PathVariable ApplicationFormType formType,
-            @Valid @RequestBody UpdateApplicationFormConfigRequest request
-    ) {
-        ApplicationFormConfigResponse data = applicationFormService.update(formType, request);
-        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
-    }
-
-    @PostMapping("/init-club-registration")
-    public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> initClubRegistrationForm() {
-        ApplicationFormConfigResponse data = applicationFormService.createDefaultClubRegistrationForm();
-        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
-    }
-
     // Public endpoint to get form by slug
     @GetMapping("/public/{slug}")
     public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> getPublicBySlug(@PathVariable String slug) {
@@ -98,5 +83,89 @@ public class ApplicationFormController {
                     .body(ResponseUtils.error("Form is not public", "FORM_NOT_PUBLIC"));
         }
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, applicationFormService.getById(config.getId())));
+    }
+
+    // Alternative GET endpoint for form type (without /type/ prefix) or by ID
+    // Supports: GET /api/v1/application-forms/CLUB_REGISTRATION
+    // Also supports: GET /api/v1/application-forms/{uuid-or-id}
+    // This endpoint should be LAST so more specific routes (/id/, /type/, /public/) take precedence
+    @GetMapping("/{identifier}")
+    public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> getByIdentifier(
+            @PathVariable String identifier
+    ) {
+        // First, try to match as ApplicationFormType enum
+        try {
+            ApplicationFormType type = ApplicationFormType.valueOf(identifier);
+            ApplicationFormConfigResponse data = applicationFormService.getByFormType(type);
+            return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, data));
+        } catch (IllegalArgumentException e) {
+            // If not a valid enum, try to find by ID (UUID or other identifier)
+            try {
+                ApplicationFormConfigResponse data = applicationFormService.getById(identifier);
+                return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, data));
+            } catch (sep490g65.fvcapi.exception.custom.ResourceNotFoundException ex) {
+                // getById throws ResourceNotFoundException when not found
+                // Re-throw to let GlobalExceptionHandler handle it properly
+                throw ex;
+            } catch (Exception ex) {
+                // For any other exception, return 404
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseUtils.error("Form not found: " + identifier, "NOT_FOUND"));
+            }
+        }
+    }
+
+    @PutMapping("/id/{id}")
+    public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> updateById(
+            @PathVariable String id,
+            @Valid @RequestBody UpdateApplicationFormConfigRequest request
+    ) {
+        ApplicationFormConfigResponse data = applicationFormService.updateById(id, request);
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
+    }
+
+    @PutMapping("/type/{formType}")
+    public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> update(
+            @PathVariable ApplicationFormType formType,
+            @Valid @RequestBody UpdateApplicationFormConfigRequest request
+    ) {
+        ApplicationFormConfigResponse data = applicationFormService.update(formType, request);
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
+    }
+
+    // Alternative PUT endpoint for updating by form type or ID (without /type/ or /id/ prefix)
+    // Supports: PUT /api/v1/application-forms/CLUB_REGISTRATION
+    // Also supports: PUT /api/v1/application-forms/{uuid-or-id}
+    @PutMapping("/{identifier}")
+    public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> updateByIdentifier(
+            @PathVariable String identifier,
+            @Valid @RequestBody UpdateApplicationFormConfigRequest request
+    ) {
+        // First, try to match as ApplicationFormType enum
+        try {
+            ApplicationFormType type = ApplicationFormType.valueOf(identifier);
+            ApplicationFormConfigResponse data = applicationFormService.update(type, request);
+            return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
+        } catch (IllegalArgumentException e) {
+            // If not a valid enum, try to update by ID (UUID or other identifier)
+            try {
+                ApplicationFormConfigResponse data = applicationFormService.updateById(identifier, request);
+                return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
+            } catch (sep490g65.fvcapi.exception.custom.ResourceNotFoundException ex) {
+                // updateById throws ResourceNotFoundException when not found
+                // Re-throw to let GlobalExceptionHandler handle it properly
+                throw ex;
+            } catch (Exception ex) {
+                // For any other exception, return 404
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ResponseUtils.error("Form not found: " + identifier, "NOT_FOUND"));
+            }
+        }
+    }
+
+    @PostMapping("/init-club-registration")
+    public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> initClubRegistrationForm() {
+        ApplicationFormConfigResponse data = applicationFormService.createDefaultClubRegistrationForm();
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
     }
 }

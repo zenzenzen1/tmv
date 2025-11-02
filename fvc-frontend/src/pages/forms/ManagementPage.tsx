@@ -72,15 +72,15 @@ export default function FormManagementPage() {
   };
 
   const handleEdit = (formId: string) => {
-    navigate(`/manage/forms/edit/${formId}`);
+    navigate(`/manage/forms/${formId}/edit`);
   };
 
   const handleView = (formId: string) => {
-    navigate(`/manage/forms/view/${formId}`);
+    navigate(`/manage/forms/${formId}/view`);
   };
 
   const handleCreate = () => {
-    navigate("/manage/forms/edit/new");
+    navigate("/manage/forms/new");
   };
 
   const formatDate = (dateString: string) => {
@@ -96,7 +96,7 @@ export default function FormManagementPage() {
   const getStatusBadge = (status: string) => {
     const statusMap = {
       DRAFT: { label: "Nháp", className: "bg-gray-100 text-gray-800" },
-      PUBLISH: { label: "Đã xuất bản", className: "bg-green-100 text-green-800" },
+      PUBLISH: { label: "Đã công khai", className: "bg-green-100 text-green-800" },
       ARCHIVED: { label: "Đã lưu trữ", className: "bg-yellow-100 text-yellow-800" },
       POSTPONE: { label: "Tạm hoãn", className: "bg-orange-100 text-orange-800" },
     };
@@ -210,7 +210,7 @@ export default function FormManagementPage() {
             >
               <option value="">Tất cả trạng thái</option>
               <option value="DRAFT">Nháp</option>
-              <option value="PUBLISH">Đã xuất bản</option>
+              <option value="PUBLISH">Đã công khai</option>
               <option value="ARCHIVED">Đã lưu trữ</option>
               <option value="POSTPONE">Tạm hoãn</option>
             </select>
@@ -310,7 +310,7 @@ export default function FormManagementPage() {
                           <button
                             onClick={() => copyPublicLink(form)}
                             aria-label="Copy link công khai"
-                            title={form.status === 'PUBLISH' && form.publicLink ? 'Copy link công khai' : 'Chỉ khả dụng khi đã xuất bản'}
+                            title={form.status === 'PUBLISH' && form.publicLink ? 'Copy link công khai' : 'Chỉ khả dụng khi đã công khai'}
                             disabled={form.status !== 'PUBLISH' || !form.publicLink}
                             className={`transition-colors ${form.status === 'PUBLISH' && form.publicLink ? 'text-gray-700 hover:text-gray-900' : 'text-gray-300 cursor-not-allowed'}`}
                           >
@@ -337,9 +337,13 @@ export default function FormManagementPage() {
         totalElements={totalElements}
         pageSize={pageSize}
         onPageChange={setPage}
-        onPageSizeChange={setPageSize}
+        onPageSizeChange={(size) => {
+          // Reset to first page when changing page size
+          setPage(1);
+          setPageSize(size);
+        }}
         showPageSizeSelector={true}
-        pageSizeOptions={[5, 10, 20, 50]}
+        pageSizeOptions={[5, 10, 15, 20]}
       />
     </div>
   );
