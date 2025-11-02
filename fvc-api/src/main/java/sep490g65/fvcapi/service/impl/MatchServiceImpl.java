@@ -6,16 +6,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.constants.MessageConstants;
 import sep490g65.fvcapi.dto.request.ControlMatchRequest;
+import sep490g65.fvcapi.dto.request.CreateMatchRequest;
 import sep490g65.fvcapi.dto.request.RecordScoreEventRequest;
 import sep490g65.fvcapi.dto.response.MatchAthleteInfoDto;
 import sep490g65.fvcapi.dto.response.MatchEventDto;
+import sep490g65.fvcapi.dto.response.MatchListItemDto;
 import sep490g65.fvcapi.dto.response.MatchScoreboardDto;
+import sep490g65.fvcapi.entity.Athlete;
 import sep490g65.fvcapi.entity.Match;
 import sep490g65.fvcapi.entity.MatchEvent;
 import sep490g65.fvcapi.entity.MatchScoreboardSnapshot;
 import sep490g65.fvcapi.enums.*;
 import sep490g65.fvcapi.exception.custom.BusinessException;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
+import sep490g65.fvcapi.repository.AthleteRepository;
+import sep490g65.fvcapi.repository.CompetitionRepository;
 import sep490g65.fvcapi.repository.MatchEventRepository;
 import sep490g65.fvcapi.repository.MatchRepository;
 import sep490g65.fvcapi.repository.MatchScoreboardSnapshotRepository;
@@ -24,6 +29,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,6 +42,126 @@ public class MatchServiceImpl implements MatchService {
     private final MatchEventRepository matchEventRepository;
     private final MatchScoreboardSnapshotRepository scoreboardSnapshotRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final AthleteRepository athleteRepository;
+    private final CompetitionRepository competitionRepository;
+
+    @Override
+    @Transactional
+    public MatchScoreboardDto createMatch(CreateMatchRequest request, String userId) {
+        log.info("Creating match for competition: {}, red athlete: {}, blue athlete: {}", 
+                request.getCompetitionId(), request.getRedAthleteId(), request.getBlueAthleteId());
+
+        // Validate competition exists
+        competitionRepository.findById(request.getCompetitionId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        String.format("Competition not found: %s", request.getCompetitionId())));
+
+        // Get athletes
+        Athlete redAthlete = athleteRepository.findById(UUID.fromString(request.getRedAthleteId()))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        String.format("Red athlete not found: %s", request.getRedAthleteId())));
+        
+        Athlete blueAthlete = athleteRepository.findById(UUID.fromString(request.getBlueAthleteId()))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        String.format("Blue athlete not found: %s", request.getBlueAthleteId())));
+
+        // Create match
+        Match match = Match.builder()
+                .competitionId(request.getCompetitionId())
+                .weightClassId(request.getWeightClassId())
+                .roundType(request.getRoundType())
+                .redAthleteId(request.getRedAthleteId())
+                .blueAthleteId(request.getBlueAthleteId())
+                .redAthleteName(redAthlete.getFullName())
+                .blueAthleteName(blueAthlete.getFullName())
+                .redAthleteUnit(request.getRedAthleteUnit() != null ? request.getRedAthleteUnit() : redAthlete.getClub())
+                .blueAthleteUnit(request.getBlueAthleteUnit() != null ? request.getBlueAthleteUnit() : blueAthlete.getClub())
+                .redAthleteSbtNumber(request.getRedAthleteSbtNumber())
+                .blueAthleteSbtNumber(request.getBlueAthleteSbtNumber())
+                .status(MatchStatus.PENDING)
+                .currentRound(1)
+                .totalRounds(request.getTotalRounds() != null ? request.getTotalRounds() : 3)
+                .roundDurationSeconds(request.getRoundDurationSeconds() != null ? request.getRoundDurationSeconds() : 120)
+                .timeRemainingSeconds(request.getRoundDurationSeconds() != null ? request.getRoundDurationSeconds() : 120)
+                .createdBy(userId)
+                .build();
+
+        match = matchRepository.save(match);
+        log.info("Match created successfully with ID: {}", match.getId());
+
+        // Create initial snapshot
+        createInitialSnapshot(match);
+
+        // Return scoreboard
+        return getScoreboard(match.getId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MatchListItemDto> listMatches(String competitionId, String status) {
+        log.info("Listing matches - competitionId: {}, status: {}", competitionId, status);
+        
+        List<Match> matches;
+        
+        if (competitionId != null && !competitionId.trim().isEmpty()) {
+            if (status != null && !status.trim().isEmpty()) {
+                try {
+                    MatchStatus statusEnum = MatchStatus.valueOf(status.toUpperCase());
+                    matches = matchRepository.findByCompetitionIdAndDeletedAtIsNull(competitionId).stream()
+                            .filter(m -> m.getStatus() == statusEnum)
+                            .collect(java.util.stream.Collectors.toList());
+                } catch (IllegalArgumentException e) {
+                    matches = matchRepository.findByCompetitionIdAndDeletedAtIsNull(competitionId);
+                }
+            } else {
+                matches = matchRepository.findByCompetitionIdAndDeletedAtIsNull(competitionId);
+            }
+        } else if (status != null && !status.trim().isEmpty()) {
+            try {
+                MatchStatus statusEnum = MatchStatus.valueOf(status.toUpperCase());
+                matches = matchRepository.findByStatusAndDeletedAtIsNull(statusEnum);
+            } catch (IllegalArgumentException e) {
+                matches = matchRepository.findAll().stream()
+                        .filter(m -> m.getDeletedAt() == null)
+                        .collect(java.util.stream.Collectors.toList());
+            }
+        } else {
+            matches = matchRepository.findAll().stream()
+                    .filter(m -> m.getDeletedAt() == null)
+                    .collect(java.util.stream.Collectors.toList());
+        }
+        
+        // Sort by createdAt descending (newest first)
+        matches.sort((a, b) -> {
+            if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
+            if (a.getCreatedAt() == null) return 1;
+            if (b.getCreatedAt() == null) return -1;
+            return b.getCreatedAt().compareTo(a.getCreatedAt());
+        });
+        
+        return matches.stream().map(this::toMatchListItemDto).collect(java.util.stream.Collectors.toList());
+    }
+    
+    private MatchListItemDto toMatchListItemDto(Match match) {
+        return MatchListItemDto.builder()
+                .id(match.getId())
+                .competitionId(match.getCompetitionId())
+                .weightClassId(match.getWeightClassId())
+                .roundType(match.getRoundType())
+                .redAthleteId(match.getRedAthleteId())
+                .blueAthleteId(match.getBlueAthleteId())
+                .redAthleteName(match.getRedAthleteName())
+                .blueAthleteName(match.getBlueAthleteName())
+                .redAthleteUnit(match.getRedAthleteUnit())
+                .blueAthleteUnit(match.getBlueAthleteUnit())
+                .status(getStatusText(match.getStatus()))
+                .currentRound(match.getCurrentRound())
+                .totalRounds(match.getTotalRounds())
+                .createdAt(match.getCreatedAt())
+                .startedAt(match.getStartedAt())
+                .endedAt(match.getEndedAt())
+                .build();
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -239,7 +365,7 @@ public class MatchServiceImpl implements MatchService {
                 .blueMedicalTimeoutCount(0)
                 .redWarningCount(0)
                 .blueWarningCount(0)
-                .lastEventId("") // Empty for initial state
+                .lastEventId(null) // NULL for initial state (no events yet)
                 .build();
         return scoreboardSnapshotRepository.save(snapshot);
     }
@@ -263,7 +389,7 @@ public class MatchServiceImpl implements MatchService {
         int blueMedicalTimeoutCount = 0;
         int redWarningCount = 0;
         int blueWarningCount = 0;
-        String lastEventId = "";
+        String lastEventId = null;
 
         for (MatchEvent event : events) {
             if (event.getCorner() == Corner.RED) {
@@ -312,7 +438,7 @@ public class MatchServiceImpl implements MatchService {
         snapshot.setBlueMedicalTimeoutCount(blueMedicalTimeoutCount);
         snapshot.setRedWarningCount(redWarningCount);
         snapshot.setBlueWarningCount(blueWarningCount);
-        snapshot.setLastEventId(lastEventId.isEmpty() ? "" : lastEventId);
+        snapshot.setLastEventId(lastEventId);
 
         scoreboardSnapshotRepository.save(snapshot);
     }

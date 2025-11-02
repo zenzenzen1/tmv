@@ -63,11 +63,39 @@ export interface ControlMatchRequest {
   timeRemainingSeconds?: number;
 }
 
+export interface MatchListItem {
+  id: string;
+  competitionId: string;
+  weightClassId: string | null;
+  roundType: string;
+  redAthleteId: string;
+  blueAthleteId: string;
+  redAthleteName: string;
+  blueAthleteName: string;
+  redAthleteUnit: string | null;
+  blueAthleteUnit: string | null;
+  status: string;
+  currentRound: number;
+  totalRounds: number;
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
 function replaceMatchId(path: string, matchId: string): string {
   return path.replace("{matchId}", encodeURIComponent(matchId));
 }
 
 export const matchScoringService = {
+  async listMatches(competitionId?: string, status?: string): Promise<MatchListItem[]> {
+    const params = new URLSearchParams();
+    if (competitionId) params.append("competitionId", competitionId);
+    if (status) params.append("status", status);
+    const url = `${API_ENDPOINTS.MATCHES.LIST}${params.toString() ? `?${params.toString()}` : ""}`;
+    const res = await apiClient.get<{ success: boolean; data: MatchListItem[] }>(url);
+    return res.data.data;
+  },
+
   async getScoreboard(matchId: string): Promise<MatchScoreboard> {
     const url = replaceMatchId(API_ENDPOINTS.MATCHES.SCOREBOARD, matchId);
     const res = await apiClient.get<{ success: boolean; data: MatchScoreboard }>(url);

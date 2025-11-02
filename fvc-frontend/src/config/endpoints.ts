@@ -126,6 +126,8 @@ export const API_ENDPOINTS = {
 
   // Match/Scoring management
   MATCHES: {
+    LIST: "/v1/matches/list",
+    CREATE: "/v1/matches/create",
     SCOREBOARD: "/v1/matches/{matchId}/scoreboard",
     EVENTS: "/v1/matches/{matchId}/events",
     SCORE: "/v1/matches/score",

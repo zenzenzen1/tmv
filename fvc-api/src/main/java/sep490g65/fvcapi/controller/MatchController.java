@@ -4,13 +4,16 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import sep490g65.fvcapi.constants.ApiConstants;
 import sep490g65.fvcapi.constants.MessageConstants;
 import sep490g65.fvcapi.dto.request.ControlMatchRequest;
+import sep490g65.fvcapi.dto.request.CreateMatchRequest;
 import sep490g65.fvcapi.dto.request.RecordScoreEventRequest;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.MatchEventDto;
+import sep490g65.fvcapi.dto.response.MatchListItemDto;
 import sep490g65.fvcapi.dto.response.MatchScoreboardDto;
 import sep490g65.fvcapi.service.MatchService;
 import sep490g65.fvcapi.utils.ResponseUtils;
@@ -24,6 +27,36 @@ import java.util.List;
 public class MatchController {
 
     private final MatchService matchService;
+
+    @GetMapping("/list")
+    public ResponseEntity<BaseResponse<List<MatchListItemDto>>> listMatches(
+            @RequestParam(required = false) String competitionId,
+            @RequestParam(required = false) String status) {
+        try {
+            List<MatchListItemDto> matches = matchService.listMatches(competitionId, status);
+            return ResponseEntity.ok(ResponseUtils.success("Matches retrieved successfully", matches));
+        } catch (Exception e) {
+            log.error("Error listing matches", e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    e.getMessage(), "MATCH_LIST_ERROR"));
+        }
+    }
+
+    @PostMapping("/create")
+    public ResponseEntity<BaseResponse<MatchScoreboardDto>> createMatch(
+            @Valid @RequestBody CreateMatchRequest request,
+            Authentication authentication) {
+        try {
+            String userId = authentication.getName();
+            MatchScoreboardDto scoreboard = matchService.createMatch(request, userId);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                    .body(ResponseUtils.success("Match created successfully", scoreboard));
+        } catch (Exception e) {
+            log.error("Error creating match", e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    e.getMessage(), "MATCH_CREATE_ERROR"));
+        }
+    }
 
     @GetMapping("/{matchId}/scoreboard")
     public ResponseEntity<BaseResponse<MatchScoreboardDto>> getScoreboard(@PathVariable String matchId) {
