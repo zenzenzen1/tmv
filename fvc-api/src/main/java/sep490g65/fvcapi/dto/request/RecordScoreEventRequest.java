@@ -34,5 +34,11 @@ public class RecordScoreEventRequest {
     private MatchEventType eventType;
     
     private String judgeId;
+    
+    /**
+     * Comma-separated list of assessor IDs who voted/agreed on this event
+     * For consensus scoring, contains all assessors who voted for the same score
+     */
+    private String assessorIds;
 }
 

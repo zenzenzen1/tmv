@@ -102,5 +102,9 @@ public class Match extends BaseEntity {
 
     @OneToOne(mappedBy = "match", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private MatchScoreboardSnapshot scoreboardSnapshot;
+
+    @OneToMany(mappedBy = "match", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<MatchAssessor> assessors = new ArrayList<>();
 }
 

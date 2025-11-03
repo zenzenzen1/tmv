@@ -18,6 +18,12 @@ public class MatchEventDto {
     private Integer round;
     private Integer timestampInRoundSeconds;
     private String judgeId;
+    
+    /**
+     * Comma-separated list of assessor IDs who voted/agreed on this event
+     */
+    private String assessorIds;
+    
     private Corner corner;
     private MatchEventType eventType;
     private String description;

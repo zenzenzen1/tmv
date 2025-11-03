@@ -37,6 +37,13 @@ public class MatchEvent {
     @Column(name = "judge_id", length = 36)
     private String judgeId;
 
+    /**
+     * Comma-separated list of assessor IDs who voted/agreed on this event
+     * Used for consensus scoring - stores all assessors who voted for the same score
+     */
+    @Column(name = "assessor_ids", columnDefinition = "TEXT")
+    private String assessorIds;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 10)
     private Corner corner;

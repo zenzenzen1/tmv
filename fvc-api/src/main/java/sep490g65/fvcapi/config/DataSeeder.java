@@ -33,7 +33,7 @@ public class DataSeeder {
     private final SubmittedApplicationFormRepository submittedRepository;
     private final UserRepository userRepository;
 
-    // @PostConstruct
+    @PostConstruct
     @Transactional
     public void seed() {
         boolean needCompetitions = competitionRepository.count() == 0;

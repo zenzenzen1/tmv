@@ -136,6 +136,13 @@ export const API_ENDPOINTS = {
     UNDO: "/v1/matches/{matchId}/undo",
   },
 
+  // Match Assessors
+  MATCH_ASSESSORS: {
+    ASSIGN: "/v1/match-assessors/assign",
+    LIST: "/v1/match-assessors/match/{matchId}",
+    BY_ID: (id: string) => `/v1/match-assessors/${id}`,
+  },
+
   // Common endpoints
   HEALTH: "/health",
   VERSION: "/version",

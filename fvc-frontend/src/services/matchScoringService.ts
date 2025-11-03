@@ -32,6 +32,7 @@ export interface MatchEvent {
   round: number;
   timestampInRoundSeconds: number;
   judgeId?: string | null;
+  assessorIds?: string | null; // Comma-separated list of assessor IDs who voted
   corner: Corner | null;
   eventType:
     | "SCORE_PLUS_1"
@@ -41,6 +42,17 @@ export interface MatchEvent {
     | "WARNING"
     | string;
   description?: string | null;
+}
+
+export interface MatchAssessor {
+  id: string;
+  matchId: string;
+  userId: string;
+  userFullName: string;
+  userEmail: string;
+  position: number; // 1-5
+  role: "ASSESSOR" | "JUDGER";
+  notes?: string | null;
 }
 
 export interface RecordScoreEventRequest {
@@ -54,6 +66,7 @@ export interface RecordScoreEventRequest {
     | "SCORE_MINUS_1"
     | "MEDICAL_TIMEOUT"
     | "WARNING";
+  judgeId?: string | null;
 }
 
 export interface ControlMatchRequest {
@@ -121,6 +134,12 @@ export const matchScoringService = {
   async undoLastEvent(matchId: string): Promise<void> {
     const url = replaceMatchId(API_ENDPOINTS.MATCHES.UNDO, matchId);
     await apiClient.post(url);
+  },
+
+  async getMatchAssessors(matchId: string): Promise<MatchAssessor[]> {
+    const url = API_ENDPOINTS.MATCH_ASSESSORS.LIST.replace("{matchId}", matchId);
+    const res = await apiClient.get<{ success: boolean; data: MatchAssessor[] }>(url);
+    return res.data.data;
   },
 };
 

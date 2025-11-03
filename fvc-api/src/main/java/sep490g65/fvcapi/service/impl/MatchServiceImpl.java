@@ -25,6 +25,7 @@ import sep490g65.fvcapi.repository.MatchEventRepository;
 import sep490g65.fvcapi.repository.MatchRepository;
 import sep490g65.fvcapi.repository.MatchScoreboardSnapshotRepository;
 import sep490g65.fvcapi.service.MatchService;
+import sep490g65.fvcapi.config.WebSocketConnectionEventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.LocalDateTime;
@@ -44,6 +45,7 @@ public class MatchServiceImpl implements MatchService {
     private final SimpMessagingTemplate messagingTemplate;
     private final AthleteRepository athleteRepository;
     private final CompetitionRepository competitionRepository;
+    private final WebSocketConnectionEventListener webSocketConnectionEventListener;
 
     @Override
     @Transactional
@@ -239,6 +241,7 @@ public class MatchServiceImpl implements MatchService {
                 .round(request.getRound())
                 .timestampInRoundSeconds(request.getTimestampInRoundSeconds())
                 .judgeId(request.getJudgeId())
+                .assessorIds(request.getAssessorIds()) // Store all assessor IDs who agreed
                 .corner(request.getCorner())
                 .eventType(request.getEventType())
                 .description(buildEventDescription(request))
@@ -311,6 +314,23 @@ public class MatchServiceImpl implements MatchService {
                 }
                 match.setStatus(MatchStatus.ENDED);
                 match.setEndedAt(LocalDateTime.now());
+                
+                // Get final scores for notification
+                MatchScoreboardDto finalScoreboard = getScoreboard(match.getId());
+                String redScore = String.valueOf(finalScoreboard.getRedAthlete().getScore());
+                String blueScore = String.valueOf(finalScoreboard.getBlueAthlete().getScore());
+                String winner;
+                if (finalScoreboard.getRedAthlete().getScore() > finalScoreboard.getBlueAthlete().getScore()) {
+                    winner = "ĐỎ";
+                } else if (finalScoreboard.getBlueAthlete().getScore() > finalScoreboard.getRedAthlete().getScore()) {
+                    winner = "XANH";
+                } else {
+                    winner = "HÒA";
+                }
+                
+                // Notify all assessors and disconnect them
+                webSocketConnectionEventListener.notifyMatchEndedAndDisconnect(
+                        match.getId(), redScore, blueScore, winner);
                 break;
         }
 
@@ -474,6 +494,7 @@ public class MatchServiceImpl implements MatchService {
 
     private MatchEventDto toEventDto(MatchEvent event) {
         return MatchEventDto.builder()
+                .assessorIds(event.getAssessorIds())
                 .id(event.getId())
                 .round(event.getRound())
                 .timestampInRoundSeconds(event.getTimestampInRoundSeconds())

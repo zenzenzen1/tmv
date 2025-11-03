@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import matchScoringService, { type MatchListItem } from "../../services/matchScoringService";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import ErrorMessage from "../../components/common/ErrorMessage";
+import { useWeightClassStore } from "../../stores/weightClass";
+import type { WeightClassResponse } from "../../types";
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return "-";
@@ -42,6 +44,31 @@ export default function SelectMatchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const { list: weightClassList, fetch: fetchWeightClasses } = useWeightClassStore();
+
+  // Fetch weight classes on mount
+  useEffect(() => {
+    fetchWeightClasses({ size: 100 });
+  }, [fetchWeightClasses]);
+
+  // Create a map of weightClassId -> weight class name
+  const weightClassMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (weightClassList?.content) {
+      weightClassList.content.forEach((wc: WeightClassResponse) => {
+        const genderLabel = wc.gender === "MALE" ? "Nam" : wc.gender === "FEMALE" ? "Nữ" : "";
+        const weightRange = `${wc.minWeight}-${wc.maxWeight}kg`;
+        map.set(wc.id, genderLabel ? `${genderLabel} - ${weightRange}` : weightRange);
+      });
+    }
+    return map;
+  }, [weightClassList]);
+
+  // Function to get weight class display name
+  const getWeightClassName = (weightClassId: string | null): string => {
+    if (!weightClassId) return "";
+    return weightClassMap.get(weightClassId) || weightClassId;
+  };
 
   useEffect(() => {
     async function fetchMatches() {
@@ -62,11 +89,19 @@ export default function SelectMatchPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Chấm điểm</h1>
-        <p className="text-sm text-gray-600">
-          Chọn một trận đấu để bắt đầu chấm điểm
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Chấm điểm</h1>
+          <p className="text-sm text-gray-600">
+            Chọn một trận đấu để bắt đầu chấm điểm
+          </p>
+        </div>
+        <button
+          onClick={() => navigate('/manage/scoring/assign-assessors')}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+        >
+          Gán giám định
+        </button>
       </div>
 
       {/* Filters */}
@@ -134,7 +169,9 @@ export default function SelectMatchPage() {
                       {match.roundType}
                     </h3>
                     {match.weightClassId && (
-                      <p className="text-sm text-gray-500">Hạng cân: {match.weightClassId}</p>
+                      <p className="text-sm text-gray-500">
+                        Hạng cân: {getWeightClassName(match.weightClassId)}
+                      </p>
                     )}
                   </div>
                   <span
