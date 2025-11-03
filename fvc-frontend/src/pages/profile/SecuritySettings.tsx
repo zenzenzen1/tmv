@@ -7,12 +7,21 @@ import {
   Alert,
   Divider,
   IconButton,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Security,
   Lock,
   Visibility,
   VisibilityOff,
+  Shield,
+  Notifications,
+  Key,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import profileService from '@/services/profileService';
@@ -47,6 +56,17 @@ export default function SecuritySettings() {
       setError(null);
       setSuccess(false);
 
+      // Basic validations
+      if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+        setError('Vui lòng nhập đầy đủ thông tin mật khẩu');
+        return;
+      }
+
+      if (passwordData.newPassword.length < 6) {
+        setError('Mật khẩu mới phải có ít nhất 6 ký tự');
+        return;
+      }
+
       // Validate passwords match
       if (passwordData.newPassword !== passwordData.confirmPassword) {
         setError('New password and confirm password do not match');
@@ -70,7 +90,8 @@ export default function SecuritySettings() {
       // Hide success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to change password');
+      const apiMessage = err?.response?.data?.message;
+      setError(apiMessage || 'Failed to change password');
     } finally {
       setIsChanging(false);
     }
@@ -162,10 +183,15 @@ export default function SecuritySettings() {
               <Button
                 variant="contained"
                 onClick={handleChangePassword}
-                disabled={!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
+                disabled={
+                  isChanging ||
+                  !passwordData.currentPassword ||
+                  !passwordData.newPassword ||
+                  !passwordData.confirmPassword
+                }
                 sx={{ borderRadius: 2 }}
               >
-                Thay đổi mật khẩu
+                {isChanging ? 'Đang xử lý...' : 'Thay đổi mật khẩu'}
               </Button>
               <Button
                 variant="outlined"
