@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import apiService from '../../services/api';
-import { API_ENDPOINTS } from '../../config/endpoints';
-import { useToast } from '../../components/common/ToastContext';
+// Merge: Add CommonTable from master for table rendering
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import apiService from "../../services/api";
+import { API_ENDPOINTS } from "../../config/endpoints";
+import { useToast } from "../../components/common/ToastContext";
 import {
   CommonTable,
   type TableColumn,
-} from '../../components/common/CommonTable';
+} from "../../components/common/CommonTable";
 
 type FormRow = {
   id: string;
@@ -32,14 +33,22 @@ export default function FormListPage() {
     "ALL" | "DRAFT" | "PUBLISH" | "ARCHIVED" | "POSTPONE"
   >("ALL");
 
+  // Merge: Combine HEAD's CLUB_REGISTRATION filtering with master's search/status filtering and pagination
   const loadForms = useCallback(async () => {
     try {
       setLoading(true);
-      
-      const response = await apiService.get<any>(API_ENDPOINTS.APPLICATION_FORMS.BASE);
-      
+      const response = await apiService.get<any>(
+        API_ENDPOINTS.APPLICATION_FORMS.BASE
+      );
+
       if (response.success && response.data) {
-        const allForms: FormRow[] = response.data.map((form: any) => ({
+        // Filter for CLUB_REGISTRATION forms (from HEAD)
+        const clubForms = response.data.filter(
+          (form: any) => form.formType === "CLUB_REGISTRATION"
+        );
+
+        // Map to FormRow (from master)
+        const allForms: FormRow[] = clubForms.map((form: any) => ({
           id: form.id,
           name: form.name,
           description: form.description || "",
@@ -50,7 +59,7 @@ export default function FormListPage() {
           status: (form.status as FormRow["status"]) || "DRAFT",
         }));
 
-        // Client-side filtering
+        // Client-side filtering (from master)
         const filtered = allForms.filter((row) => {
           const matchesText = searchText
             ? (row.name + " " + row.description)
@@ -58,9 +67,7 @@ export default function FormListPage() {
                 .includes(searchText.toLowerCase())
             : true;
           const matchesStatus =
-            statusFilter === "ALL"
-              ? true
-              : row.status === statusFilter;
+            statusFilter === "ALL" ? true : row.status === statusFilter;
           return matchesText && matchesStatus;
         });
 
@@ -74,7 +81,7 @@ export default function FormListPage() {
       }
     } catch (err: any) {
       console.error("Error loading forms:", err);
-      toast.error(err?.message || 'Tải danh sách form thất bại');
+      toast.error(err?.message || "Tải danh sách form thất bại");
       setRows([]);
       setTotal(0);
     } finally {
@@ -82,6 +89,19 @@ export default function FormListPage() {
     }
   }, [searchText, statusFilter, page, pageSize, toast]);
 
+  const handleEditForm = useCallback(
+    (formId: string) => {
+      navigate(`/manage/forms/${formId}/edit`);
+    },
+    [navigate]
+  );
+
+  const handleViewForm = useCallback(
+    (formId: string) => {
+      navigate(`/manage/forms/${formId}/view`);
+    },
+    [navigate]
+  );
 
   const columns: Array<TableColumn<FormRow>> = useMemo(
     () => [
@@ -101,7 +121,9 @@ export default function FormListPage() {
         className: "text-[15px] w-40",
         render: (r: FormRow) => (
           <span className="text-sm">
-            {r.formType === 'CLUB_REGISTRATION' ? 'Đăng ký câu lạc bộ' : 'Đăng ký giải đấu'}
+            {r.formType === "CLUB_REGISTRATION"
+              ? "Đăng ký câu lạc bộ"
+              : "Đăng ký giải đấu"}
           </span>
         ),
       },
@@ -109,9 +131,7 @@ export default function FormListPage() {
         key: "fieldCount",
         title: "Số câu hỏi",
         className: "text-[15px] w-24 text-center",
-        render: (r: FormRow) => (
-          <span className="text-sm">{r.fieldCount}</span>
-        ),
+        render: (r: FormRow) => <span className="text-sm">{r.fieldCount}</span>,
       },
       {
         key: "createdAt",
@@ -119,7 +139,7 @@ export default function FormListPage() {
         className: "text-[15px] w-36",
         render: (r: FormRow) => (
           <span className="text-sm">
-            {new Date(r.createdAt).toLocaleDateString('vi-VN')}
+            {new Date(r.createdAt).toLocaleDateString("vi-VN")}
           </span>
         ),
       },
@@ -130,22 +150,40 @@ export default function FormListPage() {
         render: (r: FormRow) => {
           const getStatusBadge = (status: string) => {
             const statusMap = {
-              DRAFT: { label: "Draft", className: "bg-amber-50 text-amber-700 border-amber-200" },
-              PUBLISH: { label: "Đã công khai", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-              ARCHIVED: { label: "Lưu trữ", className: "bg-rose-50 text-rose-600 border-rose-200" },
-              POSTPONE: { label: "Hoãn", className: "bg-gray-100 text-gray-700 border-gray-300" },
+              DRAFT: {
+                label: "Draft",
+                className: "bg-amber-50 text-amber-700 border-amber-200",
+              },
+              PUBLISH: {
+                label: "Đã công khai",
+                className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+              },
+              ARCHIVED: {
+                label: "Lưu trữ",
+                className: "bg-rose-50 text-rose-600 border-rose-200",
+              },
+              POSTPONE: {
+                label: "Hoãn",
+                className: "bg-gray-100 text-gray-700 border-gray-300",
+              },
             };
-            const statusInfo = statusMap[status as keyof typeof statusMap] || { 
-              label: status, 
-              className: "bg-gray-100 text-gray-700 border-gray-300" 
+            const statusInfo = statusMap[status as keyof typeof statusMap] || {
+              label: status,
+              className: "bg-gray-100 text-gray-700 border-gray-300",
             };
             return (
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusInfo.className}`}>
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusInfo.className}`}
+              >
                 {statusInfo.label}
               </span>
             );
           };
-          return <div className="flex items-center gap-2">{getStatusBadge(r.status)}</div>;
+          return (
+            <div className="flex items-center gap-2">
+              {getStatusBadge(r.status)}
+            </div>
+          );
         },
         sortable: false,
       },
@@ -160,17 +198,19 @@ export default function FormListPage() {
                 onClick={async () => {
                   try {
                     // Get public link from API
-                    const response = await apiService.get<any>(`${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${r.id}`);
+                    const response = await apiService.get<any>(
+                      `${API_ENDPOINTS.APPLICATION_FORMS.BASE}/${r.id}`
+                    );
                     if (response.success && response.data?.publicLink) {
                       const fullUrl = `${window.location.origin}${response.data.publicLink}`;
                       await navigator.clipboard.writeText(fullUrl);
-                      toast.success('Đã copy link công khai!');
+                      toast.success("Đã copy link công khai!");
                     } else {
-                      toast.error('Form chưa có link công khai');
+                      toast.error("Form chưa có link công khai");
                     }
                   } catch (e) {
-                    console.error('Failed to get public link', e);
-                    toast.error('Không thể lấy link công khai');
+                    console.error("Failed to get public link", e);
+                    toast.error("Không thể lấy link công khai");
                   }
                 }}
                 className="rounded-md bg-emerald-500 px-3 py-1 text-xs text-white hover:bg-emerald-600"
@@ -196,24 +236,12 @@ export default function FormListPage() {
         sortable: false,
       },
     ],
-    [toast]
+    [toast, handleEditForm, handleViewForm]
   );
 
   useEffect(() => {
     loadForms();
   }, [page, pageSize, searchText, statusFilter, loadForms]);
-
-  const handleEditForm = (formId: string) => {
-    navigate(`/manage/forms/${formId}/edit`); 
-  };
-
-  const handleViewForm = (formId: string) => {
-    navigate(`/manage/forms/${formId}/view`);
-  };
-
-  const handleCreateNew = () => {
-    navigate('/manage/forms/new');
-  };
 
   return (
     <div className="px-6 pb-10 w-full">
@@ -221,59 +249,69 @@ export default function FormListPage() {
         <h1 className="text-[15px] font-semibold text-gray-800">
           Quản lý Form
         </h1>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCreateNew}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate("/manage/forms/new")}
             className="rounded-md bg-[#377CFB] px-3 py-2 text-white text-sm shadow hover:bg-[#2f6ae0]"
-            >
+          >
             + Tạo form mới
-            </button>
-          </div>
+          </button>
         </div>
-
-      <div className="mb-4 flex items-center gap-2">
-        <input
-          value={searchText}
-          onChange={(e) => {
-            setPage(1);
-            setSearchText(e.target.value);
-          }}
-          placeholder="Tìm tên form / mô tả..."
-          className="w-80 rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => {
-            setPage(1);
-            setStatusFilter(e.target.value as any);
-          }}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
-        >
-          <option value="ALL">Tất cả trạng thái</option>
-          <option value="PUBLISH">Đã công khai</option>
-          <option value="ARCHIVED">Lưu trữ</option>
-          <option value="POSTPONE">Hoãn</option>
-          <option value="DRAFT">Draft</option>
-        </select>
       </div>
 
-      <CommonTable<FormRow>
-        columns={columns}
-        data={rows}
-        keyField="id"
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => {
-          // Reset to first page and update page size
-          // This will trigger useEffect to reload data
-          setPage(1);
-          setPageSize(size);
-        }}
-        showPageSizeSelector={true}
-        pageSizeOptions={[5, 10, 15, 20]}
-      />
+      {loading && (
+        <div className="text-center py-8 text-gray-600">
+          Đang tải danh sách form...
+        </div>
+      )}
+
+      {!loading && (
+        <>
+          <div className="mb-4 flex items-center gap-2">
+            <input
+              value={searchText}
+              onChange={(e) => {
+                setPage(1);
+                setSearchText(e.target.value);
+              }}
+              placeholder="Tìm tên form / mô tả..."
+              className="w-80 rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setPage(1);
+                setStatusFilter(e.target.value as any);
+              }}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="PUBLISH">Đã công khai</option>
+              <option value="ARCHIVED">Lưu trữ</option>
+              <option value="POSTPONE">Hoãn</option>
+              <option value="DRAFT">Draft</option>
+            </select>
+          </div>
+
+          <CommonTable<FormRow>
+            columns={columns}
+            data={rows}
+            keyField="id"
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              // Reset to first page and update page size
+              // This will trigger useEffect to reload data
+              setPage(1);
+              setPageSize(size);
+            }}
+            showPageSizeSelector={true}
+            pageSizeOptions={[5, 10, 15, 20]}
+          />
+        </>
+      )}
     </div>
   );
 }

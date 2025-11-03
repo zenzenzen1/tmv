@@ -44,6 +44,7 @@ export default function TournamentSidebar({
     submittedForms: "/manage/submitted-forms",
     brackets: "/manage/brackets",
     memberManagement: "/member-management",
+    scoring: "/manage/scoring",
     users: "/manage/users",
   };
 
@@ -54,9 +55,18 @@ export default function TournamentSidebar({
 
   // derive active from location if uncontrolled
   const path = location.pathname;
-  const derivedKey = Object.entries(keyToPath).find(([, p]) =>
-    path.startsWith(p)
-  )?.[0];
+  console.log("Sidebar - Current path:", path);
+  console.log("Sidebar - KeyToPath mapping:", keyToPath);
+
+  const derivedKey =
+    Object.entries(keyToPath).find(([, p]) => {
+      const matches = path.startsWith(p);
+      console.log(`Sidebar - Checking ${path} startsWith ${p}: ${matches}`);
+      return matches;
+    })?.[0] ||
+    (path.startsWith("/manage/form-builder") ? "formList" : undefined);
+
+  console.log("Sidebar - Derived key:", derivedKey);
   const activeMenu = isControlled
     ? (controlledActiveMenu as ActiveMenu)
     : derivedKey ?? uncontrolledActiveMenu;

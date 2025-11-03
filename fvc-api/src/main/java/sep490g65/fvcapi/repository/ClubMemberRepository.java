@@ -6,6 +6,7 @@ import sep490g65.fvcapi.entity.ClubMember;
 
 public interface ClubMemberRepository extends JpaRepository<ClubMember, String>, JpaSpecificationExecutor<ClubMember> {
     boolean existsByEmailIgnoreCase(String email);
+    boolean existsByUserId(String userId);
 }
 
 

@@ -26,13 +26,13 @@ export interface User {
   personalMail?: string;
   eduMail?: string;
   studentCode?: string;
+  role: UserRole;
+  systemRole?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
   gender?: string;
   dob?: string;
-  role?: UserRole;
-  systemRole?: string;
-  isActive?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 // ==========================
@@ -68,7 +68,20 @@ export interface FvcRegisterRequest {
   personalMail: string;
   eduMail?: string;
   password: string;
-  studentCode?: string;
+  confirmPassword: string;
+  studentCode: string;
+  dob: string; // ISO date string
+  gender: "MALE" | "FEMALE" | "OTHER";
+}
+
+export interface FvcRegisterResponse {
+  id: string;
+  fullName: string;
+  personalMail: string;
+  eduMail?: string | null;
+  studentCode: string;
+  systemRole: string;
+  message: string;
 }
 
 export interface FvcUserResponse {
@@ -112,7 +125,6 @@ export interface ChangePasswordRequest {
   newPassword: string;
   confirmPassword: string;
 }
-
 
 // Generic types
 export interface SelectOption {
@@ -192,7 +204,7 @@ export interface FistContentResponse {
   id: string;
   name: string;
   description?: string | null;
-  status: boolean;
+  status?: boolean;
   typeId?: string;
   typeName?: string;
 }
@@ -295,6 +307,8 @@ export interface FistItemResponse {
   description?: string;
   level?: number;
   parentId?: string;
+  configId?: string;
+  configName?: string;
 }
 
 export interface CreateFistItemRequest {

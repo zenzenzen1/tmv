@@ -64,16 +64,45 @@ public class DrawService {
     }
 
     private List<DrawResult> performAutomaticDraw(String drawSessionId, DrawRequest request) {
-        log.info("Performing automatic draw for session: {}", drawSessionId);
+        log.info("🎲 [Draw] Performing automatic draw for session: {}, competitionId: {}, weightClassId: {}", 
+                drawSessionId, request.getCompetitionId(), request.getWeightClassId());
 
-        // Get athletes for the competition and weight class
-        List<Athlete> athletes = athleteRepository.findByTournamentIdAndCompetitionTypeAndWeightClassId(
-                request.getCompetitionId(), 
-                Athlete.CompetitionType.fighting, 
+        // Try to find athletes by competition relationship first
+        List<Athlete> athletes = athleteRepository.findByCompetitionIdAndCompetitionTypeAndWeightClassId(
+                request.getCompetitionId(),
+                Athlete.CompetitionType.fighting,
                 request.getWeightClassId()
         );
-
+        
+        log.info("🎲 [Draw] Found {} athletes by competition relationship", athletes.size());
+        
+        // If not found, try by tournament ID
         if (athletes.isEmpty()) {
+            log.info("🎲 [Draw] No athletes found by competition. Trying by tournamentId: {}", request.getCompetitionId());
+            athletes = athleteRepository.findByTournamentIdAndCompetitionTypeAndWeightClassId(
+                    request.getCompetitionId(),
+                    Athlete.CompetitionType.fighting,
+                    request.getWeightClassId()
+            );
+            log.info("🎲 [Draw] Found {} athletes by tournamentId", athletes.size());
+        }
+        
+        if (athletes.isEmpty()) {
+            // Log all athletes for debugging
+            List<Athlete> allAthletes = athleteRepository.findAll();
+            log.warn("⚠️ [Draw] No athletes found. Total athletes in database: {}", allAthletes.size());
+            
+            // Log sample athlete data
+            if (!allAthletes.isEmpty()) {
+                Athlete sample = allAthletes.get(0);
+                log.info("📋 [Draw] Sample athlete data - ID: {}, Competition ID: {}, Competition Type: {}, Weight Class: {}, Tournament ID: {}", 
+                        sample.getId(), 
+                        sample.getCompetition() != null ? sample.getCompetition().getId() : "NULL",
+                        sample.getCompetitionType(),
+                        sample.getWeightClassId(),
+                        sample.getTournamentId());
+            }
+            
             throw new IllegalArgumentException("No athletes found for the specified competition and weight class");
         }
 
@@ -125,16 +154,36 @@ public class DrawService {
     }
 
     private void updateAthleteCompetitionOrders(List<DrawResult> drawResults) {
-        log.info("Updating athlete competition orders for {} results", drawResults.size());
+        log.info("🎲 [Draw Service] Updating athlete competition orders for {} results", drawResults.size());
+
+        int successCount = 0;
+        int failCount = 0;
 
         for (DrawResult result : drawResults) {
-            Optional<Athlete> athleteOpt = athleteRepository.findById(UUID.fromString(result.getAthleteId()));
-            if (athleteOpt.isPresent()) {
-                Athlete athlete = athleteOpt.get();
-                athlete.setCompetitionOrder(result.getSeedNumber());
-                athleteRepository.save(athlete);
+            try {
+                Optional<Athlete> athleteOpt = athleteRepository.findById(UUID.fromString(result.getAthleteId()));
+                if (athleteOpt.isPresent()) {
+                    Athlete athlete = athleteOpt.get();
+                    Integer oldOrder = athlete.getCompetitionOrder();
+                    athlete.setCompetitionOrder(result.getSeedNumber());
+                    athleteRepository.save(athlete);
+                    
+                    log.debug("✅ [Draw Service] Updated athlete: {} (ID: {}), Old order: {}, New order (seed): {}", 
+                            athlete.getFullName(), result.getAthleteId(), oldOrder, result.getSeedNumber());
+                    successCount++;
+                } else {
+                    log.warn("⚠️ [Draw Service] Athlete not found for ID: {}", result.getAthleteId());
+                    failCount++;
+                }
+            } catch (Exception e) {
+                log.error("❌ [Draw Service] Failed to update athlete: {}, error: {}", 
+                        result.getAthleteId(), e.getMessage(), e);
+                failCount++;
             }
         }
+        
+        log.info("🎲 [Draw Service] Completed updating orders - Success: {}, Failed: {}, Total: {}", 
+                successCount, failCount, drawResults.size());
     }
 
     private DrawResponse buildDrawResponse(DrawSession drawSession, List<DrawResult> drawResults) {

@@ -9,6 +9,7 @@ public class CreateFistItemRequest {
     private String name;
     private String description;
     private String parentId; // optional, to support nested items
+    private Integer participantsPerEntry; // number of performers per entry
 }
 
 

@@ -2,6 +2,20 @@ server:
   port: 8080
 
 spring:
+  mail:
+    default-encoding: UTF-8
+    host: smtp.gmail.com
+    username: thanhldhe171856@fpt.edu.vn
+    password: sylyjfmfxkzpkglh
+    port: 587
+    protocol: smtp
+    test-connection: false
+    properties:
+        mail:
+            smtp:
+                auth: true
+                starttls:
+                    enable: true
   datasource:
     url: jdbc:postgresql://localhost:5432/fvc-db
     username: postgres

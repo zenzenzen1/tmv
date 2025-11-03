@@ -3,6 +3,7 @@ export const API_ENDPOINTS = {
   // Authentication
   AUTH: {
     LOGIN: "/v1/auth/login",
+    REGISTER: "/v1/auth/register",
     ME: "/v1/auth/me",
     REFRESH: "/v1/auth/refresh",
     LOGOUT: "/v1/auth/logout",
@@ -118,10 +119,28 @@ export const API_ENDPOINTS = {
 
   // Draw management
   DRAWS: {
-    PERFORM: "/api/draws/perform",
-    HISTORY: "/api/draws/history/{competitionId}/{weightClassId}",
-    FINAL: "/api/draws/final/{competitionId}/{weightClassId}",
-    FINALIZE: "/api/draws/finalize/{drawSessionId}",
+    PERFORM: "/v1/draws/perform",
+    HISTORY: "/v1/draws/history/{competitionId}/{weightClassId}",
+    FINAL: "/v1/draws/final/{competitionId}/{weightClassId}",
+    FINALIZE: "/v1/draws/finalize/{drawSessionId}",
+  },
+
+  // Match/Scoring management
+  MATCHES: {
+    LIST: "/v1/matches/list",
+    CREATE: "/v1/matches/create",
+    SCOREBOARD: "/v1/matches/{matchId}/scoreboard",
+    EVENTS: "/v1/matches/{matchId}/events",
+    SCORE: "/v1/matches/score",
+    CONTROL: "/v1/matches/control",
+    UNDO: "/v1/matches/{matchId}/undo",
+  },
+
+  // Match Assessors
+  MATCH_ASSESSORS: {
+    ASSIGN: "/v1/match-assessors/assign",
+    LIST: "/v1/match-assessors/match/{matchId}",
+    BY_ID: (id: string) => `/v1/match-assessors/${id}`,
   },
 
   // Common endpoints

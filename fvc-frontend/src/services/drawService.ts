@@ -46,7 +46,7 @@ export const drawService = {
       })),
       notes: 'Automatic draw performed by system'
     });
-    return response.data;
+    return response;
   },
 
   // Perform manual draw (Offline)
@@ -63,7 +63,7 @@ export const drawService = {
       athleteSeeds,
       notes: notes || 'Manual draw performed offline'
     });
-    return response.data;
+    return response;
   },
 
   // Get draw history

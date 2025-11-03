@@ -1,5 +1,5 @@
-import api from './api';
-import { API_ENDPOINTS } from '../config/endpoints';
+import api from "./api";
+import { API_ENDPOINTS } from "../config/endpoints";
 
 export interface CreateCompetitionOrderRequest {
   competitionId: string;
@@ -26,7 +26,9 @@ export interface BaseResponse<T> {
 }
 
 class CompetitionOrderService {
-  async createOrder(request: CreateCompetitionOrderRequest): Promise<CompetitionOrderResponse> {
+  async createOrder(
+    request: CreateCompetitionOrderRequest
+  ): Promise<CompetitionOrderResponse> {
     const response = await api.post<BaseResponse<CompetitionOrderResponse>>(
       API_ENDPOINTS.COMPETITION_ORDERS.BASE,
       request
@@ -34,7 +36,9 @@ class CompetitionOrderService {
     return response.data.data;
   }
 
-  async createBulkOrders(requests: CreateCompetitionOrderRequest[]): Promise<CompetitionOrderResponse[]> {
+  async createBulkOrders(
+    requests: CreateCompetitionOrderRequest[]
+  ): Promise<CompetitionOrderResponse[]> {
     const response = await api.post<BaseResponse<CompetitionOrderResponse[]>>(
       API_ENDPOINTS.COMPETITION_ORDERS.BULK,
       requests
@@ -42,7 +46,9 @@ class CompetitionOrderService {
     return response.data.data;
   }
 
-  async getOrdersByCompetition(competitionId: string): Promise<CompetitionOrderResponse[]> {
+  async getOrdersByCompetition(
+    competitionId: string
+  ): Promise<CompetitionOrderResponse[]> {
     const response = await api.get<BaseResponse<CompetitionOrderResponse[]>>(
       API_ENDPOINTS.COMPETITION_ORDERS.BY_COMPETITION(competitionId)
     );
@@ -50,11 +56,14 @@ class CompetitionOrderService {
   }
 
   async getOrdersByCompetitionAndContent(
-    competitionId: string, 
+    competitionId: string,
     contentSelectionId: string
   ): Promise<CompetitionOrderResponse[]> {
     const response = await api.get<BaseResponse<CompetitionOrderResponse[]>>(
-      API_ENDPOINTS.COMPETITION_ORDERS.BY_COMPETITION_AND_CONTENT(competitionId, contentSelectionId)
+      API_ENDPOINTS.COMPETITION_ORDERS.BY_COMPETITION_AND_CONTENT(
+        competitionId,
+        contentSelectionId
+      )
     );
     return response.data.data;
   }
@@ -66,7 +75,10 @@ class CompetitionOrderService {
     return response.data.data;
   }
 
-  async updateOrder(id: string, request: Partial<CreateCompetitionOrderRequest>): Promise<CompetitionOrderResponse> {
+  async updateOrder(
+    id: string,
+    request: Partial<CreateCompetitionOrderRequest>
+  ): Promise<CompetitionOrderResponse> {
     const response = await api.put<BaseResponse<CompetitionOrderResponse>>(
       API_ENDPOINTS.COMPETITION_ORDERS.BY_ID(id),
       request
@@ -79,7 +91,9 @@ class CompetitionOrderService {
   }
 
   async deleteOrdersByCompetition(competitionId: string): Promise<void> {
-    await api.delete(API_ENDPOINTS.COMPETITION_ORDERS.BY_COMPETITION(competitionId));
+    await api.delete(
+      API_ENDPOINTS.COMPETITION_ORDERS.BY_COMPETITION(competitionId)
+    );
   }
 }
 

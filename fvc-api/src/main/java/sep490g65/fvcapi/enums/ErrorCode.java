@@ -46,7 +46,17 @@ public enum ErrorCode {
     FIST_ITEM_NOT_FOUND("CONTENT_002", "Fist item not found"),
     INVALID_FIST_ITEM_CONFIG("CONTENT_003", "Fist item does not belong to config"),
     WEIGHT_CLASS_NOT_FOUND("CONTENT_004", "Weight class not found"),
-    MUSIC_PERFORMANCE_NOT_FOUND("CONTENT_005", "Music performance not found");
+    MUSIC_PERFORMANCE_NOT_FOUND("CONTENT_005", "Music performance not found"),
+
+    // Match scoring errors
+    MATCH_NOT_FOUND("MATCH_001", "Match not found"),
+    MATCH_ALREADY_ENDED("MATCH_002", "Match has already ended"),
+    MATCH_NOT_IN_PROGRESS("MATCH_003", "Match is not in progress"),
+    MATCH_CANNOT_UNDO("MATCH_004", "Cannot undo: no events to undo"),
+    INVALID_MATCH_STATUS("MATCH_005", "Invalid match status for this operation"),
+    INVALID_EVENT_TYPE("MATCH_006", "Invalid event type for this operation"),
+    MATCH_CONTROL_ERROR("MATCH_007", "Failed to control match"),
+    MATCH_EVENT_RECORD_ERROR("MATCH_008", "Failed to record match event");
 
     private final String code;
     private final String message;

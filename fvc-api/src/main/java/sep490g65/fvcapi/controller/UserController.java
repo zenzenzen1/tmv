@@ -104,4 +104,27 @@ public class UserController {
                     .body(ResponseUtils.error("Failed to search users", "USER_SEARCH_FAILED"));
         }
     }
+
+    @DeleteMapping("/{userId}")
+    public ResponseEntity<BaseResponse<Void>> deleteUser(@PathVariable String userId) {
+        
+        try {
+            log.info("Delete user attempt for id: {}", userId);
+            
+            userService.deleteUser(userId);
+            
+            log.info("User deleted successfully with id: {}", userId);
+            
+            return ResponseEntity.ok(ResponseUtils.success("User deleted successfully"));
+            
+        } catch (BusinessException e) {
+            log.error("Business error during user deletion: {} - {}", userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseUtils.error(e.getMessage(), e.getErrorCode()));
+        } catch (Exception e) {
+            log.error("Unexpected error during user deletion: {} - {}", userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseUtils.error("Failed to delete user", "USER_DELETION_FAILED"));
+        }
+    }
 }

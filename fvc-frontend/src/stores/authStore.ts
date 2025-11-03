@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { User, AuthResponse, LoginRequest } from "../types";
+import type { User, AuthResponse, LoginRequest, FvcRegisterRequest, FvcRegisterResponse } from "../types";
 import authService from "../services/authService";
 import { globalErrorHandler } from "../utils/errorHandler";
 
@@ -16,6 +16,7 @@ interface AuthState {
 interface AuthActions {
   // Authentication actions
   login: (credentials: LoginRequest) => Promise<void>;
+  register: (userData: FvcRegisterRequest) => Promise<FvcRegisterResponse>;
   logout: () => void;
 
   // State management
@@ -29,18 +30,55 @@ interface AuthActions {
 // Combined auth store type
 type AuthStore = AuthState & AuthActions;
 
-// Initial state
-const initialState: AuthState = {
-  user: null,
-  isAuthenticated: false,
-  isLoading: false,
-  error: null,
+// Initial state - try to restore from localStorage
+const getInitialState = (): AuthState => {
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("auth-state");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          user: parsed.user,
+          isAuthenticated: parsed.isAuthenticated || false,
+          isLoading: false,
+          error: null,
+        };
+      }
+    } catch (error) {
+      console.warn("Failed to restore auth state:", error);
+    }
+  }
+  return {
+    user: null,
+    isAuthenticated: false,
+    isLoading: false,
+    error: null,
+  };
 };
 
-// Auth store without persist to avoid hydration issues
+const initialState: AuthState = getInitialState();
+
+// Helper function to save auth state to localStorage
+const saveAuthState = (state: AuthState) => {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(
+        "auth-state",
+        JSON.stringify({
+          user: state.user,
+          isAuthenticated: state.isAuthenticated,
+        })
+      );
+    } catch (error) {
+      console.warn("Failed to save auth state:", error);
+    }
+  }
+};
+
+// Auth store with localStorage persistence
 export const useAuthStore = create<AuthStore>()(
   devtools(
-    (set, get) => ({
+    (set) => ({
       ...initialState,
 
       // Login action
@@ -50,12 +88,37 @@ export const useAuthStore = create<AuthStore>()(
 
           const data = await authService.login(credentials);
 
-          set({
+          const newState = {
             user: data, // backend returns LoginResponse as data payload
             isAuthenticated: true,
             isLoading: false,
             error: null,
+          };
+          set(newState);
+          saveAuthState(newState);
+        } catch (error) {
+          const { message } = globalErrorHandler(error);
+          set({
+            isLoading: false,
+            error: message,
           });
+          throw error;
+        }
+      },
+
+      // Register action
+      register: async (userData: FvcRegisterRequest) => {
+        try {
+          set({ isLoading: true, error: null });
+
+          const data = await authService.register(userData);
+
+          set({
+            isLoading: false,
+            error: null,
+          });
+
+          return data;
         } catch (error) {
           const { message } = globalErrorHandler(error);
           set({
@@ -74,11 +137,14 @@ export const useAuthStore = create<AuthStore>()(
           console.error("Logout error:", error);
         } finally {
           // Reset state
-          set({
+          const newState = {
             user: null,
             isAuthenticated: false,
+            isLoading: false,
             error: null,
-          });
+          };
+          set(newState);
+          saveAuthState(newState);
         }
       },
 
@@ -95,18 +161,27 @@ export const useAuthStore = create<AuthStore>()(
   )
 );
 
-// Hydrate user on app start using /auth/me
+// Hydrate user on app start using /auth/me (only if not already authenticated)
 if (typeof window !== "undefined") {
   (async () => {
-    try {
-      useAuthStore.getState().setLoading(true);
-      const data = await authService.getCurrentUser();
-      useAuthStore.getState().setUser(data);
-      useAuthStore.setState({ isAuthenticated: true });
-      useAuthStore.getState().setLoading(false);
-    } catch {
-      // not logged in; ignore
-      useAuthStore.getState().setLoading(false);
+    const currentState = useAuthStore.getState();
+    // Only check /auth/me if we don't have auth state in localStorage
+    if (!currentState.isAuthenticated) {
+      try {
+        useAuthStore.getState().setLoading(true);
+        const data = await authService.getCurrentUser();
+        const newState = {
+          user: data,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        };
+        useAuthStore.setState(newState);
+        saveAuthState(newState);
+      } catch {
+        // not logged in; ignore
+        useAuthStore.getState().setLoading(false);
+      }
     }
   })();
 }
@@ -123,10 +198,11 @@ export const useAuth = () => {
 
 export const useAuthActions = () => {
   const login = useAuthStore((state) => state.login);
+  const register = useAuthStore((state) => state.register);
   const logout = useAuthStore((state) => state.logout);
   const clearError = useAuthStore((state) => state.clearError);
 
-  return { login, logout, clearError };
+  return { login, register, logout, clearError };
 };
 
 export const useIsAuthenticated = () =>

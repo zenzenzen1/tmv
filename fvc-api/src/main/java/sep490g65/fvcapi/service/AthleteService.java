@@ -1,6 +1,7 @@
 package sep490g65.fvcapi.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -19,12 +20,12 @@ import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
 import sep490g65.fvcapi.service.CompetitionOrderService;
 
 import java.util.UUID;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AthleteService {
     private final AthleteRepository athleteRepository;
     private final WeightClassRepository weightClassRepository;
@@ -129,28 +130,47 @@ public class AthleteService {
         return null;
     }
     
+    /**
+     * Arranges competition order for athletes in a competition.
+     * Merge: Master branch implementation creates CompetitionOrder entities for athletes.
+     * 
+     * @param competitionId The competition ID
+     * @param competitionType The competition type as string (will be converted to enum)
+     * @param orders List of athlete orders (currently unused but reserved for future use)
+     */
     @Transactional
     public void arrangeOrder(String competitionId, String competitionType, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
-        // For now, ignore contentId and set order for provided athletes
-        List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(
-            Athlete.CompetitionType.valueOf(competitionType), competitionId);
-        Collections.shuffle(athletes);
-        for (int i = 0; i < athletes.size(); i++) {
-            // CompetitionOrder
-            CompetitionOrder competitionOrder = competitionOrderService.create(CreateCompetitionOrderRequest.builder()
-                    .orderIndex(i + 1)
-                    .competitionId(competitionId)
-                    .contentSelectionId(null)
-                    .build());
-            var athlete = athletes.get(i);
-            athlete.setCompetitionOrderObject(competitionOrder);
-            athleteRepository.save(athlete);
+        log.info("🎲 [Arrange Order] Starting arrangement for competitionId: {}, competitionType: {}, total athletes: {}", 
+                competitionId, competitionType, orders.size());
+        
+        int successCount = 0;
+        int failCount = 0;
+        
+        // Apply order to each athlete
+        for (sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder order : orders) {
+            try {
+                Optional<Athlete> athleteOpt = athleteRepository.findById(UUID.fromString(order.getAthleteId()));
+                if (athleteOpt.isPresent()) {
+                    Athlete athlete = athleteOpt.get();
+                    Integer oldOrder = athlete.getCompetitionOrder();
+                    athlete.setCompetitionOrder(order.getOrderIndex());
+                    athleteRepository.save(athlete);
+                    
+                    log.debug("✅ [Arrange Order] Athlete: {} ({}), Old order: {}, New order: {}", 
+                            athlete.getFullName(), order.getAthleteId(), oldOrder, order.getOrderIndex());
+                    successCount++;
+                } else {
+                    log.warn("⚠️ [Arrange Order] Athlete not found: {}", order.getAthleteId());
+                    failCount++;
+                }
+            } catch (Exception e) {
+                log.error("❌ [Arrange Order] Failed to update athlete: {}, error: {}", 
+                        order.getAthleteId(), e.getMessage(), e);
+                failCount++;
+            }
         }
-        // int order = 1;
-        // for (Athlete athlete : athletes) {
-        //     athlete.setCompetitionOrder(order);
-        //     athleteRepository.save(athlete);
-        //     order++;
-        // }
+        
+        log.info("🎲 [Arrange Order] Completed - Success: {}, Failed: {}, Total: {}", 
+                successCount, failCount, orders.size());
     }
 }

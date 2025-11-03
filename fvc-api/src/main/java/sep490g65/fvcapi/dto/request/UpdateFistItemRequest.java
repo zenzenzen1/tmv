@@ -7,6 +7,7 @@ public class UpdateFistItemRequest {
     private String name;
     private String description;
     private String parentId;
+    private Integer participantsPerEntry; // number of performers per entry
 }
 
 
