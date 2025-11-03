@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
+import sep490g65.fvcapi.entity.Athlete;
 
 @Data
 @Builder
@@ -26,6 +27,10 @@ public class ArrangeFistOrderRequest {
     
     @NotNull(message = "Athlete orders are required")
     private List<AthleteOrder> orders;
+
+    // Backward-compat fields used by controller/service
+    private String competitionId;
+    private Athlete.CompetitionType competitionType;
 
     @Data
     @Builder

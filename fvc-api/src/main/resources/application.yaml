@@ -2,6 +2,9 @@ server:
   port: 8080
 
 spring:
+  devtools:
+    restart:
+      enabled: false
   mail:
     default-encoding: UTF-8
     host: smtp.gmail.com
@@ -11,15 +14,15 @@ spring:
     protocol: smtp
     test-connection: false
     properties:
-        mail:
-            smtp:
-                auth: true
-                starttls:
-                    enable: true
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
   datasource:
     url: jdbc:postgresql://localhost:5432/fvc-db
     username: postgres
-    password: 123
+    password: 1234
     driver-class-name: org.postgresql.Driver
 
   jpa:

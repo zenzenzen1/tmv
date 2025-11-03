@@ -20,12 +20,9 @@ import sep490g65.fvcapi.enums.ApplicationFormType;
 import sep490g65.fvcapi.enums.ApplicationFormStatus;
 import sep490g65.fvcapi.repository.ClubMemberRepository;
 import sep490g65.fvcapi.repository.SubmittedApplicationFormRepository;
-<<<<<<< HEAD
-=======
 import sep490g65.fvcapi.repository.UserRepository;
 import sep490g65.fvcapi.repository.ApplicationFormConfigRepository;
 import sep490g65.fvcapi.service.EmailService;
->>>>>>> db08c13 (temp)
 import sep490g65.fvcapi.service.SubmittedApplicationFormService;
 import sep490g65.fvcapi.utils.ResponseUtils;
 import org.springframework.security.crypto.password.PasswordEncoder;

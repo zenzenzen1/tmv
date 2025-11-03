@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import sep490g65.fvcapi.entity.Athlete;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface AthleteRepository extends JpaRepository<Athlete, java.util.UUID>, JpaSpecificationExecutor<Athlete> {
     Optional<Athlete> findByTournamentIdAndEmail(String tournamentId, String email);
@@ -28,7 +29,7 @@ public interface AthleteRepository extends JpaRepository<Athlete, java.util.UUID
         String weightClassId
     );
     
-    @Query("SELECT a FROM Athlete a WHERE a.competition.id = :competitionId AND a.competitionType = :competitionType AND a.weightClassId = :weightClassId")
+    @Query("SELECT a FROM Athlete a WHERE a.tournamentId = :competitionId AND a.competitionType = :competitionType AND a.weightClassId = :weightClassId")
     List<Athlete> findByCompetitionIdAndCompetitionTypeAndWeightClassId(
         @Param("competitionId") String competitionId,
         @Param("competitionType") Athlete.CompetitionType competitionType,

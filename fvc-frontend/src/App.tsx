@@ -33,13 +33,11 @@ import MatchScoringPage from "./pages/scoring/MatchScoringPage";
 import SelectMatchPage from "./pages/scoring/SelectMatchPage";
 import AssessorPage from "./pages/scoring/AssessorPage";
 import AssignAssessorsPage from "./pages/scoring/AssignAssessorsPage";
-import UserManagementPage from "./pages/user-management/UserManagementPage";
 import ProjectionScreen from "./pages/performance/ProjectionScreen";
 import JudgeScoringScreen from "./pages/performance/JudgeScoringScreen";
 import JudgeDashboard from "./pages/judge/JudgeDashboard";
 import AssessorLayout from "./components/layout/AssessorLayout";
 import { useIsAssessor } from "./stores/authStore";
-import RegisterPage from "./pages/auth/RegisterPage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -65,7 +63,6 @@ export default function App() {
   // Nếu đã login → hiển thị layout chính
   return (
     <Routes>
-      <Route path="/register" element={<RegisterPage />} />
       {/* Auth */}
       <Route
         path="/login"
@@ -164,8 +161,14 @@ export default function App() {
         <Route path="scoring" element={<SelectMatchPage />} />
         <Route path="scoring/:matchId" element={<MatchScoringPage />} />
         <Route path="scoring/:matchId/assessor" element={<AssessorPage />} />
-        <Route path="scoring/assign-assessors" element={<AssignAssessorsPage />} />
-        <Route path="scoring/assign-assessors/:matchId" element={<AssignAssessorsPage />} />
+        <Route
+          path="scoring/assign-assessors"
+          element={<AssignAssessorsPage />}
+        />
+        <Route
+          path="scoring/assign-assessors/:matchId"
+          element={<AssignAssessorsPage />}
+        />
 
         {/* Arrange */}
         <Route path="arrange" element={<ArrangeOrderWrapper />} />

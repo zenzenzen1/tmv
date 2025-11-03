@@ -150,6 +150,52 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         return mapToResponse(savedConfig);
     }
 
+    /**
+     * Update a form configuration by its id. Used by tests and admin flows.
+     */
+    @Transactional
+    public ApplicationFormConfigResponse updateById(String id, UpdateApplicationFormConfigRequest request) {
+        ApplicationFormConfig config = applicationFormConfigRepository
+                .findByIdWithFields(id)
+                .orElseThrow(() -> new RuntimeException("Form config not found with id: " + id));
+
+        // Validate business rules for update
+        validateFormUpdate(request, config);
+
+        // Update basic info
+        config.setName(request.getName());
+        config.setDescription(request.getDescription());
+        config.setEndDate(request.getEndDate());
+        if (request.getStatus() != null) {
+            config.setStatus(request.getStatus());
+        }
+
+        // Ensure slug exists when publishing
+        if (config.getStatus() == FormStatus.PUBLISH && config.getPublicSlug() == null) {
+            config.setPublicSlug(generateUniqueSlug(config.getName()));
+        }
+
+        // Replace fields
+        config.getFields().clear();
+        if (request.getFields() != null) {
+            List<ApplicationFormField> newFields = request.getFields().stream()
+                    .map(fieldRequest -> ApplicationFormField.builder()
+                            .label(fieldRequest.getLabel())
+                            .name(fieldRequest.getName())
+                            .fieldType(fieldRequest.getFieldType())
+                            .required(fieldRequest.getRequired())
+                            .options(fieldRequest.getOptions())
+                            .sortOrder(fieldRequest.getSortOrder())
+                            .applicationFormConfig(config)
+                            .build())
+                    .collect(Collectors.toList());
+            config.getFields().addAll(newFields);
+        }
+
+        ApplicationFormConfig saved = applicationFormConfigRepository.save(config);
+        return mapToResponse(saved);
+    }
+
     @Override
     @Transactional
     public ApplicationFormConfigResponse createDefaultClubRegistrationForm() {
