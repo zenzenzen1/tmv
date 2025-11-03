@@ -6,7 +6,6 @@ import {
   Paper,
   Alert,
   Divider,
-  IconButton,
   List,
   ListItem,
   ListItemIcon,
@@ -39,6 +38,20 @@ export default function SecuritySettings() {
   const [isChanging, setIsChanging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  type NotificationsState = {
+    emailNotifications: boolean;
+    securityAlerts: boolean;
+    loginAlerts: boolean;
+  };
+  const [notifications, setNotifications] = useState<NotificationsState>({
+    emailNotifications: false,
+    securityAlerts: false,
+    loginAlerts: false,
+  });
+  const handleNotificationChange = (field: keyof NotificationsState) => (_event: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
+    setNotifications(prev => ({ ...prev, [field]: checked }));
+  };
 
   const handlePasswordChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setPasswordData(prev => ({
