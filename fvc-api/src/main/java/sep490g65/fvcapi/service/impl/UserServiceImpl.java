@@ -9,9 +9,11 @@ import sep490g65.fvcapi.dto.request.ChangePasswordRequest;
 import sep490g65.fvcapi.dto.request.UpdateProfileRequest;
 import sep490g65.fvcapi.dto.response.ProfileResponse;
 import sep490g65.fvcapi.entity.User;
+import sep490g65.fvcapi.entity.PasswordHistory;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.exception.custom.ValidationException;
 import sep490g65.fvcapi.repository.UserRepository;
+import sep490g65.fvcapi.repository.PasswordHistoryRepository;
 import sep490g65.fvcapi.service.UserService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +31,7 @@ import java.util.Optional;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final PasswordHistoryRepository passwordHistoryRepository;
     private final PasswordEncoder passwordEncoder;
 
     
@@ -143,12 +146,26 @@ public class UserServiceImpl implements UserService {
         if (passwordEncoder.matches(request.getNewPassword(), user.getHashPassword())) {
             throw new ValidationException("newPassword", "New password must be different from current password");
         }
+
+        // Check password history - do not allow reuse of the last 3 passwords
+        List<PasswordHistory> recentHistories = passwordHistoryRepository.findTop3ByUserOrderByChangedAtDesc(user);
+        for (PasswordHistory history : recentHistories) {
+            if (passwordEncoder.matches(request.getNewPassword(), history.getHashPassword())) {
+                throw new ValidationException("newPassword", "New password must not match any of the last 3 passwords");
+            }
+        }
         
         // Hash and set new password
         String hashedPassword = passwordEncoder.encode(request.getNewPassword());
         user.setHashPassword(hashedPassword);
         
         userRepository.save(user);
+
+        // Save password history record
+        PasswordHistory history = new PasswordHistory();
+        history.setUser(user);
+        history.setHashPassword(hashedPassword);
+        passwordHistoryRepository.save(history);
         log.info("Password changed successfully for user ID: {}", user.getId());
     }
 
