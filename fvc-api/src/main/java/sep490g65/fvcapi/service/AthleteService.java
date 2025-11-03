@@ -139,7 +139,6 @@ public class AthleteService {
      * @param orders List of athlete orders (currently unused but reserved for future use)
      */
     @Transactional
-<<<<<<< HEAD
     public void arrangeOrder(String competitionId, String competitionType, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
         log.info("🎲 [Arrange Order] Starting arrangement for competitionId: {}, competitionType: {}, total athletes: {}", 
                 competitionId, competitionType, orders.size());
@@ -173,28 +172,5 @@ public class AthleteService {
         
         log.info("🎲 [Arrange Order] Completed - Success: {}, Failed: {}, Total: {}", 
                 successCount, failCount, orders.size());
-=======
-    public void arrangeOrder(String tournamentId, String contentId) {
-        // For now, ignore contentId and set order for provided athletes
-        // List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(competitionType, competitionId);
-        // Collections.shuffle(athletes);
-        // for (int i = 0; i < athletes.size(); i++) {
-        //     // CompetitionOrder
-        //     CompetitionOrder competitionOrder = competitionOrderService.create(CreateCompetitionOrderRequest.builder()
-        //             .orderIndex(i + 1)
-        //             .competitionId(competitionId)
-        //             .contentSelectionId(null)
-        //             .build());
-        //     var athlete = athletes.get(i);
-        //     athlete.setCompetitionOrderObject(competitionOrder);
-        //     athleteRepository.save(athlete);
-        // }
-        // int order = 1;
-        // for (Athlete athlete : athletes) {
-        //     athlete.setCompetitionOrder(order);
-        //     athleteRepository.save(athlete);
-        //     order++;
-        // }
->>>>>>> a4c6e9ef630e34335f12d975ce1deae1ec16dcbf
     }
 }
