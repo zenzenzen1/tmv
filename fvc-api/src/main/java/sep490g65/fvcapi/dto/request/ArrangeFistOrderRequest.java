@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -19,6 +21,9 @@ public class ArrangeFistOrderRequest {
     @NotBlank(message = "Competition Type is required")
     private String competitionType;
     
+    @NotNull(message = "Athlete orders are required")
+    private List<AthleteOrder> orders;
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -28,6 +33,6 @@ public class ArrangeFistOrderRequest {
         private String athleteId;
         
         @NotNull(message = "Order is required")
-        private Integer order;
+        private Integer orderIndex;
     }
 }

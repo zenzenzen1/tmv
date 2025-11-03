@@ -117,6 +117,32 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/v1/clubs/members/${id}`,
   },
 
+  // Draw management
+  DRAWS: {
+    PERFORM: "/v1/draws/perform",
+    HISTORY: "/v1/draws/history/{competitionId}/{weightClassId}",
+    FINAL: "/v1/draws/final/{competitionId}/{weightClassId}",
+    FINALIZE: "/v1/draws/finalize/{drawSessionId}",
+  },
+
+  // Match/Scoring management
+  MATCHES: {
+    LIST: "/v1/matches/list",
+    CREATE: "/v1/matches/create",
+    SCOREBOARD: "/v1/matches/{matchId}/scoreboard",
+    EVENTS: "/v1/matches/{matchId}/events",
+    SCORE: "/v1/matches/score",
+    CONTROL: "/v1/matches/control",
+    UNDO: "/v1/matches/{matchId}/undo",
+  },
+
+  // Match Assessors
+  MATCH_ASSESSORS: {
+    ASSIGN: "/v1/match-assessors/assign",
+    LIST: "/v1/match-assessors/match/{matchId}",
+    BY_ID: (id: string) => `/v1/match-assessors/${id}`,
+  },
+
   // Common endpoints
   HEALTH: "/health",
   VERSION: "/version",

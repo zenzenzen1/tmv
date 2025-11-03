@@ -32,7 +32,10 @@ import MusicContentListPage from "./pages/music-content/ListPage";
 import BracketBuilder from "./pages/brackets/BracketBuilder";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
-// Merge: User management route added from master branch
+import MatchScoringPage from "./pages/scoring/MatchScoringPage";
+import SelectMatchPage from "./pages/scoring/SelectMatchPage";
+import AssessorPage from "./pages/scoring/AssessorPage";
+import AssignAssessorsPage from "./pages/scoring/AssignAssessorsPage";
 import UserManagementPage from "./pages/user-management/UserManagementPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 
@@ -157,6 +160,13 @@ export default function App() {
         <Route path="music-content" element={<MusicContentListPage />} />
         <Route path="brackets" element={<BracketBuilder />} />
 
+        {/* Scoring */}
+        <Route path="scoring" element={<SelectMatchPage />} />
+        <Route path="scoring/:matchId" element={<MatchScoringPage />} />
+        <Route path="scoring/:matchId/assessor" element={<AssessorPage />} />
+        <Route path="scoring/assign-assessors" element={<AssignAssessorsPage />} />
+        <Route path="scoring/assign-assessors/:matchId" element={<AssignAssessorsPage />} />
+
         {/* Arrange */}
         <Route path="arrange" element={<ArrangeOrderWrapper />} />
         <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
@@ -197,7 +207,9 @@ export default function App() {
       />
       <Route path="/results/:id" element={<FormResults />} />
       <Route path="/published-form/:id" element={<PublishedForm />} />
-
+      <Route path="/scoring" element={<SelectMatchPage />} />
+      <Route path="/scoring/:matchId" element={<MatchScoringPage />} />
+      <Route path="/scoring/:matchId/assessor" element={<AssessorPage />} />
       {/* 404 */}
       <Route path="*" element={<div>404 Not Found</div>} />
     </Routes>
