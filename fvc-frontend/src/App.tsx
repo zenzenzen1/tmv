@@ -32,13 +32,8 @@ import MusicContentListPage from "./pages/music-content/ListPage";
 import BracketBuilder from "./pages/brackets/BracketBuilder";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
-<<<<<<< HEAD
-import FormBuilder from "./features/tournament/FormBuilder";
 import MatchScoringPage from "./pages/scoring/MatchScoringPage";
 import SelectMatchPage from "./pages/scoring/SelectMatchPage";
-=======
-// Merge: User management route added from master branch
->>>>>>> a4c6e9ef630e34335f12d975ce1deae1ec16dcbf
 import UserManagementPage from "./pages/user-management/UserManagementPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 
