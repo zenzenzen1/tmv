@@ -8,6 +8,7 @@ import sep490g65.fvcapi.dto.response.PerformanceResponse;
 import sep490g65.fvcapi.entity.*;
 import sep490g65.fvcapi.repository.*;
 import sep490g65.fvcapi.service.PerformanceService;
+import sep490g65.fvcapi.service.PerformanceMatchService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -28,6 +29,7 @@ public class PerformanceServiceImpl implements PerformanceService {
     private final AssessorScoreRepository assessorScoreRepository;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository vovinamFistConfigRepository;
     private final SubmittedApplicationFormRepository submittedApplicationFormRepository;
+    private final PerformanceMatchService performanceMatchService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -484,9 +486,9 @@ public class PerformanceServiceImpl implements PerformanceService {
                 })
                 .collect(Collectors.toList());
 
-        // Get assessors
-        List<Assessor> assessors = assessorRepository.findByCompetitionIdAndSpecialization(
-                performance.getCompetition().getId(), 
+        // Get assessors for this performance
+        List<Assessor> assessors = assessorRepository.findByPerformanceIdAndSpecialization(
+                performance.getId(), 
                 performance.getContentType() == Performance.ContentType.QUYEN ? 
                     Assessor.Specialization.QUYEN : 
                     performance.getContentType() == Performance.ContentType.MUSIC ? 

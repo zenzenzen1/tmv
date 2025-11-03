@@ -122,11 +122,22 @@ public class ScoringServiceImpl implements ScoringService {
         Performance performance = performanceRepository.findById(performanceId)
                 .orElseThrow(() -> new RuntimeException("Performance not found"));
 
-        // Check if assessor exists and is assigned to the competition
-        return assessorRepository.existsByUserIdAndCompetitionId(
-                assessorRepository.findById(assessorId).orElseThrow().getUser().getId(),
-                performance.getCompetition().getId()
-        );
+        Assessor assessor = assessorRepository.findById(assessorId)
+                .orElseThrow(() -> new RuntimeException("Assessor not found"));
+
+        // For quyền/võ nhạc: check if assessor is assigned to this performance
+        if (performance.getContentType() == Performance.ContentType.QUYEN || 
+            performance.getContentType() == Performance.ContentType.MUSIC) {
+            return assessorRepository.existsByUserIdAndPerformanceId(
+                    assessor.getUser().getId(),
+                    performanceId
+            );
+        }
+        
+        // For fighting: check by match_id (if match_id exists in performance)
+        // Note: This might need adjustment based on how matches are linked to performances
+        return assessor.getPerformance() != null && 
+               assessor.getPerformance().getId().equals(performanceId);
     }
 
     @Override
@@ -142,14 +153,16 @@ public class ScoringServiceImpl implements ScoringService {
         Performance performance = performanceRepository.findById(performanceId)
                 .orElseThrow(() -> new RuntimeException("Performance not found"));
 
-        // Get total assessors for this content type
-        long totalAssessors = assessorRepository.countByCompetitionIdAndSpecialization(
-                performance.getCompetition().getId(),
-                performance.getContentType() == Performance.ContentType.QUYEN ? 
+        // Get total assessors for this performance
+        Assessor.Specialization specialization = performance.getContentType() == Performance.ContentType.QUYEN ? 
                     Assessor.Specialization.QUYEN : 
                     performance.getContentType() == Performance.ContentType.MUSIC ? 
                         Assessor.Specialization.MUSIC : 
-                        Assessor.Specialization.FIGHTING
+                        Assessor.Specialization.FIGHTING;
+        
+        long totalAssessors = assessorRepository.countByPerformanceIdAndSpecialization(
+                performanceId,
+                specialization
         );
 
         // Get submitted scores count
@@ -163,13 +176,15 @@ public class ScoringServiceImpl implements ScoringService {
         Performance performance = performanceRepository.findById(performanceId)
                 .orElseThrow(() -> new RuntimeException("Performance not found"));
 
-        return (int) assessorRepository.countByCompetitionIdAndSpecialization(
-                performance.getCompetition().getId(),
-                performance.getContentType() == Performance.ContentType.QUYEN ? 
+        Assessor.Specialization specialization = performance.getContentType() == Performance.ContentType.QUYEN ? 
                     Assessor.Specialization.QUYEN : 
                     performance.getContentType() == Performance.ContentType.MUSIC ? 
                         Assessor.Specialization.MUSIC : 
-                        Assessor.Specialization.FIGHTING
+                        Assessor.Specialization.FIGHTING;
+
+        return (int) assessorRepository.countByPerformanceIdAndSpecialization(
+                performanceId,
+                specialization
         );
     }
 

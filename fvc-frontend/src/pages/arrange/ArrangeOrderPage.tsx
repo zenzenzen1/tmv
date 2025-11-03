@@ -54,6 +54,15 @@ type Match = {
   };
   judgesCount?: number;
   timerSec?: number;
+  performanceId?: string; // For quyền/võ nhạc matches
+  matchOrder?: number; // From PerformanceMatch
+  status?: string; // From PerformanceMatch
+  // Content IDs from PerformanceMatch to support filtering by ID
+  fistConfigId?: string | null;
+  fistItemId?: string | null;
+  musicContentId?: string | null;
+  gender?: "MALE" | "FEMALE";
+  teamType?: "TEAM" | "PERSON";
 };
 
 const COMPETITION_TYPES: Record<CompetitionType, string> = {
@@ -88,13 +97,34 @@ export default function ArrangeOrderPage({
   const [selectedTournament, setSelectedTournament] = useState<string>("");
   const [athletes, setAthletes] = useState<AthleteRow[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
+  // Quick filter labels derived from tournament configuration (dynamic)
+  const [quickButtons, setQuickButtons] = useState<string[]>([]);
+  // Allowed content (by current tournament). If empty => allow all
+  const [allowedFistConfigIds, setAllowedFistConfigIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [allowedFistItemIds, setAllowedFistItemIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [allowedMusicContentIds, setAllowedMusicContentIds] = useState<
+    Set<string>
+  >(new Set());
+  // Also allow constraining by names (labels from competition config)
+  const [allowedFistConfigNames, setAllowedFistConfigNames] = useState<
+    Set<string>
+  >(new Set());
+  const [allowedMusicContentNames, setAllowedMusicContentNames] = useState<
+    Set<string>
+  >(new Set());
+  // Also allow constraining by names (when competition exposes labels instead of IDs)
+
+  // Track concurrent loads for a simple loading indicator when changing tournament
+  const [pendingLoads, setPendingLoads] = useState<number>(0);
+  const [isTournamentLoading, setIsTournamentLoading] =
+    useState<boolean>(false);
 
   const matchesForActiveType = useMemo(
-    () =>
-      matches
-        .filter((match) => match.type === activeTab)
-        .slice()
-        .sort((a, b) => a.order - b.order),
+    () => matches.filter((match) => match.type === activeTab),
     [matches, activeTab]
   );
 
@@ -184,6 +214,7 @@ export default function ArrangeOrderPage({
     assessors: Record<string, string>;
     judgesCount: number;
     defaultTimerSec: number;
+    performanceId?: string;
   }>({
     open: false,
     step: 1,
@@ -204,7 +235,7 @@ export default function ArrangeOrderPage({
   const [teamFilter, setTeamFilter] = useState<"PERSON" | "TEAM" | "">(
     "PERSON"
   );
-  const [genderFilter, setGenderFilter] = useState<string>(""); // MALE/FEMALE/''
+  const [genderFilter, setGenderFilter] = useState<string>("MALE"); // default MALE
   const [showGenderFilter, setShowGenderFilter] = useState(false);
   const [showTeamFilter, setShowTeamFilter] = useState(false);
 
@@ -267,6 +298,45 @@ export default function ArrangeOrderPage({
   const [musicContents, setMusicContents] = useState<
     Array<{ id: string; name: string; performersPerEntry?: number }>
   >([]);
+
+  // If only item IDs are restricted, derive allowed config IDs from those items
+  const effectiveAllowedFistConfigIds = useMemo(() => {
+    if (allowedFistConfigIds.size > 0) return allowedFistConfigIds;
+    if (allowedFistItemIds.size === 0) return new Set<string>();
+    const s = new Set<string>();
+    fistItems.forEach((it) => {
+      if (allowedFistItemIds.has(it.id) && it.configId) s.add(it.configId);
+    });
+    return s;
+  }, [allowedFistConfigIds, allowedFistItemIds, fistItems]);
+
+  // Maps and sets to prevent selecting the same athlete/team in multiple matches
+  const athleteIdToPerformanceId = useMemo(() => {
+    const map: Record<string, string> = {};
+    athletes.forEach((a) => {
+      map[a.id] = a.performanceId || "";
+    });
+    return map;
+  }, [athletes]);
+
+  const usedAthleteIds = useMemo(() => {
+    const set = new Set<string>();
+    matches.forEach((m) => {
+      if (m.id !== setupModal.matchId) {
+        m.participantIds.forEach((id) => set.add(id));
+      }
+    });
+    return set;
+  }, [matches, setupModal.matchId]);
+
+  const usedPerformanceIds = useMemo(() => {
+    const set = new Set<string>();
+    usedAthleteIds.forEach((id) => {
+      const pid = athleteIdToPerformanceId[id];
+      if (pid) set.add(pid);
+    });
+    return set;
+  }, [usedAthleteIds, athleteIdToPerformanceId]);
 
   // Load filter data
   useEffect(() => {
@@ -441,6 +511,14 @@ export default function ArrangeOrderPage({
       return false;
     };
 
+    // Resolve selected names from IDs for fallback comparisons
+    const selectedCfgName = subCompetitionFilter
+      ? fistConfigs.find((c) => c.id === subCompetitionFilter)?.name || ""
+      : "";
+    const selectedItemName = detailCompetitionFilter
+      ? fistItems.find((i) => i.id === detailCompetitionFilter)?.name || ""
+      : "";
+
     // Filter by subCompetitionFilter and detailCompetitionFilter
     if (subCompetitionFilter || detailCompetitionFilter) {
       filtered = filtered.filter((athlete) => {
@@ -452,12 +530,12 @@ export default function ArrangeOrderPage({
               const cfg = fistConfigs.find(
                 (c) => c.id === athlete.fistConfigId
               );
-              if (!cfg || cfg.name !== subCompetitionFilter) {
+              if (!cfg || cfg.id !== subCompetitionFilter) {
                 return false;
               }
             } else {
-              // Fallback: check subCompetitionType
-              if (athlete.subCompetitionType !== subCompetitionFilter) {
+              // Fallback: check subCompetitionType (compare with resolved name)
+              if (athlete.subCompetitionType !== selectedCfgName) {
                 return false;
               }
             }
@@ -466,14 +544,14 @@ export default function ArrangeOrderPage({
           if (detailCompetitionFilter) {
             if (athlete.fistItemId) {
               const item = fistItems.find((i) => i.id === athlete.fistItemId);
-              if (!item || item.name !== detailCompetitionFilter) {
+              if (!item || item.id !== detailCompetitionFilter) {
                 return false;
               }
             } else {
               // Fallback: check detailSubCompetitionType or detailSubLabel
               const detailMatch =
-                athlete.detailSubCompetitionType === detailCompetitionFilter ||
-                athlete.detailSubLabel === detailCompetitionFilter;
+                athlete.detailSubCompetitionType === selectedItemName ||
+                athlete.detailSubLabel === selectedItemName;
               if (!detailMatch) {
                 return false;
               }
@@ -486,11 +564,17 @@ export default function ArrangeOrderPage({
               const mc = musicContents.find(
                 (m) => m.id === athlete.musicContentId
               );
-              if (!mc || mc.name !== subCompetitionFilter) {
+              if (!mc || mc.id !== subCompetitionFilter) {
                 return false;
               }
             } else {
-              return false;
+              // Fallback by name
+              const mcName =
+                musicContents.find((m) => m.id === subCompetitionFilter)
+                  ?.name || "";
+              if (!mcName || athlete.subCompetitionType !== mcName) {
+                return false;
+              }
             }
           }
         }
@@ -585,17 +669,114 @@ export default function ArrangeOrderPage({
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase();
 
+    const selectedCfgNameForMatch = subCompetitionFilter
+      ? fistConfigs.find((c) => c.id === subCompetitionFilter)?.name || ""
+      : "";
+    const selectedItemNameForMatch = detailCompetitionFilter
+      ? fistItems.find((i) => i.id === detailCompetitionFilter)?.name || ""
+      : "";
+
     return matchesForActiveType.filter((match) => {
-      // If match has no participants, show it only if filters are set (user can add participants)
-      // This allows empty matches to be visible when filters are selected
+      // For saved matches (have performanceId), filter by match-level IDs if available
+      if (match.performanceId) {
+        // Gender separation: use match.gender if present; else derive from participants/athletes list
+        const effectiveGender = (() => {
+          if (match.gender) return match.gender;
+          // Try resolve by participantIds from currently loaded athletes
+          for (const pid of match.participantIds || []) {
+            const a = athletes.find((x) => x.id === pid);
+            if (a) return a.gender === "Nữ" ? "FEMALE" : "MALE";
+          }
+          return undefined;
+        })();
+        if (
+          genderFilter &&
+          effectiveGender &&
+          effectiveGender !== genderFilter
+        ) {
+          return false;
+        }
+        // Team separation: use teamType if present; else derive from performance cache / participants
+        const effectiveTeamType = (() => {
+          if (match.teamType) return match.teamType;
+          const pid = match.performanceId || "";
+          const perf = pid ? (performanceCache as any)[pid] : undefined;
+          const teamName = perf && (perf["teamName"] as string);
+          if (teamName && teamName.trim()) return "TEAM" as const;
+          if (
+            Array.isArray(match.participants) &&
+            match.participants.length > 1
+          )
+            return "TEAM" as const;
+          return "PERSON" as const;
+        })();
+        if (teamFilter && effectiveTeamType !== teamFilter) {
+          return false;
+        }
+        if (activeTab === "quyen") {
+          if (!subCompetitionFilter || !detailCompetitionFilter) return false;
+          // Require both config and item to match by ID when present on match
+          if (
+            (match.fistConfigId &&
+              match.fistConfigId !== subCompetitionFilter) ||
+            (match.fistItemId && match.fistItemId !== detailCompetitionFilter)
+          ) {
+            return false;
+          }
+        } else if (activeTab === "music") {
+          if (!subCompetitionFilter) return false;
+          if (
+            match.musicContentId &&
+            match.musicContentId !== subCompetitionFilter
+          ) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      // If match has no participants, only show it when its content IDs match current filter
       if (match.participantIds.length === 0) {
-        return true; // Show empty matches when filters are set
+        if (genderFilter && match.gender && match.gender !== genderFilter) {
+          return false;
+        }
+        if (teamFilter && match.teamType && match.teamType !== teamFilter) {
+          return false;
+        }
+        if (activeTab === "quyen") {
+          if (!subCompetitionFilter) return false;
+          if (match.fistConfigId && match.fistConfigId !== subCompetitionFilter)
+            return false;
+          if (detailCompetitionFilter) {
+            if (
+              match.fistItemId &&
+              match.fistItemId !== detailCompetitionFilter
+            )
+              return false;
+          }
+          return true;
+        } else if (activeTab === "music") {
+          if (!subCompetitionFilter) return false;
+          if (
+            match.musicContentId &&
+            match.musicContentId !== subCompetitionFilter
+          )
+            return false;
+          return true;
+        }
+        return false;
       }
 
       // Get athletes that are in this match
       const matchAthletes = athletes.filter((athlete) =>
         match.participantIds.includes(athlete.id)
       );
+
+      // If we can't find the athletes in the filtered list, still show the match
+      // This prevents matches from disappearing when filters don't match perfectly
+      if (matchAthletes.length === 0) {
+        return true; // Show matches with participants even if they don't match current filters
+      }
 
       // Check if at least one participant matches the filters
       return matchAthletes.some((athlete) => {
@@ -630,12 +811,12 @@ export default function ArrangeOrderPage({
             const cfg = fistConfigs.find(
               (x) => x.id === apiAthlete.fistConfigId
             );
-            if (!cfg || cfg.name !== subCompetitionFilter) {
+            if (!cfg || cfg.id !== subCompetitionFilter) {
               return false;
             }
           } else {
-            // Fallback: check subCompetitionType
-            if (apiAthlete.subCompetitionType !== subCompetitionFilter) {
+            // Fallback: check subCompetitionType vs resolved name
+            if (apiAthlete.subCompetitionType !== selectedCfgNameForMatch) {
               return false;
             }
           }
@@ -645,7 +826,15 @@ export default function ArrangeOrderPage({
             const mc = musicContents.find(
               (x) => x.id === apiAthlete.musicContentId
             );
-            if (!mc || mc.name !== subCompetitionFilter) {
+            if (!mc || mc.id !== subCompetitionFilter) {
+              return false;
+            }
+          } else if (apiAthlete.subCompetitionType) {
+            // fallback by name
+            const mcName =
+              musicContents.find((m) => m.id === subCompetitionFilter)?.name ||
+              "";
+            if (apiAthlete.subCompetitionType !== mcName) {
               return false;
             }
           } else {
@@ -657,14 +846,15 @@ export default function ArrangeOrderPage({
         if (activeTab === "quyen") {
           if (apiAthlete.fistItemId) {
             const item = fistItems.find((x) => x.id === apiAthlete.fistItemId);
-            if (!item || item.name !== detailCompetitionFilter) {
+            if (!item || item.id !== detailCompetitionFilter) {
               return false;
             }
           } else {
-            // Fallback: check detailSubCompetitionType or detailSubLabel
+            // Fallback: check detailSubCompetitionType or detailSubLabel vs resolved name
             const detailMatch =
-              apiAthlete.detailSubCompetitionType === detailCompetitionFilter ||
-              apiAthlete.detailSubLabel === detailCompetitionFilter;
+              apiAthlete.detailSubCompetitionType ===
+                selectedItemNameForMatch ||
+              apiAthlete.detailSubLabel === selectedItemNameForMatch;
             if (!detailMatch) {
               return false;
             }
@@ -775,7 +965,7 @@ export default function ArrangeOrderPage({
     setDetailCompetitionFilter("");
     setOpenCategory("");
     setShowCompetitionFilter(false);
-    setGenderFilter("");
+    setGenderFilter("MALE");
     setTeamFilter("PERSON");
     setShowGenderFilter(false);
     setShowTeamFilter(false);
@@ -801,6 +991,202 @@ export default function ArrangeOrderPage({
     loadTournaments();
   }, []);
 
+  // Load tournament-specific quick buttons whenever tournament/tab changes
+  useEffect(() => {
+    const loadQuickButtons = async () => {
+      if (!selectedTournament) {
+        setQuickButtons([]);
+        setAllowedFistConfigIds(new Set());
+        setAllowedFistItemIds(new Set());
+        setAllowedMusicContentIds(new Set());
+        setAllowedFistConfigNames(new Set());
+        setAllowedMusicContentNames(new Set());
+        return;
+      }
+      try {
+        const res = await api.get<any>(
+          API_ENDPOINTS.COMPETITIONS.BY_ID(selectedTournament)
+        );
+        const data = (res.data?.data as any) ?? res.data ?? {};
+        // Extract allowed IDs if competition exposes them
+        const cfgIds: string[] = (
+          data?.allowedFistConfigs ||
+          data?.fistConfigs ||
+          data?.quyenConfigs ||
+          []
+        ).map((x: any) => String(x));
+        const itemIds: string[] = (
+          data?.allowedFistItems ||
+          data?.fistItems ||
+          data?.quyenItems ||
+          []
+        ).map((x: any) => String(x));
+        const musicIds: string[] = (
+          data?.allowedMusicContents ||
+          data?.musicContents ||
+          data?.tietMuc ||
+          []
+        ).map((x: any) => String(x));
+        setAllowedFistConfigIds(new Set(cfgIds));
+        setAllowedFistItemIds(new Set(itemIds));
+        setAllowedMusicContentIds(new Set(musicIds));
+        let labels: string[] = [];
+        if (activeTab === "quyen") {
+          labels =
+            data?.quyenQuickButtons ||
+            data?.fistQuickButtons ||
+            data?.quyenLabels ||
+            [];
+          // If labels provided, also constrain by name
+          if (Array.isArray(labels) && labels.length > 0) {
+            setAllowedFistConfigNames(
+              new Set(labels.map((s: any) => String(s)))
+            );
+          } else {
+            setAllowedFistConfigNames(new Set());
+          }
+          if (!Array.isArray(labels) || labels.length === 0) {
+            // Fallback: derive from fist items names that look like "Võ" content or unique item names
+            const derived = Array.from(
+              new Set(
+                fistItems
+                  .map((i) => i.name)
+                  .filter((n) => typeof n === "string" && n.trim().length > 0)
+              )
+            );
+            labels = derived.slice(0, 6); // keep it short
+          }
+        } else if (activeTab === "music") {
+          labels =
+            data?.musicQuickButtons ||
+            data?.musicLabels ||
+            data?.tietMucLabels ||
+            [];
+          if (Array.isArray(labels) && labels.length > 0) {
+            setAllowedMusicContentNames(
+              new Set(labels.map((s: any) => String(s)))
+            );
+          } else {
+            setAllowedMusicContentNames(new Set());
+          }
+          if (!Array.isArray(labels) || labels.length === 0) {
+            const derived = Array.from(
+              new Set(
+                musicContents
+                  .map((m) => m.name)
+                  .filter((n) => typeof n === "string" && n.trim().length > 0)
+              )
+            );
+            labels = derived.slice(0, 6);
+          }
+        }
+        setQuickButtons(Array.isArray(labels) ? labels : []);
+      } catch {
+        // Fallback to local catalogs
+        if (activeTab === "quyen") {
+          setQuickButtons(
+            Array.from(new Set(fistItems.map((i) => i.name))).slice(0, 6)
+          );
+          setAllowedFistConfigIds(new Set());
+          setAllowedFistItemIds(new Set());
+          setAllowedFistConfigNames(new Set());
+        } else if (activeTab === "music") {
+          setQuickButtons(
+            Array.from(new Set(musicContents.map((m) => m.name))).slice(0, 6)
+          );
+          setAllowedMusicContentIds(new Set());
+          setAllowedMusicContentNames(new Set());
+        } else {
+          setQuickButtons([]);
+          setAllowedFistConfigIds(new Set());
+          setAllowedFistItemIds(new Set());
+          setAllowedMusicContentIds(new Set());
+          setAllowedFistConfigNames(new Set());
+          setAllowedMusicContentNames(new Set());
+        }
+      }
+    };
+    loadQuickButtons();
+  }, [selectedTournament, activeTab, fistItems, musicContents]);
+
+  // Load persisted performance matches for selected tournament
+  useEffect(() => {
+    const loadPersistedMatches = async () => {
+      if (!selectedTournament) {
+        return;
+      }
+      try {
+        setPendingLoads((n) => n + 1);
+        const res = await api.get<any[]>(
+          API_ENDPOINTS.PERFORMANCE_MATCHES.BY_COMPETITION(selectedTournament)
+        );
+        const list = (res.data || []) as Array<any>;
+        // Map to Match[] only for current tab (quyen/music)
+        const mapped: Match[] = list
+          .filter((pm: any) => {
+            const ct = String(pm.contentType || "").toUpperCase();
+            return (
+              (activeTab === "quyen" && ct === "QUYEN") ||
+              (activeTab === "music" && ct === "MUSIC")
+            );
+          })
+          .map((pm: any) => {
+            const participants = Array.isArray(pm.selectedAthletes)
+              ? pm.selectedAthletes.map((a: any) => String(a.fullName || ""))
+              : [];
+            const participantIds = Array.isArray(pm.selectedAthletes)
+              ? pm.selectedAthletes
+                  .map((a: any) => (a.id ? String(a.id) : ""))
+                  .filter((x: string) => !!x)
+              : [];
+            // Derive gender from persisted selected athletes if available
+            let matchGender: "MALE" | "FEMALE" | undefined = undefined;
+            if (
+              Array.isArray(pm.selectedAthletes) &&
+              pm.selectedAthletes.length > 0
+            ) {
+              const g = String(
+                pm.selectedAthletes[0]?.gender || ""
+              ).toUpperCase();
+              matchGender =
+                g === "FEMALE" || g === "NỮ" || g === "NU" ? "FEMALE" : "MALE";
+            }
+            return {
+              id: pm.id,
+              order: Number(pm.matchOrder || 0) || 0,
+              type: activeTab,
+              contentName:
+                activeTab === "quyen" ? "Nội dung Quyền" : "Nội dung Võ nhạc",
+              participantIds,
+              participants,
+              assessors: {},
+              judgesCount: undefined,
+              timerSec: pm.durationSeconds ?? undefined,
+              performanceId: pm.performanceId,
+              matchOrder: pm.matchOrder,
+              status: pm.status,
+              fistConfigId: pm.fistConfigId ?? null,
+              fistItemId: pm.fistItemId ?? null,
+              musicContentId: pm.musicContentId ?? null,
+              gender: matchGender,
+            } as Match;
+          });
+
+        // Merge: replace matches for current tab with persisted ones
+        setMatches((prev) => {
+          const others = prev.filter((m) => m.type !== activeTab);
+          return [...others, ...mapped];
+        });
+      } catch (err) {
+        // ignore load errors; keep local state
+      } finally {
+        setPendingLoads((n) => Math.max(0, n - 1));
+        setIsTournamentLoading(false);
+      }
+    };
+    loadPersistedMatches();
+  }, [selectedTournament, activeTab]);
+
   useEffect(() => {
     const loadAthletes = async () => {
       if (!selectedTournament) {
@@ -823,19 +1209,29 @@ export default function ArrangeOrderPage({
           qs.set("gender", genderFilter);
         }
 
-        // Competition type filters
+        // Competition type filters (convert selected IDs to names for API)
         if (activeTab === "music" && subCompetitionFilter) {
+          const contentName =
+            musicContents.find((m) => m.id === subCompetitionFilter)?.name ||
+            "";
           qs.set("subCompetitionType", "Tiết mục");
-          qs.set("detailSubCompetitionType", subCompetitionFilter);
+          qs.set("detailSubCompetitionType", contentName);
         } else if (activeTab === "quyen") {
           if (subCompetitionFilter) {
-            qs.set("subCompetitionType", subCompetitionFilter);
+            const cfgName =
+              fistConfigs.find((c) => c.id === subCompetitionFilter)?.name ||
+              "";
+            qs.set("subCompetitionType", cfgName);
           }
           if (detailCompetitionFilter) {
-            qs.set("detailSubCompetitionType", detailCompetitionFilter);
+            const itemName =
+              fistItems.find((i) => i.id === detailCompetitionFilter)?.name ||
+              "";
+            qs.set("detailSubCompetitionType", itemName);
           }
         }
 
+        setPendingLoads((n) => n + 1);
         const res = await api.get<PaginationResponse<AthleteApi>>(
           `${API_ENDPOINTS.ATHLETES.BASE}?${qs.toString()}`
         );
@@ -843,9 +1239,9 @@ export default function ArrangeOrderPage({
         const rootAny = res.data as unknown as Record<string, unknown>;
         const outer = (rootAny?.data as Record<string, unknown>) ?? rootAny;
         const inner =
-          (outer?.data as PaginationResponse<AthleteApi>) ??
+          (outer?.data as PaginationResponse<AthleteApi>) ||
           (outer as unknown as PaginationResponse<AthleteApi>);
-        const content = inner?.content ?? [];
+        const content = inner?.content || [];
 
         // Group by performanceId for team detail reconstruction
         const grouped: Record<string, AthleteApi[]> = {};
@@ -939,6 +1335,22 @@ export default function ArrangeOrderPage({
                 return mc.performersPerEntry > 1;
               }
             }
+            const s = `${a.detailSubCompetitionType || ""} ${
+              a.detailSubLabel || ""
+            }`
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .toLowerCase()
+              .replace(/\s+/g, " ")
+              .trim();
+            if (
+              s.includes("doi nhom") ||
+              s.includes("doi hinh") ||
+              s.includes("tap the") ||
+              s.includes("team")
+            )
+              return true;
+            if (s.includes("ca nhan")) return false;
             return false;
           }
           return false;
@@ -983,6 +1395,9 @@ export default function ArrangeOrderPage({
       } catch (error) {
         console.error("Failed to load athletes:", error);
         setAthletes([]);
+      } finally {
+        setPendingLoads((n) => Math.max(0, n - 1));
+        setIsTournamentLoading(false);
       }
     };
 
@@ -1004,16 +1419,40 @@ export default function ArrangeOrderPage({
 
   const addManualMatch = () => {
     setMatches((prev) => {
-      const sameType = prev.filter((match) => match.type === activeTab);
+      // Count matches within the SAME filter scope from current state to avoid stale closures
+      const currentCount = prev.filter((m) => {
+        if (m.type !== activeTab) return false;
+        if (m.gender && genderFilter && m.gender !== genderFilter) return false;
+        if (m.teamType && teamFilter && m.teamType !== teamFilter) return false;
+        if (activeTab === "quyen") {
+          return (
+            (m.fistConfigId || null) === (subCompetitionFilter || null) &&
+            (m.fistItemId || null) === (detailCompetitionFilter || null)
+          );
+        }
+        if (activeTab === "music") {
+          return (m.musicContentId || null) === (subCompetitionFilter || null);
+        }
+        return false;
+      }).length;
       const newMatch: Match = {
         id: `manual-${activeTab}-${Date.now()}`,
-        order: sameType.length + 1,
+        order: currentCount + 1,
         type: activeTab,
         contentName:
           activeTab === "quyen" ? "Nội dung Quyền" : "Nội dung Võ nhạc",
         participantIds: [],
         participants: [],
         assessors: {},
+        // Carry current content filter IDs so this match belongs to the selected content
+        fistConfigId:
+          activeTab === "quyen" ? subCompetitionFilter || null : null,
+        fistItemId:
+          activeTab === "quyen" ? detailCompetitionFilter || null : null,
+        musicContentId:
+          activeTab === "music" ? subCompetitionFilter || null : null,
+        gender: genderFilter === "FEMALE" ? "FEMALE" : "MALE",
+        teamType: teamFilter === "TEAM" ? "TEAM" : "PERSON",
       };
       return [...prev, newMatch];
     });
@@ -1226,9 +1665,8 @@ export default function ArrangeOrderPage({
       const exists = prev.selectedIds.includes(athleteId);
       return {
         ...prev,
-        selectedIds: exists
-          ? prev.selectedIds.filter((id) => id !== athleteId)
-          : [...prev.selectedIds, athleteId],
+        // Enforce single selection: pick exactly one team or one athlete
+        selectedIds: exists ? [] : [athleteId],
       };
     });
   };
@@ -1250,7 +1688,7 @@ export default function ArrangeOrderPage({
     );
     const names = selected.map((a) => a.name);
 
-    // Assign assessors to competition via API
+    // Determine specialization from tab
     const specialization =
       activeTab === "quyen"
         ? "QUYEN"
@@ -1259,35 +1697,134 @@ export default function ArrangeOrderPage({
         : "FIGHTING";
 
     try {
-      // Assign each selected assessor
-      for (const assessorId of Object.values(setupModal.assessors)) {
-        if (assessorId) {
-          await api.post(API_ENDPOINTS.ASSESSORS.ASSIGN, {
-            userId: assessorId,
-            competitionId: selectedTournament,
-            specialization: specialization,
-          });
+      // Enforce exactly one selection (1 VĐV hoặc 1 đội)
+      if (setupModal.selectedIds.length !== 1) {
+        console.error("Vui lòng chọn đúng 1 VĐV hoặc 1 đội");
+        return;
+      }
+
+      // Prevent selecting the same athlete/team in multiple matches
+      const selectedId = setupModal.selectedIds[0];
+      if (usedAthleteIds.has(selectedId)) {
+        console.error("VĐV này đã được chọn ở trận khác");
+        return;
+      }
+      const selectedPid = athleteIdToPerformanceId[selectedId];
+      if (selectedPid && usedPerformanceIds.has(selectedPid)) {
+        console.error("Đội này đã được chọn ở trận khác");
+        return;
+      }
+      // Derive performanceId for quyền/võ nhạc if missing
+      let derivedPerformanceId: string | undefined = setupModal.performanceId;
+      if (
+        (specialization === "QUYEN" || specialization === "MUSIC") &&
+        !derivedPerformanceId
+      ) {
+        derivedPerformanceId =
+          selected.find((s) => !!s.performanceId)?.performanceId || undefined;
+        if (!derivedPerformanceId) {
+          console.error(
+            "Missing performanceId: select exactly 1 team or 1 athlete to proceed"
+          );
+          return;
         }
       }
-    } catch (error) {
-      console.error("Failed to assign assessors:", error);
-      // Still update UI even if API call fails
-    }
 
-    setMatches((prev) =>
-      prev.map((m) =>
-        m.id === setupModal.matchId
-          ? {
+      // Assign selected assessors (use performanceId for quyền/võ nhạc if available)
+      for (const assessorId of Object.values(setupModal.assessors)) {
+        if (!assessorId) continue;
+        const payload: any = { userId: assessorId, specialization };
+        if (specialization === "QUYEN" || specialization === "MUSIC") {
+          payload.performanceId = derivedPerformanceId;
+        } else {
+          // fighting flow (legacy)
+          payload.matchId = setupModal.matchId;
+          payload.role = "ASSESSOR";
+          payload.position = 1;
+        }
+        await api.post(API_ENDPOINTS.ASSESSORS.ASSIGN, payload);
+      }
+
+      // Save/link PerformanceMatch only for quyền/võ nhạc
+      let pm: any = null;
+      if (
+        (specialization === "QUYEN" || specialization === "MUSIC") &&
+        derivedPerformanceId
+      ) {
+        const body: any = {
+          durationSeconds: setupModal.defaultTimerSec,
+        };
+        if (specialization === "QUYEN") {
+          if (subCompetitionFilter) body.fistConfigId = subCompetitionFilter;
+          if (detailCompetitionFilter)
+            body.fistItemId = detailCompetitionFilter;
+        } else if (specialization === "MUSIC") {
+          if (subCompetitionFilter) body.musicContentId = subCompetitionFilter;
+        }
+        const res = await api.post(
+          API_ENDPOINTS.PERFORMANCE_MATCHES.SAVE_BY_PERFORMANCE(
+            derivedPerformanceId
+          ),
+          body
+        );
+        pm = res.data; // Get the PerformanceMatchResponse from BaseResponse
+      }
+
+      setMatches((prev) =>
+        prev.map((m) => {
+          if (m.id === setupModal.matchId) {
+            // Determine content name from filters
+            let contentName =
+              m.contentName ||
+              (activeTab === "quyen" ? "Nội dung Quyền" : "Nội dung Võ nhạc");
+            if (activeTab === "quyen" && detailCompetitionFilter) {
+              contentName =
+                fistItems.find((i) => i.id === detailCompetitionFilter)?.name ||
+                contentName;
+            } else if (activeTab === "music" && subCompetitionFilter) {
+              contentName =
+                musicContents.find((mc) => mc.id === subCompetitionFilter)
+                  ?.name || contentName;
+            }
+
+            // Derive match gender: from selected athlete if available, else current filter
+            let derivedGender: "MALE" | "FEMALE" | undefined;
+            if (selected && selected.length > 0) {
+              const g = (selected[0].gender || "").toString().toUpperCase();
+              derivedGender =
+                g === "FEMALE" || g === "NỮ" || g === "NU" ? "FEMALE" : "MALE";
+            } else if (genderFilter) {
+              derivedGender = genderFilter === "FEMALE" ? "FEMALE" : "MALE";
+            }
+
+            return {
               ...m,
+              contentName,
               participantIds: setupModal.selectedIds,
               participants: names,
               assessors: { ...m.assessors, ...setupModal.assessors },
               judgesCount: setupModal.judgesCount,
               timerSec: setupModal.defaultTimerSec,
-            }
-          : m
-      )
-    );
+              performanceId: derivedPerformanceId,
+              matchOrder: pm?.matchOrder ?? m.matchOrder,
+              status: pm?.status ?? m.status,
+              fistConfigId:
+                activeTab === "quyen" ? subCompetitionFilter : m.fistConfigId,
+              fistItemId:
+                activeTab === "quyen" ? detailCompetitionFilter : m.fistItemId,
+              musicContentId:
+                activeTab === "music" ? subCompetitionFilter : m.musicContentId,
+              gender: derivedGender ?? m.gender,
+              teamType: teamFilter === "TEAM" ? "TEAM" : "PERSON",
+            };
+          }
+          return m;
+        })
+      );
+    } catch (error) {
+      console.error("Failed to save setup:", error);
+    }
+
     closeSetupModal();
   };
 
@@ -1306,7 +1843,19 @@ export default function ArrangeOrderPage({
           </label>
           <select
             value={selectedTournament}
-            onChange={(event) => setSelectedTournament(event.target.value)}
+            onChange={(event) => {
+              setIsTournamentLoading(true);
+              // Reset filters when tournament changes
+              setSubCompetitionFilter("");
+              setDetailCompetitionFilter("");
+              setGenderFilter("MALE");
+              setTeamFilter("PERSON");
+              setOpenCategory("");
+              setShowCompetitionFilter(false);
+              setShowGenderFilter(false);
+              setShowTeamFilter(false);
+              setSelectedTournament(event.target.value);
+            }}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {tournaments.length === 0 && (
@@ -1344,7 +1893,12 @@ export default function ArrangeOrderPage({
 
       {/* Filters outside card - for Quyền */}
       {activeTab === "quyen" && (
-        <div className="mb-4">
+        <div className="mb-4 relative">
+          {isTournamentLoading && (
+            <div className="absolute inset-0 bg-white/60 rounded flex items-center justify-center z-10">
+              <div className="h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
           <div className="flex items-center flex-wrap gap-2">
             {/* Hình thức filter for Quyền - placed first */}
             <div className="relative filter-dropdown">
@@ -1430,77 +1984,104 @@ export default function ArrangeOrderPage({
             </div>
 
             {/* Fist configs buttons (Song luyện, Đồng luyện, etc.) */}
-            {fistConfigs.map((config) => (
-              <div key={config.id} className="relative filter-dropdown">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (subCompetitionFilter === config.name) {
-                      setSubCompetitionFilter("");
-                      setDetailCompetitionFilter("");
-                      setOpenCategory("");
-                    } else {
-                      setSubCompetitionFilter(config.name);
-                      setDetailCompetitionFilter("");
-                      setOpenCategory((prev) =>
-                        prev === config.name ? "" : config.name
-                      );
-                    }
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded border ${
-                    subCompetitionFilter === config.name
-                      ? "border-blue-500 text-gray-700 bg-white"
-                      : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
-                  }`}
-                >
-                  {config.name}
-                </button>
-                {openCategory === config.name && (
-                  <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-300 rounded shadow-lg z-20">
-                    <div className="p-2 space-y-1 max-h-64 overflow-auto">
-                      <label className="flex items-center cursor-pointer">
-                        <input
-                          type="radio"
-                          name={`detailCompetitionFilter-${config.name}`}
-                          className="mr-2 h-3 w-3 text-blue-600"
-                          checked={detailCompetitionFilter === ""}
-                          onChange={() => setDetailCompetitionFilter("")}
-                        />
-                        <span className="text-sm text-gray-700">Tất cả</span>
-                      </label>
-                      {fistItems
-                        .filter((item) => item.configId === config.id)
-                        .map((item) => (
-                          <label
-                            key={item.id}
-                            className="flex items-center cursor-pointer"
-                          >
-                            <input
-                              type="radio"
-                              name={`detailCompetitionFilter-${config.name}`}
-                              className="mr-2 h-3 w-3 text-blue-600"
-                              checked={detailCompetitionFilter === item.name}
-                              onChange={() =>
-                                setDetailCompetitionFilter(item.name)
-                              }
-                            />
-                            <span className="text-sm text-gray-700">
-                              {item.name}
-                            </span>
-                          </label>
-                        ))}
+            {fistConfigs
+              .filter((config) => {
+                const allowById =
+                  effectiveAllowedFistConfigIds.size === 0 ||
+                  effectiveAllowedFistConfigIds.has(config.id);
+                const allowByName =
+                  typeof allowedFistConfigNames !== "undefined" &&
+                  (allowedFistConfigNames as any).size > 0
+                    ? (allowedFistConfigNames as any).has(config.name)
+                    : true;
+                // If any allowed set is provided, enforce it; else allow all
+                const hasAnyConstraint =
+                  effectiveAllowedFistConfigIds.size > 0 ||
+                  ((allowedFistConfigNames as any)?.size || 0) > 0;
+                return hasAnyConstraint ? allowById && allowByName : true;
+              })
+              .map((config) => (
+                <div key={config.id} className="relative filter-dropdown">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (subCompetitionFilter === config.id) {
+                        setSubCompetitionFilter("");
+                        setDetailCompetitionFilter("");
+                        setOpenCategory("");
+                      } else {
+                        setSubCompetitionFilter(config.id);
+                        setDetailCompetitionFilter("");
+                        setOpenCategory((prev) =>
+                          prev === config.name ? "" : config.name
+                        );
+                      }
+                    }}
+                    className={`px-3 py-1.5 text-xs font-medium rounded border ${
+                      subCompetitionFilter === config.id
+                        ? "border-blue-500 text-gray-700 bg-white"
+                        : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                    }`}
+                  >
+                    {config.name}
+                  </button>
+                  {openCategory === config.name && (
+                    <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-300 rounded shadow-lg z-20">
+                      <div className="p-2 space-y-1 max-h-64 overflow-auto">
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name={`detailCompetitionFilter-${config.name}`}
+                            className="mr-2 h-3 w-3 text-blue-600"
+                            checked={detailCompetitionFilter === ""}
+                            onChange={() => setDetailCompetitionFilter("")}
+                          />
+                          <span className="text-sm text-gray-700">Tất cả</span>
+                        </label>
+                        {fistItems
+                          .filter((item) => {
+                            const sameCfg = item.configId === config.id;
+                            const allowItem =
+                              allowedFistItemIds.size === 0 ||
+                              allowedFistItemIds.has(item.id);
+                            return sameCfg && allowItem;
+                          })
+                          .map((item) => (
+                            <label
+                              key={item.id}
+                              className="flex items-center cursor-pointer"
+                            >
+                              <input
+                                type="radio"
+                                name={`detailCompetitionFilter-${config.name}`}
+                                className="mr-2 h-3 w-3 text-blue-600"
+                                checked={detailCompetitionFilter === item.id}
+                                onChange={() =>
+                                  setDetailCompetitionFilter(item.id)
+                                }
+                              />
+                              <span className="text-sm text-gray-700">
+                                {item.name}
+                              </span>
+                            </label>
+                          ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              ))}
           </div>
         </div>
       )}
 
       {/* Filters outside card - for Music */}
       {activeTab === "music" && (
-        <div className="mb-4">
+        <div className="mb-4 relative">
+          {isTournamentLoading && (
+            <div className="absolute inset-0 bg-white/60 rounded flex items-center justify-center z-10">
+              <div className="h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
           <div className="flex items-center flex-wrap gap-2">
             {/* Hình thức filter for Music - placed first */}
             <div className="relative filter-dropdown">
@@ -1599,23 +2180,42 @@ export default function ArrangeOrderPage({
               {showCompetitionFilter && (
                 <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-300 rounded shadow-lg z-20">
                   <div className="p-2 space-y-1">
-                    {musicContents.map((content) => (
-                      <label
-                        key={content.id}
-                        className="flex items-center cursor-pointer"
-                      >
-                        <input
-                          type="radio"
-                          name="subCompetitionFilter"
-                          className="mr-2 h-3 w-3 text-blue-600"
-                          checked={subCompetitionFilter === content.name}
-                          onChange={() => setSubCompetitionFilter(content.name)}
-                        />
-                        <span className="text-sm text-gray-700">
-                          {content.name}
-                        </span>
-                      </label>
-                    ))}
+                    {musicContents
+                      .filter((content) => {
+                        const allowById =
+                          allowedMusicContentIds.size === 0 ||
+                          allowedMusicContentIds.has(content.id);
+                        const allowByName =
+                          typeof allowedMusicContentNames !== "undefined" &&
+                          (allowedMusicContentNames as any).size > 0
+                            ? (allowedMusicContentNames as any).has(
+                                content.name
+                              )
+                            : true;
+                        const hasAnyConstraint =
+                          allowedMusicContentIds.size > 0 ||
+                          ((allowedMusicContentNames as any)?.size || 0) > 0;
+                        return hasAnyConstraint
+                          ? allowById && allowByName
+                          : true;
+                      })
+                      .map((content) => (
+                        <label
+                          key={content.id}
+                          className="flex items-center cursor-pointer"
+                        >
+                          <input
+                            type="radio"
+                            name="subCompetitionFilter"
+                            className="mr-2 h-3 w-3 text-blue-600"
+                            checked={subCompetitionFilter === content.id}
+                            onChange={() => setSubCompetitionFilter(content.id)}
+                          />
+                          <span className="text-sm text-gray-700">
+                            {content.name}
+                          </span>
+                        </label>
+                      ))}
                   </div>
                 </div>
               )}
@@ -1688,6 +2288,13 @@ export default function ArrangeOrderPage({
                         const checked = setupModal.selectedIds.includes(
                           athlete.id
                         );
+                        const isUsed =
+                          teamFilter === "TEAM"
+                            ? !!(
+                                athlete.performanceId &&
+                                usedPerformanceIds.has(athlete.performanceId)
+                              )
+                            : usedAthleteIds.has(athlete.id);
 
                         return (
                           <Fragment key={athlete.id}>
@@ -1697,6 +2304,12 @@ export default function ArrangeOrderPage({
                                   type="checkbox"
                                   className="h-4 w-4 text-blue-600"
                                   checked={checked}
+                                  disabled={isUsed}
+                                  title={
+                                    isUsed
+                                      ? "Đã được chọn ở trận khác"
+                                      : undefined
+                                  }
                                   onChange={() => toggleTeamMember(athlete.id)}
                                 />
                               </td>
@@ -2034,34 +2647,60 @@ export default function ArrangeOrderPage({
             )}
           </div>
         ) : (
-          filteredMatches.map((match) => (
+          filteredMatches.map((match, idx) => (
             <div
               key={match.id}
-              className={`rounded-lg border border-gray-200 p-3 shadow transition-colors outline-none`}
+              className="border rounded-lg p-4 bg-white shadow-sm hover:shadow transition-shadow"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-semibold text-gray-900">
-                      Trận {match.order}
-                    </h2>
-                    <span className="text-sm text-gray-500">
-                      {COMPETITION_TYPES[match.type]}
-                    </span>
+              <div className="flex items-start justify-between">
+                <div className="pr-4">
+                  <div className="text-sm font-semibold text-gray-800">
+                    Trận {idx + 1}
                   </div>
-                  <p className="text-xs text-gray-700 mt-1">
-                    <span className="font-medium">Nội dung:</span>{" "}
-                    {match.contentName}
-                  </p>
-                  <p className="text-xs text-gray-700 mt-1">
-                    <span className="font-medium">Đội/VDV biểu diễn:</span>{" "}
-                    {match.participants.length > 0
-                      ? match.participants.join(", ")
-                      : "Chưa chọn"}
-                  </p>
-                  {/* Hidden assessor summary per request */}
+                  {/* Content and participants info (kept under the left column) */}
+                  <div className="mt-3 text-sm space-y-1">
+                    {/* Nội dung: show name from config/music list */}
+                    <div className="text-gray-700">
+                      <span className="font-medium">Nội dung:</span>
+                      <span className="ml-1">
+                        {match.type === "quyen"
+                          ? fistConfigs.find((c) => c.id === match.fistConfigId)
+                              ?.name || "-"
+                          : musicContents.find(
+                              (m) => m.id === match.musicContentId
+                            )?.name || "-"}
+                      </span>
+                    </div>
+                    {/* Người/Đội biểu diễn */}
+                    <div className="text-gray-700">
+                      <span className="font-medium">
+                        {teamFilter === "TEAM"
+                          ? "Đội biểu diễn:"
+                          : "VĐV biểu diễn:"}
+                      </span>
+                      <span className="ml-1">
+                        {teamFilter === "TEAM"
+                          ? (() => {
+                              const pid = match.performanceId || "";
+                              const perf = pid
+                                ? (performanceCache as any)[pid]
+                                : undefined;
+                              const teamName =
+                                (perf && (perf["teamName"] as string)) || "";
+                              if (teamName && teamName.trim()) return teamName;
+                              return (
+                                (match.participants && match.participants[0]) ||
+                                "Chưa chọn"
+                              );
+                            })()
+                          : Array.isArray(match.participants) &&
+                            match.participants.length > 0
+                          ? match.participants.join(", ")
+                          : "Chưa chọn"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-
                 <div className="flex flex-col items-end gap-1 w-28">
                   <button
                     onClick={() => openSetupModal(match.id)}

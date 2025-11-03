@@ -10,14 +10,17 @@ import sep490g65.fvcapi.dto.response.UserResponse;
 import sep490g65.fvcapi.entity.Assessor;
 import sep490g65.fvcapi.entity.Competition;
 import sep490g65.fvcapi.entity.CompetitionRole;
+import sep490g65.fvcapi.entity.PerformanceMatch;
 import sep490g65.fvcapi.entity.User;
 import sep490g65.fvcapi.enums.CompetitionRoleType;
 import sep490g65.fvcapi.enums.SystemRole;
 import sep490g65.fvcapi.repository.AssessorRepository;
-import sep490g65.fvcapi.repository.CompetitionRepository;
+import sep490g65.fvcapi.repository.PerformanceMatchRepository;
 import sep490g65.fvcapi.repository.CompetitionRoleRepository;
+import sep490g65.fvcapi.repository.PerformanceRepository;
 import sep490g65.fvcapi.repository.UserRepository;
 import sep490g65.fvcapi.service.AssessorService;
+import sep490g65.fvcapi.service.PerformanceMatchService;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -29,8 +32,10 @@ public class AssessorServiceImpl implements AssessorService {
 
     private final UserRepository userRepository;
     private final AssessorRepository assessorRepository;
-    private final CompetitionRepository competitionRepository;
+    private final PerformanceMatchRepository performanceMatchRepository;
     private final CompetitionRoleRepository competitionRoleRepository;
+    private final PerformanceRepository performanceRepository;
+    private final PerformanceMatchService performanceMatchService;
 
     @Override
     public List<UserResponse> listAvailableAssessors() {
@@ -46,18 +51,16 @@ public class AssessorServiceImpl implements AssessorService {
 
     @Override
     public List<AssessorResponse> listByCompetition(String competitionId) {
-        List<Assessor> assessors = assessorRepository.findByCompetitionId(competitionId);
-        return assessors.stream()
-                .map(AssessorResponse::from)
-                .collect(Collectors.toList());
+        // This method is deprecated - should use listByPerformance instead
+        // For backward compatibility, return empty list or migrate to performance-based
+        return List.of();
     }
 
     @Override
     public List<AssessorResponse> listByCompetitionAndSpecialization(String competitionId, Assessor.Specialization specialization) {
-        List<Assessor> assessors = assessorRepository.findByCompetitionIdAndSpecialization(competitionId, specialization);
-        return assessors.stream()
-                .map(AssessorResponse::from)
-                .collect(Collectors.toList());
+        // This method is deprecated - should use listByPerformanceAndSpecialization instead
+        // For backward compatibility, return empty list or migrate to performance-based
+        return List.of();
     }
 
     @Override
@@ -74,49 +77,99 @@ public class AssessorServiceImpl implements AssessorService {
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + request.getUserId()));
         
-        Competition competition = competitionRepository.findById(request.getCompetitionId())
-                .orElseThrow(() -> new IllegalArgumentException("Competition not found: " + request.getCompetitionId()));
-        
-        // Check if already assigned
-        if (assessorRepository.existsByUserIdAndCompetitionId(request.getUserId(), request.getCompetitionId())) {
-            Assessor existing = assessorRepository.findByUserIdAndCompetitionId(request.getUserId(), request.getCompetitionId())
-                    .orElse(null);
-            if (existing != null) {
-                log.info("Assessor already assigned, returning existing: {}", existing.getId());
-                return AssessorResponse.from(existing);
-            }
-        }
-        
         User assignedBy = assignedByUserId != null 
                 ? userRepository.findById(assignedByUserId).orElse(null) 
                 : null;
         
-        Assessor assessor = Assessor.builder()
+        Assessor.AssessorBuilder assessorBuilder = Assessor.builder()
                 .user(user)
-                .competition(competition)
                 .specialization(request.getSpecialization())
-                .assignedBy(assignedBy)
-                .build();
+                .assignedBy(assignedBy);
         
-        assessor = assessorRepository.save(assessor);
-        log.info("Assigned assessor {} to competition {}", user.getFullName(), competition.getName());
-        
-        // Create CompetitionRole for the assessor (always create)
-        // Check if CompetitionRole already exists
-        boolean roleExists = competitionRoleRepository.existsByCompetitionIdAndUserIdAndRole(
-                request.getCompetitionId(), user.getId(), CompetitionRoleType.ASSESSOR);
-        
-        if (!roleExists) {
-            CompetitionRole competitionRole = CompetitionRole.builder()
-                    .competition(competition)
-                    .user(user)
-                    .email(user.getPersonalMail() != null ? user.getPersonalMail() : user.getEduMail())
-                    .role(CompetitionRoleType.ASSESSOR)
-                    .assignedBy(assignedBy)
-                    .build();
+        // For quyền/võ nhạc: assign to performance and optionally performanceMatch
+        if (request.getPerformanceId() != null || request.getPerformanceMatchId() != null) {
+            sep490g65.fvcapi.entity.Performance performance = null;
+            PerformanceMatch performanceMatch = null;
             
-            competitionRoleRepository.save(competitionRole);
-            log.info("Created CompetitionRole for assessor {} in competition {}", user.getFullName(), competition.getName());
+            if (request.getPerformanceId() != null) {
+                performance = performanceRepository.findById(request.getPerformanceId())
+                        .orElseThrow(() -> new IllegalArgumentException("Performance not found: " + request.getPerformanceId()));
+                assessorBuilder.performance(performance);
+            }
+            
+            if (request.getPerformanceMatchId() != null) {
+                performanceMatch = performanceMatchRepository.findById(request.getPerformanceMatchId())
+                        .orElseThrow(() -> new IllegalArgumentException("PerformanceMatch not found: " + request.getPerformanceMatchId()));
+                assessorBuilder.performanceMatch(performanceMatch);
+                
+                // Check if already assigned to performance match
+                if (assessorRepository.existsByUserIdAndPerformanceMatchId(request.getUserId(), request.getPerformanceMatchId())) {
+                    Assessor existing = assessorRepository.findByUserIdAndPerformanceMatchId(request.getUserId(), request.getPerformanceMatchId())
+                            .orElse(null);
+                    if (existing != null) {
+                        log.info("Assessor already assigned, returning existing: {}", existing.getId());
+                        return AssessorResponse.from(existing);
+                    }
+                }
+            } else if (request.getPerformanceId() != null && performanceMatch == null) {
+                // Check if already assigned to performance
+                if (assessorRepository.existsByUserIdAndPerformanceId(request.getUserId(), request.getPerformanceId())) {
+                    Assessor existing = assessorRepository.findByUserIdAndPerformanceId(request.getUserId(), request.getPerformanceId())
+                            .orElse(null);
+                    if (existing != null) {
+                        log.info("Assessor already assigned, returning existing: {}", existing.getId());
+                        return AssessorResponse.from(existing);
+                    }
+                }
+            }
+        }
+        // For đối kháng: assign to match
+        else if (request.getMatchId() != null) {
+            assessorBuilder.matchId(request.getMatchId())
+                    .role(request.getRole())
+                    .position(request.getPosition());
+            
+            // Check if already assigned
+            if (assessorRepository.existsByUserIdAndMatchId(request.getUserId(), request.getMatchId())) {
+                Assessor existing = assessorRepository.findByUserIdAndMatchId(request.getUserId(), request.getMatchId())
+                        .orElse(null);
+                if (existing != null) {
+                    log.info("Assessor already assigned, returning existing: {}", existing.getId());
+                    return AssessorResponse.from(existing);
+                }
+            }
+        } else {
+            throw new IllegalArgumentException("Either performanceId/performanceMatchId (for quyền/võ nhạc) or matchId (for đối kháng) must be provided");
+        }
+        
+        Assessor assessor = assessorRepository.save(assessorBuilder.build());
+        
+        // Create CompetitionRole if performance-based (to maintain compatibility)
+        if (request.getPerformanceId() != null) {
+            sep490g65.fvcapi.entity.Performance performance = performanceRepository.findById(request.getPerformanceId())
+                    .orElseThrow(() -> new IllegalArgumentException("Performance not found: " + request.getPerformanceId()));
+            Competition competition = performance.getCompetition();
+            
+            // Check if CompetitionRole already exists
+            boolean roleExists = competitionRoleRepository.existsByCompetitionIdAndUserIdAndRole(
+                    competition.getId(), user.getId(), CompetitionRoleType.ASSESSOR);
+            
+            if (!roleExists) {
+                CompetitionRole competitionRole = CompetitionRole.builder()
+                        .competition(competition)
+                        .user(user)
+                        .email(user.getPersonalMail() != null ? user.getPersonalMail() : user.getEduMail())
+                        .role(CompetitionRoleType.ASSESSOR)
+                        .assignedBy(assignedBy)
+                        .build();
+                
+                competitionRoleRepository.save(competitionRole);
+                log.info("Created CompetitionRole for assessor {} in competition {}", user.getFullName(), competition.getName());
+            }
+            
+            log.info("Assigned assessor {} to performance {}", user.getFullName(), request.getPerformanceId());
+        } else {
+            log.info("Assigned assessor {} to match {}", user.getFullName(), request.getMatchId());
         }
         
         return AssessorResponse.from(assessor);
@@ -128,18 +181,21 @@ public class AssessorServiceImpl implements AssessorService {
         Assessor assessor = assessorRepository.findById(assessorId)
                 .orElseThrow(() -> new IllegalArgumentException("Assessor not found: " + assessorId));
         
-        // Also remove CompetitionRole if exists
-        CompetitionRole competitionRole = competitionRoleRepository
-                .findByCompetitionIdAndUserIdAndRole(
-                        assessor.getCompetition().getId(),
-                        assessor.getUser().getId(),
-                        CompetitionRoleType.ASSESSOR
-                ).orElse(null);
-        
-        if (competitionRole != null) {
-            competitionRoleRepository.delete(competitionRole);
-            log.info("Removed CompetitionRole for assessor {} from competition {}", 
-                    assessor.getUser().getFullName(), assessor.getCompetition().getName());
+        // Also remove CompetitionRole if exists (only for performance-based assessors)
+        if (assessor.getPerformance() != null) {
+            Competition competition = assessor.getPerformance().getCompetition();
+            CompetitionRole competitionRole = competitionRoleRepository
+                    .findByCompetitionIdAndUserIdAndRole(
+                            competition.getId(),
+                            assessor.getUser().getId(),
+                            CompetitionRoleType.ASSESSOR
+                    ).orElse(null);
+            
+            if (competitionRole != null) {
+                competitionRoleRepository.delete(competitionRole);
+                log.info("Removed CompetitionRole for assessor {} from competition {}", 
+                        assessor.getUser().getFullName(), competition.getName());
+            }
         }
         
         assessorRepository.delete(assessor);

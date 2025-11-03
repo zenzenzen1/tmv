@@ -15,7 +15,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Assessor extends BaseEntity {
+public class MatchAssessors extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -70,4 +70,3 @@ public class Assessor extends BaseEntity {
         ASSESSOR    // Giám khảo
     }
 }
-

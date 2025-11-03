@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "assessor_scores",
        uniqueConstraints = {
-           @UniqueConstraint(name = "uk_performance_assessor", columnNames = {"performance_id", "assessor_id"})
+           @UniqueConstraint(name = "uk_match_assessor_unique", columnNames = {"performance_match_id", "assessor_id"})
        })
 @Getter
 @Setter
@@ -27,6 +27,11 @@ public class AssessorScore extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "performance_id", nullable = false)
     private Performance performance;
+
+    // Link trực tiếp tới trận biểu diễn để tách điểm theo từng trận (Quyền/Võ nhạc)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "performance_match_id")
+    private PerformanceMatch performanceMatch;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assessor_id", nullable = false)

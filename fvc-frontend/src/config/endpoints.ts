@@ -110,10 +110,14 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/v1/assessors/${id}`,
   },
 
-  // Club Members
-  CLUB_MEMBERS: {
-    BASE: "/v1/clubs/members",
-    BY_ID: (id: string) => `/v1/clubs/members/${id}`,
+  // Performance matches (quyền/võ nhạc)
+  PERFORMANCE_MATCHES: {
+    SAVE_BY_PERFORMANCE: (performanceId: string) =>
+      `/v1/performance-matches/performance/${performanceId}/save`,
+    BY_PERFORMANCE: (performanceId: string) =>
+      `/v1/performance-matches/performance/${performanceId}`,
+    BY_COMPETITION: (competitionId: string) =>
+      `/v1/performance-matches/competition/${competitionId}`,
   },
 
   // Club Members

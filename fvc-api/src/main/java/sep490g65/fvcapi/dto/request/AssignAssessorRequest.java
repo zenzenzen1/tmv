@@ -16,10 +16,20 @@ public class AssignAssessorRequest {
     @NotBlank(message = "User ID is required")
     private String userId;
     
-    @NotBlank(message = "Competition ID is required")
-    private String competitionId;
+    // Cho quyền/võ nhạc: performanceId (nullable khi là đối kháng)
+    private String performanceId;
+    
+    // Cho quyền/võ nhạc: performanceMatchId (nullable khi là đối kháng)
+    private String performanceMatchId;
+    
+    // Cho đối kháng: matchId (nullable khi là quyền/võ nhạc)
+    private String matchId;
     
     @NotNull(message = "Specialization is required")
     private Assessor.Specialization specialization;
+    
+    // Cho đối kháng: role và position (nullable cho quyền/võ nhạc)
+    private Assessor.MatchRole role;
+    private Integer position;
 }
 
