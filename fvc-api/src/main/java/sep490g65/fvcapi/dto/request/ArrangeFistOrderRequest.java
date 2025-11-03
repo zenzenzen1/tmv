@@ -24,6 +24,9 @@ public class ArrangeFistOrderRequest {
     @NotNull(message = "Athlete orders are required")
     private List<AthleteOrder> athleteOrders;
     
+    @NotNull(message = "Athlete orders are required")
+    private List<AthleteOrder> orders;
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -33,6 +36,6 @@ public class ArrangeFistOrderRequest {
         private String athleteId;
         
         @NotNull(message = "Order is required")
-        private Integer order;
+        private Integer orderIndex;
     }
 }

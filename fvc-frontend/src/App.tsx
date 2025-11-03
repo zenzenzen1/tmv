@@ -29,11 +29,17 @@ import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
+import MatchScoringPage from "./pages/scoring/MatchScoringPage";
+import SelectMatchPage from "./pages/scoring/SelectMatchPage";
+import AssessorPage from "./pages/scoring/AssessorPage";
+import AssignAssessorsPage from "./pages/scoring/AssignAssessorsPage";
+import UserManagementPage from "./pages/user-management/UserManagementPage";
 import ProjectionScreen from "./pages/performance/ProjectionScreen";
 import JudgeScoringScreen from "./pages/performance/JudgeScoringScreen";
 import JudgeDashboard from "./pages/judge/JudgeDashboard";
 import AssessorLayout from "./components/layout/AssessorLayout";
 import { useIsAssessor } from "./stores/authStore";
+import RegisterPage from "./pages/auth/RegisterPage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -59,6 +65,7 @@ export default function App() {
   // Nếu đã login → hiển thị layout chính
   return (
     <Routes>
+      <Route path="/register" element={<RegisterPage />} />
       {/* Auth */}
       <Route
         path="/login"
@@ -153,6 +160,16 @@ export default function App() {
           path="performance/fist-order"
           element={<ArrangeOrderWrapper />}
         />
+        {/* Scoring */}
+        <Route path="scoring" element={<SelectMatchPage />} />
+        <Route path="scoring/:matchId" element={<MatchScoringPage />} />
+        <Route path="scoring/:matchId/assessor" element={<AssessorPage />} />
+        <Route path="scoring/assign-assessors" element={<AssignAssessorsPage />} />
+        <Route path="scoring/assign-assessors/:matchId" element={<AssignAssessorsPage />} />
+
+        {/* Arrange */}
+        <Route path="arrange" element={<ArrangeOrderWrapper />} />
+        <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
 
         {/* Tournament Forms */}
         <Route path="tournament-forms" element={<TournamentFormList />} />
@@ -206,7 +223,9 @@ export default function App() {
       />
       <Route path="/results/:id" element={<FormResults />} />
       <Route path="/published-form/:id" element={<PublishedForm />} />
-
+      <Route path="/scoring" element={<SelectMatchPage />} />
+      <Route path="/scoring/:matchId" element={<MatchScoringPage />} />
+      <Route path="/scoring/:matchId/assessor" element={<AssessorPage />} />
       {/* 404 */}
       <Route path="*" element={<div>404 Not Found</div>} />
     </Routes>

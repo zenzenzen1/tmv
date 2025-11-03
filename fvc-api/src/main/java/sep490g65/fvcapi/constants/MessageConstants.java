@@ -98,4 +98,20 @@ public final class MessageConstants {
     public static final String APPLICATION_FORM_PUBLISH_WITHOUT_END_DATE = "Cannot publish form without end date";
     public static final String APPLICATION_FORM_CREATE_ERROR = "Failed to create application form";
     public static final String APPLICATION_FORM_UPDATE_ERROR = "Failed to update application form";
+
+    // Match Scoring Messages
+    public static final String MATCH_SCOREBOARD_RETRIEVED = "Match scoreboard retrieved successfully";
+    public static final String MATCH_EVENTS_RETRIEVED = "Match events retrieved successfully";
+    public static final String SCORE_EVENT_RECORDED = "Score event recorded successfully";
+    public static final String MATCH_CONTROL_SUCCESS = "Match control action completed successfully";
+    public static final String MATCH_EVENT_UNDONE = "Last match event undone successfully";
+
+    // Match Scoring Error Messages
+    public static final String MATCH_NOT_FOUND = "Match not found with id: %s";
+    public static final String MATCH_ALREADY_ENDED = "Match has already ended";
+    public static final String MATCH_NOT_IN_PROGRESS = "Match is not in progress";
+    public static final String MATCH_CANNOT_UNDO = "Cannot undo: no events to undo";
+    public static final String INVALID_MATCH_STATUS = "Invalid match status for this operation";
+    public static final String INVALID_EVENT_TYPE = "Invalid event type for this operation";
+
 }

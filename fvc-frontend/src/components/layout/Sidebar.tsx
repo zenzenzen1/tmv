@@ -45,6 +45,8 @@ export default function TournamentSidebar({
     formList: "/manage/form-list",
     submittedForms: "/manage/submitted-forms",
     memberManagement: "/member-management",
+    scoring: "/manage/scoring",
+    users: "/manage/users",
   };
 
   const isControlled =

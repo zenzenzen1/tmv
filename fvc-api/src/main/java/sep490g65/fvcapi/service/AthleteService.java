@@ -1,6 +1,7 @@
 package sep490g65.fvcapi.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -18,9 +19,11 @@ import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
 
 import java.util.UUID;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AthleteService {
     private final AthleteRepository athleteRepository;
     private final WeightClassRepository weightClassRepository;
@@ -204,8 +207,39 @@ public class AthleteService {
     }
     
     @Transactional
-    public void arrangeOrder(String competitionId, Athlete.CompetitionType competitionType) {
-        // TODO: Implement arrange order logic
+    public void arrangeOrder(String competitionId, String competitionType, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
+        log.info("🎲 [Arrange Order] Starting arrangement for competitionId: {}, competitionType: {}, total athletes: {}", 
+                competitionId, competitionType, orders.size());
+        
+        int successCount = 0;
+        int failCount = 0;
+        
+        // Apply order to each athlete
+        for (sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder order : orders) {
+            try {
+                Optional<Athlete> athleteOpt = athleteRepository.findById(UUID.fromString(order.getAthleteId()));
+                if (athleteOpt.isPresent()) {
+                    Athlete athlete = athleteOpt.get();
+                    Integer oldOrder = athlete.getCompetitionOrder();
+                    athlete.setCompetitionOrder(order.getOrderIndex());
+                    athleteRepository.save(athlete);
+                    
+                    log.debug("✅ [Arrange Order] Athlete: {} ({}), Old order: {}, New order: {}", 
+                            athlete.getFullName(), order.getAthleteId(), oldOrder, order.getOrderIndex());
+                    successCount++;
+                } else {
+                    log.warn("⚠️ [Arrange Order] Athlete not found: {}", order.getAthleteId());
+                    failCount++;
+                }
+            } catch (Exception e) {
+                log.error("❌ [Arrange Order] Failed to update athlete: {}, error: {}", 
+                        order.getAthleteId(), e.getMessage(), e);
+                failCount++;
+            }
+        }
+        
+        log.info("🎲 [Arrange Order] Completed - Success: {}, Failed: {}, Total: {}", 
+                successCount, failCount, orders.size());
     }
 }
 

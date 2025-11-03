@@ -7,8 +7,11 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import sep490g65.fvcapi.dto.request.LoginRequest;
+import sep490g65.fvcapi.dto.request.RegisterRequest;
 import sep490g65.fvcapi.dto.response.LoginResponse;
+import sep490g65.fvcapi.dto.response.RegisterResponse;
 import sep490g65.fvcapi.entity.User;
+import sep490g65.fvcapi.enums.SystemRole;
 import sep490g65.fvcapi.repository.UserRepository;
 import sep490g65.fvcapi.service.AuthService;
 import sep490g65.fvcapi.utils.JwtUtils;
@@ -60,4 +63,62 @@ public class AuthServiceImpl implements AuthService {
             throw new BadCredentialsException("Invalid email or password");
         }
     }
+
+    @Override
+    public RegisterResponse register(RegisterRequest request) {
+        log.info("Attempting registration for email: {}", request.getPersonalMail());
+        
+        try {
+            // Check if user already exists
+            if (userRepository.findByPersonalMailIgnoreCase(request.getPersonalMail().trim()).isPresent()) {
+                throw new IllegalArgumentException("User with this email already exists");
+            }
+            
+            // Check if student code already exists
+            if (userRepository.findByStudentCode(request.getStudentCode().trim()).isPresent()) {
+                throw new IllegalArgumentException("User with this student code already exists");
+            }
+            
+            // Validate password confirmation
+            if (!request.getPassword().equals(request.getConfirmPassword())) {
+                throw new IllegalArgumentException("Password and confirm password do not match");
+            }
+            
+            // Create new user
+            User user = new User();
+            user.setFullName(request.getFullName().trim());
+            user.setPersonalMail(request.getPersonalMail().trim());
+            user.setEduMail(request.getEduMail() != null ? request.getEduMail().trim() : null);
+            user.setHashPassword(passwordEncoder.encode(request.getPassword()));
+            user.setStudentCode(request.getStudentCode().trim());
+            user.setDob(request.getDob());
+            user.setGender(request.getGender().trim());
+            user.setSystemRole(SystemRole.MEMBER); // Default role for new registrations
+            user.setStatus(true); // Active by default
+            user.setIsInChallenge(false); // Not in challenge by default
+            
+            // Save user
+            User savedUser = userRepository.save(user);
+            
+            log.info("Registration successful for user: {}", request.getPersonalMail());
+            
+            return RegisterResponse.builder()
+                .id(savedUser.getId())
+                .fullName(savedUser.getFullName())
+                .personalMail(savedUser.getPersonalMail())
+                .eduMail(savedUser.getEduMail())
+                .studentCode(savedUser.getStudentCode())
+                .systemRole(savedUser.getSystemRole())
+                .message("Registration successful")
+                .build();
+                
+        } catch (IllegalArgumentException e) {
+            log.error("Registration failed for email: {} - {}", request.getPersonalMail(), e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Registration failed for email: {} - {}", request.getPersonalMail(), e.getMessage());
+            throw new RuntimeException("Registration failed", e);
+        }
+    }
+
 }

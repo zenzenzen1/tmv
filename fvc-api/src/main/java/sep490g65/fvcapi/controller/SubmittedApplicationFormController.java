@@ -8,6 +8,7 @@ import sep490g65.fvcapi.constants.ApiConstants;
 import sep490g65.fvcapi.constants.MessageConstants;
 // use fully qualified name in method signature to avoid naming conflict
 import sep490g65.fvcapi.dto.request.SubmitApplicationFormRequest;
+import sep490g65.fvcapi.dto.request.UpdateSubmissionStatusRequest;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
 import sep490g65.fvcapi.dto.response.SubmittedApplicationFormResponse;
@@ -43,6 +44,15 @@ public class SubmittedApplicationFormController {
             return ResponseEntity.badRequest()
                     .body(ResponseUtils.error("Invalid JSON format in form data", "JSON_PROCESSING_ERROR"));
         }
+    }
+    
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<BaseResponse<Void>> updateStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateSubmissionStatusRequest request
+    ) {
+        service.updateStatus(id, request.getStatus());
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS));
     }
 }
 

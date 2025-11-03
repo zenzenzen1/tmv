@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { User, LoginRequest } from "../types";
+import type { User, AuthResponse, LoginRequest, FvcRegisterRequest, FvcRegisterResponse } from "../types";
 import authService from "../services/authService";
 import { globalErrorHandler } from "../utils/errorHandler";
 
@@ -16,6 +16,7 @@ interface AuthState {
 interface AuthActions {
   // Authentication actions
   login: (credentials: LoginRequest) => Promise<void>;
+  register: (userData: FvcRegisterRequest) => Promise<FvcRegisterResponse>;
   logout: () => void;
 
   // State management
@@ -105,6 +106,29 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
+      // Register action
+      register: async (userData: FvcRegisterRequest) => {
+        try {
+          set({ isLoading: true, error: null });
+
+          const data = await authService.register(userData);
+
+          set({
+            isLoading: false,
+            error: null,
+          });
+
+          return data;
+        } catch (error) {
+          const { message } = globalErrorHandler(error);
+          set({
+            isLoading: false,
+            error: message,
+          });
+          throw error;
+        }
+      },
+
       // Logout action
       logout: async () => {
         try {
@@ -172,10 +196,11 @@ export const useAuth = () => {
 
 export const useAuthActions = () => {
   const login = useAuthStore((state) => state.login);
+  const register = useAuthStore((state) => state.register);
   const logout = useAuthStore((state) => state.logout);
   const clearError = useAuthStore((state) => state.clearError);
 
-  return { login, logout, clearError };
+  return { login, register, logout, clearError };
 };
 
 export const useIsAuthenticated = () =>

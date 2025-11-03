@@ -19,5 +19,14 @@ public interface UserRepository extends JpaRepository<User, String> {
     // Case-insensitive helpers
     Optional<User> findByPersonalMailIgnoreCase(String personalMail);
     Optional<User> findByEduMailIgnoreCase(String eduMail);
+    
+    // Handle duplicates by returning List (use first element)
+    List<User> findAllByPersonalMailIgnoreCase(String personalMail);
+    List<User> findAllByEduMailIgnoreCase(String eduMail);
+    
+    // Find multiple users by student codes
+    List<User> findByStudentCodeIn(List<String> studentCodes);
+    // Find user by either edu_mail or personal_mail
+    Optional<User> findByEduMailOrPersonalMail(String eduMail, String personalMail);
 }
 

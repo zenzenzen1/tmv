@@ -10,8 +10,8 @@ class ApiService {
   }
 
   // POST request
-  async post<T>(endpoint: string, data?: any): Promise<BaseResponse<T>> {
-    const response = await apiClient.post<BaseResponse<T>>(endpoint, data);
+  async post<T>(endpoint: string, data?: any): Promise<T> {
+    const response = await apiClient.post<T>(endpoint, data);
     return response.data;
   }
 
