@@ -14,6 +14,7 @@ type FormConfig = {
   updatedAt: string;
   fieldCount: number;
   status: string;
+  numberOfParticipants?: number;
 };
 
 export default function TournamentFormList() {
@@ -22,6 +23,11 @@ export default function TournamentFormList() {
   const [forms, setForms] = useState<FormConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // UI controls
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(
+    undefined
+  );
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -80,7 +86,12 @@ export default function TournamentFormList() {
         });
 
         const formsData: FormConfig[] = dataArray.map(
-          (formLike: Partial<FormConfig> & { formTitle?: string }) => {
+          (
+            formLike: Partial<FormConfig> & {
+              formTitle?: string;
+              numberOfParticipants?: number;
+            }
+          ) => {
             const id = String(formLike.id || "");
             const name = formLike.formTitle || formLike.name || "Không có tên";
             const description = formLike.description || "Không có mô tả";
@@ -88,6 +99,10 @@ export default function TournamentFormList() {
             const createdAt = String(formLike.createdAt || "");
             const updatedAt = String(formLike.updatedAt || "");
             const status = (formLike.status || "DRAFT").toUpperCase();
+            const numberOfParticipants =
+              typeof formLike.numberOfParticipants === "number"
+                ? formLike.numberOfParticipants
+                : 0;
             return {
               id,
               name,
@@ -98,6 +113,7 @@ export default function TournamentFormList() {
               updatedAt,
               fieldCount: 0,
               status,
+              numberOfParticipants,
             };
           }
         );
@@ -109,7 +125,7 @@ export default function TournamentFormList() {
         console.log("All formTypes found:", allFormTypes);
 
         // Filter to show only COMPETITION_REGISTRATION forms
-        const filteredForms = formsData.filter((form: FormConfig) => {
+        let filteredForms = formsData.filter((form: FormConfig) => {
           console.log(`Form "${form.name}": formType="${form.formType}"`);
 
           // Only show COMPETITION_REGISTRATION forms
@@ -135,6 +151,21 @@ export default function TournamentFormList() {
           return false;
         });
 
+        // Apply UI filters
+        if (statusFilter) {
+          filteredForms = filteredForms.filter(
+            (f) => (f.status || "DRAFT").toUpperCase() === statusFilter
+          );
+        }
+        if (search.trim().length > 0) {
+          const q = search.trim().toLowerCase();
+          filteredForms = filteredForms.filter(
+            (f) =>
+              (f.formTitle || f.name || "").toLowerCase().includes(q) ||
+              (f.description || "").toLowerCase().includes(q)
+          );
+        }
+
         console.log("Filtered tournament forms:", filteredForms);
 
         setAllForms(filteredForms);
@@ -156,7 +187,7 @@ export default function TournamentFormList() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, toastError]);
+  }, [currentPage, pageSize, toastError, statusFilter, search]);
 
   useEffect(() => {
     (async () => {
@@ -238,205 +269,201 @@ export default function TournamentFormList() {
   return (
     <div className="flex justify-center">
       <div className="w-full max-w-6xl">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("/manage")}
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
-            >
-              ⟵ Quay lại
-            </button>
-            <h1 className="text-[15px] font-semibold text-gray-900">
-              Quản lý Form đăng ký giải đấu
-            </h1>
-          </div>
+        {/* Header row */}
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-[16px] font-semibold text-gray-900">
+            Quản lí Form đăng ký giải đấu
+          </h1>
           <div className="flex items-center gap-2">
+            <button className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50">
+              Xuất Excel
+            </button>
             <button
               onClick={handleCreateNew}
               className="rounded-md bg-[#377CFB] px-4 py-2 text-white text-sm hover:bg-[#2e6de0]"
             >
-              + Tạo Form Mới
+              + Tạo form mới
             </button>
           </div>
         </div>
 
-        {/* Card */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          {loading && (
-            <div className="text-center py-8 text-gray-600">
+        {/* Filters */}
+        <div className="mb-4 flex items-center gap-2">
+          <div className="relative flex-1 max-w-lg">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tìm tiêu đề form/tên giải..."
+              className="w-full rounded-md border border-gray-300 bg-white pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#377CFB]"
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              🔎
+            </span>
+          </div>
+          <select
+            value={statusFilter || ""}
+            onChange={(e) => setStatusFilter(e.target.value || undefined)}
+            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Trạng thái</option>
+            <option value="PUBLISH">Đã xuất bản</option>
+            <option value="DRAFT">Nháp</option>
+            <option value="ARCHIVED">Đã đóng</option>
+          </select>
+        </div>
+
+        {/* Table */}
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          {loading ? (
+            <div className="text-center py-10 text-gray-600">
               Đang tải danh sách form...
             </div>
-          )}
-
-          {error && (
-            <div className="text-red-600 text-center py-8">{error}</div>
-          )}
-
-          {!loading && !error && (
+          ) : error ? (
+            <div className="text-center py-10 text-red-600">{error}</div>
+          ) : (
             <>
-              <div className="mb-4">
-                <div className="text-sm text-gray-600">
-                  <span className="font-semibold">{totalForms}</span> form đã
-                  tạo
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {forms.map((form) => (
-                  <div
-                    key={form.id}
-                    className="rounded-lg border border-gray-200 bg-white p-4 hover:bg-gray-50 cursor-pointer"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleEditForm(form);
-                    }}
-                  >
-                    {/* Debug log moved outside JSX to avoid returning void */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            {form.formTitle || form.name || "Không có tên"}
-                          </h3>
-                          <span className="rounded-md border px-2 py-1 text-[11px] font-semibold text-gray-600">
-                            Đăng ký giải đấu
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm text-gray-700">
+                  <thead className="bg-[#F6F9FF]">
+                    <tr>
+                      <th className="text-left font-medium px-4 py-3">
+                        Giải đấu
+                      </th>
+                      <th className="text-left font-medium px-4 py-3">
+                        Tiêu đề Form
+                      </th>
+                      <th className="text-left font-medium px-4 py-3">
+                        Số người tham gia
+                      </th>
+                      <th className="text-left font-medium px-4 py-3">
+                        Ngày tạo
+                      </th>
+                      <th className="text-left font-medium px-4 py-3">
+                        Trạng thái
+                      </th>
+                      <th className="text-left font-medium px-4 py-3">
+                        Thao tác
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {forms.map((form) => (
+                      <tr key={form.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-900 whitespace-nowrap">
+                          {form.name}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                          {form.formTitle || form.name}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {form.numberOfParticipants ?? 0}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {formatDate(form.createdAt)}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center rounded-md border text-xs font-semibold px-0 ${
+                              (form.status || "DRAFT").toUpperCase() ===
+                              "PUBLISH"
+                                ? ""
+                                : (form.status || "DRAFT").toUpperCase() ===
+                                  "DRAFT"
+                                ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                                : "bg-orange-50 text-orange-700 border-orange-200"
+                            }`}
+                            style={
+                              (form.status || "DRAFT").toUpperCase() ===
+                              "PUBLISH"
+                                ? {
+                                    backgroundColor: "#E6FFED",
+                                    color: "#0FA958",
+                                    borderColor: "#0FA958",
+                                  }
+                                : undefined
+                            }
+                          >
+                            <select
+                              value={(form.status || "DRAFT").toUpperCase()}
+                              onChange={(e) =>
+                                handleStatusChange(form.id, e.target.value)
+                              }
+                              className="appearance-none bg-transparent pl-2 pr-6 py-1 rounded-md text-current outline-none border-none cursor-pointer"
+                            >
+                              <option value="PUBLISH">ĐÃ XUẤT BẢN</option>
+                              <option value="DRAFT">NHÁP</option>
+                              <option value="ARCHIVED">ĐÃ ĐÓNG</option>
+                            </select>
                           </span>
-                        </div>
-                        <div className="text-sm text-gray-600 mb-3">
-                          {form.description}
-                        </div>
-                        <div className="flex items-center gap-4 text-xs text-gray-500">
-                          <span>{form.fieldCount} câu hỏi</span>
-                          <span>Tạo: {formatDate(form.createdAt)}</span>
-                          <span>Cập nhật: {formatDate(form.updatedAt)}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {/* Status Dropdown */}
-                        <select
-                          value={form.status || "DRAFT"}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            handleStatusChange(form.id, e.target.value);
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                          }}
-                          className={`rounded-md px-3 py-1.5 text-xs font-medium border-2 transition-colors ${
-                            form.status === "PUBLISH"
-                              ? "bg-green-50 text-green-800 border-green-300 hover:bg-green-100"
-                              : form.status === "DRAFT"
-                              ? "bg-yellow-50 text-yellow-800 border-yellow-300 hover:bg-yellow-100"
-                              : form.status === "ARCHIVED"
-                              ? "bg-orange-50 text-orange-800 border-orange-300 hover:bg-orange-100"
-                              : "bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100"
-                          }`}
-                        >
-                          <option
-                            value="DRAFT"
-                            className="bg-yellow-50 text-yellow-800"
-                          >
-                            Draft
-                          </option>
-                          <option
-                            value="PUBLISH"
-                            className="bg-green-50 text-green-800"
-                          >
-                            Publish
-                          </option>
-                          <option
-                            value="ARCHIVED"
-                            className="bg-orange-50 text-orange-800"
-                          >
-                            Archived
-                          </option>
-                        </select>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditForm(form);
-                          }}
-                          className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-sm hover:bg-[#2e6de0]"
-                        >
-                          Chỉnh sửa
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditForm(form)}
+                              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                            >
+                              Chỉnh sửa
+                            </button>
+                            <button
+                              onClick={() =>
+                                navigate(`/manage/results/${form.id}`)
+                              }
+                              className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-xs hover:bg-[#2e6de0]"
+                            >
+                              Xem kết quả
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-
-              {forms.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <div className="text-[14px] mb-2">Chưa có form nào</div>
-                  <div className="text-[12px]">
-                    Nhấn "Tạo Form Mới" để bắt đầu
-                  </div>
-                </div>
-              )}
 
               {/* Pagination */}
-              {(() => {
-                console.log("Pagination condition check:", {
-                  totalForms,
-                  pageSize,
-                  condition: totalForms > pageSize,
-                });
-                return totalForms > pageSize;
-              })() && (
-                <div className="mt-6 flex items-center justify-between">
+              {totalForms > pageSize && (
+                <div className="px-4 py-3 flex items-center justify-between border-t bg-white">
                   <div className="text-sm text-gray-600">
                     Hiển thị {(currentPage - 1) * pageSize + 1} -{" "}
                     {Math.min(currentPage * pageSize, totalForms)} trong{" "}
-                    {totalForms} form
+                    {totalForms}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.max(prev - 1, 1))
-                      }
+                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                       disabled={currentPage === 1}
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
                     >
-                      Trước
+                      « Trước
                     </button>
-
-                    {/* Page numbers */}
-                    <div className="flex items-center gap-1">
-                      {Array.from(
-                        { length: Math.ceil(totalForms / pageSize) },
-                        (_, i) => i + 1
-                      ).map((pageNum) => (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`rounded-md px-3 py-1.5 text-sm ${
-                            currentPage === pageNum
-                              ? "bg-[#377CFB] text-white"
-                              : "border border-gray-300 bg-white hover:bg-gray-50"
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      ))}
-                    </div>
-
+                    {Array.from(
+                      { length: Math.ceil(totalForms / pageSize) },
+                      (_, i) => i + 1
+                    ).map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`rounded-md px-3 py-1.5 text-sm ${
+                          currentPage === pageNum
+                            ? "bg-[#377CFB] text-white"
+                            : "border border-gray-300 bg-white hover:bg-gray-50"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
                     <button
                       onClick={() =>
-                        setCurrentPage((prev) =>
-                          Math.min(prev + 1, Math.ceil(totalForms / pageSize))
+                        setCurrentPage((p) =>
+                          Math.min(p + 1, Math.ceil(totalForms / pageSize))
                         )
                       }
                       disabled={
                         currentPage === Math.ceil(totalForms / pageSize)
                       }
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
                     >
-                      Sau
+                      Sau »
                     </button>
                   </div>
                 </div>

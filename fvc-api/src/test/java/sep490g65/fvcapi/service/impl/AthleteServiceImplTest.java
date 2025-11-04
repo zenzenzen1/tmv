@@ -1,4 +1,4 @@
-package sep490g65.fvcapi.service;
+package sep490g65.fvcapi.service.impl;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +17,7 @@ import org.springframework.data.jpa.domain.Specification;
 import sep490g65.fvcapi.repository.PerformanceAthleteRepository;
 import sep490g65.fvcapi.repository.SubmittedApplicationFormRepository;
 import sep490g65.fvcapi.repository.WeightClassRepository;
+import sep490g65.fvcapi.service.AthleteService;
 import sep490g65.fvcapi.repository.VovinamFistConfigRepository;
 import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;

@@ -29,6 +29,7 @@ import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
+import BracketBuilder from "./pages/brackets/BracketBuilder";
 import MatchScoringPage from "./pages/scoring/MatchScoringPage";
 import SelectMatchPage from "./pages/scoring/SelectMatchPage";
 import AssessorPage from "./pages/scoring/AssessorPage";
@@ -150,6 +151,9 @@ export default function App() {
         <Route path="fist-content" element={<FistContentListPage />} />
         <Route path="fist-content/:id/items" element={<FistItemsPage />} />
         <Route path="music-content" element={<MusicContentListPage />} />
+
+        {/* Brackets */}
+        <Route path="brackets" element={<BracketBuilder />} />
 
         {/* Performance */}
         <Route path="performance" element={<ArrangeOrderWrapper />} />

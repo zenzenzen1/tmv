@@ -2,20 +2,10 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import MultiSelect from "@/components/common/MultiSelect";
 import { useCompetitionStore } from "@/stores/competition";
 import { useWeightClassStore } from "@/stores/weightClass";
-import { toPng } from "html-to-image";
+import * as htmlToImage from "html-to-image";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { PaginationResponse } from "../../types/api";
-import { toPng } from "html-to-image";
-
-type Athlete = {
-  id: string;
-  fullName: string;
-  email?: string;
-  competitionType: string;
-  status?: string;
-  [key: string]: unknown;
-};
 import { drawService, type DrawResponse } from "../../services/drawService";
 
 export default function BracketBuilder() {
@@ -33,38 +23,55 @@ export default function BracketBuilder() {
   const [loadingAthletes, setLoadingAthletes] = useState<boolean>(false);
   const [selectedAthletes, setSelectedAthletes] = useState<string[]>([]);
   const [showSeedingModal, setShowSeedingModal] = useState<boolean>(false);
-  const [seedingList, setSeedingList] = useState<Array<{id: string, name: string, seed: number}>>([]);
-  const [showManualSeedingModal, setShowManualSeedingModal] = useState<boolean>(false);
-  const [manualSeedingList, setManualSeedingList] = useState<Array<{id: string, name: string, seed: number}>>([]);
-  const [showDrawHistoryModal, setShowDrawHistoryModal] = useState<boolean>(false);
+  const [seedingList, setSeedingList] = useState<
+    Array<{ id: string; name: string; seed: number }>
+  >([]);
+  const [showManualSeedingModal, setShowManualSeedingModal] =
+    useState<boolean>(false);
+  const [manualSeedingList, setManualSeedingList] = useState<
+    Array<{ id: string; name: string; seed: number }>
+  >([]);
+  const [showDrawHistoryModal, setShowDrawHistoryModal] =
+    useState<boolean>(false);
   const [drawHistory, setDrawHistory] = useState<DrawResponse[]>([]);
   const [loadingDrawHistory, setLoadingDrawHistory] = useState<boolean>(false);
-  
+
   // Mock athlete names for demo
   const mockAthletes = [
-    "Nguyễn Văn A", "Trần Thị B", "Lê Văn C", "Phạm Thị D", "Hoàng Văn E",
-    "Vũ Thị F", "Đặng Văn G", "Bùi Thị H", "Phan Văn I", "Ngô Thị J",
-    "Dương Văn K", "Lý Thị L", "Đinh Văn M", "Võ Thị N", "Tôn Văn O",
-    "Hồ Thị P", "Lương Văn Q", "Chu Thị R", "Đỗ Văn S", "Cao Thị T",
-    "Lưu Văn U", "Mai Thị V", "Đào Văn X", "Lâm Thị Y", "Hà Văn Z"
+    "Nguyễn Văn A",
+    "Trần Thị B",
+    "Lê Văn C",
+    "Phạm Thị D",
+    "Hoàng Văn E",
+    "Vũ Thị F",
+    "Đặng Văn G",
+    "Bùi Thị H",
+    "Phan Văn I",
+    "Ngô Thị J",
+    "Dương Văn K",
+    "Lý Thị L",
+    "Đinh Văn M",
+    "Võ Thị N",
+    "Tôn Văn O",
+    "Hồ Thị P",
+    "Lương Văn Q",
+    "Chu Thị R",
+    "Đỗ Văn S",
+    "Cao Thị T",
+    "Lưu Văn U",
+    "Mai Thị V",
+    "Đào Văn X",
+    "Lâm Thị Y",
+    "Hà Văn Z",
   ];
-  
+
   const [seedNames, setSeedNames] = useState<string[]>([]);
-<<<<<<< HEAD
-  const [pairings, setPairings] = useState<Array<[string, string]>>([]); // preliminary round pairs
-=======
-<<<<<<< HEAD
->>>>>>> db08c13 (temp)
   const [roundPairs, setRoundPairs] = useState<Array<Array<[string, string]>>>(
     []
   ); // all rounds including prelim
-=======
-  const [roundPairs, setRoundPairs] = useState<Array<Array<[string, string]>>>([]); // all rounds including prelim
->>>>>>> 14d568549180243c8410a5f9120fb02b973f287e
   const [baseSize, setBaseSize] = useState<number>(0); // largest power of two <= N (e.g., 16)
   const [roundsCount, setRoundsCount] = useState<number>(0); // total columns = 1 (prelim) + log2(base)
   const [byeCount, setByeCount] = useState<number>(0); // (2*base - N)
-  const [bracketSize, setBracketSize] = useState<number>(0); // display: next power-of-two size
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
   const [previewImage, setPreviewImage] = useState<string>("");
   const bracketRef = useRef<HTMLDivElement>(null);
@@ -167,7 +174,6 @@ export default function BracketBuilder() {
 
     // Use passed athleteNames or fallback to seedNames state
     const names = athleteNames || seedNames;
-
     if (n <= 1) {
       setBaseSize(1);
       setRoundsCount(1); // only final column
@@ -175,91 +181,54 @@ export default function BracketBuilder() {
       setRoundPairs([]);
       return [];
     }
-<<<<<<< HEAD
-
-    // Calculate bracket structure
-    const base = prevPowerOfTwo(n);
-    const extra = n - base;
-    const byes = base - extra;
-    const size = extra > 0 ? base * 2 : base;
-
-    setBaseSize(base);
-    setByeCount(byes);
-    setBracketSize(size);
-
-=======
     const base = prevPowerOfTwo(n); // e.g., 16 for 25
     const extra = n - base; // e.g., 9
     const byes = base - extra; // e.g., 7 (seeds extra+1..base)
-    
-    console.log('Base:', base, 'Extra:', extra, 'Byes:', byes);
-    
+
+    console.log("Base:", base, "Extra:", extra, "Byes:", byes);
+
     setBaseSize(base);
     setByeCount(byes);
-    
->>>>>>> 14d568549180243c8410a5f9120fb02b973f287e
-    const allRounds: Array<Array<[string, string]>> = [];
-<<<<<<< HEAD
 
-=======
-    
+    const allRounds: Array<Array<[string, string]>> = [];
+
     // Only create preliminary round if there are extra athletes (not a perfect power of 2)
->>>>>>> db08c13 (temp)
     if (extra > 0) {
       // Create preliminary round with all athletes
       const prelimPairs: Array<[string, string]> = [];
       for (let i = 0; i < n; i += 2) {
         if (i + 1 < n) {
-          const leftName = i < names.length ? names[i] : 
-                          i < mockAthletes.length ? mockAthletes[i] : `VĐV ${i + 1}`;
-          const rightName = i + 1 < names.length ? names[i + 1] : 
-                           i + 1 < mockAthletes.length ? mockAthletes[i + 1] : `VĐV ${i + 2}`;
-          prelimPairs.push([`#${i + 1} - ${leftName}`, `#${i + 2} - ${rightName}`]);
+          const leftName =
+            i < names.length
+              ? names[i]
+              : i < mockAthletes.length
+              ? mockAthletes[i]
+              : `VĐV ${i + 1}`;
+          const rightName =
+            i + 1 < names.length
+              ? names[i + 1]
+              : i + 1 < mockAthletes.length
+              ? mockAthletes[i + 1]
+              : `VĐV ${i + 2}`;
+          prelimPairs.push([
+            `#${i + 1} - ${leftName}`,
+            `#${i + 2} - ${rightName}`,
+          ]);
         } else {
           // Odd number of athletes, single athlete gets bye
-          const leftName = i < names.length ? names[i] : 
-                          i < mockAthletes.length ? mockAthletes[i] : `VĐV ${i + 1}`;
+          const leftName =
+            i < names.length
+              ? names[i]
+              : i < mockAthletes.length
+              ? mockAthletes[i]
+              : `VĐV ${i + 1}`;
           prelimPairs.push([`#${i + 1} - ${leftName}`, `BYE`]);
         }
       }
       allRounds.push(prelimPairs);
-<<<<<<< HEAD
 
-      // Main bracket: combine winners from prelim with byes
-      const mainBracketPairs: Array<[string, string]> = [];
-
-      // Add winners from preliminary round (pairs of 2)
-      for (let i = 0; i < extra; i += 2) {
-        if (i + 1 < extra) {
-          mainBracketPairs.push([`W${i + 1}`, `W${i + 2}`]);
-        } else {
-          // Single winner from prelim, pair with a bye
-          const byeName = names[extra] || `VĐV ${extra + 1}`;
-          mainBracketPairs.push([`W${i + 1}`, `#${extra + 1} - ${byeName}`]);
-        }
-      }
-
-      // Add remaining byes (athletes who get direct entry to main bracket)
-      for (let i = extra + 1; i < base; i += 2) {
-        if (i + 1 < base) {
-          const leftName = names[i] || `VĐV ${i + 1}`;
-          const rightName = names[i + 1] || `VĐV ${i + 2}`;
-          mainBracketPairs.push([
-            `#${i + 1} - ${leftName}`,
-            `#${i + 2} - ${rightName}`,
-          ]);
-        }
-      }
-
-      allRounds.push(mainBracketPairs);
-
-      // Create subsequent rounds
-      let currentRound = mainBracketPairs;
-=======
-      
       // Create subsequent rounds from winners
       let currentRound = prelimPairs;
->>>>>>> db08c13 (temp)
       let winnerCounter = 1;
       while (currentRound.length > 1) {
         const nextRound: Array<[string, string]> = [];
@@ -282,26 +251,29 @@ export default function BracketBuilder() {
       // Perfect power of 2 - no preliminary round needed
       const firstRoundPairs: Array<[string, string]> = [];
       for (let i = 1; i <= base; i += 2) {
-        const leftName = i <= names.length ? names[i - 1] : 
-                        i <= mockAthletes.length ? mockAthletes[i - 1] : `VĐV ${i}`;
-        const rightName = (i + 1) <= names.length ? names[i] : 
-                         (i + 1) <= mockAthletes.length ? mockAthletes[i] : `VĐV ${i + 1}`;
-        firstRoundPairs.push([`#${i} - ${leftName}`, `#${i + 1} - ${rightName}`]);
+        const leftName =
+          i <= names.length
+            ? names[i - 1]
+            : i <= mockAthletes.length
+            ? mockAthletes[i - 1]
+            : `VĐV ${i}`;
+        const rightName =
+          i + 1 <= names.length
+            ? names[i]
+            : i + 1 <= mockAthletes.length
+            ? mockAthletes[i]
+            : `VĐV ${i + 1}`;
+        firstRoundPairs.push([
+          `#${i} - ${leftName}`,
+          `#${i + 1} - ${rightName}`,
+        ]);
       }
       allRounds.push(firstRoundPairs);
-<<<<<<< HEAD
 
-      // Create subsequent rounds
-      let currentRound = firstRoundPairs;
-      let winnerCounter = 1;
-      while (currentRound.length > 1) {
-=======
-      
       // Subsequent rounds: pair winners consecutively
       let prevRoundWinnersCount = firstRoundPairs.length;
       let winnerOffset = 1;
       while (prevRoundWinnersCount > 1) {
->>>>>>> db08c13 (temp)
         const nextRound: Array<[string, string]> = [];
         for (let i = 0; i < prevRoundWinnersCount; i += 2) {
           const left = `W${winnerOffset + i}`;
@@ -312,7 +284,7 @@ export default function BracketBuilder() {
         winnerOffset += prevRoundWinnersCount;
         prevRoundWinnersCount = nextRound.length;
       }
-      
+
       setRoundsCount(allRounds.length);
     }
 
@@ -322,81 +294,79 @@ export default function BracketBuilder() {
   }
 
   const handleGenerate = () => {
-    console.log('handleGenerate called, athleteCount:', athleteCount);
+    console.log("handleGenerate called, athleteCount:", athleteCount);
     const n = Math.max(0, athleteCount);
     if (n <= 0) {
       alert("Vui lòng nhập số VĐV");
       return;
     }
     // Use actual athlete names if available, otherwise use mock names
-    const names = selectedAthletes.length > 0 
-      ? selectedAthletes.map(id => {
-          const athlete = athletes.find(a => a.id === id);
-          return athlete ? athlete.fullName : `VĐV ${id}`;
-        })
-      : mockAthletes.slice(0, n);
+    const names =
+      selectedAthletes.length > 0
+        ? selectedAthletes.map((id) => {
+            const athlete = athletes.find((a) => a.id === id);
+            return athlete ? athlete.fullName : `VĐV ${id}`;
+          })
+        : mockAthletes.slice(0, n);
     setSeedNames(names);
-<<<<<<< HEAD
-    const pairs = computePairings(n, names);
-    setPairings(pairs);
-=======
     computePairings(n, names);
-<<<<<<< HEAD
-=======
   };
 
   // Generate random seeding list for selected athletes (Online Draw)
   const generateSeedingList = async () => {
     if (selectedAthletes.length === 0) return;
-    
+
     try {
       // Call backend API for automatic draw
       const drawResponse = await drawService.performAutomaticDraw(
-        competitionId[0], 
-        weightClassId[0], 
+        competitionId[0],
+        weightClassId[0],
         selectedAthletes
       );
-      
+
       // Convert API response to local format
-      const seedingData = drawResponse.results.map(result => ({
+      const seedingData = drawResponse.results.map((result) => ({
         id: result.athleteId,
         name: result.athleteName,
-        seed: result.seedNumber
+        seed: result.seedNumber,
       }));
-      
+
       setSeedingList(seedingData);
       setShowSeedingModal(true);
-      
+
       // Show success message with draw session info
-      alert(`Đã bốc thăm tự động thành công!\nPhiên bốc thăm: ${drawResponse.drawSessionId}\nThời gian: ${new Date(drawResponse.drawDate).toLocaleString()}`);
-      
+      alert(
+        `Đã bốc thăm tự động thành công!\nPhiên bốc thăm: ${
+          drawResponse.drawSessionId
+        }\nThời gian: ${new Date(drawResponse.drawDate).toLocaleString()}`
+      );
     } catch (error) {
-      console.error('Error performing automatic draw:', error);
-      alert('Có lỗi xảy ra khi bốc thăm tự động. Vui lòng thử lại.');
+      console.error("Error performing automatic draw:", error);
+      alert("Có lỗi xảy ra khi bốc thăm tự động. Vui lòng thử lại.");
     }
   };
 
   // Initialize manual seeding list (Offline Draw)
   const initializeManualSeeding = () => {
     if (selectedAthletes.length === 0) return;
-    
+
     const seedingData = selectedAthletes.map((athleteId) => {
-      const athlete = athletes.find(a => a.id === athleteId);
+      const athlete = athletes.find((a) => a.id === athleteId);
       return {
         id: athleteId,
         name: athlete ? athlete.fullName : `VĐV ${athleteId}`,
-        seed: 0 // Will be filled manually
+        seed: 0, // Will be filled manually
       };
     });
-    
+
     setManualSeedingList(seedingData);
     setShowManualSeedingModal(true);
   };
 
   // Update manual seed for an athlete
   const updateManualSeed = (athleteId: string, seed: number) => {
-    setManualSeedingList(prev => 
-      prev.map(athlete => 
+    setManualSeedingList((prev) =>
+      prev.map((athlete) =>
         athlete.id === athleteId ? { ...athlete, seed } : athlete
       )
     );
@@ -406,9 +376,9 @@ export default function BracketBuilder() {
   const applyManualSeeding = async () => {
     const usedSeeds = new Set<number>();
     const errors: string[] = [];
-    
+
     // Check for duplicate seeds
-    manualSeedingList.forEach(athlete => {
+    manualSeedingList.forEach((athlete) => {
       if (athlete.seed > 0) {
         if (usedSeeds.has(athlete.seed)) {
           errors.push(`Số ${athlete.seed} đã được sử dụng cho nhiều VĐV`);
@@ -417,79 +387,85 @@ export default function BracketBuilder() {
         }
       }
     });
-    
+
     // Check for missing seeds
-    const missingSeeds = manualSeedingList.filter(a => a.seed === 0);
+    const missingSeeds = manualSeedingList.filter((a) => a.seed === 0);
     if (missingSeeds.length > 0) {
       errors.push(`Còn ${missingSeeds.length} VĐV chưa có số bốc thăm`);
     }
-    
+
     // Check seed range
-    const invalidSeeds = manualSeedingList.filter(a => a.seed < 1 || a.seed > selectedAthletes.length);
+    const invalidSeeds = manualSeedingList.filter(
+      (a) => a.seed < 1 || a.seed > selectedAthletes.length
+    );
     if (invalidSeeds.length > 0) {
       errors.push(`Số bốc thăm phải từ 1 đến ${selectedAthletes.length}`);
     }
-    
+
     if (errors.length > 0) {
-      alert(errors.join('\n'));
+      alert(errors.join("\n"));
       return;
     }
-    
+
     try {
       // Prepare athlete seeds data
-      const athleteSeeds = manualSeedingList.map(athlete => {
-        const athleteData = athletes.find(a => a.id === athlete.id);
+      const athleteSeeds = manualSeedingList.map((athlete) => {
+        const athleteData = athletes.find((a) => a.id === athlete.id);
         return {
           athleteId: athlete.id,
           athleteName: athlete.name,
-          athleteClub: athleteData?.club || '',
-          seedNumber: athlete.seed
+          athleteClub: athleteData?.club || "",
+          seedNumber: athlete.seed,
         };
       });
-      
+
       // Call backend API for manual draw
       const drawResponse = await drawService.performManualDraw(
         competitionId[0],
         weightClassId[0],
         athleteSeeds,
-        'Manual draw performed offline'
+        "Manual draw performed offline"
       );
-      
+
       // Apply seeding and generate bracket
-      const sortedAthletes = [...manualSeedingList].sort((a, b) => a.seed - b.seed);
-      const athleteNames = sortedAthletes.map(a => a.name);
-      
+      const sortedAthletes = [...manualSeedingList].sort(
+        (a, b) => a.seed - b.seed
+      );
+      const athleteNames = sortedAthletes.map((a) => a.name);
+
       setSeedNames(athleteNames);
       setAthleteCount(selectedAthletes.length);
-      
+
       computePairings(selectedAthletes.length, athleteNames);
-      
+
       setShowManualSeedingModal(false);
-      alert(`Đã áp dụng số bốc thăm thủ công cho ${selectedAthletes.length} VĐV!\nPhiên bốc thăm: ${drawResponse.drawSessionId}`);
-      
+      alert(
+        `Đã áp dụng số bốc thăm thủ công cho ${selectedAthletes.length} VĐV!\nPhiên bốc thăm: ${drawResponse.drawSessionId}`
+      );
     } catch (error) {
-      console.error('Error performing manual draw:', error);
-      alert('Có lỗi xảy ra khi lưu số bốc thăm thủ công. Vui lòng thử lại.');
+      console.error("Error performing manual draw:", error);
+      alert("Có lỗi xảy ra khi lưu số bốc thăm thủ công. Vui lòng thử lại.");
     }
   };
 
   // Load draw history
   const loadDrawHistory = async () => {
     if (competitionId.length === 0 || weightClassId.length === 0) return;
-    
+
     setLoadingDrawHistory(true);
     try {
-      const history = await drawService.getDrawHistory(competitionId[0], weightClassId[0]);
+      const history = await drawService.getDrawHistory(
+        competitionId[0],
+        weightClassId[0]
+      );
       setDrawHistory(history);
       setShowDrawHistoryModal(true);
     } catch (error) {
-      console.error('Error loading draw history:', error);
-      alert('Có lỗi xảy ra khi tải lịch sử bốc thăm. Vui lòng thử lại.');
+      console.error("Error loading draw history:", error);
+      alert("Có lỗi xảy ra khi tải lịch sử bốc thăm. Vui lòng thử lại.");
     } finally {
       setLoadingDrawHistory(false);
     }
->>>>>>> 14d568549180243c8410a5f9120fb02b973f287e
->>>>>>> db08c13 (temp)
   };
 
   const generateBracketImage = async () => {
@@ -505,31 +481,25 @@ export default function BracketBuilder() {
       }
 
       // Wait a bit for CSS to apply
-<<<<<<< HEAD
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const dataUrl = await toPng(bracketRef.current, {
-=======
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
       // Temporarily remove overflow restrictions for image generation
       const originalOverflow = bracketRef.current.style.overflow;
       const originalMaxWidth = bracketRef.current.style.maxWidth;
-      
-      bracketRef.current.style.overflow = 'visible';
-      bracketRef.current.style.maxWidth = 'none';
-      
+
+      bracketRef.current.style.overflow = "visible";
+      bracketRef.current.style.maxWidth = "none";
+
       const dataUrl = await htmlToImage.toPng(bracketRef.current, {
->>>>>>> 14d568549180243c8410a5f9120fb02b973f287e
         quality: 1,
-        backgroundColor: '#ffffff',
+        backgroundColor: "#ffffff",
         pixelRatio: 1.5,
         width: bracketRef.current.scrollWidth,
         height: bracketRef.current.scrollHeight,
         style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left',
-          overflow: 'visible'
+          transform: "scale(1)",
+          transformOrigin: "top left",
+          overflow: "visible",
         },
         filter: (node) => {
           // Skip elements that might cause issues with image generation
@@ -543,11 +513,11 @@ export default function BracketBuilder() {
           );
         },
       });
-      
+
       // Restore original styles
       bracketRef.current.style.overflow = originalOverflow;
       bracketRef.current.style.maxWidth = originalMaxWidth;
-      
+
       // Remove export class
       if (bracketRef.current) {
         bracketRef.current.classList.remove("bracket-export-container");
@@ -729,88 +699,56 @@ export default function BracketBuilder() {
                     Bỏ chọn tất cả
                   </button>
                 </div>
-<<<<<<< HEAD
-                <button
-                  onClick={() => {
-                    if (selectedAthletes.length === 0) {
-                      alert("Vui lòng chọn ít nhất 1 vận động viên");
-                      return;
-                    }
-
-                    // Set athlete count and names
-                    setAthleteCount(selectedAthletes.length);
-                    const selectedAthleteNames = selectedAthletes.map((id) => {
-                      const athlete = athletes.find((a) => a.id === id);
-                      return athlete ? athlete.fullName : `VĐV ${id}`;
-                    });
-
-                    // Set seed names first, then generate bracket
-                    setSeedNames(selectedAthleteNames);
-
-                    // Generate bracket with athlete names
-                    const pairs = computePairings(
-                      selectedAthletes.length,
-                      selectedAthleteNames
-                    );
-                    setPairings(pairs);
-
-                    console.log(
-                      "Generated bracket for",
-                      selectedAthletes.length,
-                      "athletes"
-                    );
-                    console.log("Athlete names:", selectedAthleteNames);
-                    console.log("Pairs:", pairs);
-                    console.log("All rounds:", roundPairs);
-                    console.log("Rounds count:", roundsCount);
-
-                    // Show success message
-                    alert(
-                      `Đã tạo nhánh đấu cho ${selectedAthletes.length} vận động viên!`
-                    );
-                  }}
-                  disabled={selectedAthletes.length === 0}
-                  className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
-                >
-                  Chia nhánh đấu ({selectedAthletes.length} VĐV)
-                </button>
-=======
                 <div className="flex gap-3 flex-wrap">
                   <button
                     onClick={() => {
-                      console.log('Chia nhánh đấu clicked, selectedAthletes:', selectedAthletes.length);
+                      console.log(
+                        "Chia nhánh đấu clicked, selectedAthletes:",
+                        selectedAthletes.length
+                      );
                       if (selectedAthletes.length === 0) {
                         alert("Vui lòng chọn ít nhất 1 vận động viên");
                         return;
                       }
-                      
+
                       // Set athlete count and names
                       setAthleteCount(selectedAthletes.length);
-                      const selectedAthleteNames = selectedAthletes.map(id => {
-                        const athlete = athletes.find(a => a.id === id);
-                        return athlete ? athlete.fullName : `VĐV ${id}`;
-                      });
-                      
+                      const selectedAthleteNames = selectedAthletes.map(
+                        (id) => {
+                          const athlete = athletes.find((a) => a.id === id);
+                          return athlete ? athlete.fullName : `VĐV ${id}`;
+                        }
+                      );
+
                       // Set seed names first, then generate bracket
                       setSeedNames(selectedAthleteNames);
-                      
+
                       // Generate bracket with athlete names
-                      computePairings(selectedAthletes.length, selectedAthleteNames);
-                      
-                      console.log('Generated bracket for', selectedAthletes.length, 'athletes');
-                      console.log('Athlete names:', selectedAthleteNames);
-                      console.log('All rounds:', roundPairs);
-                      console.log('Rounds count:', roundsCount);
-                      
+                      computePairings(
+                        selectedAthletes.length,
+                        selectedAthleteNames
+                      );
+
+                      console.log(
+                        "Generated bracket for",
+                        selectedAthletes.length,
+                        "athletes"
+                      );
+                      console.log("Athlete names:", selectedAthleteNames);
+                      console.log("All rounds:", roundPairs);
+                      console.log("Rounds count:", roundsCount);
+
                       // Show success message
-                      alert(`Đã tạo nhánh đấu cho ${selectedAthletes.length} vận động viên!`);
+                      alert(
+                        `Đã tạo nhánh đấu cho ${selectedAthletes.length} vận động viên!`
+                      );
                     }}
                     disabled={selectedAthletes.length === 0}
                     className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
                   >
                     Chia nhánh đấu ({selectedAthletes.length} VĐV)
                   </button>
-                  
+
                   <div className="flex gap-2">
                     <button
                       onClick={generateSeedingList}
@@ -820,7 +758,7 @@ export default function BracketBuilder() {
                     >
                       🎲 Bốc thăm tự động
                     </button>
-                    
+
                     <button
                       onClick={initializeManualSeeding}
                       disabled={selectedAthletes.length === 0}
@@ -829,10 +767,12 @@ export default function BracketBuilder() {
                     >
                       ✏️ Nhập số thủ công
                     </button>
-                    
+
                     <button
                       onClick={loadDrawHistory}
-                      disabled={competitionId.length === 0 || weightClassId.length === 0}
+                      disabled={
+                        competitionId.length === 0 || weightClassId.length === 0
+                      }
                       className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
                       title="Xem lịch sử bốc thăm"
                     >
@@ -840,7 +780,6 @@ export default function BracketBuilder() {
                     </button>
                   </div>
                 </div>
->>>>>>> 14d568549180243c8410a5f9120fb02b973f287e
               </div>
             )}
           </div>
@@ -871,7 +810,7 @@ export default function BracketBuilder() {
 
         <div className="flex gap-3 justify-between">
           <div className="flex space-x-3">
-            <button 
+            <button
               className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
               onClick={handleGenerate}
               disabled={athleteCount <= 0}
@@ -1264,35 +1203,54 @@ export default function BracketBuilder() {
                 onClick={() => setShowSeedingModal(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
-            
+
             <div className="mb-4 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800 font-medium">
-                ✅ Hệ thống đã tự động bốc thăm ngẫu nhiên cho {seedingList.length} vận động viên
+                ✅ Hệ thống đã tự động bốc thăm ngẫu nhiên cho{" "}
+                {seedingList.length} vận động viên
               </p>
               <p className="text-xs text-blue-600 mt-1">
-                Số bốc thăm được tạo bằng thuật toán ngẫu nhiên, có thể xuất danh sách để sử dụng tại giải đấu
+                Số bốc thăm được tạo bằng thuật toán ngẫu nhiên, có thể xuất
+                danh sách để sử dụng tại giải đấu
               </p>
             </div>
-            
+
             <div className="space-y-2 mb-6 max-h-60 overflow-y-auto">
               {seedingList.map((athlete) => (
-                <div key={athlete.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div
+                  key={athlete.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-sm">
                       {athlete.seed}
                     </div>
-                    <span className="font-medium text-gray-900">{athlete.name}</span>
+                    <span className="font-medium text-gray-900">
+                      {athlete.name}
+                    </span>
                   </div>
-                  <span className="text-sm text-gray-500">Số {athlete.seed}</span>
+                  <span className="text-sm text-gray-500">
+                    Số {athlete.seed}
+                  </span>
                 </div>
               ))}
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={generateSeedingList}
@@ -1300,19 +1258,21 @@ export default function BracketBuilder() {
               >
                 🔄 Bốc thăm lại
               </button>
-              
+
               <button
                 onClick={() => {
                   // Export seeding list as text
-                  const text = seedingList.map(athlete => 
-                    `${athlete.seed}. ${athlete.name}`
-                  ).join('\n');
-                  
-                  const blob = new Blob([text], { type: 'text/plain' });
+                  const text = seedingList
+                    .map((athlete) => `${athlete.seed}. ${athlete.name}`)
+                    .join("\n");
+
+                  const blob = new Blob([text], { type: "text/plain" });
                   const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
+                  const a = document.createElement("a");
                   a.href = url;
-                  a.download = `danh-sach-boc-tham-${new Date().toISOString().split('T')[0]}.txt`;
+                  a.download = `danh-sach-boc-tham-${
+                    new Date().toISOString().split("T")[0]
+                  }.txt`;
                   document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);
@@ -1322,7 +1282,7 @@ export default function BracketBuilder() {
               >
                 📄 Xuất danh sách
               </button>
-              
+
               <button
                 onClick={() => setShowSeedingModal(false)}
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 font-medium"
@@ -1346,29 +1306,45 @@ export default function BracketBuilder() {
                 onClick={() => setShowManualSeedingModal(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
-            
+
             <div className="mb-4 p-4 bg-orange-50 rounded-lg">
               <p className="text-sm text-orange-800 font-medium">
                 📝 Nhập số bốc thăm cho từng vận động viên
               </p>
               <p className="text-xs text-orange-600 mt-1">
-                Sử dụng khi bốc thăm diễn ra offline. Nhập số từ 1 đến {selectedAthletes.length} cho mỗi VĐV.
+                Sử dụng khi bốc thăm diễn ra offline. Nhập số từ 1 đến{" "}
+                {selectedAthletes.length} cho mỗi VĐV.
               </p>
             </div>
-            
+
             <div className="space-y-3 mb-6 max-h-80 overflow-y-auto">
               {manualSeedingList.map((athlete) => (
-                <div key={athlete.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div
+                  key={athlete.id}
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-semibold text-sm">
-                      {athlete.seed || '?'}
+                      {athlete.seed || "?"}
                     </div>
-                    <span className="font-medium text-gray-900">{athlete.name}</span>
+                    <span className="font-medium text-gray-900">
+                      {athlete.name}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <label className="text-sm text-gray-600">Số:</label>
@@ -1376,8 +1352,13 @@ export default function BracketBuilder() {
                       type="number"
                       min="1"
                       max={selectedAthletes.length}
-                      value={athlete.seed || ''}
-                      onChange={(e) => updateManualSeed(athlete.id, parseInt(e.target.value) || 0)}
+                      value={athlete.seed || ""}
+                      onChange={(e) =>
+                        updateManualSeed(
+                          athlete.id,
+                          parseInt(e.target.value) || 0
+                        )
+                      }
                       className="w-16 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-orange-500"
                       placeholder="?"
                     />
@@ -1385,7 +1366,7 @@ export default function BracketBuilder() {
                 </div>
               ))}
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={applyManualSeeding}
@@ -1393,19 +1374,19 @@ export default function BracketBuilder() {
               >
                 ✅ Áp dụng số bốc thăm
               </button>
-              
+
               <button
                 onClick={() => {
                   // Reset all seeds to 0
-                  setManualSeedingList(prev => 
-                    prev.map(athlete => ({ ...athlete, seed: 0 }))
+                  setManualSeedingList((prev) =>
+                    prev.map((athlete) => ({ ...athlete, seed: 0 }))
                   );
                 }}
                 className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 font-medium"
               >
                 🔄 Làm mới
               </button>
-              
+
               <button
                 onClick={() => setShowManualSeedingModal(false)}
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 font-medium"
@@ -1429,16 +1410,28 @@ export default function BracketBuilder() {
                 onClick={() => setShowDrawHistoryModal(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
-            
+
             {loadingDrawHistory ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Đang tải lịch sử bốc thăm...</p>
+                <p className="mt-2 text-gray-600">
+                  Đang tải lịch sử bốc thăm...
+                </p>
               </div>
             ) : drawHistory.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
@@ -1447,15 +1440,20 @@ export default function BracketBuilder() {
             ) : (
               <div className="space-y-4">
                 {drawHistory.map((draw, index) => (
-                  <div key={draw.drawSessionId} className="border border-gray-200 rounded-lg p-4">
+                  <div
+                    key={draw.drawSessionId}
+                    className="border border-gray-200 rounded-lg p-4"
+                  >
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h4 className="font-semibold text-gray-900">
                           Phiên bốc thăm #{index + 1}
                         </h4>
                         <p className="text-sm text-gray-600">
-                          {draw.drawType === 'ONLINE_AUTOMATIC' ? '🎲 Tự động' : '✏️ Thủ công'} • 
-                          {new Date(draw.drawDate).toLocaleString()}
+                          {draw.drawType === "ONLINE_AUTOMATIC"
+                            ? "🎲 Tự động"
+                            : "✏️ Thủ công"}{" "}
+                          •{new Date(draw.drawDate).toLocaleString()}
                         </p>
                         {draw.isFinal && (
                           <span className="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full mt-1">
@@ -1468,14 +1466,19 @@ export default function BracketBuilder() {
                         <p>ID: {draw.drawSessionId.substring(0, 8)}...</p>
                       </div>
                     </div>
-                    
+
                     {draw.notes && (
-                      <p className="text-sm text-gray-600 mb-3 italic">"{draw.notes}"</p>
+                      <p className="text-sm text-gray-600 mb-3 italic">
+                        "{draw.notes}"
+                      </p>
                     )}
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-40 overflow-y-auto">
                       {draw.results.map((result) => (
-                        <div key={result.athleteId} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                        <div
+                          key={result.athleteId}
+                          className="flex items-center gap-2 p-2 bg-gray-50 rounded"
+                        >
                           <div className="w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-xs font-semibold">
                             {result.seedNumber}
                           </div>
@@ -1496,7 +1499,7 @@ export default function BracketBuilder() {
                 ))}
               </div>
             )}
-            
+
             <div className="flex justify-end mt-6">
               <button
                 onClick={() => setShowDrawHistoryModal(false)}

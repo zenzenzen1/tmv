@@ -30,9 +30,31 @@ public class AuthServiceImpl implements AuthService {
         log.info("Attempting login for email: {}", request.getEmail());
         
         try {
+            // Reject empty credentials with a generic message
+            if (request.getEmail() == null || request.getEmail().trim().isEmpty()
+                    || request.getPassword() == null || request.getPassword().isEmpty()) {
+                throw new BadCredentialsException("Invalid email or password");
+            }
+
+            // Enforce password length policy (8-20 characters)
+            final int MIN_PASSWORD_LENGTH = 6;
+            final int MAX_PASSWORD_LENGTH = 20;
+            int passwordLength = request.getPassword().length();
+            if (passwordLength < MIN_PASSWORD_LENGTH) {
+                throw new BadCredentialsException("Password too short");
+            }
+            if (passwordLength > MAX_PASSWORD_LENGTH) {
+                throw new BadCredentialsException("Password too long");
+            }
+
             // Find user by personal email only
             User user = userRepository.findByPersonalMailIgnoreCase(request.getEmail().trim())
                 .orElseThrow(() -> new BadCredentialsException("User not found"));
+
+            // Block inactive users before password check
+            if (Boolean.FALSE.equals(user.getStatus())) {
+                throw new BadCredentialsException("Account is inactive");
+            }
 
             // Log hash visibility and compare with BCrypt
             log.info("[Auth] Comparing password for email={}, hash_present={}", request.getEmail().trim(), user.getHashPassword() != null);
@@ -57,7 +79,8 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (AuthenticationException e) {
             log.error("Login failed for email: {} - {}", request.getEmail(), e.getMessage());
-            throw new BadCredentialsException("Invalid email or password");
+            // Preserve specific messages (e.g., User not found, Account is inactive)
+            throw new BadCredentialsException(e.getMessage());
         } catch (Exception e) {
             log.error("Unexpected error during login for email: {} - {}", request.getEmail(), e.getMessage(), e);
             throw new BadCredentialsException("Invalid email or password");

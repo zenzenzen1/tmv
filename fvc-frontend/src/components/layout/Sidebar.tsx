@@ -46,6 +46,7 @@ export default function TournamentSidebar({
     submittedForms: "/manage/submitted-forms",
     memberManagement: "/member-management",
     scoring: "/manage/scoring",
+    brackets: "/manage/brackets",
     users: "/manage/users",
   };
 

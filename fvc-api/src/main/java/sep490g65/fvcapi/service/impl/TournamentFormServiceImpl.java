@@ -112,11 +112,26 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     @Override
     @Transactional
     public TournamentFormResponse create(CreateFormRequest request) {
-        Competition comp = competitionRepository.findById(request.getCompetitionId()).orElseThrow();
+        Competition comp = competitionRepository.findById(request.getCompetitionId()).orElseThrow(() -> new java.util.NoSuchElementException("không tồn tại giải đấu này"));
         // Enforce one form per competition
         long existingCount = formConfigRepository.countByCompetition_Id(comp.getId());
         if (existingCount > 0) {
-            throw new IllegalStateException("A form already exists for competition: " + comp.getId());
+            throw new IllegalStateException("giải đấu này đã được tạo form");
+        }
+
+        // Validate title required and length policy
+        if (request.getName() == null || request.getName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Tiêu đề form không được để trống");
+        }
+        if (request.getName().length() > 50) {
+            throw new IllegalArgumentException("Tiêu đề form không được vượt quá 50 ký tự");
+        }
+        // Validate end date required and must be in the future
+        if (request.getEndDate() == null) {
+            throw new IllegalArgumentException("Vui lòng chọn ngày đóng form");
+        }
+        if (java.time.LocalDateTime.now().isAfter(request.getEndDate())) {
+            throw new IllegalArgumentException("Ngày đóng form phải lớn hơn ngày hiện tại");
         }
         ApplicationFormConfig form = ApplicationFormConfig.builder()
                 .name(request.getName())
@@ -131,16 +146,21 @@ public class TournamentFormServiceImpl implements TournamentFormService {
         if (request.getFields() != null && !request.getFields().isEmpty()) {
             java.util.List<sep490g65.fvcapi.entity.ApplicationFormField> fieldEntities = new java.util.ArrayList<>();
             for (sep490g65.fvcapi.dto.request.FormFieldUpsert up : request.getFields()) {
-                // server-side validation: skip invalid ad-hoc fields
+                // server-side validation: label is required
                 if (up.getLabel() == null || up.getLabel().trim().isEmpty()) {
-                    continue;
+                    throw new IllegalArgumentException("Câu hỏi thêm không được để trống nội dung");
                 }
                 // Only validate options for field types that require them
                 if ("SELECT".equalsIgnoreCase(up.getFieldType()) || "DROPDOWN".equalsIgnoreCase(up.getFieldType()) || 
                     "RADIO".equalsIgnoreCase(up.getFieldType()) || "CHECKBOX".equalsIgnoreCase(up.getFieldType()) ||
                     "MULTIPLE-CHOICE".equalsIgnoreCase(up.getFieldType())) {
                     boolean hasOptions = up.getOptions() != null && !up.getOptions().trim().isEmpty() && !"[]".equals(up.getOptions().trim());
-                    if (!hasOptions) continue;
+                    if (!hasOptions) {
+                        if ("SELECT".equalsIgnoreCase(up.getFieldType()) || "DROPDOWN".equalsIgnoreCase(up.getFieldType())) {
+                            throw new IllegalArgumentException("Vui lòng thêm ít nhất 1 lựa chọn");
+                        }
+                        continue;
+                    }
                 }
                 sep490g65.fvcapi.entity.ApplicationFormField fld = sep490g65.fvcapi.entity.ApplicationFormField.builder()
                         .applicationFormConfig(form)
@@ -157,7 +177,9 @@ public class TournamentFormServiceImpl implements TournamentFormService {
         }
 
         ApplicationFormConfig saved = formConfigRepository.save(form);
-        return toDtoFromForm(saved);
+        TournamentFormResponse resp = toDtoFromForm(saved);
+        resp.setMessage("Tạo form thành công");
+        return resp;
     }
 
     @Override

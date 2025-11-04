@@ -1,4 +1,4 @@
-package sep490g65.fvcapi.service;
+package sep490g65.fvcapi.service.impl;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -116,8 +116,8 @@ class AuthServiceImplTest {
                 () -> authService.login(nonExistentUserRequest)
         );
 
-        // The exception is caught and rethrown with generic message in the catch block
-        assertEquals("Invalid email or password", exception.getMessage());
+        // Specific message should be preserved
+        assertEquals("User not found", exception.getMessage());
         verify(userRepository, times(1)).findByPersonalMailIgnoreCase("nonexistent@example.com");
         verify(passwordEncoder, never()).matches(anyString(), anyString());
         verify(jwtUtils, never()).generateTokenFromEmail(anyString());
@@ -141,6 +141,27 @@ class AuthServiceImplTest {
         assertEquals("Invalid email or password", exception.getMessage());
         verify(userRepository, times(1)).findByPersonalMailIgnoreCase("john.doe@example.com");
         verify(passwordEncoder, times(1)).matches("wrongPassword", hashedPassword);
+        verify(jwtUtils, never()).generateTokenFromEmail(anyString());
+    }
+
+    @Test
+    @DisplayName("Should throw BadCredentialsException when user is inactive")
+    void testLogin_WithInactiveUser_ShouldThrowBadCredentialsException() {
+        // Arrange
+        testUser.setStatus(false);
+        when(userRepository.findByPersonalMailIgnoreCase("john.doe@example.com"))
+                .thenReturn(Optional.of(testUser));
+        // Password check won't be reached because the user is inactive
+
+        // Act & Assert
+        BadCredentialsException exception = assertThrows(
+                BadCredentialsException.class,
+                () -> authService.login(validLoginRequest)
+        );
+
+        assertEquals("Account is inactive", exception.getMessage());
+        verify(userRepository, times(1)).findByPersonalMailIgnoreCase("john.doe@example.com");
+        // Password check may be skipped depending on implementation order; do not assert on matches count
         verify(jwtUtils, never()).generateTokenFromEmail(anyString());
     }
 
@@ -291,17 +312,17 @@ class AuthServiceImplTest {
     }
 
     @Test
-    @DisplayName("Should handle login with minimum password length (6 characters)")
+    @DisplayName("Should handle login with minimum password length (8 characters)")
     void testLogin_WithMinimumPasswordLength_ShouldSucceed() {
         // Arrange
         LoginRequest minPasswordRequest = LoginRequest.builder()
                 .email("john.doe@example.com")
-                .password("pass12") // 6 characters
+                .password("pass1234") // 8 characters
                 .build();
 
         when(userRepository.findByPersonalMailIgnoreCase("john.doe@example.com"))
                 .thenReturn(Optional.of(testUser));
-        when(passwordEncoder.matches("pass12", hashedPassword))
+        when(passwordEncoder.matches("pass1234", hashedPassword))
                 .thenReturn(true);
         when(jwtUtils.generateTokenFromEmail("john.doe@example.com"))
                 .thenReturn("mock-jwt-token");
@@ -311,12 +332,113 @@ class AuthServiceImplTest {
 
         // Assert
         assertNotNull(response);
-        verify(passwordEncoder, times(1)).matches("pass12", hashedPassword);
+        verify(passwordEncoder, times(1)).matches("pass1234", hashedPassword);
     }
 
     @Test
-    @DisplayName("Should handle login with very long password")
-    void testLogin_WithVeryLongPassword_ShouldSucceed() {
+    @DisplayName("Should throw BadCredentialsException when password is too short")
+    void testLogin_WithTooShortPassword_ShouldThrowBadCredentialsException() {
+        // Arrange
+        LoginRequest shortPasswordRequest = LoginRequest.builder()
+                .email("john.doe@example.com")
+                .password("short1") // 6 characters
+                .build();
+
+        // Act & Assert
+        BadCredentialsException exception = assertThrows(
+                BadCredentialsException.class,
+                () -> authService.login(shortPasswordRequest)
+        );
+
+        assertEquals("Password too short", exception.getMessage());
+        verify(userRepository, never()).findByPersonalMailIgnoreCase(anyString());
+    }
+
+    @Test
+    @DisplayName("Should login with maximum allowed password length (20 characters)")
+    void testLogin_WithMaxPasswordLength_ShouldSucceed() {
+        // Arrange
+        String maxPassword = "a".repeat(20);
+        LoginRequest maxPasswordRequest = LoginRequest.builder()
+                .email("john.doe@example.com")
+                .password(maxPassword)
+                .build();
+
+        when(userRepository.findByPersonalMailIgnoreCase("john.doe@example.com"))
+                .thenReturn(Optional.of(testUser));
+        when(passwordEncoder.matches(maxPassword, hashedPassword))
+                .thenReturn(true);
+        when(jwtUtils.generateTokenFromEmail("john.doe@example.com"))
+                .thenReturn("mock-jwt-token");
+
+        // Act
+        LoginResponse response = authService.login(maxPasswordRequest);
+
+        // Assert
+        assertNotNull(response);
+        verify(passwordEncoder, times(1)).matches(maxPassword, hashedPassword);
+    }
+
+    @Test
+    @DisplayName("Should throw BadCredentialsException when email is empty")
+    void testLogin_WithEmptyEmail_ShouldThrowBadCredentialsException() {
+        // Arrange
+        LoginRequest emptyEmailRequest = LoginRequest.builder()
+                .email("")
+                .password("any")
+                .build();
+
+        // Act & Assert
+        BadCredentialsException exception = assertThrows(
+                BadCredentialsException.class,
+                () -> authService.login(emptyEmailRequest)
+        );
+
+        assertEquals("Invalid email or password", exception.getMessage());
+        verify(userRepository, never()).findByPersonalMailIgnoreCase(anyString());
+    }
+
+    @Test
+    @DisplayName("Should throw BadCredentialsException when password is empty")
+    void testLogin_WithEmptyPassword_ShouldThrowBadCredentialsException() {
+        // Arrange
+        LoginRequest emptyPasswordRequest = LoginRequest.builder()
+                .email("john.doe@example.com")
+                .password("")
+                .build();
+
+        // Act & Assert
+        BadCredentialsException exception = assertThrows(
+                BadCredentialsException.class,
+                () -> authService.login(emptyPasswordRequest)
+        );
+
+        assertEquals("Invalid email or password", exception.getMessage());
+        verify(userRepository, never()).findByPersonalMailIgnoreCase(anyString());
+    }
+
+    @Test
+    @DisplayName("Should throw BadCredentialsException when both email and password are empty")
+    void testLogin_WithBothEmpty_ShouldThrowBadCredentialsException() {
+        // Arrange
+        LoginRequest bothEmptyRequest = LoginRequest.builder()
+                .email("")
+                .password("")
+                .build();
+
+        // Act & Assert
+        BadCredentialsException exception = assertThrows(
+                BadCredentialsException.class,
+                () -> authService.login(bothEmptyRequest)
+        );
+
+        assertEquals("Invalid email or password", exception.getMessage());
+        verify(userRepository, never()).findByPersonalMailIgnoreCase(anyString());
+    }
+
+    @Test
+    @DisplayName("Should throw BadCredentialsException when password is too long")
+    void testLogin_WithVeryLongPassword_ShouldThrowBadCredentialsException() {
         // Arrange
         String longPassword = "a".repeat(1000);
         LoginRequest longPasswordRequest = LoginRequest.builder()
@@ -324,19 +446,14 @@ class AuthServiceImplTest {
                 .password(longPassword)
                 .build();
 
-        when(userRepository.findByPersonalMailIgnoreCase("john.doe@example.com"))
-                .thenReturn(Optional.of(testUser));
-        when(passwordEncoder.matches(longPassword, hashedPassword))
-                .thenReturn(true);
-        when(jwtUtils.generateTokenFromEmail("john.doe@example.com"))
-                .thenReturn("mock-jwt-token");
+        // Act & Assert
+        BadCredentialsException exception = assertThrows(
+                BadCredentialsException.class,
+                () -> authService.login(longPasswordRequest)
+        );
 
-        // Act
-        LoginResponse response = authService.login(longPasswordRequest);
-
-        // Assert
-        assertNotNull(response);
-        verify(passwordEncoder, times(1)).matches(longPassword, hashedPassword);
+        assertEquals("Password too long", exception.getMessage());
+        verify(userRepository, never()).findByPersonalMailIgnoreCase(anyString());
     }
 
     @Test

@@ -1,4 +1,4 @@
-package sep490g65.fvcapi.service;
+package sep490g65.fvcapi.service.impl;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -144,10 +144,88 @@ class TournamentFormServiceImplTest {
         assertEquals("Tournament Registration Form", response.getFormTitle());
         assertEquals("comp-123", response.getCompetitionId());
         assertEquals("Test Tournament", response.getTournamentName());
+        assertEquals("Tạo form thành công", response.getMessage());
 
         verify(competitionRepository, times(1)).findById("comp-123");
         verify(formConfigRepository, times(1)).countByCompetition_Id("comp-123");
         verify(formConfigRepository, times(1)).save(any(ApplicationFormConfig.class));
+    }
+
+    @Test
+    @DisplayName("Should throw IllegalArgumentException when title is longer than 50 characters")
+    void testCreate_WhenTitleTooLong_ShouldThrowIllegalArgumentException() {
+        // Arrange
+        String longTitle = "a".repeat(51);
+        validRequest.setName(longTitle);
+
+        when(competitionRepository.findById("comp-123"))
+                .thenReturn(Optional.of(testCompetition));
+
+        // Act & Assert
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> tournamentFormService.create(validRequest)
+        );
+
+        assertEquals("Tiêu đề form không được vượt quá 50 ký tự", exception.getMessage());
+        verify(formConfigRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should throw IllegalArgumentException when title is empty")
+    void testCreate_WhenTitleEmpty_ShouldThrowIllegalArgumentException() {
+        // Arrange
+        validRequest.setName("");
+
+        when(competitionRepository.findById("comp-123"))
+                .thenReturn(Optional.of(testCompetition));
+
+        // Act & Assert
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> tournamentFormService.create(validRequest)
+        );
+
+        assertEquals("Tiêu đề form không được để trống", exception.getMessage());
+        verify(formConfigRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should throw IllegalArgumentException when endDate is in the past")
+    void testCreate_WhenEndDateInPast_ShouldThrowIllegalArgumentException() {
+        // Arrange
+        validRequest.setEndDate(java.time.LocalDateTime.now().minusDays(1));
+
+        when(competitionRepository.findById("comp-123"))
+                .thenReturn(Optional.of(testCompetition));
+
+        // Act & Assert
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> tournamentFormService.create(validRequest)
+        );
+
+        assertEquals("Ngày đóng form phải lớn hơn hiện tại", exception.getMessage());
+        verify(formConfigRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should throw IllegalArgumentException when endDate is missing")
+    void testCreate_WhenEndDateMissing_ShouldThrowIllegalArgumentException() {
+        // Arrange
+        validRequest.setEndDate(null);
+
+        when(competitionRepository.findById("comp-123"))
+                .thenReturn(Optional.of(testCompetition));
+
+        // Act & Assert
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> tournamentFormService.create(validRequest)
+        );
+
+        assertEquals("Vui lòng chọn ngày đóng form", exception.getMessage());
+        verify(formConfigRepository, never()).save(any());
     }
 
     @Test
@@ -158,10 +236,11 @@ class TournamentFormServiceImplTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(
+        java.util.NoSuchElementException ex = assertThrows(
                 java.util.NoSuchElementException.class,
                 () -> tournamentFormService.create(validRequest)
         );
+        assertEquals("không tồn tại giải đấu này", ex.getMessage());
 
         verify(competitionRepository, times(1)).findById("comp-123");
         verify(formConfigRepository, never()).countByCompetition_Id(anyString());
@@ -183,7 +262,7 @@ class TournamentFormServiceImplTest {
                 () -> tournamentFormService.create(validRequest)
         );
 
-        assertEquals("A form already exists for competition: comp-123", exception.getMessage());
+        assertEquals("giải đấu này đã được tạo form", exception.getMessage());
         verify(competitionRepository, times(1)).findById("comp-123");
         verify(formConfigRepository, times(1)).countByCompetition_Id("comp-123");
         verify(formConfigRepository, never()).save(any(ApplicationFormConfig.class));
@@ -332,8 +411,8 @@ class TournamentFormServiceImplTest {
     }
 
     @Test
-    @DisplayName("Should skip field with empty label")
-    void testCreate_WithEmptyLabelField_ShouldSkipField() {
+    @DisplayName("Should throw when field label is empty")
+    void testCreate_WithEmptyLabelField_ShouldThrow() {
         // Arrange
         FormFieldUpsert invalidField = new FormFieldUpsert();
         invalidField.setLabel(""); // Empty label
@@ -346,25 +425,19 @@ class TournamentFormServiceImplTest {
                 .thenReturn(Optional.of(testCompetition));
         when(formConfigRepository.countByCompetition_Id("comp-123"))
                 .thenReturn(0L);
-        when(formConfigRepository.save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ))).thenReturn(savedForm);
-        when(submittedRepository.countByFormId(anyString()))
-                .thenReturn(0L);
 
-        // Act
-        TournamentFormResponse response = tournamentFormService.create(validRequest);
-
-        // Assert
-        assertNotNull(response);
-        verify(formConfigRepository, times(1)).save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ));
+        // Act & Assert
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> tournamentFormService.create(validRequest)
+        );
+        assertEquals("Câu hỏi thêm không được để trống nội dung", ex.getMessage());
+        verify(formConfigRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("Should skip field with null label")
-    void testCreate_WithNullLabelField_ShouldSkipField() {
+    @DisplayName("Should throw when field label is null")
+    void testCreate_WithNullLabelField_ShouldThrow() {
         // Arrange
         FormFieldUpsert invalidField = new FormFieldUpsert();
         invalidField.setLabel(null); // Null label
@@ -377,25 +450,19 @@ class TournamentFormServiceImplTest {
                 .thenReturn(Optional.of(testCompetition));
         when(formConfigRepository.countByCompetition_Id("comp-123"))
                 .thenReturn(0L);
-        when(formConfigRepository.save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ))).thenReturn(savedForm);
-        when(submittedRepository.countByFormId(anyString()))
-                .thenReturn(0L);
 
-        // Act
-        TournamentFormResponse response = tournamentFormService.create(validRequest);
-
-        // Assert
-        assertNotNull(response);
-        verify(formConfigRepository, times(1)).save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ));
+        // Act & Assert
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> tournamentFormService.create(validRequest)
+        );
+        assertEquals("Câu hỏi thêm không được để trống nội dung", ex.getMessage());
+        verify(formConfigRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("Should skip SELECT field without options")
-    void testCreate_WithSelectFieldWithoutOptions_ShouldSkipField() {
+    @DisplayName("Should throw when SELECT field has no options")
+    void testCreate_WithSelectFieldWithoutOptions_ShouldThrow() {
         // Arrange
         FormFieldUpsert selectField = new FormFieldUpsert();
         selectField.setLabel("Gender");
@@ -409,25 +476,18 @@ class TournamentFormServiceImplTest {
                 .thenReturn(Optional.of(testCompetition));
         when(formConfigRepository.countByCompetition_Id("comp-123"))
                 .thenReturn(0L);
-        when(formConfigRepository.save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ))).thenReturn(savedForm);
-        when(submittedRepository.countByFormId(anyString()))
-                .thenReturn(0L);
-
-        // Act
-        TournamentFormResponse response = tournamentFormService.create(validRequest);
-
-        // Assert
-        assertNotNull(response);
-        verify(formConfigRepository, times(1)).save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ));
+        // Act & Assert
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> tournamentFormService.create(validRequest)
+        );
+        assertEquals("Vui lòng thêm ít nhất 1 lựa chọn", ex.getMessage());
+        verify(formConfigRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("Should skip SELECT field with empty options")
-    void testCreate_WithSelectFieldWithEmptyOptions_ShouldSkipField() {
+    @DisplayName("Should throw when SELECT field has empty options string")
+    void testCreate_WithSelectFieldWithEmptyOptions_ShouldThrow() {
         // Arrange
         FormFieldUpsert selectField = new FormFieldUpsert();
         selectField.setLabel("Gender");
@@ -441,25 +501,17 @@ class TournamentFormServiceImplTest {
                 .thenReturn(Optional.of(testCompetition));
         when(formConfigRepository.countByCompetition_Id("comp-123"))
                 .thenReturn(0L);
-        when(formConfigRepository.save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ))).thenReturn(savedForm);
-        when(submittedRepository.countByFormId(anyString()))
-                .thenReturn(0L);
-
-        // Act
-        TournamentFormResponse response = tournamentFormService.create(validRequest);
-
-        // Assert
-        assertNotNull(response);
-        verify(formConfigRepository, times(1)).save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> tournamentFormService.create(validRequest)
+        );
+        assertEquals("Vui lòng thêm ít nhất 1 lựa chọn", ex.getMessage());
+        verify(formConfigRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("Should skip SELECT field with empty array options")
-    void testCreate_WithSelectFieldWithEmptyArrayOptions_ShouldSkipField() {
+    @DisplayName("Should throw when SELECT field has empty array options")
+    void testCreate_WithSelectFieldWithEmptyArrayOptions_ShouldThrow() {
         // Arrange
         FormFieldUpsert selectField = new FormFieldUpsert();
         selectField.setLabel("Gender");
@@ -473,20 +525,12 @@ class TournamentFormServiceImplTest {
                 .thenReturn(Optional.of(testCompetition));
         when(formConfigRepository.countByCompetition_Id("comp-123"))
                 .thenReturn(0L);
-        when(formConfigRepository.save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ))).thenReturn(savedForm);
-        when(submittedRepository.countByFormId(anyString()))
-                .thenReturn(0L);
-
-        // Act
-        TournamentFormResponse response = tournamentFormService.create(validRequest);
-
-        // Assert
-        assertNotNull(response);
-        verify(formConfigRepository, times(1)).save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> tournamentFormService.create(validRequest)
+        );
+        assertEquals("Vui lòng thêm ít nhất 1 lựa chọn", ex.getMessage());
+        verify(formConfigRepository, never()).save(any());
     }
 
     @Test
@@ -525,8 +569,8 @@ class TournamentFormServiceImplTest {
     }
 
     @Test
-    @DisplayName("Should skip DROPDOWN field without options")
-    void testCreate_WithDropdownFieldWithoutOptions_ShouldSkipField() {
+    @DisplayName("Should throw when DROPDOWN field has no options")
+    void testCreate_WithDropdownFieldWithoutOptions_ShouldThrow() {
         // Arrange
         FormFieldUpsert dropdownField = new FormFieldUpsert();
         dropdownField.setLabel("Category");
@@ -540,20 +584,12 @@ class TournamentFormServiceImplTest {
                 .thenReturn(Optional.of(testCompetition));
         when(formConfigRepository.countByCompetition_Id("comp-123"))
                 .thenReturn(0L);
-        when(formConfigRepository.save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ))).thenReturn(savedForm);
-        when(submittedRepository.countByFormId(anyString()))
-                .thenReturn(0L);
-
-        // Act
-        TournamentFormResponse response = tournamentFormService.create(validRequest);
-
-        // Assert
-        assertNotNull(response);
-        verify(formConfigRepository, times(1)).save(argThat(form ->
-                form.getFields() == null || form.getFields().isEmpty()
-        ));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> tournamentFormService.create(validRequest)
+        );
+        assertEquals("Vui lòng thêm ít nhất 1 lựa chọn", ex.getMessage());
+        verify(formConfigRepository, never()).save(any());
     }
 
     @Test
@@ -671,8 +707,8 @@ class TournamentFormServiceImplTest {
     }
 
     @Test
-    @DisplayName("Should filter out invalid fields and keep valid ones")
-    void testCreate_WithMixedValidAndInvalidFields_ShouldFilterInvalid() {
+    @DisplayName("Should throw when encountering invalid fields in mixed list")
+    void testCreate_WithMixedValidAndInvalidFields_ShouldThrow() {
         // Arrange
         FormFieldUpsert validField = new FormFieldUpsert();
         validField.setLabel("Full Name");
@@ -697,21 +733,13 @@ class TournamentFormServiceImplTest {
                 .thenReturn(Optional.of(testCompetition));
         when(formConfigRepository.countByCompetition_Id("comp-123"))
                 .thenReturn(0L);
-        when(formConfigRepository.save(argThat(form ->
-                form.getFields() != null && form.getFields().size() == 1 &&
-                form.getFields().get(0).getLabel().equals("Full Name")
-        ))).thenReturn(savedForm);
-        when(submittedRepository.countByFormId(anyString()))
-                .thenReturn(0L);
-
-        // Act
-        TournamentFormResponse response = tournamentFormService.create(validRequest);
-
-        // Assert
-        assertNotNull(response);
-        verify(formConfigRepository, times(1)).save(argThat(form ->
-                form.getFields() != null && form.getFields().size() == 1
-        ));
+        // Act & Assert (should fail at empty label)
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> tournamentFormService.create(validRequest)
+        );
+        assertEquals("Câu hỏi thêm không được để trống nội dung", ex.getMessage());
+        verify(formConfigRepository, never()).save(any());
     }
 
     @Test
@@ -769,7 +797,7 @@ class TournamentFormServiceImplTest {
     }
 
     @Test
-    @DisplayName("Should handle all field types requiring options")
+    @DisplayName("Should validate option-required field types appropriately")
     void testCreate_WithAllFieldTypesRequiringOptions_ShouldValidate() {
         // Test SELECT, DROPDOWN, RADIO, CHECKBOX, MULTIPLE-CHOICE
         String[] fieldTypes = {"SELECT", "DROPDOWN", "RADIO", "CHECKBOX", "MULTIPLE-CHOICE"};
@@ -792,20 +820,20 @@ class TournamentFormServiceImplTest {
                     .thenReturn(Optional.of(testCompetition));
             when(formConfigRepository.countByCompetition_Id("comp-123"))
                     .thenReturn(0L);
-            when(formConfigRepository.save(argThat(form ->
-                    form.getFields() == null || form.getFields().isEmpty()
-            ))).thenReturn(savedForm);
-            when(submittedRepository.countByFormId(anyString()))
-                    .thenReturn(0L);
 
-            // Act
+            if ("SELECT".equals(fieldType) || "DROPDOWN".equals(fieldType)) {
+                IllegalArgumentException ex = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> tournamentFormService.create(request)
+                );
+                assertEquals("Vui lòng thêm ít nhất 1 lựa chọn", ex.getMessage());
+                verify(formConfigRepository, never()).save(any());
+            } else {
+                when(formConfigRepository.save(any(ApplicationFormConfig.class)))
+                        .thenReturn(savedForm);
             TournamentFormResponse response = tournamentFormService.create(request);
-
-            // Assert
             assertNotNull(response);
-            verify(formConfigRepository, atLeastOnce()).save(argThat(form ->
-                    form.getFields() == null || form.getFields().isEmpty()
-            ));
+            }
             // Reset mocks for next iteration
             reset(formConfigRepository);
             reset(competitionRepository);
