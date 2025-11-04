@@ -1,6 +1,7 @@
 package sep490g65.fvcapi.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,10 +18,18 @@ public class ChangePasswordRequest {
     private String currentPassword;
     
     @NotBlank(message = "New password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
+    @Size(min = 8, max = 64, message = "Password must be 8-64 characters")
+    @Pattern(
+            regexp = "^(?=\\S+$)(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[\\W_]).{8,64}$",
+            message = "Password must have upper, lower, digit, special and no spaces"
+    )
     private String newPassword;
     
     @NotBlank(message = "Confirm password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
+    @Size(min = 8, max = 64, message = "Password must be 8-64 characters")
+    @Pattern(
+            regexp = "^(?=\\S+$)(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[\\W_]).{8,64}$",
+            message = "Password must have upper, lower, digit, special and no spaces"
+    )
     private String confirmPassword;
 }
