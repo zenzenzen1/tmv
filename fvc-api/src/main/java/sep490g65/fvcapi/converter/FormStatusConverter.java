@@ -1,7 +1,8 @@
-package sep490g65.fvcapi.enums;
+package sep490g65.fvcapi.converter;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
+import sep490g65.fvcapi.enums.FormStatus;
 
 @Converter(autoApply = false)
 public class FormStatusConverter implements AttributeConverter<FormStatus, String> {
