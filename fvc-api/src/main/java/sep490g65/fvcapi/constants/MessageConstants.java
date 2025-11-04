@@ -13,11 +13,18 @@ public final class MessageConstants {
 
     //Example Error Messages
     public static final String USER_NOT_FOUND = "User not found with id: %s";
+    public static final String USER_NOT_FOUND_SIMPLE = "User not found";
     public static final String USER_ALREADY_EXISTS = "User already exists with email: %s";
     public static final String INVALID_CREDENTIALS = "Invalid username or password";
     public static final String ACCESS_DENIED = "Access denied";
     public static final String VALIDATION_FAILED = "Validation failed";
     public static final String INTERNAL_ERROR = "An internal error occurred";
+
+    // Password / Change Password Messages
+    public static final String PASSWORD_CURRENT_INCORRECT = "Current password is incorrect";
+    public static final String PASSWORDS_DO_NOT_MATCH = "New password and confirm password do not match";
+    public static final String PASSWORD_SAME_AS_OLD = "New password must be different from current password";
+    public static final String PASSWORD_REUSE_LIMIT = "New password must not match any of the last 3 passwords";
 
     //Example Validation Messages
     public static final String REQUIRED_FIELD = "%s is required";
