@@ -149,6 +149,7 @@ export const API_ENDPOINTS = {
     ASSIGN: "/v1/match-assessors/assign",
     LIST: "/v1/match-assessors/match/{matchId}",
     BY_ID: (id: string) => `/v1/match-assessors/${id}`,
+    MY_ASSIGNMENTS: "/v1/match-assessors/my-assignments",
   },
 
   // Common endpoints

@@ -228,6 +228,10 @@ export default function App() {
         path="/manage/judge/*"
         element={<Navigate to="/assessor/dashboard" replace />}
       />
+      <Route
+        path="/assessor/dashboard"
+        element={<Navigate to="/assessor/dashboard" replace />}
+      />
       <Route path="/results/:id" element={<FormResults />} />
       <Route path="/published-form/:id" element={<PublishedForm />} />
       <Route path="/scoring" element={<SelectMatchPage />} />

@@ -1,10 +1,40 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../../services/api";
+import { API_ENDPOINTS } from "../../config/endpoints";
 
-type Match = {
+type MyAssignedMatch = {
+  assessorId: string;
+  matchId?: string;
+  performanceMatchId?: string;
+  performanceId?: string;
+  role?: string;
+  position?: number;
+  match?: {
+    id: string;
+    competitionId: string;
+    competitionName?: string;
+    redAthleteName: string;
+    blueAthleteName: string;
+    status: string;
+  };
+  performanceMatch?: {
+    id: string;
+    competitionId: string;
+    competitionName?: string;
+    performanceId: string;
+    contentName?: string;
+    contentType: string;
+    matchOrder?: number;
+    status: string;
+    participants?: string;
+  };
+};
+
+type DisplayMatch = {
   id: string;
   order: number;
-  type: "quyen" | "music";
+  type: "fighting" | "quyen" | "music";
   contentName: string;
   participants: string[];
   role: string;
@@ -12,64 +42,73 @@ type Match = {
   status: "pending" | "ongoing" | "completed";
 };
 
-const JUDGE_ROLES = ["referee", "judgeA", "judgeB", "judgeC", "timekeeper"];
 const ROLE_LABELS: Record<string, string> = {
-  referee: "Assesor",
-  judgeA: "Assesor A",
-  judgeB: "Assesor B",
-  judgeC: "Assesor C",
-  timekeeper: "Assesor",
+  ASSESSOR: "Giám định",
+  JUDGER: "Trọng tài",
 };
 
 const JudgeDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [matches, setMatches] = useState<Match[]>([]);
+  const [matches, setMatches] = useState<DisplayMatch[]>([]);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<
     "pending" | "ongoing" | "all"
   >("all");
 
-  // Mock data: replace with actual API call
+  // Load assigned matches from API
   useEffect(() => {
-    setLoading(true);
-    setTimeout(() => {
-      setMatches([
-        {
-          id: "m1",
-          order: 1,
-          type: "quyen",
-          contentName: "Đơn luyện",
-          participants: ["Nguyễn Văn A"],
-          role: "judgeA",
-          tournamentName: "FVCUP 2025 - Spring",
-          status: "ongoing",
-        },
-        {
-          id: "m2",
-          order: 2,
-          type: "quyen",
-          contentName: "Song luyện đồng đội",
-          participants: ["Trần Thị B", "Lê Văn C"],
-          role: "judgeB",
-          tournamentName: "FVCUP 2025 - Spring",
-          status: "pending",
-        },
-        {
-          id: "m3",
-          order: 3,
-          type: "music",
-          contentName: "Võ nhạc cá nhân",
-          participants: ["Phạm Duy D"],
-          role: "timekeeper",
-          tournamentName: "FVCUP 2025 - Spring",
-          status: "completed",
-        },
-      ]);
-      setLoading(false);
-    }, 500);
+    const loadMatches = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get<MyAssignedMatch[]>(
+          API_ENDPOINTS.MATCH_ASSESSORS.MY_ASSIGNMENTS
+        );
+        const data = response.data || [];
+
+        // Map API response to display format - chỉ hiển thị quyền và võ nhạc (bỏ qua đối kháng)
+        const displayMatches: DisplayMatch[] = data
+          .filter((m) => m.performanceMatch != null) // Chỉ lấy performance matches (quyền/võ nhạc)
+          .map((m, index) => {
+            // Performance match (quyền/võ nhạc)
+            const pm = m.performanceMatch!;
+            const type = pm.contentType === "QUYEN" ? "quyen" : "music";
+            const participants = pm.participants
+              ? pm.participants.split(", ")
+              : [];
+            return {
+              id: pm.id,
+              order: pm.matchOrder || index + 1,
+              type: type as "quyen" | "music",
+              contentName:
+                pm.contentName || (type === "quyen" ? "Quyền" : "Võ nhạc"),
+              participants: participants,
+              role: m.role || "ASSESSOR",
+              tournamentName: pm.competitionName || "Giải đấu",
+              status: mapStatus(pm.status),
+            };
+          });
+
+        setMatches(displayMatches);
+      } catch (error) {
+        console.error("Failed to load assigned matches:", error);
+        setMatches([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadMatches();
   }, []);
 
+  const mapStatus = (status: string): "pending" | "ongoing" | "completed" => {
+    const upper = status.toUpperCase();
+    if (upper === "IN_PROGRESS" || upper === "ONGOING") return "ongoing";
+    if (upper === "COMPLETED" || upper === "FINISHED") return "completed";
+    return "pending";
+  };
+
   const handleJoin = (matchId: string, role: string) => {
+    // Chỉ xử lý quyền và võ nhạc
     navigate(`/performance/judge?matchId=${matchId}&role=${role}`);
   };
 

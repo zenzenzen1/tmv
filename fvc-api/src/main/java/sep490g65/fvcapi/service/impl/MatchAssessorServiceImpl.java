@@ -8,8 +8,11 @@ import sep490g65.fvcapi.dto.request.AssignMatchAssessorsRequest;
 import sep490g65.fvcapi.dto.request.CreateMatchAssessorRequest;
 import sep490g65.fvcapi.dto.request.UpdateMatchAssessorRequest;
 import sep490g65.fvcapi.dto.response.MatchAssessorResponse;
+import sep490g65.fvcapi.dto.response.MyAssignedMatchResponse;
 import sep490g65.fvcapi.entity.Match;
 import sep490g65.fvcapi.entity.MatchAssessor;
+import sep490g65.fvcapi.entity.PerformanceMatch;
+import sep490g65.fvcapi.entity.Performance;
 import sep490g65.fvcapi.entity.User;
 import sep490g65.fvcapi.enums.AssessorRole;
 import sep490g65.fvcapi.exception.custom.BusinessException;
@@ -251,12 +254,88 @@ public class MatchAssessorServiceImpl implements MatchAssessorService {
     @Transactional(readOnly = true)
     public List<MatchAssessorResponse> getAssessorsByUserId(String userId) {
         log.debug("Fetching assessors for user {}", userId);
-
+        
         List<MatchAssessor> assessors = matchAssessorRepository.findByUserId(userId);
-
+        
         return assessors.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MyAssignedMatchResponse> getMyAssignedMatches(String userId) {
+        log.debug("Fetching assigned matches for user {}", userId);
+
+        List<MatchAssessor> assessors = matchAssessorRepository.findByUserIdWithRelations(userId);
+
+        return assessors.stream()
+                .map(this::toMyAssignedMatchResponse)
+                .collect(Collectors.toList());
+    }
+
+    private MyAssignedMatchResponse toMyAssignedMatchResponse(MatchAssessor assessor) {
+        MyAssignedMatchResponse.MyAssignedMatchResponseBuilder builder = MyAssignedMatchResponse.builder()
+                .assessorId(assessor.getId())
+                .role(assessor.getRole())
+                .position(assessor.getPosition())
+                .notes(assessor.getNotes())
+                .createdAt(assessor.getCreatedAt())
+                .updatedAt(assessor.getUpdatedAt());
+
+        // Handle fighting match (Match entity)
+        if (assessor.getMatch() != null) {
+            Match match = assessor.getMatch();
+            builder.matchId(match.getId())
+                    .match(MyAssignedMatchResponse.MatchInfo.builder()
+                            .id(match.getId())
+                            .competitionId(match.getCompetitionId())
+                            .redAthleteName(match.getRedAthleteName())
+                            .blueAthleteName(match.getBlueAthleteName())
+                            .status(match.getStatus() != null ? match.getStatus().name() : "PENDING")
+                            .build());
+        }
+
+        // Handle performance match (quyền/võ nhạc)
+        if (assessor.getPerformanceMatch() != null) {
+            PerformanceMatch perfMatch = assessor.getPerformanceMatch();
+            Performance performance = perfMatch.getPerformance();
+            
+            // Build participants string from performance athletes
+            String participants = "";
+            String contentName = "";
+            if (performance != null) {
+                if (performance.getAthletes() != null && !performance.getAthletes().isEmpty()) {
+                    participants = performance.getAthletes().stream()
+                            .map(pa -> pa.getAthlete() != null ? pa.getAthlete().getFullName() : "")
+                            .filter(name -> !name.isEmpty())
+                            .collect(Collectors.joining(", "));
+                }
+                
+                // Set content name from performance
+                if (performance.getContentType() == Performance.ContentType.QUYEN) {
+                    contentName = "Quyền"; // Default, can be enhanced with fist item/config name
+                } else if (performance.getContentType() == Performance.ContentType.MUSIC) {
+                    contentName = "Võ nhạc"; // Default, can be enhanced with music content name
+                }
+            }
+            
+            builder.performanceMatchId(perfMatch.getId())
+                    .performanceId(performance != null ? performance.getId() : null)
+                    .performanceMatch(MyAssignedMatchResponse.PerformanceMatchInfo.builder()
+                            .id(perfMatch.getId())
+                            .competitionId(perfMatch.getCompetition() != null ? perfMatch.getCompetition().getId() : null)
+                            .competitionName(perfMatch.getCompetition() != null ? perfMatch.getCompetition().getName() : null)
+                            .performanceId(performance != null ? performance.getId() : null)
+                            .contentName(contentName)
+                            .contentType(perfMatch.getContentType() != null ? perfMatch.getContentType().name() : null)
+                            .matchOrder(perfMatch.getMatchOrder())
+                            .status(perfMatch.getStatus() != null ? perfMatch.getStatus().name() : "PENDING")
+                            .participants(participants)
+                            .build());
+        }
+
+        return builder.build();
     }
 
     private MatchAssessorResponse toResponse(MatchAssessor assessor) {
