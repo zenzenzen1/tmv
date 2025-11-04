@@ -133,10 +133,10 @@ public class MatchAssessorServiceImpl implements MatchAssessorService {
 
         // Validate position and role consistency
         // Position 1-5 should be ASSESSOR, Position 6 should be JUDGER (recommendation)
-        if (request.getPosition() <= 5 && request.getRole() == sep490g65.fvcapi.enums.AssessorRole.JUDGER) {
+        if (request.getPosition() <= 5 && request.getRole() == AssessorRole.JUDGER) {
             log.warn("Warning: Position {} assigned as JUDGER, typically positions 1-5 are ASSESSORs", request.getPosition());
         }
-        if (request.getPosition() == 6 && request.getRole() == sep490g65.fvcapi.enums.AssessorRole.ASSESSOR) {
+        if (request.getPosition() == 6 && request.getRole() == AssessorRole.ASSESSOR) {
             log.warn("Warning: Position 6 assigned as ASSESSOR, typically position 6 is JUDGER");
         }
 
@@ -162,21 +162,25 @@ public class MatchAssessorServiceImpl implements MatchAssessorService {
         MatchAssessor assessor = matchAssessorRepository.findById(assessorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Assessor not found with ID: " + assessorId));
 
-        // If updating position, check if new position is available
+        // If updating position, check if new position is available (only for fighting matches)
         if (request.getPosition() != null && !request.getPosition().equals(assessor.getPosition())) {
-            if (matchAssessorRepository.existsByMatchIdAndPosition(assessor.getMatch().getId(), request.getPosition())) {
-                throw new BusinessException(
-                        String.format("Position %d is already assigned in this match", request.getPosition()),
-                        "POSITION_ALREADY_ASSIGNED"
-                );
+            if (assessor.getMatch() != null) {
+                if (matchAssessorRepository.existsByMatchIdAndPosition(assessor.getMatch().getId(), request.getPosition())) {
+                    throw new BusinessException(
+                            String.format("Position %d is already assigned in this match", request.getPosition()),
+                            "POSITION_ALREADY_ASSIGNED"
+                    );
+                }
             }
             assessor.setPosition(request.getPosition());
         }
 
         // If updating user, check if new user is not already assigned
         if (request.getUserId() != null && !request.getUserId().equals(assessor.getUser().getId())) {
-            if (matchAssessorRepository.existsByMatchIdAndUserId(assessor.getMatch().getId(), request.getUserId())) {
-                throw new BusinessException("User is already assigned to this match", "USER_ALREADY_ASSIGNED");
+            if (assessor.getMatch() != null) {
+                if (matchAssessorRepository.existsByMatchIdAndUserId(assessor.getMatch().getId(), request.getUserId())) {
+                    throw new BusinessException("User is already assigned to this match", "USER_ALREADY_ASSIGNED");
+                }
             }
             User newUser = userRepository.findById(request.getUserId())
                     .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + request.getUserId()));
@@ -259,7 +263,7 @@ public class MatchAssessorServiceImpl implements MatchAssessorService {
         User user = assessor.getUser();
         return MatchAssessorResponse.builder()
                 .id(assessor.getId())
-                .matchId(assessor.getMatch().getId())
+                .matchId(assessor.getMatch() != null ? assessor.getMatch().getId() : null)
                 .userId(user.getId())
                 .userFullName(user.getFullName())
                 .userEmail(user.getEduMail() != null ? user.getEduMail() : user.getPersonalMail())

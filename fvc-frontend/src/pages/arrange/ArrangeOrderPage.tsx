@@ -1008,25 +1008,69 @@ export default function ArrangeOrderPage({
           API_ENDPOINTS.COMPETITIONS.BY_ID(selectedTournament)
         );
         const data = (res.data?.data as any) ?? res.data ?? {};
-        // Extract allowed IDs if competition exposes them
-        const cfgIds: string[] = (
-          data?.allowedFistConfigs ||
-          data?.fistConfigs ||
-          data?.quyenConfigs ||
-          []
-        ).map((x: any) => String(x));
-        const itemIds: string[] = (
-          data?.allowedFistItems ||
-          data?.fistItems ||
-          data?.quyenItems ||
-          []
-        ).map((x: any) => String(x));
-        const musicIds: string[] = (
-          data?.allowedMusicContents ||
-          data?.musicContents ||
-          data?.tietMuc ||
-          []
-        ).map((x: any) => String(x));
+
+        // Extract allowed IDs from competition configuration
+        // vovinamFistConfigs: List of allowed fist configs
+        const vovinamFistConfigs = data?.vovinamFistConfigs || [];
+        const cfgIds: string[] = vovinamFistConfigs
+          .map((cfg: any) =>
+            typeof cfg === "string" ? cfg : cfg?.id || String(cfg)
+          )
+          .filter((id: string) => id);
+
+        // fistConfigItemSelections: Map<configId, List<FistItemResponse>>
+        // Extract all allowed item IDs from all configs
+        const fistConfigItemSelections = data?.fistConfigItemSelections || {};
+        const itemIds: string[] = [];
+        Object.values(fistConfigItemSelections).forEach((items: any) => {
+          if (Array.isArray(items)) {
+            items.forEach((item: any) => {
+              const itemId =
+                typeof item === "string" ? item : item?.id || String(item);
+              if (itemId && !itemIds.includes(itemId)) {
+                itemIds.push(itemId);
+              }
+            });
+          }
+        });
+
+        // musicPerformances: List of allowed music contents
+        const musicPerformances = data?.musicPerformances || [];
+        const musicIds: string[] = musicPerformances
+          .map((mc: any) =>
+            typeof mc === "string" ? mc : mc?.id || String(mc)
+          )
+          .filter((id: string) => id);
+
+        // Fallback to old format if new format not available
+        if (cfgIds.length === 0) {
+          const fallbackCfgIds = (
+            data?.allowedFistConfigs ||
+            data?.fistConfigs ||
+            data?.quyenConfigs ||
+            []
+          ).map((x: any) => String(x));
+          cfgIds.push(...fallbackCfgIds);
+        }
+        if (itemIds.length === 0) {
+          const fallbackItemIds = (
+            data?.allowedFistItems ||
+            data?.fistItems ||
+            data?.quyenItems ||
+            []
+          ).map((x: any) => String(x));
+          itemIds.push(...fallbackItemIds);
+        }
+        if (musicIds.length === 0) {
+          const fallbackMusicIds = (
+            data?.allowedMusicContents ||
+            data?.musicContents ||
+            data?.tietMuc ||
+            []
+          ).map((x: any) => String(x));
+          musicIds.push(...fallbackMusicIds);
+        }
+
         setAllowedFistConfigIds(new Set(cfgIds));
         setAllowedFistItemIds(new Set(itemIds));
         setAllowedMusicContentIds(new Set(musicIds));
@@ -1046,15 +1090,26 @@ export default function ArrangeOrderPage({
             setAllowedFistConfigNames(new Set());
           }
           if (!Array.isArray(labels) || labels.length === 0) {
-            // Fallback: derive from fist items names that look like "Võ" content or unique item names
-            const derived = Array.from(
-              new Set(
-                fistItems
-                  .map((i) => i.name)
-                  .filter((n) => typeof n === "string" && n.trim().length > 0)
+            // Fallback: derive from allowed fist configs names
+            const allowedConfigNames: string[] = vovinamFistConfigs
+              .map((cfg: any) =>
+                typeof cfg === "object" && cfg?.name ? cfg.name : null
               )
-            );
-            labels = derived.slice(0, 6); // keep it short
+              .filter(
+                (name: string | null): name is string =>
+                  typeof name === "string" && name.trim().length > 0
+              );
+
+            if (allowedConfigNames.length > 0) {
+              labels = Array.from(new Set(allowedConfigNames)).slice(0, 6);
+            } else {
+              // Last resort: derive from allowed fist items names
+              const allowedItemNames = fistItems
+                .filter((i) => itemIds.length === 0 || itemIds.includes(i.id))
+                .map((i) => i.name)
+                .filter((n) => typeof n === "string" && n.trim().length > 0);
+              labels = Array.from(new Set(allowedItemNames)).slice(0, 6);
+            }
           }
         } else if (activeTab === "music") {
           labels =
@@ -1070,14 +1125,12 @@ export default function ArrangeOrderPage({
             setAllowedMusicContentNames(new Set());
           }
           if (!Array.isArray(labels) || labels.length === 0) {
-            const derived = Array.from(
-              new Set(
-                musicContents
-                  .map((m) => m.name)
-                  .filter((n) => typeof n === "string" && n.trim().length > 0)
-              )
-            );
-            labels = derived.slice(0, 6);
+            // Fallback: derive from allowed music contents names
+            const allowedMusicNames = musicContents
+              .filter((m) => musicIds.length === 0 || musicIds.includes(m.id))
+              .map((m) => m.name)
+              .filter((n) => typeof n === "string" && n.trim().length > 0);
+            labels = Array.from(new Set(allowedMusicNames)).slice(0, 6);
           }
         }
         setQuickButtons(Array.isArray(labels) ? labels : []);
