@@ -198,6 +198,35 @@ export interface WeightClassFilters {
 }
 
 // ==========================
+// ✅ Field domain
+// ==========================
+export interface FieldResponse {
+  id: string;
+  location: string;
+  isUsed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateFieldRequest {
+  location: string;
+  isUsed?: boolean;
+}
+
+export interface UpdateFieldRequest {
+  location?: string;
+  isUsed?: boolean;
+}
+
+export interface FieldFilters {
+  page?: number;
+  size?: number;
+  sort?: string;
+  search?: string;
+  isUsed?: boolean;
+}
+
+// ==========================
 // ✅ Fist Content domain
 // ==========================
 export interface FistContentResponse {

@@ -19,7 +19,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/fvc-db
     username: postgres
-    password: 123
+    password: thanh2003
     driver-class-name: org.postgresql.Driver
 
   jpa:
