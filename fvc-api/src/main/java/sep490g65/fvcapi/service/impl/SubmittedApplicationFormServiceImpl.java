@@ -58,6 +58,7 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
                 .reviewerNote(s.getReviewerNote())
                 .userId(s.getUser() != null ? s.getUser().getId() : null)
                 .applicationFormConfigId(s.getApplicationFormConfig() != null ? s.getApplicationFormConfig().getId() : null)
+                .applicationFormConfigName(s.getApplicationFormConfig() != null ? s.getApplicationFormConfig().getName() : null)
                 .userFullName(s.getUser() != null ? s.getUser().getFullName() : null)
                 .userPersonalMail(s.getUser() != null ? s.getUser().getPersonalMail() : null)
                 .userEduMail(s.getUser() != null ? s.getUser().getEduMail() : null)
@@ -71,8 +72,23 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
     @Transactional(readOnly = true)
     public PaginationResponse<SubmittedApplicationFormResponse> list(RequestParam params, ApplicationFormType type) {
         Sort sort = Sort.by(params.isAscending() ? Sort.Direction.ASC : Sort.Direction.DESC, params.getSortBy());
-        Pageable pageable = params.isAll() ? Pageable.unpaged() : PageRequest.of(params.getPage(), params.getSize(), sort);
-        Page<SubmittedApplicationForm> page = repository.search(type, pageable);
+        Pageable pageable = PageRequest.of(params.getPage(), params.getSize(), sort);
+        
+        // Parse status
+        ApplicationFormStatus status = null;
+        if (params.getStatusFilter() != null) {
+            try {
+                status = ApplicationFormStatus.valueOf(params.getStatusFilter().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // Invalid status, ignore
+            }
+        }
+        
+        Page<SubmittedApplicationForm> page = repository.search(
+            type, 
+            status, 
+            pageable
+        );
         return ResponseUtils.createPaginatedResponse(page.map(this::toDto));
     }
     
@@ -87,16 +103,16 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
                 .status(ApplicationFormStatus.PENDING)
                 .build();
         
-        // Set user if provided
+        // Set user if provided (optional - guest can submit forms)
         if (request.getUserId() != null && !request.getUserId().trim().isEmpty()) {
-            // TODO: Load user from repository and set it
-            // entity.setUser(userRepository.findById(request.getUserId()).orElse(null));
+            userRepository.findById(request.getUserId()).ifPresent(entity::setUser);
         }
+        // If no userId provided, user remains null (guest submission)
         
         // Set application form config if provided
         if (request.getApplicationFormConfigId() != null && !request.getApplicationFormConfigId().trim().isEmpty()) {
-            // TODO: Load config from repository and set it
-            // entity.setApplicationFormConfig(configRepository.findById(request.getApplicationFormConfigId()).orElse(null));
+            applicationFormConfigRepository.findById(request.getApplicationFormConfigId())
+                    .ifPresent(entity::setApplicationFormConfig);
         }
         
         // Save entity

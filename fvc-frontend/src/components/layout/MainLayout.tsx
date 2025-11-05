@@ -2,6 +2,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "@/components/layout/Sidebar";
 import { defaultMenuItems } from "@/components/layout/sidebarMenu";
 import { Box, Container } from "@mui/material";
+import Header from "@/components/common/Header";
 
 export default function MainLayout() {
   const location = useLocation();
@@ -24,6 +25,7 @@ export default function MainLayout() {
       bgcolor={(t) => t.palette.background.default}
     >
       <Sidebar activeMenu={activeKey} menuItems={defaultMenuItems} />
+      {/* Merge: Include Header component from master branch, preserve styling from HEAD */}
       <Box
         display="flex"
         flexDirection="column"
@@ -31,6 +33,7 @@ export default function MainLayout() {
         minHeight="100vh"
         sx={{ ml: "256px" }}
       >
+        <Header />
         <Box component="main" flexGrow={1} overflow="auto">
           <Container maxWidth="lg" sx={{ py: 3 }}>
             <Outlet />

@@ -7,8 +7,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaContext;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
+import sep490g65.fvcapi.dto.request.CreateCompetitionOrderRequest;
 import sep490g65.fvcapi.entity.Athlete;
+import sep490g65.fvcapi.entity.CompetitionOrder;
 import sep490g65.fvcapi.repository.AthleteRepository;
 import sep490g65.fvcapi.repository.PerformanceAthleteRepository;
 import sep490g65.fvcapi.repository.SubmittedApplicationFormRepository;
@@ -16,6 +20,7 @@ import sep490g65.fvcapi.entity.PerformanceAthlete;
 import sep490g65.fvcapi.repository.WeightClassRepository;
 import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
+import sep490g65.fvcapi.service.CompetitionOrderService;
 
 import java.util.UUID;
 import java.util.List;
@@ -28,6 +33,7 @@ public class AthleteService {
     private final AthleteRepository athleteRepository;
     private final WeightClassRepository weightClassRepository;
     private final VovinamFistItemRepository fistItemRepository;
+    private final CompetitionOrderService competitionOrderService;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository fistConfigRepository;
     private final MusicIntegratedPerformanceRepository musicRepository;
     private final PerformanceAthleteRepository performanceAthleteRepository;
@@ -73,8 +79,7 @@ public class AthleteService {
             String name,
             Athlete.Gender gender,
             Athlete.AthleteStatus status,
-            Pageable pageable
-    ) {
+            Pageable pageable) {
         Specification<Athlete> spec = Specification.where(null);
         if (tournamentId != null && !tournamentId.isBlank()) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("tournamentId"), tournamentId));
@@ -242,5 +247,3 @@ public class AthleteService {
                 successCount, failCount, orders.size());
     }
 }
-
-

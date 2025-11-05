@@ -168,6 +168,7 @@ if (typeof window !== "undefined") {
     // Only check /auth/me if we don't have auth state in localStorage
     if (!currentState.isAuthenticated) {
       try {
+        useAuthStore.getState().setLoading(true);
         const data = await authService.getCurrentUser();
         const newState = {
           user: data,
@@ -179,6 +180,7 @@ if (typeof window !== "undefined") {
         saveAuthState(newState);
       } catch {
         // not logged in; ignore
+        useAuthStore.getState().setLoading(false);
       }
     }
   })();

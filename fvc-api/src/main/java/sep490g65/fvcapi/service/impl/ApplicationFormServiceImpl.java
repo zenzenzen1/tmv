@@ -1,6 +1,7 @@
 package sep490g65.fvcapi.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +17,7 @@ import sep490g65.fvcapi.entity.ApplicationFormField;
 import sep490g65.fvcapi.enums.ApplicationFormType;
 import sep490g65.fvcapi.enums.FormStatus;
 import sep490g65.fvcapi.exception.BusinessException;
+import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.repository.ApplicationFormConfigRepository;
 import sep490g65.fvcapi.service.ApplicationFormService;
 
@@ -23,12 +25,14 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import sep490g65.fvcapi.constants.MessageConstants;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ApplicationFormServiceImpl implements ApplicationFormService {
 
     private final ApplicationFormConfigRepository applicationFormConfigRepository;
@@ -45,10 +49,36 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
     @Override
     @Transactional(readOnly = true)
     public ApplicationFormConfigResponse getById(String id) {
-        ApplicationFormConfig config = applicationFormConfigRepository
-                .findByIdWithFields(id)
-                .orElseThrow(() -> new RuntimeException("Form config not found with id: " + id));
-        return mapToResponse(config);
+        log.info("Getting form by ID: {}", id);
+        
+        // First try with findByIdWithFields (includes fields)
+        Optional<ApplicationFormConfig> configOpt = applicationFormConfigRepository.findByIdWithFields(id);
+        
+        if (configOpt.isPresent()) {
+            log.info("Found form with fields: {}", id);
+            return mapToResponse(configOpt.get());
+        }
+        
+        // If not found, try regular findById (maybe fields weren't loaded)
+        log.debug("Form not found with fields, trying regular findById: {}", id);
+        configOpt = applicationFormConfigRepository.findById(id);
+        
+        if (configOpt.isPresent()) {
+            log.info("Found form without fields, loading fields separately: {}", id);
+            ApplicationFormConfig config = configOpt.get();
+            
+            // Re-fetch with fields to ensure fields are loaded
+            config = applicationFormConfigRepository.findByIdWithFields(id)
+                    .orElse(config); // Fallback to config without fields if query fails
+            
+            return mapToResponse(config);
+        }
+        
+        // Check if form exists at all
+        boolean exists = applicationFormConfigRepository.existsById(id);
+        log.warn("Form with ID {} not found. Exists in DB: {}", id, exists);
+        
+        throw new ResourceNotFoundException("Form config not found with id: " + id);
     }
 
     @Override
@@ -94,7 +124,7 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
     public ApplicationFormConfigResponse getByFormType(ApplicationFormType formType) {
         ApplicationFormConfig config = applicationFormConfigRepository
                 .findByFormTypeWithFields(formType)
-                .orElseThrow(() -> new RuntimeException("Form config not found for type: " + formType));
+                .orElseThrow(() -> new ResourceNotFoundException("Form config not found for type: " + formType));
 
         return mapToResponse(config);
     }
@@ -194,6 +224,52 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
 
         ApplicationFormConfig saved = applicationFormConfigRepository.save(config);
         return mapToResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public ApplicationFormConfigResponse updateById(String id, UpdateApplicationFormConfigRequest request) {
+        ApplicationFormConfig config = applicationFormConfigRepository
+                .findByIdWithFields(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Form config not found with id: " + id));
+
+        // Validate business rules for update
+        validateFormUpdate(request, config);
+
+        // Update basic info
+        config.setName(request.getName());
+        config.setDescription(request.getDescription());
+        config.setEndDate(request.getEndDate());
+        if (request.getStatus() != null) {
+            config.setStatus(request.getStatus());
+        }
+
+        // Ensure slug exists when publishing
+        if (config.getStatus() == FormStatus.PUBLISH && config.getPublicSlug() == null) {
+            config.setPublicSlug(generateUniqueSlug(config.getName()));
+        }
+
+        // Clear existing fields and add new ones
+        config.getFields().clear();
+
+        if (request.getFields() != null) {
+            List<ApplicationFormField> newFields = request.getFields().stream()
+                    .map(fieldRequest -> ApplicationFormField.builder()
+                            .label(fieldRequest.getLabel())
+                            .name(fieldRequest.getName())
+                            .fieldType(fieldRequest.getFieldType())
+                            .required(fieldRequest.getRequired())
+                            .options(fieldRequest.getOptions())
+                            .sortOrder(fieldRequest.getSortOrder())
+                            .applicationFormConfig(config)
+                            .build())
+                    .collect(Collectors.toList());
+
+            config.getFields().addAll(newFields);
+        }
+
+        ApplicationFormConfig savedConfig = applicationFormConfigRepository.save(config);
+        return mapToResponse(savedConfig);
     }
 
     @Override
@@ -335,11 +411,40 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
     }
 
     private String generateUniqueSlug(String base) {
-        String normalized = base == null ? "form" : base.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
-        String candidate = normalized + "-" + UUID.randomUUID().toString().substring(0, 8);
-        while (applicationFormConfigRepository.existsByPublicSlug(candidate)) {
-            candidate = normalized + "-" + UUID.randomUUID().toString().substring(0, 8);
-        }
+        // Generate a secure, encrypted slug using Base64 URL-safe encoding
+        // Combines two UUIDs (32 bytes = 256 bits entropy) for maximum security
+        // The link will be hard to guess and appears encrypted
+        java.util.Base64.Encoder encoder = java.util.Base64.getUrlEncoder().withoutPadding();
+        String candidate;
+        int attempts = 0;
+        
+        do {
+            UUID uuid1 = UUID.randomUUID();
+            UUID uuid2 = UUID.randomUUID();
+            
+            // Convert UUIDs to byte arrays
+            java.nio.ByteBuffer buffer = java.nio.ByteBuffer.allocate(32);
+            buffer.putLong(uuid1.getMostSignificantBits());
+            buffer.putLong(uuid1.getLeastSignificantBits());
+            buffer.putLong(uuid2.getMostSignificantBits());
+            buffer.putLong(uuid2.getLeastSignificantBits());
+            
+            // Encode to Base64 URL-safe string
+            byte[] combinedBytes = buffer.array();
+            String encodedSlug = encoder.encodeToString(combinedBytes);
+            
+            // Prefix with 'f' to indicate form (optional, can be removed)
+            candidate = "f" + encodedSlug;
+            attempts++;
+            
+            if (attempts >= 10) {
+                log.warn("Failed to generate unique slug after 10 attempts, using UUID fallback");
+                // Fallback: use simple UUID if too many collisions (extremely rare)
+                candidate = "f" + UUID.randomUUID().toString().replace("-", "");
+                break;
+            }
+        } while (applicationFormConfigRepository.existsByPublicSlug(candidate));
+        
         return candidate;
     }
 
@@ -351,12 +456,14 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
                 .findByEndDateBeforeAndStatus(now, FormStatus.PUBLISH);
         
         for (ApplicationFormConfig form : expiredForms) {
-            form.setStatus(FormStatus.DRAFT);
+            // Auto-archive expired published forms
+            form.setStatus(FormStatus.ARCHIVED);
             applicationFormConfigRepository.save(form);
+            log.info("Auto-archived expired form: {} (ID: {})", form.getName(), form.getId());
         }
         
         if (!expiredForms.isEmpty()) {
-            System.out.println("Auto-unpublished " + expiredForms.size() + " expired forms");
+            log.info("Auto-archived {} expired forms", expiredForms.size());
         }
     }
 

@@ -100,7 +100,7 @@ export class ErrorHandler {
       case ErrorType.VALIDATION_ERROR:
         return error.message || 'Please check your input and try again.';
       case ErrorType.AUTH_ERROR:
-        return 'Authentication failed. Please log in again.';
+        return error.message || 'Authentication failed. Please log in again.';
       case ErrorType.PERMISSION_ERROR:
         return 'You do not have permission to perform this action.';
       case ErrorType.NOT_FOUND_ERROR:

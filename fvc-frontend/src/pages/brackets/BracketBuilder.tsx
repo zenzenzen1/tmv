@@ -226,7 +226,6 @@ export default function BracketBuilder() {
         }
       }
       allRounds.push(prelimPairs);
-
       // Create subsequent rounds from winners
       let currentRound = prelimPairs;
       let winnerCounter = 1;
@@ -284,7 +283,7 @@ export default function BracketBuilder() {
         winnerOffset += prevRoundWinnersCount;
         prevRoundWinnersCount = nextRound.length;
       }
-
+      
       setRoundsCount(allRounds.length);
     }
 
@@ -748,7 +747,6 @@ export default function BracketBuilder() {
                   >
                     Chia nhánh đấu ({selectedAthletes.length} VĐV)
                   </button>
-
                   <div className="flex gap-2">
                     <button
                       onClick={generateSeedingList}
@@ -758,7 +756,6 @@ export default function BracketBuilder() {
                     >
                       🎲 Bốc thăm tự động
                     </button>
-
                     <button
                       onClick={initializeManualSeeding}
                       disabled={selectedAthletes.length === 0}
@@ -1282,7 +1279,6 @@ export default function BracketBuilder() {
               >
                 📄 Xuất danh sách
               </button>
-
               <button
                 onClick={() => setShowSeedingModal(false)}
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 font-medium"
@@ -1366,7 +1362,6 @@ export default function BracketBuilder() {
                 </div>
               ))}
             </div>
-
             <div className="flex gap-3">
               <button
                 onClick={applyManualSeeding}
@@ -1386,7 +1381,6 @@ export default function BracketBuilder() {
               >
                 🔄 Làm mới
               </button>
-
               <button
                 onClick={() => setShowManualSeedingModal(false)}
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 font-medium"
@@ -1499,7 +1493,6 @@ export default function BracketBuilder() {
                 ))}
               </div>
             )}
-
             <div className="flex justify-end mt-6">
               <button
                 onClick={() => setShowDrawHistoryModal(false)}

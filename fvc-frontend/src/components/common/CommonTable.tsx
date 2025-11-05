@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import Pagination from "./Pagination";
 
 export type TableColumn<T> = {
   key: keyof T | string;
@@ -16,14 +17,11 @@ export type CommonTableProps<T> = {
   pageSize?: number;
   total?: number;
   onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+  showPageSizeSelector?: boolean;
+  pageSizeOptions?: number[];
   className?: string;
 };
-
-function range(from: number, to: number): number[] {
-  const result: number[] = [];
-  for (let i = from; i <= to; i += 1) result.push(i);
-  return result;
-}
 
 export function CommonTable<T extends Record<string, unknown>>({
   columns,
@@ -33,6 +31,9 @@ export function CommonTable<T extends Record<string, unknown>>({
   pageSize = 10,
   total = data.length,
   onPageChange,
+  onPageSizeChange,
+  showPageSizeSelector = true,
+  pageSizeOptions = [5, 10, 15, 20],
   className,
 }: CommonTableProps<T>) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -156,35 +157,18 @@ export function CommonTable<T extends Record<string, unknown>>({
       </div>
 
       {/* Pagination */}
-      <div className="mt-4 flex items-center justify-center gap-2">
-        <button
-          className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50"
-          onClick={() => onPageChange?.(Math.max(1, page - 1))}
-          disabled={page <= 1}
-        >
-          &lt;
-        </button>
-        {range(1, totalPages).map((p) => (
-          <button
-            key={p}
-            className={`rounded px-3 py-1 text-sm ${
-              p === page
-                ? "bg-[#2563eb] text-white shadow"
-                : "border border-gray-300 text-gray-700 hover:bg-gray-100"
-            }`}
-            onClick={() => onPageChange?.(p)}
-          >
-            {p}
-          </button>
-        ))}
-        <button
-          className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50"
-          onClick={() => onPageChange?.(Math.min(totalPages, page + 1))}
-          disabled={page >= totalPages}
-        >
-          &gt;
-        </button>
-      </div>
+      {total > 0 && (
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalElements={total}
+          pageSize={pageSize}
+          onPageChange={(newPage) => onPageChange?.(newPage)}
+          onPageSizeChange={onPageSizeChange}
+          showPageSizeSelector={showPageSizeSelector && !!onPageSizeChange}
+          pageSizeOptions={pageSizeOptions}
+        />
+      )}
     </div>
   );
 }

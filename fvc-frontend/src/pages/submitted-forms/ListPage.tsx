@@ -187,7 +187,6 @@ function extractNameFromFormData(formData: any): string {
 // Hàm để lấy tên hiển thị cho một trường
 function getFieldDisplayName(fieldKey: string): string {
   const lowerKey = fieldKey.toLowerCase();
-
   // Tìm exact match trước
 
   if (fieldDisplayNames[lowerKey]) {
@@ -631,7 +630,13 @@ export default function SubmittedFormsPage() {
             }}
             className="text-sm text-gray-500 hover:text-gray-700"
           >
-            Xóa tất cả bộ lọc
+            ⟵ Quay lại
+          </button>
+          <button
+            onClick={() => exportCsv(filtered)}
+            className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
+          >
+            Xuất Excel
           </button>
         </div>
 
@@ -701,32 +706,28 @@ export default function SubmittedFormsPage() {
           </div>
         </div>
 
-        <div className="mt-4 text-sm text-gray-600">
-          Hiển thị {filtered.length} trong {totalElements} kết quả
-        </div>
+        {error && <ErrorMessage error={error} />}
+
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <LoadingSpinner />
+          </div>
+        ) : (
+          <CommonTable
+            data={
+              filtered.map((r, idx) => ({
+                ...r,
+                stt: (page - 1) * pageSize + idx + 1,
+              })) as any
+            }
+            columns={columns as any}
+            page={page}
+            pageSize={pageSize}
+            total={totalElements}
+            onPageChange={(p) => setPage(p)}
+          />
+        )}
       </div>
-
-      {error && <ErrorMessage error={error} />}
-
-      {loading ? (
-        <div className="flex justify-center py-8">
-          <LoadingSpinner />
-        </div>
-      ) : (
-        <CommonTable
-          data={
-            filtered.map((r, idx) => ({
-              ...r,
-              stt: (page - 1) * pageSize + idx + 1,
-            })) as any
-          }
-          columns={columns as any}
-          page={page}
-          pageSize={pageSize}
-          total={totalElements}
-          onPageChange={(p) => setPage(p)}
-        />
-      )}
 
       {/* Thể thức thi đấu (chỉ hiện với Form đăng ký giải) */}
 

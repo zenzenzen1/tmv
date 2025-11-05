@@ -25,7 +25,7 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        // Create test admin user if not exists
+        // Create or update test admin user
         if (!userRepository.existsByStudentCode("ADMIN001")) {
             User adminUser = new User();
             adminUser.setStudentCode("ADMIN001");
@@ -35,12 +35,24 @@ public class DataInitializer implements CommandLineRunner {
             adminUser.setHashPassword(passwordEncoder.encode("admin123"));
             adminUser.setSystemRole(SystemRole.ADMIN);
             adminUser.setStatus(true);
+            adminUser.setGender("MALE");
+            adminUser.setDob(java.time.LocalDate.of(1995, 5, 15));
             
             userRepository.save(adminUser);
             log.info("Created test admin user: ADMIN001 / admin123");
+        } else {
+            // Update existing admin user if missing gender/dob
+            userRepository.findByStudentCode("ADMIN001").ifPresent(adminUser -> {
+                if (adminUser.getGender() == null || adminUser.getDob() == null) {
+                    adminUser.setGender("MALE");
+                    adminUser.setDob(java.time.LocalDate.of(1995, 5, 15));
+                    userRepository.save(adminUser);
+                    log.info("Updated test admin user with gender/dob");
+                }
+            });
         }
 
-        // Create test regular user if not exists
+        // Create or update test regular user
         if (!userRepository.existsByStudentCode("USER001")) {
             User regularUser = new User();
             regularUser.setStudentCode("USER001");
@@ -50,9 +62,21 @@ public class DataInitializer implements CommandLineRunner {
             regularUser.setHashPassword(passwordEncoder.encode("user123"));
             regularUser.setSystemRole(SystemRole.MEMBER);
             regularUser.setStatus(true);
+            regularUser.setGender("FEMALE");
+            regularUser.setDob(java.time.LocalDate.of(2000, 8, 20));
             
             userRepository.save(regularUser);
             log.info("Created test regular user: USER001 / user123");
+        } else {
+            // Update existing regular user if missing gender/dob
+            userRepository.findByStudentCode("USER001").ifPresent(regularUser -> {
+                if (regularUser.getGender() == null || regularUser.getDob() == null) {
+                    regularUser.setGender("FEMALE");
+                    regularUser.setDob(java.time.LocalDate.of(2000, 8, 20));
+                    userRepository.save(regularUser);
+                    log.info("Updated test regular user with gender/dob");
+                }
+            });
         }
 
         // Create 10 assessor users if not exist

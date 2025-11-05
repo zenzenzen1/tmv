@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCompetitionStore } from "../../stores/competition";
 import { useWeightClassStore } from "../../stores/weightClass";
@@ -189,6 +189,156 @@ const CompetitionFormPage: React.FC = () => {
     handleFieldChange("vovinamFistConfigIds", selectedFistConfigs);
     handleFieldChange("fistConfigItemSelections", selectedFistItems);
   };
+
+  // Name validation
+  const nameValidation = useMemo(() => {
+    if (!formData.name.trim()) {
+      return { isValid: false, errorMessage: "Tên giải đấu là bắt buộc" };
+    }
+    return validateLength(formData.name, {
+      min: 1,
+      max: 100,
+      fieldName: "Tên giải đấu",
+    });
+  }, [formData.name]);
+
+  // Description validation
+  const descriptionValidation = useMemo(() => {
+    if (!formData.description || formData.description.trim() === "") {
+      return { isValid: true }; // Description is optional
+    }
+    return validateLength(formData.description, {
+      max: 1000,
+      fieldName: "Mô tả",
+    });
+  }, [formData.description]);
+
+  // Numeric field validations
+  const numberOfRoundsValidation = useMemo(() => {
+    const value = formData.numberOfRounds ?? 0;
+    return validateRoundCountRange(value, "Số hiệp đấu");
+  }, [formData.numberOfRounds]);
+
+  const roundDurationValidation = useMemo(() => {
+    const value = formData.roundDurationSeconds ?? 0;
+    return validateDurationRange(value, "Thời gian mỗi hiệp");
+  }, [formData.roundDurationSeconds]);
+
+  const assessorCountValidation = useMemo(() => {
+    const value = formData.assessorCount ?? 0;
+    return validateAssessorCountRange(value, "Số giám khảo");
+  }, [formData.assessorCount]);
+
+  const injuryTimeoutValidation = useMemo(() => {
+    const value = formData.injuryTimeoutSeconds ?? 0;
+    const nonNegativeValidation = validateNonNegative(
+      value,
+      "Thời gian nghỉ chấn thương"
+    );
+    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
+    return validateNumericRange(value, 10, 300, "Thời gian nghỉ chấn thương");
+  }, [formData.injuryTimeoutSeconds]);
+
+  const maxExtraRoundsValidation = useMemo(() => {
+    const value = formData.maxExtraRounds ?? 0;
+    const nonNegativeValidation = validateNonNegative(
+      value,
+      "Số hiệp phụ tối đa"
+    );
+    if (!nonNegativeValidation.isValid) return nonNegativeValidation;
+    return validateNumericRange(value, 0, 5, "Số hiệp phụ tối đa");
+  }, [formData.maxExtraRounds]);
+
+  const locationValidation = useMemo(() => {
+    if (!formData.location || !formData.location.trim()) {
+      return { isValid: false, errorMessage: "Địa điểm là bắt buộc" };
+    }
+    return validateLength(formData.location, {
+      min: 1,
+      max: 200,
+      fieldName: "Địa điểm",
+    });
+  }, [formData.location]);
+
+  // Date validations - simplified to avoid missing validateDate function
+  const registrationStartDateValidation = useMemo(() => {
+    if (!formData.registrationStartDate) {
+      return {
+        isValid: false,
+        errorMessage: "Ngày bắt đầu đăng ký là bắt buộc",
+      };
+    }
+    return { isValid: true };
+  }, [formData.registrationStartDate]);
+
+  const registrationEndDateValidation = useMemo(() => {
+    if (!formData.registrationEndDate) {
+      return {
+        isValid: false,
+        errorMessage: "Ngày kết thúc đăng ký là bắt buộc",
+      };
+    }
+    return { isValid: true };
+  }, [formData.registrationEndDate]);
+
+  const weighInDateValidation = useMemo(() => {
+    if (!formData.weighInDate) {
+      return { isValid: false, errorMessage: "Ngày cân đo là bắt buộc" };
+    }
+    return { isValid: true };
+  }, [formData.weighInDate]);
+
+  const startDateValidation = useMemo(() => {
+    if (!formData.startDate) {
+      return { isValid: false, errorMessage: "Ngày bắt đầu là bắt buộc" };
+    }
+    return { isValid: true };
+  }, [formData.startDate]);
+
+  const endDateValidation = useMemo(() => {
+    if (!formData.endDate) {
+      return { isValid: false, errorMessage: "Ngày kết thúc là bắt buộc" };
+    }
+    return { isValid: true };
+  }, [formData.endDate]);
+
+  // Date range validations
+  const registrationDateRangeValidation = useMemo(() => {
+    if (
+      registrationStartDateValidation.isValid &&
+      registrationEndDateValidation.isValid
+    ) {
+      return validateDateRange(
+        formData.registrationStartDate,
+        formData.registrationEndDate,
+        "Ngày bắt đầu đăng ký",
+        "Ngày kết thúc đăng ký"
+      );
+    }
+    return { isValid: true };
+  }, [
+    formData.registrationStartDate,
+    formData.registrationEndDate,
+    registrationStartDateValidation.isValid,
+    registrationEndDateValidation.isValid,
+  ]);
+
+  const competitionDateRangeValidation = useMemo(() => {
+    if (startDateValidation.isValid && endDateValidation.isValid) {
+      return validateDateRange(
+        formData.startDate,
+        formData.endDate,
+        "Ngày bắt đầu",
+        "Ngày kết thúc"
+      );
+    }
+    return { isValid: true };
+  }, [
+    formData.startDate,
+    formData.endDate,
+    startDateValidation.isValid,
+    endDateValidation.isValid,
+  ]);
 
   // Validate form
   const validateForm = (): boolean => {
@@ -411,6 +561,7 @@ const CompetitionFormPage: React.FC = () => {
                           error={!!formErrors.name}
                           helperText={formErrors.name || " "}
                           fullWidth
+                          inputProps={{ maxLength: 100 }}
                         />
                       </Box>
                       <Box>
@@ -423,6 +574,7 @@ const CompetitionFormPage: React.FC = () => {
                           disabled={isView}
                           placeholder="Nhập địa điểm tổ chức"
                           fullWidth
+                          inputProps={{ maxLength: 200 }}
                         />
                       </Box>
                       <Box gridColumn={{ xs: "1 / -1" }}>
@@ -619,6 +771,9 @@ const CompetitionFormPage: React.FC = () => {
                           }
                           disabled={isView}
                           fullWidth
+                          error={!!formErrors.numberOfRounds}
+                          helperText={formErrors.numberOfRounds || " "}
+                          inputProps={{ min: 1, max: 10 }}
                         />
                       </Box>
                       <Box>
@@ -634,6 +789,9 @@ const CompetitionFormPage: React.FC = () => {
                           }
                           disabled={isView}
                           fullWidth
+                          error={!!formErrors.roundDurationSeconds}
+                          helperText={formErrors.roundDurationSeconds || " "}
+                          inputProps={{ min: 30, max: 300 }}
                         />
                       </Box>
                       <Box>
@@ -649,6 +807,9 @@ const CompetitionFormPage: React.FC = () => {
                           }
                           disabled={isView}
                           fullWidth
+                          error={!!formErrors.assessorCount}
+                          helperText={formErrors.assessorCount || " "}
+                          inputProps={{ min: 1, max: 10 }}
                         />
                       </Box>
                       <Box>
@@ -664,6 +825,9 @@ const CompetitionFormPage: React.FC = () => {
                           }
                           disabled={isView}
                           fullWidth
+                          error={!!formErrors.injuryTimeoutSeconds}
+                          helperText={formErrors.injuryTimeoutSeconds || " "}
+                          inputProps={{ min: 10, max: 300 }}
                         />
                       </Box>
                       <Box>
@@ -679,6 +843,9 @@ const CompetitionFormPage: React.FC = () => {
                           }
                           disabled={isView}
                           fullWidth
+                          error={!!formErrors.maxExtraRounds}
+                          helperText={formErrors.maxExtraRounds || " "}
+                          inputProps={{ min: 0, max: 5 }}
                         />
                       </Box>
                       <Box display="flex" alignItems="center">

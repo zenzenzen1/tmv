@@ -95,8 +95,9 @@ public class DrawService {
             // Log sample athlete data
             if (!allAthletes.isEmpty()) {
                 Athlete sample = allAthletes.get(0);
-                log.info("📋 [Draw] Sample athlete data - ID: {}, Competition Type: {}, Weight Class: {}, Tournament ID: {}", 
+                log.info("📋 [Draw] Sample athlete data - ID: {}, Competition ID: {}, Competition Type: {}, Weight Class: {}, Tournament ID: {}", 
                         sample.getId(), 
+                        sample.getCompetition() != null ? sample.getCompetition().getId() : "NULL",
                         sample.getCompetitionType(),
                         sample.getWeightClassId(),
                         sample.getTournamentId());

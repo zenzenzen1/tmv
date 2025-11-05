@@ -7,10 +7,14 @@ import sep490g65.fvcapi.enums.AssessorRole;
 @Entity
 @Table(name = "match_assessors", uniqueConstraints = {
     @UniqueConstraint(name = "uk_match_assessor_position", columnNames = {"match_id", "position"}),
+<<<<<<< HEAD
     @UniqueConstraint(name = "uk_match_user", columnNames = {"match_id", "user_id"}),
     @UniqueConstraint(name = "uk_match_assessor_performance", columnNames = {"user_id", "performance_id"}),
     @UniqueConstraint(name = "uk_match_assessor_performance_match", columnNames = {"performance_match_id", "user_id"}),
     @UniqueConstraint(name = "uk_match_assessor_match_user_role", columnNames = {"match_id", "user_id", "role"})
+=======
+    @UniqueConstraint(name = "uk_match_user", columnNames = {"match_id", "user_id"})
+>>>>>>> origin/master
 }, indexes = {
     @Index(name = "idx_match_assessors_match", columnList = "match_id"),
     @Index(name = "idx_match_assessors_user", columnList = "user_id")

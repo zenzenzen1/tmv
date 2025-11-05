@@ -554,6 +554,7 @@ const FormBuilder: React.FC = () => {
     });
   }, [formData.description]);
 
+  // Merge: Keep validation logic from HEAD (more comprehensive with competitionType check)
   const isFormValid =
     titleValidation.isValid &&
     descriptionValidation.isValid &&
@@ -1370,6 +1371,7 @@ const FormBuilder: React.FC = () => {
               >
                 Xem trước
               </button>
+              {/* Merge: Keep HEAD implementation - uses handleSaveDraft method which has comprehensive validation and field building logic */}
               <button
                 onClick={handleSaveDraft}
                 disabled={submitting}
@@ -1377,6 +1379,7 @@ const FormBuilder: React.FC = () => {
               >
                 {submitting ? "Đang lưu..." : "Lưu nháp"}
               </button>
+              {/* Merge: Keep HEAD implementation - uses handleSaveAndPublish method which has comprehensive validation and field building logic */}
               <button
                 onClick={handleSaveAndPublish}
                 disabled={submitting}
@@ -1387,6 +1390,7 @@ const FormBuilder: React.FC = () => {
             </div>
           </div>
 
+          {/* Merge: Keep HEAD implementation - more complete form builder with proper variable references */}
           {/* Form Builder */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="space-y-6">

@@ -13,6 +13,7 @@ import api from "../../services/api";
 import { fistContentService } from "../../services/fistContent";
 import type { PaginationResponse } from "../../types/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
+// Merge: Keep HEAD implementation - use validateLength for search validation
 import { validateLength } from "../../utils/validation";
 
 type AthleteRow = {
@@ -93,6 +94,7 @@ export default function AthleteManagementPage({
   const [nameQuery, setNameQuery] = useState("");
   const [debouncedName, setDebouncedName] = useState("");
 
+  // Merge: Keep HEAD implementation - use validateLength for search validation
   // Search input validation
   const searchValidation = useMemo(() => {
     return validateLength(nameQuery, {
@@ -101,7 +103,6 @@ export default function AthleteManagementPage({
       fieldName: "Tìm kiếm",
     });
   }, [nameQuery]);
-
   // Debounce name search to reduce request volume
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {

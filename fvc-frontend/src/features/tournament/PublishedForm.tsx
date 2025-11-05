@@ -424,7 +424,7 @@ export default function PublishedForm() {
     });
   }, [participantsPerEntry]);
 
-  // Field validations
+  // Field validations - Merge: HEAD uses fieldErrors state instead of individual validation memoized values
 
   const parseOptions = (opts?: string): string[] => {
     if (!opts) return [];
@@ -732,24 +732,42 @@ export default function PublishedForm() {
         API_ENDPOINTS.TOURNAMENT_FORMS.SUBMISSIONS(id as string),
         submissionData
       );
-
+      // Merge: Use toast notification from HEAD, keep success message
       show("Đăng ký thành công!", "success");
+      window.dispatchEvent(new Event("forms:changed"));
       navigate("/");
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Submission error:", error);
-      try {
-        const respUnknown = (
-          error as unknown as { response?: { data?: unknown } }
-        )?.response?.data;
-        const msg: string =
-          (respUnknown as { message?: string })?.message ||
-          (error as unknown as { message?: string })?.message ||
-          "Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.";
-        // Chỉ hiển thị toast theo thông điệp server, không gắn lỗi vào field
-        show(msg, "error");
-      } catch {
-        show("Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", "error");
+      // Merge: Keep HEAD's toast notification, but add master's specific error handling for duplicate email/MSSV
+      const err = error as {
+        response?: { status?: number; data?: { message?: string } };
+        message?: string;
+      };
+      const status = err?.response?.status;
+      const serverMsg = (err?.response?.data as { message?: string })?.message;
+      if (
+        status === 409 ||
+        (typeof serverMsg === "string" &&
+          serverMsg.toLowerCase().includes("email"))
+      ) {
+        show(
+          "Email này đã đăng ký cho form này. Mỗi email chỉ được đăng ký một lần.",
+          "error"
+        );
+        return;
       }
+      if (
+        status === 409 ||
+        (typeof serverMsg === "string" &&
+          serverMsg.toLowerCase().includes("mssv"))
+      ) {
+        show(
+          "MSSV này đã được đăng ký cho form này. Mỗi MSSV chỉ được đăng ký một lần.",
+          "error"
+        );
+        return;
+      }
+      show("Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", "error");
     }
   };
 
@@ -801,6 +819,7 @@ export default function PublishedForm() {
     );
   }
 
+  // Merge: Keep HEAD implementation - dynamic field rendering is more flexible
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">

@@ -4,8 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import sep490g65.fvcapi.enums.ApplicationFormType;
 import sep490g65.fvcapi.enums.FormStatus;
-import sep490g65.fvcapi.enums.FormStatusConverter;
-import sep490g65.fvcapi.entity.Competition;
+import sep490g65.fvcapi.converter.FormStatusConverter;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
