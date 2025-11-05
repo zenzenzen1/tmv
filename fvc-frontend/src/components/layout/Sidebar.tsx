@@ -36,6 +36,7 @@ export default function TournamentSidebar({
     tournaments: "/manage/tournaments",
     tournamentForm: "/manage/tournament-forms",
     weightClassPage: "/manage/weight-class",
+    fieldManagement: "/manage/field-management",
     athletes: "/manage/athletes",
     fighting: "/manage/athletes/fighting",
     forms: "/manage/fist-content",

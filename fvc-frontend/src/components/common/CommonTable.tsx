@@ -23,7 +23,7 @@ export type CommonTableProps<T> = {
   className?: string;
 };
 
-export function CommonTable<T extends Record<string, unknown>>({
+export function CommonTable<T extends object>({
   columns,
   data,
   keyField,

@@ -12,6 +12,7 @@ export const defaultMenuItems: MenuItem[] = [
     label: "Form đăng ký giải đấu",
   },
   { key: "weightClassPage", label: "Quản lí hạng cân" },
+  { key: "fieldManagement", label: "Quản lí sân đấu" },
   { key: "athletes", label: "Quản lí VĐV" },
   { key: "brackets", label: "Chia nhánh đấu" },
   { section: "Thi đấu", key: "scoring", label: "Chấm điểm" },
