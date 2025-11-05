@@ -283,7 +283,7 @@ public class ArrangeOrderServiceImpl implements ArrangeOrderService {
     private ArrangeOrderResponse.ArrangeItemDto mapToItemDto(ArrangeItem item, ContentType contentType) {
         // For now, only support ATHLETE type
         if (item.getRefType() != ArrangeItemType.ATHLETE) {
-            throw new BusinessException("Team type not yet supported", ErrorCode.BAD_REQUEST.getCode());
+            throw new BusinessException("Team type not yet supported", ErrorCode.INVALID_INPUT.getCode());
         }
         
         Athlete athlete = athleteRepository.findById(java.util.UUID.fromString(item.getRefId()))
@@ -310,7 +310,7 @@ public class ArrangeOrderServiceImpl implements ArrangeOrderService {
         for (SaveArrangeOrderRequest.ItemDto item : items) {
             if (!seen.add(item.getId())) {
                 throw new BusinessException("Duplicate item in section: " + item.getId(), 
-                        ErrorCode.BAD_REQUEST.getCode());
+                        ErrorCode.ARRANGE_DUPLICATE_ITEM.getCode());
             }
         }
         
@@ -322,7 +322,7 @@ public class ArrangeOrderServiceImpl implements ArrangeOrderService {
         for (int i = 0; i < indices.size(); i++) {
             if (indices.get(i) != i + 1) {
                 throw new BusinessException("Order index must be continuous starting from 1", 
-                        ErrorCode.BAD_REQUEST.getCode());
+                        ErrorCode.VALIDATION_ERROR.getCode());
             }
         }
     }

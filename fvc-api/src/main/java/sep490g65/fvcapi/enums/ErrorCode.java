@@ -56,7 +56,15 @@ public enum ErrorCode {
     INVALID_MATCH_STATUS("MATCH_005", "Invalid match status for this operation"),
     INVALID_EVENT_TYPE("MATCH_006", "Invalid event type for this operation"),
     MATCH_CONTROL_ERROR("MATCH_007", "Failed to control match"),
-    MATCH_EVENT_RECORD_ERROR("MATCH_008", "Failed to record match event");
+    MATCH_EVENT_RECORD_ERROR("MATCH_008", "Failed to record match event"),
+    
+    // Arrange order errors
+    ARRANGE_INVALID_CONTENT_TYPE("ARRANGE_001", "Invalid content type"),
+    ARRANGE_DUPLICATE_ITEM("ARRANGE_002", "Duplicate item in section"),
+    ARRANGE_NOT_REGISTERED("ARRANGE_003", "Item not registered for competition"),
+    ARRANGE_NOT_FOUND("ARRANGE_004", "Arrange order not found"),
+    ARRANGE_INVALID_CONTENT_ID("ARRANGE_005", "Invalid content ID"),
+    ARRANGE_COMPETITION_NOT_FOUND("ARRANGE_006", "Competition not found");
 
     private final String code;
     private final String message;
