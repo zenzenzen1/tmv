@@ -552,8 +552,8 @@ export const validateNameSpecialChars = (
   }
 
   // Allow letters, numbers, spaces, and basic punctuation
-  const allowedPattern =
-    /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂÂÊÔƠăâêôơ0-9\s.,!?\-_()]+$/;
+// Allow only unicode letters (incl. diacritics), digits, and spaces. Disallow special characters.
+const allowedPattern = /^[\p{L}\p{M}0-9\s]+$/u;
 
   if (!allowedPattern.test(name.trim())) {
     return {
