@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "evaluation_scores",
@@ -28,7 +29,7 @@ public class EvaluationScore extends BaseEntity {
     private EvaluationCriteria criteria;
 
     @Column(precision = 5, scale = 2, nullable = false)
-    private Double score;
+    private BigDecimal score;
 }
 
 
