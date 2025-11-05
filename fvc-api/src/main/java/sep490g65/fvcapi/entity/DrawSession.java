@@ -50,7 +50,4 @@ public class DrawSession extends BaseEntity {
     // Audit fields
     @Column(name = "created_by", nullable = false)
     private String createdBy;
-
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
 }
