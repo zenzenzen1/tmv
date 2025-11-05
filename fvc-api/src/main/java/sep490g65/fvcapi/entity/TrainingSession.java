@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import sep490g65.fvcapi.enums.TrainingSessionStatus;
 
 @Entity
 @Table(name = "training_sessions",
@@ -48,6 +49,10 @@ public class TrainingSession extends BaseEntity {
     private Location location;
 
     private Integer capacity;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private TrainingSessionStatus status = TrainingSessionStatus.PLANNED;
 }
 
 

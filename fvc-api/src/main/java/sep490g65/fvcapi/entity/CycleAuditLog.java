@@ -53,8 +53,6 @@ public class CycleAuditLog extends BaseEntity {
     @Column(columnDefinition = "text")
     private String message;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
 }
 
 
