@@ -19,7 +19,7 @@ public class CreateMusicContentRequest {
     @NotBlank(message = "Name is required")
     @Size(max = 255, message = "Name must not exceed 255 characters")
     @Pattern(
-            regexp = "^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂÂÊÔƠăâêôơ0-9\\s\\.,!\\?_()\\-]+$",
+            regexp = "^[\\p{L}\\p{M}0-9\\s]+$",
             message = "Nội dung Võ nhạc không được chứa ký tự đặc biệt"
     )
     private String name;
