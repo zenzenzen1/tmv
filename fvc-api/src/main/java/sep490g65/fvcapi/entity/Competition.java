@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import sep490g65.fvcapi.enums.TournamentStatus;
 import sep490g65.fvcapi.enums.FormStatus;
-import sep490g65.fvcapi.enums.FormStatusConverter;
+import sep490g65.fvcapi.converter.FormStatusConverter;
 
 import java.time.LocalDate;
 import java.time.LocalTime;

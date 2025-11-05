@@ -8,8 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.request.RequestParam;
-import sep490g65.fvcapi.dto.response.PaginationResponse;
-import sep490g65.fvcapi.dto.response.TournamentFormResponse;
+import sep490g65.fvcapi.dto.response.*;
 import sep490g65.fvcapi.entity.Competition;
 import sep490g65.fvcapi.enums.FormStatus;
 import sep490g65.fvcapi.repository.CompetitionRepository;
@@ -23,8 +22,6 @@ import sep490g65.fvcapi.service.TournamentFormService;
 import sep490g65.fvcapi.utils.ResponseUtils;
 import sep490g65.fvcapi.dto.request.CreateFormRequest;
 import sep490g65.fvcapi.dto.request.UpdateFormRequest;
-import sep490g65.fvcapi.dto.response.FormDetailResponse;
-import sep490g65.fvcapi.dto.response.FormFieldDto;
 import sep490g65.fvcapi.dto.request.CreateSubmissionRequest;
 import sep490g65.fvcapi.service.AthleteService;
 import sep490g65.fvcapi.entity.Athlete;
@@ -250,7 +247,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     }
 
     @Override
-    public PaginationResponse<sep490g65.fvcapi.dto.response.SubmittedFormResponse> listSubmissions(String formId, RequestParam params) {
+    public PaginationResponse<SubmittedFormResponse> listSubmissions(String formId, RequestParam params) {
         Sort sort = Sort.by(params.isAscending() ? Sort.Direction.ASC : Sort.Direction.DESC, params.getSortBy());
         Pageable pageable = PageRequest.of(params.getPage(), params.getSize(), sort);
         Page<sep490g65.fvcapi.entity.SubmittedApplicationForm> page = submittedRepository.findByFormId(formId, pageable);
@@ -264,7 +261,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
 
     @Override
     @Transactional
-    public void updateSubmissionStatus(Long submissionId, sep490g65.fvcapi.enums.ApplicationFormStatus status) {
+    public void updateSubmissionStatus(Long submissionId, ApplicationFormStatus status) {
         sep490g65.fvcapi.entity.SubmittedApplicationForm s = submittedRepository.findById(submissionId).orElseThrow();
         s.setStatus(status);
         submittedRepository.save(s);
