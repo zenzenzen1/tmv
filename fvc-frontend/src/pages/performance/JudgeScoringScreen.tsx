@@ -87,12 +87,12 @@ const JudgeScoringScreen: React.FC = () => {
   }, [performanceId, assessorId, performanceMatchId]);
 
   useEffect(() => {
-    // Load initial status
+    // Load initial status once
     refreshStatus();
-    // Poll every 2 seconds to catch status changes
-    const interval = setInterval(refreshStatus, 2000);
-    return () => clearInterval(interval);
-  }, [refreshStatus]);
+    // Polling removed - WebSocket handles all real-time status updates
+    // If WebSocket fails, the page can be manually refreshed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [performanceId, assessorId, performanceMatchId]);
 
   useEffect(() => {
     if (!performanceId) return;
@@ -136,7 +136,10 @@ const JudgeScoringScreen: React.FC = () => {
     return () => {
       if (stompRef.current?.connected) stompRef.current.deactivate();
     };
-  }, [performanceId, refreshStatus]);
+    // Removed refreshStatus from dependencies - it's a function that changes on every render
+    // WebSocket handles real-time updates, refreshStatus is only called manually when needed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [performanceId]);
 
   const handleNumClick = (num: string) => {
     const next = value === "0" ? num : value + num;

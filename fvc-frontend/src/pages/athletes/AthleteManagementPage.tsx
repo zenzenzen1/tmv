@@ -265,8 +265,19 @@ export default function AthleteManagementPage({
       try {
         // Only proceed when tournament is selected
         const qs = new URLSearchParams();
-        qs.set("page", String(page - 1));
-        qs.set("size", String(pageSize));
+        // For quyền/music with team filtering, we need to fetch more data
+        // because client-side filtering removes team members (only keeps headers)
+        // Then paginate after filtering to ensure correct page size
+        const needsClientSideFiltering =
+          activeTab === "quyen" || activeTab === "music";
+        if (needsClientSideFiltering) {
+          // Fetch larger size to ensure we have enough data after client-side filtering
+          qs.set("page", "0");
+          qs.set("size", "1000"); // Fetch more to account for client-side filtering
+        } else {
+          qs.set("page", String(page - 1));
+          qs.set("size", String(pageSize));
+        }
         qs.set("competitionType", activeTab);
         if (!selectedTournament) {
           return;
@@ -282,9 +293,8 @@ export default function AthleteManagementPage({
         if (activeTab === "fighting") {
           // Do NOT send weight to backend; fetch all then filter client-side
         } else if (activeTab === "music") {
-          // Music: send selected content as detail, and optionally label the sub type
+          // Music: send selected content name as detailSubCompetitionType
           if (subCompetitionFilter) {
-            qs.set("subCompetitionType", "Tiết mục");
             qs.set("detailSubCompetitionType", subCompetitionFilter);
           }
         } else {
@@ -512,14 +522,45 @@ export default function AthleteManagementPage({
             okSubDetail = okDetail;
           } else {
             // Quyền filtering
-            const okSub = subCompetitionFilter
-              ? strip(rawSub) === strip(subCompetitionFilter) ||
-                strip(rawDetailLabel) === strip(subCompetitionFilter)
-              : true;
-            const okDetail = detailCompetitionFilter
-              ? strip(rawDetail) === strip(detailCompetitionFilter) ||
-                strip(rawDetailLabel) === strip(detailCompetitionFilter)
-              : true;
+            // Backend already filters by subCompetitionType (category) and detailSubCompetitionType (item)
+            // Client-side filtering should match backend logic:
+            // - subCompetitionFilter matches subCompetitionType (category name) or fistConfigId
+            // - detailCompetitionFilter matches detailSubCompetitionType (item name) or fistItemId
+            let okSub = true;
+            if (subCompetitionFilter) {
+              // Match by subCompetitionType (category name) or by resolved category from fistConfigId
+              const resolvedCategory = a.subCompetitionType || "";
+              // Try to resolve category from fistConfigId if available
+              let categoryFromConfig = "";
+              if (a.fistConfigId) {
+                const fc = fistConfigs.find((x) => x.id === a.fistConfigId);
+                if (fc && fc.name) {
+                  categoryFromConfig = fc.name;
+                }
+              }
+              // Match filter against stored subCompetitionType or resolved category
+              okSub =
+                strip(resolvedCategory) === strip(subCompetitionFilter) ||
+                strip(categoryFromConfig) === strip(subCompetitionFilter);
+            }
+
+            let okDetail = true;
+            if (detailCompetitionFilter) {
+              // Match by detailSubCompetitionType (item name) or by resolved detail from fistItemId
+              const resolvedDetail = rawDetail || rawDetailLabel || "";
+              // Try to resolve detail from fistItemId if available
+              let detailFromItem = "";
+              if (a.fistItemId) {
+                const fi = fistItems.find((x) => x.id === a.fistItemId);
+                if (fi && fi.name) {
+                  detailFromItem = fi.name;
+                }
+              }
+              // Match filter against stored detail or resolved detail
+              okDetail =
+                strip(resolvedDetail) === strip(detailCompetitionFilter) ||
+                strip(detailFromItem) === strip(detailCompetitionFilter);
+            }
 
             // Debug logging
             if (
@@ -529,9 +570,11 @@ export default function AthleteManagementPage({
               console.log("Quyền filtering debug:", {
                 subCompetitionFilter,
                 detailCompetitionFilter,
-                rawSub,
+                rawSub: a.subCompetitionType,
                 rawDetail,
                 rawDetailLabel,
+                fistConfigId: a.fistConfigId,
+                fistItemId: a.fistItemId,
                 okSub,
                 okDetail,
                 athlete: a.fullName,
@@ -545,16 +588,77 @@ export default function AthleteManagementPage({
           if (activeTab !== "fighting") {
             const team = isTeamEntry(a);
             if (teamFilter === "TEAM") {
+              // Only show team header rows for team filter
               okTeam = team && isTeamHeader(a);
             } else if (teamFilter === "PERSON") {
+              // Only show individual entries (not team members)
               okTeam = !team;
+            } else {
+              // No team filter: show team headers but not individual team members
+              // This prevents duplicate entries for team competitions
+              if (team) {
+                okTeam = isTeamHeader(a);
+              }
             }
           }
 
           return okName && okGender && okStatus && okSubDetail && okTeam;
         });
-        const totalElements: number =
-          pageData?.totalElements ?? filteredRaw.length;
+
+        // For team entries, deduplicate by performanceId - only keep one entry per performanceId
+        // This prevents duplicate entries for team competitions
+        // Group by performanceId and keep only the best entry (prefer team header)
+        const teamEntriesByPerformanceId = new Map<string, AthleteApi[]>();
+        const individualEntries: AthleteApi[] = [];
+
+        filteredRaw.forEach((a) => {
+          const rec = (a as unknown as Record<string, unknown>) || {};
+          const pid =
+            (a.performanceId as string) || (rec["performanceId"] as string);
+          const isTeam = isTeamEntry(a);
+
+          if (isTeam && pid && typeof pid === "string" && pid.trim()) {
+            if (!teamEntriesByPerformanceId.has(pid)) {
+              teamEntriesByPerformanceId.set(pid, []);
+            }
+            teamEntriesByPerformanceId.get(pid)!.push(a);
+          } else {
+            individualEntries.push(a);
+          }
+        });
+
+        // For each performanceId, keep only the best entry (prefer team header)
+        const deduplicatedTeamEntries: AthleteApi[] = [];
+        teamEntriesByPerformanceId.forEach((entries) => {
+          // Prefer entries that are team headers
+          const headerEntry = entries.find((e) => isTeamHeader(e));
+          if (headerEntry) {
+            deduplicatedTeamEntries.push(headerEntry);
+          } else {
+            // If no header found, keep the first entry
+            deduplicatedTeamEntries.push(entries[0]);
+          }
+        });
+
+        // Combine individual entries with deduplicated team entries
+        const deduplicatedFiltered = [
+          ...individualEntries,
+          ...deduplicatedTeamEntries,
+        ];
+
+        // Apply pagination to filtered results
+        // Since we filter client-side (especially for team entries), we need to slice after filtering
+        const startIndex = (page - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const paginatedFiltered = deduplicatedFiltered.slice(
+          startIndex,
+          endIndex
+        );
+
+        // Calculate totalElements after client-side filtering and deduplication
+        // Note: This is an approximation since backend pagination happened before client-side filtering
+        // Ideally, backend should handle all filtering including team header filtering
+        const totalElements: number = deduplicatedFiltered.length;
 
         // Function to resolve content from IDs
         const resolveDetail = (a: AthleteApi): string => {
@@ -593,7 +697,7 @@ export default function AthleteManagementPage({
         // Preload performance details for team rows if performanceId is present
         try {
           const missing = new Set<string>();
-          filteredRaw.forEach((a) => {
+          paginatedFiltered.forEach((a) => {
             const rec = (a as unknown as Record<string, unknown>) || {};
             const pid =
               (a.performanceId as string) || (rec["performanceId"] as string);
@@ -625,7 +729,7 @@ export default function AthleteManagementPage({
           // ignore preload errors
         }
 
-        const mapped: AthleteRow[] = filteredRaw.map(
+        const mapped: AthleteRow[] = paginatedFiltered.map(
           (a: AthleteApi, idx: number) => {
             // Resolve category similar to ListPage for Quyền
             let resolvedCategory = a.subCompetitionType || "-";
@@ -702,7 +806,7 @@ export default function AthleteManagementPage({
 
             return {
               id: a.id,
-              stt: (page - 1) * pageSize + idx + 1,
+              stt: startIndex + idx + 1,
               name: displayName,
               email: isTeam
                 ? perfEmail ||
@@ -759,6 +863,9 @@ export default function AthleteManagementPage({
         }
       }
     })();
+    // Removed arrays/objects from dependencies to prevent infinite loops
+    // They are accessed via closure and only used for data resolution, not for triggering reloads
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     page,
     pageSize,
@@ -767,17 +874,12 @@ export default function AthleteManagementPage({
     genderFilter,
     activeTab,
     statusFilter,
-    tournaments,
     reloadKey,
     subCompetitionFilter,
     detailCompetitionFilter,
     teamFilter,
-    fistConfigs,
-    fistItems,
-    musicContents,
-    weightClasses,
-    teamRegistrantMap,
-    performanceCache,
+    // Removed: tournaments, fistConfigs, fistItems, musicContents, weightClasses,
+    // teamRegistrantMap, performanceCache - these are accessed via closure
   ]);
 
   // Stable computed table data to avoid re-mapping on every render
@@ -1353,7 +1455,9 @@ export default function AthleteManagementPage({
     };
 
     loadRegistrants();
-  }, [selectedTournament, activeTab, tournaments]);
+    // tournaments is accessed via closure and only changes once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTournament, activeTab]);
 
   // rows, total are driven by API fetch; no local recompute
 

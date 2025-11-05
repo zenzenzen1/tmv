@@ -199,7 +199,16 @@ const JudgeDashboard: React.FC = () => {
   };
 
   // Subscribe to performance status updates to reflect ongoing/completed in the grid
+  // Use stable key from performance IDs to avoid reconnecting when matches update
   useEffect(() => {
+    const performanceIds = matches
+      .map((m) => m.performanceId)
+      .filter((id): id is string => Boolean(id))
+      .sort();
+    const stableKey = performanceIds.join(",");
+
+    if (stableKey === "") return; // No performances to subscribe to
+
     const wsUrl = import.meta.env.VITE_API_BASE_URL
       ? import.meta.env.VITE_API_BASE_URL.replace("/api", "") + "/ws"
       : "http://localhost:8080/ws";
@@ -209,39 +218,35 @@ const JudgeDashboard: React.FC = () => {
       reconnectDelay: 5000,
       onConnect: () => {
         // Subscribe per performance in current list
-        matches.forEach((m) => {
-          if (!m.performanceId) return;
+        performanceIds.forEach((pid) => {
           // Subscribe to performance status topic
-          client.subscribe(
-            `/topic/performance/${m.performanceId}/status`,
-            (msg) => {
-              try {
-                const payload = JSON.parse(msg.body) as {
-                  status?: string;
-                  performanceId?: string;
-                  matchId?: string;
-                };
-                if (!payload?.performanceId || !payload.status) return;
-                setMatches((prev) =>
-                  prev.map((it) =>
-                    it.performanceId === payload.performanceId
-                      ? {
-                          ...it,
-                          status:
-                            payload.status === "IN_PROGRESS"
-                              ? "ongoing"
-                              : payload.status === "COMPLETED"
-                              ? "completed"
-                              : it.status,
-                        }
-                      : it
-                  )
-                );
-              } catch (e) {
-                console.error("Error parsing WebSocket message:", e);
-              }
+          client.subscribe(`/topic/performance/${pid}/status`, (msg) => {
+            try {
+              const payload = JSON.parse(msg.body) as {
+                status?: string;
+                performanceId?: string;
+                matchId?: string;
+              };
+              if (!payload?.performanceId || !payload.status) return;
+              setMatches((prev) =>
+                prev.map((it) =>
+                  it.performanceId === payload.performanceId
+                    ? {
+                        ...it,
+                        status:
+                          payload.status === "IN_PROGRESS"
+                            ? "ongoing"
+                            : payload.status === "COMPLETED"
+                            ? "completed"
+                            : it.status,
+                      }
+                    : it
+                )
+              );
+            } catch (e) {
+              console.error("Error parsing WebSocket message:", e);
             }
-          );
+          });
         });
       },
     });
@@ -250,116 +255,18 @@ const JudgeDashboard: React.FC = () => {
     return () => {
       if (stompRef.current?.connected) stompRef.current.deactivate();
     };
-  }, [matches]);
+    // Only reconnect when performance IDs change, not when matches object reference changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    matches
+      .map((m) => m.performanceId)
+      .filter(Boolean)
+      .sort()
+      .join(","),
+  ]);
 
-  // Also reload matches periodically to catch any missed updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Reload matches every 5 seconds to ensure we have latest status
-      const loadMatches = async () => {
-        try {
-          const response = await api.get<MyAssignedMatch[]>(
-            API_ENDPOINTS.MATCH_ASSESSORS.MY_ASSIGNMENTS
-          );
-          const data = response.data || [];
-
-          const displayMatches: DisplayMatch[] = await Promise.all(
-            data
-              .filter((m) => m.performanceMatch != null)
-              .map(async (m, index) => {
-                const pm = m.performanceMatch!;
-                const type = pm.contentType === "QUYEN" ? "quyen" : "music";
-                const participants = pm.participants
-                  ? pm.participants.split(", ")
-                  : [];
-
-                // Get content name exactly like ProjectionScreen does
-                let contentName = "";
-                if (pm.performanceId) {
-                  try {
-                    const perf = await scoringService.getPerformance(
-                      pm.performanceId
-                    );
-                    const contentTypeStr = (
-                      perf as unknown as { contentType?: string }
-                    )?.contentType;
-                    const isQuyen =
-                      contentTypeStr === "QUYEN" || perf.contentType === "FIST";
-                    const isMusic = perf.contentType === "MUSIC";
-
-                    if (isQuyen && perf.fistItemId) {
-                      try {
-                        const res = await apiClient.get<unknown>(
-                          API_ENDPOINTS.FIST_CONTENTS.ITEM_BY_ID(
-                            perf.fistItemId
-                          )
-                        );
-                        const data = (res as { data?: unknown })?.data as
-                          | { data?: { name?: string } }
-                          | { name?: string }
-                          | undefined;
-                        contentName =
-                          (data as { data?: { name?: string } })?.data?.name ||
-                          (data as { name?: string })?.name ||
-                          "";
-                      } catch (err) {
-                        console.error("Failed to fetch fist item name", err);
-                      }
-                    } else if (isMusic && perf.musicContentId) {
-                      try {
-                        const res = await apiClient.get<unknown>(
-                          API_ENDPOINTS.MUSIC_CONTENTS.BY_ID(
-                            perf.musicContentId
-                          )
-                        );
-                        const data = (res as { data?: unknown })?.data as
-                          | { data?: { name?: string } }
-                          | { name?: string }
-                          | undefined;
-                        contentName =
-                          (data as { data?: { name?: string } })?.data?.name ||
-                          (data as { name?: string })?.name ||
-                          "";
-                      } catch (err) {
-                        console.error(
-                          "Failed to fetch music content name",
-                          err
-                        );
-                      }
-                    }
-                  } catch (err) {
-                    console.error("Failed to load performance", err);
-                  }
-                }
-                if (!contentName) {
-                  contentName = pm.contentName || "";
-                }
-
-                return {
-                  id: pm.id,
-                  order: pm.matchOrder || index + 1,
-                  type: type,
-                  contentName: contentName,
-                  participants: participants,
-                  role: m.role || "ASSESSOR",
-                  tournamentName: pm.competitionName || "Giải đấu",
-                  status: mapStatus(pm.status),
-                  performanceId: pm.performanceId,
-                  assessorId: m.assessorId,
-                } as DisplayMatch;
-              })
-          );
-
-          setMatches(displayMatches);
-        } catch (error) {
-          console.error("Failed to reload matches:", error);
-        }
-      };
-      loadMatches();
-    }, 5000); // Poll every 5 seconds as backup
-
-    return () => clearInterval(interval);
-  }, []);
+  // Polling removed - WebSocket handles all real-time updates
+  // If needed, users can manually refresh the page or we can add a refresh button
 
   const filteredMatches = matches.filter(
     (m) => filterStatus === "all" || m.status === filterStatus

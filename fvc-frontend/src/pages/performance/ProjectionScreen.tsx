@@ -230,6 +230,7 @@ const ProjectionScreen: React.FC = () => {
   }, [performanceId, matchId]);
 
   // WebSocket: subscribe to status and score events
+  // Removed timeLeft from dependencies to prevent infinite reconnection loop
   useEffect(() => {
     const key = performanceId || matchId;
     if (!key) return;
@@ -324,7 +325,9 @@ const ProjectionScreen: React.FC = () => {
     return () => {
       if (stompRef.current?.connected) stompRef.current.deactivate();
     };
-  }, [performanceId, matchId, timeLeft]);
+    // Removed timeLeft from dependencies - it updates every 500ms and causes infinite reconnection
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [performanceId, matchId]);
 
   // Local countdown based on startTime and roundSeconds
   useEffect(() => {

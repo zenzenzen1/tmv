@@ -46,9 +46,17 @@ spring:
 logging:
   level:
     root: INFO
-    org.springframework.web: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.web: INFO
+    org.springframework.web.socket: WARN
+    org.springframework.messaging: WARN
+    org.apache.tomcat.websocket: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    org.hibernate.engine: WARN
+    org.hibernate.stat: WARN
+    # Reduce verbose logging for better performance
+    sep490g65.fvcapi.security.JwtAuthenticationFilter: INFO
+    sep490g65.fvcapi.service.UserDetailsServiceImpl: INFO
     sep490g65.fvcapi: DEBUG
 
 app:

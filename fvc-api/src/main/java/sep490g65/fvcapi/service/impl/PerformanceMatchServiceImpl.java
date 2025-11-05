@@ -94,7 +94,13 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
     public PerformanceMatchResponse getPerformanceMatchById(String id) {
         PerformanceMatch performanceMatch = performanceMatchRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("PerformanceMatch not found"));
-        List<PerformanceAthlete> athletes = performanceAthleteRepository.findByPerformanceId(performanceMatch.getPerformance().getId());
+        Performance performance = performanceMatch.getPerformance();
+        List<PerformanceAthlete> athletes;
+        if (performance != null) {
+            athletes = performanceAthleteRepository.findByPerformanceId(performance.getId());
+        } else {
+            athletes = new java.util.ArrayList<>(); // Empty list for matches without performance
+        }
         return PerformanceMatchResponse.from(performanceMatch, athletes);
     }
 
@@ -112,8 +118,16 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
     public List<PerformanceMatchResponse> getPerformanceMatchesByCompetitionId(String competitionId) {
         List<PerformanceMatch> matches = performanceMatchRepository.findByCompetitionId(competitionId);
         return matches.stream()
-                .map(pm -> PerformanceMatchResponse.from(pm,
-                        performanceAthleteRepository.findByPerformanceId(pm.getPerformance().getId())))
+                .map(pm -> {
+                    Performance perf = pm.getPerformance();
+                    List<PerformanceAthlete> athletes;
+                    if (perf != null) {
+                        athletes = performanceAthleteRepository.findByPerformanceId(perf.getId());
+                    } else {
+                        athletes = new java.util.ArrayList<>(); // Empty list for matches without performance
+                    }
+                    return PerformanceMatchResponse.from(pm, athletes);
+                })
                 .collect(Collectors.toList());
     }
 
@@ -174,7 +188,13 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
             } catch (Exception ignored) {}
         }
         
-        List<PerformanceAthlete> athletes = performanceAthleteRepository.findByPerformanceId(saved.getPerformance().getId());
+        // Handle cases where PerformanceMatch might not have a Performance (e.g., preset matches)
+        List<PerformanceAthlete> athletes;
+        if (performance != null) {
+            athletes = performanceAthleteRepository.findByPerformanceId(performance.getId());
+        } else {
+            athletes = new java.util.ArrayList<>(); // Empty list for matches without performance
+        }
         return PerformanceMatchResponse.from(saved, athletes);
     }
 
@@ -205,7 +225,13 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
         }
 
         PerformanceMatch saved = performanceMatchRepository.save(performanceMatch);
-        List<PerformanceAthlete> athletes = performanceAthleteRepository.findByPerformanceId(saved.getPerformance().getId());
+        Performance performance = saved.getPerformance();
+        List<PerformanceAthlete> athletes;
+        if (performance != null) {
+            athletes = performanceAthleteRepository.findByPerformanceId(performance.getId());
+        } else {
+            athletes = new java.util.ArrayList<>(); // Empty list for matches without performance
+        }
         return PerformanceMatchResponse.from(saved, athletes);
     }
 

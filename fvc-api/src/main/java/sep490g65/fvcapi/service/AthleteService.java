@@ -113,7 +113,69 @@ public class AthleteService {
                 spec = spec.and((root, q, cb) -> cb.equal(root.get("subCompetitionType"), subCompetitionType));
             }
         }
-        // legacy filter removed: detailSubCompetitionType no longer used
+        // Filter by detailSubCompetitionType (for quyền/music detail items)
+        if (detailSubCompetitionType != null && !detailSubCompetitionType.isBlank() && competitionType != null) {
+            String detailLabel = detailSubCompetitionType.trim();
+            if (competitionType == Athlete.CompetitionType.quyen) {
+                // For Quyền, match by fistItemId resolved from name
+                try {
+                    String itemId = fistItemRepository.findAll().stream()
+                            .filter(item -> item.getName() != null && item.getName().toLowerCase().startsWith(detailLabel.toLowerCase()))
+                            .findFirst()
+                            .map(item -> item.getId())
+                            .orElse(null);
+                    if (itemId != null) {
+                        final String resolvedItemId = itemId;
+                        spec = spec.and((root, q, cb) -> cb.equal(root.get("fistItemId"), resolvedItemId));
+                    } else {
+                        // Fallback: match by stored detailSubCompetitionType or detailSubLabel
+                        spec = spec.and((root, q, cb) -> 
+                            cb.or(
+                                cb.equal(root.get("detailSubCompetitionType"), detailLabel),
+                                cb.like(cb.lower(root.get("detailSubCompetitionType")), "%" + detailLabel.toLowerCase() + "%")
+                            )
+                        );
+                    }
+                } catch (Exception ignored) {
+                    // Fallback to string match
+                    spec = spec.and((root, q, cb) -> 
+                        cb.or(
+                            cb.equal(root.get("detailSubCompetitionType"), detailLabel),
+                            cb.like(cb.lower(root.get("detailSubCompetitionType")), "%" + detailLabel.toLowerCase() + "%")
+                        )
+                    );
+                }
+            } else if (competitionType == Athlete.CompetitionType.music) {
+                // For Music, match by musicContentId resolved from name
+                try {
+                    String contentId = musicRepository.findAll().stream()
+                            .filter(m -> m.getName() != null && m.getName().toLowerCase().startsWith(detailLabel.toLowerCase()))
+                            .findFirst()
+                            .map(content -> content.getId())
+                            .orElse(null);
+                    if (contentId != null) {
+                        final String resolvedContentId = contentId;
+                        spec = spec.and((root, q, cb) -> cb.equal(root.get("musicContentId"), resolvedContentId));
+                    } else {
+                        // Fallback: match by stored detailSubCompetitionType
+                        spec = spec.and((root, q, cb) -> 
+                            cb.or(
+                                cb.equal(root.get("detailSubCompetitionType"), detailLabel),
+                                cb.like(cb.lower(root.get("detailSubCompetitionType")), "%" + detailLabel.toLowerCase() + "%")
+                            )
+                        );
+                    }
+                } catch (Exception ignored) {
+                    // Fallback to string match
+                    spec = spec.and((root, q, cb) -> 
+                        cb.or(
+                            cb.equal(root.get("detailSubCompetitionType"), detailLabel),
+                            cb.like(cb.lower(root.get("detailSubCompetitionType")), "%" + detailLabel.toLowerCase() + "%")
+                        )
+                    );
+                }
+            }
+        }
         if (name != null && !name.isBlank()) {
             String pattern = "%" + name.trim().toLowerCase() + "%";
             spec = spec.and((root, q, cb) -> cb.like(cb.lower(root.get("fullName")), pattern));

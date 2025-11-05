@@ -239,10 +239,14 @@ export default function ArrangeOrderPage({
   // Realtime status subscriber
   const stompRef = useRef<Client | null>(null);
   useEffect(() => {
-    const pids = matches
+    const currentMatches = matches;
+    const pids = currentMatches
       .filter((m) => m.type === activeTab && m.performanceId)
       .map((m) => m.performanceId as string);
     if (pids.length === 0) return;
+
+    // Create stable key from performance IDs to avoid reconnecting unnecessarily
+    const pidsKey = pids.sort().join(",");
 
     const wsUrl = import.meta.env.VITE_API_BASE_URL
       ? import.meta.env.VITE_API_BASE_URL.replace("/api", "") + "/ws"
@@ -277,12 +281,14 @@ export default function ArrangeOrderPage({
     return () => {
       if (stompRef.current?.connected) stompRef.current.deactivate();
     };
+    // Only depend on activeTab and the stable key of performance IDs
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeTab,
     matches
-      .filter((m) => m.type === activeTab)
-      .map((m) => m.performanceId)
+      .filter((m) => m.type === activeTab && m.performanceId)
+      .map((m) => m.performanceId as string)
+      .sort()
       .join(","),
   ]);
 
@@ -1207,7 +1213,10 @@ export default function ArrangeOrderPage({
       }
     };
     loadQuickButtons();
-  }, [selectedTournament, activeTab, fistItems, musicContents]);
+    // Removed fistItems, musicContents from dependencies to prevent infinite loops
+    // They are only used as fallback when API fails and are accessed via closure
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTournament, activeTab]);
 
   // Load persisted performance matches for selected tournament
   useEffect(() => {
@@ -1345,23 +1354,27 @@ export default function ArrangeOrderPage({
         }
 
         // Competition type filters (convert selected IDs to names for API)
+        // Note: We use current state values to avoid dependency on arrays
         if (activeTab === "music" && subCompetitionFilter) {
+          const currentMusicContents = musicContents;
           const contentName =
-            musicContents.find((m) => m.id === subCompetitionFilter)?.name ||
-            "";
+            currentMusicContents.find((m) => m.id === subCompetitionFilter)
+              ?.name || "";
           qs.set("subCompetitionType", "Tiết mục");
           qs.set("detailSubCompetitionType", contentName);
         } else if (activeTab === "quyen") {
           if (subCompetitionFilter) {
+            const currentFistConfigs = fistConfigs;
             const cfgName =
-              fistConfigs.find((c) => c.id === subCompetitionFilter)?.name ||
-              "";
+              currentFistConfigs.find((c) => c.id === subCompetitionFilter)
+                ?.name || "";
             qs.set("subCompetitionType", cfgName);
           }
           if (detailCompetitionFilter) {
+            const currentFistItems = fistItems;
             const itemName =
-              fistItems.find((i) => i.id === detailCompetitionFilter)?.name ||
-              "";
+              currentFistItems.find((i) => i.id === detailCompetitionFilter)
+                ?.name || "";
             qs.set("detailSubCompetitionType", itemName);
           }
         }
@@ -1537,6 +1550,10 @@ export default function ArrangeOrderPage({
     };
 
     loadAthletes();
+    // Only depend on filter IDs, not the arrays or cache themselves
+    // Removed fistConfigs, fistItems, musicContents, performanceCache to prevent infinite loops
+    // They are accessed via closure and only change when filters change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeTab,
     selectedTournament,
@@ -1544,10 +1561,6 @@ export default function ArrangeOrderPage({
     genderFilter,
     subCompetitionFilter,
     detailCompetitionFilter,
-    fistConfigs,
-    fistItems,
-    musicContents,
-    performanceCache,
   ]);
 
   // Note: mock generator removed from UI; keep for potential dev usage
@@ -1607,9 +1620,12 @@ export default function ArrangeOrderPage({
     });
   };
 
-  const beginMatch = (matchId: string) => {
+  const beginMatch = async (matchId: string) => {
     const match = matches.find((m) => m.id === matchId);
-    if (!match) return;
+    if (!match) {
+      console.warn("Match not found:", matchId);
+      return;
+    }
 
     const judgesCount = match.judgesCount ?? 5;
     const defaultTimerSec = match.timerSec ?? 120;
@@ -1644,8 +1660,8 @@ export default function ArrangeOrderPage({
           JSON.stringify(projectionPayload)
         );
       }
-    } catch {
-      // ignore storage errors
+    } catch (err) {
+      console.error("Failed to save to localStorage:", err);
     }
 
     // Prefer performanceId for quyền/võ nhạc projection; fallback to matchId
@@ -1654,25 +1670,36 @@ export default function ArrangeOrderPage({
     // If we have a performance, start it on the server so judges are notified in realtime
     // PerformanceMatch status is now the source of truth, it will sync to Performance automatically
     if (pid) {
-      api
-        .put(
+      try {
+        // Update state optimistically first
+        setMatches((prev) =>
+          prev.map((m) =>
+            m.id === match.id ? { ...m, status: "IN_PROGRESS" } : m
+          )
+        );
+
+        // Then call API and wait for response before opening projection
+        await api.put(
           `/v1/performance-matches/${encodeURIComponent(
             match.id
           )}/status/IN_PROGRESS`
-        )
-        .then(() => {
-          const url = `/performance/projection?performanceId=${encodeURIComponent(
-            pid
-          )}`;
-          window.open(url, "_blank");
-        })
-        .catch(() => {});
-      // Optimistically update local state for Arrange page
-      setMatches((prev) =>
-        prev.map((m) =>
-          m.id === match.id ? { ...m, status: "IN_PROGRESS" } : m
-        )
-      );
+        );
+
+        // Open projection after API call succeeds
+        const url = `/performance/projection?performanceId=${encodeURIComponent(
+          pid
+        )}`;
+        window.open(url, "_blank");
+      } catch (error) {
+        console.error("Failed to start match:", error);
+        // Revert optimistic update on error
+        setMatches((prev) =>
+          prev.map((m) =>
+            m.id === match.id ? { ...m, status: match.status || "PENDING" } : m
+          )
+        );
+        alert("Không thể bắt đầu trận đấu. Vui lòng thử lại.");
+      }
     } else {
       const url = `/performance/projection?matchId=${encodeURIComponent(
         match.id
