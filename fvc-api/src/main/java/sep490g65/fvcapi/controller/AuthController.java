@@ -99,31 +99,6 @@ public class AuthController {
         }
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<BaseResponse<RegisterResponse>> register(
-            @Valid @RequestBody RegisterRequest request) {
-        
-        try {
-            log.info("Registration attempt for email: {}", request.getPersonalMail());
-            
-            RegisterResponse registerResponse = authService.register(request);
-            
-            log.info("Registration successful for user: {}", request.getPersonalMail());
-            
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ResponseUtils.success("Registration successful", registerResponse));
-            
-        } catch (IllegalArgumentException e) {
-            log.error("Registration failed for email: {} - {}", request.getPersonalMail(), e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ResponseUtils.error(e.getMessage(), "REGISTRATION_FAILED"));
-        } catch (Exception e) {
-            log.error("Registration failed for email: {} - {}", request.getPersonalMail(), e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseUtils.error("Registration failed", "REGISTRATION_ERROR"));
-        }
-    }
-
     @PostMapping("/logout")
     public ResponseEntity<BaseResponse<Void>> logout(HttpServletResponse response) {
         // Clear JWT HttpOnly cookie

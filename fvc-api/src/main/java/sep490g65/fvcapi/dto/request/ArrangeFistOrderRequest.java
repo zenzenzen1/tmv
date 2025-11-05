@@ -19,18 +19,11 @@ public class ArrangeFistOrderRequest {
     @NotBlank(message = "Competition ID is required")
     private String competitionId;
     
-    @NotBlank(message = "Competition Type is required")
-    private String competitionType;
+    @NotNull(message = "Competition Type is required")
+    private Athlete.CompetitionType competitionType;
     
     @NotNull(message = "Athlete orders are required")
     private List<AthleteOrder> athleteOrders;
-    
-    @NotNull(message = "Athlete orders are required")
-    private List<AthleteOrder> orders;
-
-    // Backward-compat fields used by controller/service
-    private String competitionId;
-    private Athlete.CompetitionType competitionType;
 
     @Data
     @Builder

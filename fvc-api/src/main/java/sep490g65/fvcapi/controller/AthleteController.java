@@ -55,7 +55,11 @@ public class AthleteController {
     @PostMapping("/arrange-order")
     public ResponseEntity<BaseResponse<Void>> arrangeOrder(@Valid @RequestBody ArrangeFistOrderRequest request) {
         // TODO: Implement arrange order logic
-        athleteService.arrangeOrder(request.getCompetitionId(), request.getCompetitionType() != null ? request.getCompetitionType().name() : null, request.getOrders());
+        athleteService.arrangeOrder(
+                request.getCompetitionId(),
+                request.getCompetitionType() != null ? request.getCompetitionType().name() : null,
+                request.getAthleteOrders()
+        );
         return ResponseEntity.ok(ResponseUtils.success("Arrange order saved"));
     }
 }

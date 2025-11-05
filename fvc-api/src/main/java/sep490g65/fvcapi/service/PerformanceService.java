@@ -11,6 +11,7 @@ public interface PerformanceService {
     PerformanceResponse createPerformance(CreatePerformanceRequest request);
     
     PerformanceResponse getPerformanceById(String id);
+    PerformanceResponse getPerformanceByMatchId(String matchId);
     
     List<PerformanceResponse> getPerformancesByCompetitionId(String competitionId);
     

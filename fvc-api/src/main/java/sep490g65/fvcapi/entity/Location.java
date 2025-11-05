@@ -1,6 +1,7 @@
 package sep490g65.fvcapi.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,10 +25,10 @@ public class Location extends BaseEntity {
     private String address;
 
     @Column(precision = 10, scale = 7)
-    private Double lat;
+    private BigDecimal lat;
 
     @Column(precision = 10, scale = 7)
-    private Double lng;
+    private BigDecimal lng;
 }
 
 

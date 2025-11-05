@@ -1,6 +1,7 @@
 package sep490g65.fvcapi.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -44,6 +45,7 @@ import java.time.LocalDate;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional(readOnly = true)
 public class TournamentFormServiceImpl implements TournamentFormService {
 
@@ -651,6 +653,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
         submittedRepository.save(s);
 
         // Create a Performance for team submissions (if applicable)
+        // Use separate transaction to avoid rollback of main submission if performance creation fails
         try {
             JsonNode root = objectMapper.readTree(request.getFormDataJson());
             String competitionTypeStr = root.hasNonNull("competitionType") ? root.get("competitionType").asText("") : "";
@@ -782,6 +785,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                     b.teamMembers(members);
                 }
 
+                // createPerformance uses REQUIRES_NEW propagation, so it won't affect main transaction
                 sep490g65.fvcapi.dto.response.PerformanceResponse perf = performanceService.createPerformance(b.build());
                 // Ghi lại performanceId/teamId vào form_data để FE tra cứu FormResult mà không cần migration
                 try {
@@ -790,10 +794,17 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                     if (perf.getTeamId() != null) obj.put("teamId", perf.getTeamId());
                     s.setFormData(obj.toString());
                     submittedRepository.save(s);
-                } catch (Exception ignored2) {}
+                } catch (Exception ignored2) {
+                    // Log if needed but don't fail submission
+                }
             }
-        } catch (Exception ignore) {
-            // Không để fail submit nếu tạo performance gặp lỗi; có thể log khi cần
+        } catch (org.springframework.web.server.ResponseStatusException ex) {
+            // Re-throw ResponseStatusException to maintain proper HTTP status
+            throw ex;
+        } catch (Exception ex) {
+            // Log error but don't fail submission - performance creation is optional enhancement
+            // The submission itself should succeed even if performance creation fails
+            log.warn("Failed to create Performance for team submission, but submission will continue: {}", ex.getMessage());
         }
 
         // Optionally pre-create/update an Athlete record with tight linking IDs (pending approval)

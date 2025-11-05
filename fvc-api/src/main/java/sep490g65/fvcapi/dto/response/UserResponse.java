@@ -7,12 +7,9 @@ import lombok.NoArgsConstructor;
 import sep490g65.fvcapi.entity.User;
 import sep490g65.fvcapi.enums.SystemRole;
 
-<<<<<<< HEAD
-=======
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
->>>>>>> origin/master
 @Data
 @Builder
 @NoArgsConstructor

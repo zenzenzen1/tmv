@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState, Fragment } from "react";
+import { useEffect, useMemo, useState, Fragment, useRef } from "react";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { PaginationResponse } from "../../types/api";
 import type { CompetitionType } from "./ArrangeOrderWrapper";
 import { fistContentService } from "../../services/fistContent";
+import SockJS from "sockjs-client";
+import { Client } from "@stomp/stompjs";
 
 type AthleteApi = {
   id: string;
@@ -147,22 +149,18 @@ export default function ArrangeOrderPage({
           }>
         >(API_ENDPOINTS.ASSESSORS.AVAILABLE);
 
-        // BaseResponse structure: { success, data, ... }
-        const data = res.data || [];
+        // BaseResponse structure or plain array
+        const payload: any = res?.data as any;
+        const data: Array<any> = Array.isArray(payload)
+          ? payload
+          : (payload?.data as Array<any>) ||
+            (payload?.content as Array<any>) ||
+            [];
 
         console.log("Loaded assessors (raw):", data);
 
-        // Filter out ADMIN and only keep TEACHER role
+        // Keep all assessors returned by API (API đã lọc sẵn theo vai trò chuyên môn)
         const filtered = data
-          .filter((a) => {
-            // Only show users with TEACHER role (exclude ADMIN, ORGANIZATION_COMMITTEE, etc.)
-            const role = a.systemRole || "";
-            const isTeacher = role === "TEACHER";
-            if (!isTeacher) {
-              console.log(`Filtered out user ${a.fullName} with role: ${role}`);
-            }
-            return isTeacher;
-          })
           .map((a) => ({
             id: a.id,
             fullName: a.fullName || "",
@@ -238,6 +236,55 @@ export default function ArrangeOrderPage({
   const [genderFilter, setGenderFilter] = useState<string>("MALE"); // default MALE
   const [showGenderFilter, setShowGenderFilter] = useState(false);
   const [showTeamFilter, setShowTeamFilter] = useState(false);
+  // Realtime status subscriber
+  const stompRef = useRef<Client | null>(null);
+  useEffect(() => {
+    const pids = matches
+      .filter((m) => m.type === activeTab && m.performanceId)
+      .map((m) => m.performanceId as string);
+    if (pids.length === 0) return;
+
+    const wsUrl = import.meta.env.VITE_API_BASE_URL
+      ? import.meta.env.VITE_API_BASE_URL.replace("/api", "") + "/ws"
+      : "http://localhost:8080/ws";
+    const socket = new SockJS(wsUrl);
+    const client = new Client({
+      webSocketFactory: () => socket as any,
+      reconnectDelay: 5000,
+      onConnect: () => {
+        pids.forEach((pid) => {
+          client.subscribe(`/topic/performance/${pid}/status`, (msg) => {
+            try {
+              const payload = JSON.parse(msg.body) as {
+                status?: string;
+                performanceId?: string;
+              };
+              if (!payload?.status || !payload?.performanceId) return;
+              setMatches((prev) =>
+                prev.map((it) =>
+                  it.performanceId === payload.performanceId
+                    ? { ...it, status: payload.status }
+                    : it
+                )
+              );
+            } catch {}
+          });
+        });
+      },
+    });
+    client.activate();
+    stompRef.current = client;
+    return () => {
+      if (stompRef.current?.connected) stompRef.current.deactivate();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeTab,
+    matches
+      .filter((m) => m.type === activeTab)
+      .map((m) => m.performanceId)
+      .join(","),
+  ]);
 
   // Debounced search for API calls
   const [debouncedName, setDebouncedName] = useState<string>("");
@@ -1225,10 +1272,45 @@ export default function ArrangeOrderPage({
             } as Match;
           });
 
+        // Enrich with assigned assessors from BE so reload preserves selections
+        const enriched: Match[] = await Promise.all(
+          mapped.map(async (m) => {
+            try {
+              const url = API_ENDPOINTS.MATCH_ASSESSORS.LIST.replace(
+                "{matchId}",
+                m.id
+              );
+              const res = await api.get(url);
+              const payload: any = (res as any)?.data;
+              const arr: Array<any> = Array.isArray(payload)
+                ? payload
+                : (payload?.content as Array<any>) ||
+                  (payload?.data as Array<any>) ||
+                  [];
+              if (arr && arr.length > 0) {
+                const roleKeys = ASSESSOR_ROLES.map((r) => r.key);
+                const nextAssessors: Record<string, string> = {};
+                arr.slice(0, 5).forEach((a: any, idx: number) => {
+                  const id = (a && (a.assessorId || a.userId || a.id)) || "";
+                  if (id && roleKeys[idx]) nextAssessors[roleKeys[idx]] = id;
+                });
+                return {
+                  ...m,
+                  assessors: nextAssessors,
+                  judgesCount: 5,
+                } as Match;
+              }
+            } catch (_) {
+              // ignore
+            }
+            return m;
+          })
+        );
+
         // Merge: replace matches for current tab with persisted ones
         setMatches((prev) => {
           const others = prev.filter((m) => m.type !== activeTab);
-          return [...others, ...mapped];
+          return [...others, ...enriched];
         });
       } catch (err) {
         // ignore load errors; keep local state
@@ -1554,14 +1636,49 @@ export default function ArrangeOrderPage({
         `projection:${match.id}`,
         JSON.stringify(projectionPayload)
       );
+      // Also store by performanceId if available, for projection fallback
+      const pidForStorage = (match as any).performanceId as string | undefined;
+      if (pidForStorage) {
+        localStorage.setItem(
+          `projection:${pidForStorage}`,
+          JSON.stringify(projectionPayload)
+        );
+      }
     } catch {
       // ignore storage errors
     }
 
-    const url = `/performance/projection?matchId=${encodeURIComponent(
-      match.id
-    )}`;
-    window.open(url, "_blank");
+    // Prefer performanceId for quyền/võ nhạc projection; fallback to matchId
+    const pid = (match as any).performanceId as string | undefined;
+
+    // If we have a performance, start it on the server so judges are notified in realtime
+    // PerformanceMatch status is now the source of truth, it will sync to Performance automatically
+    if (pid) {
+      api
+        .put(
+          `/v1/performance-matches/${encodeURIComponent(
+            match.id
+          )}/status/IN_PROGRESS`
+        )
+        .then(() => {
+          const url = `/performance/projection?performanceId=${encodeURIComponent(
+            pid
+          )}`;
+          window.open(url, "_blank");
+        })
+        .catch(() => {});
+      // Optimistically update local state for Arrange page
+      setMatches((prev) =>
+        prev.map((m) =>
+          m.id === match.id ? { ...m, status: "IN_PROGRESS" } : m
+        )
+      );
+    } else {
+      const url = `/performance/projection?matchId=${encodeURIComponent(
+        match.id
+      )}`;
+      window.open(url, "_blank");
+    }
   };
 
   // Arrow move buttons removed in favor of drag-and-drop
@@ -1569,14 +1686,26 @@ export default function ArrangeOrderPage({
   // Combined setup modal (team + assessors)
   const openSetupModal = (matchId: string) => {
     const m = matches.find((it) => it.id === matchId);
+    const existingAssessors = m?.assessors ?? {};
+    // Derive judges count from existing assessors if available
+    const presentKeys = [
+      existingAssessors.referee,
+      existingAssessors.judgeA,
+      existingAssessors.judgeB,
+      existingAssessors.judgeC,
+      existingAssessors.judgeD,
+    ].filter(Boolean).length;
+    const derivedJudges = presentKeys > 0 ? presentKeys : undefined;
+
     setSetupModal({
       open: true,
-      step: 1,
+      step: 1, // luôn mở ở bước 1, nhưng vẫn prefill thông tin bước 2
       matchId,
       selectedIds: m?.participantIds ?? [],
-      assessors: { ...(m?.assessors ?? {}) },
-      judgesCount: m?.judgesCount ?? 5,
+      assessors: { ...existingAssessors },
+      judgesCount: 5,
       defaultTimerSec: m?.timerSec ?? 120,
+      performanceId: (m as any)?.performanceId,
     });
     setTeamSearch("");
     // Don't reset filters - keep them so athletes are filtered correctly
@@ -1585,6 +1714,45 @@ export default function ArrangeOrderPage({
     setShowCompetitionFilter(false);
     setShowGenderFilter(false);
     setShowTeamFilter(false);
+
+    // Prefill assigned assessors from backend (PerformanceMatch -> list assessors)
+    // We map the returned list sequentially into referee, judgeA, judgeB, judgeC, judgeD
+    if (matchId) {
+      (async () => {
+        try {
+          const res = await api.get(
+            API_ENDPOINTS.MATCH_ASSESSORS.LIST.replace("{matchId}", matchId)
+          );
+          const data = (res as any)?.data as any;
+          const list: Array<{ assessorId?: string; userId?: string }> = (
+            Array.isArray(data?.content)
+              ? data.content
+              : Array.isArray(data)
+              ? data
+              : []
+          ) as any[];
+          const ids = list
+            .map((it) => (it.assessorId || it.userId || "").toString())
+            .filter((s) => !!s);
+
+          if (ids.length > 0) {
+            const roleKeys = ASSESSOR_ROLES.map((r) => r.key);
+            const nextAssessors: Record<string, string> = {};
+            ids.slice(0, 5).forEach((id, idx) => {
+              const key = roleKeys[idx];
+              if (key) nextAssessors[key] = id;
+            });
+            setSetupModal((prev) => ({
+              ...prev,
+              assessors: { ...prev.assessors, ...nextAssessors },
+              judgesCount: 5,
+            }));
+          }
+        } catch (e) {
+          // ignore fetch errors; keep current state
+        }
+      })();
+    }
   };
   const closeSetupModal = () =>
     setSetupModal({
@@ -1783,8 +1951,61 @@ export default function ArrangeOrderPage({
         }
       }
 
-      // Assign selected assessors (use performanceId for quyền/võ nhạc if available)
-      for (const assessorId of Object.values(setupModal.assessors)) {
+      // Determine assessor roles to include based on judgesCount (max 5)
+      const maxJudges = Math.min(
+        Math.max(Number(setupModal.judgesCount || 1), 1),
+        5
+      );
+      const rolesToInclude = ASSESSOR_ROLES.slice(0, maxJudges).map(
+        (r) => r.key
+      );
+      const selectedAssessorIds = rolesToInclude
+        .map(
+          (roleKey) => setupModal.assessors[roleKey as keyof Match["assessors"]]
+        )
+        .filter((v) => typeof v === "string" && v.length > 0) as string[];
+      // Unique and validate count
+      const uniqueAssessorIds = Array.from(new Set(selectedAssessorIds));
+      if (uniqueAssessorIds.length > 5) {
+        console.error("Tối đa 5 giám định");
+        return;
+      }
+
+      // Replace assignments rather than append new ones
+      try {
+        const listUrl = API_ENDPOINTS.MATCH_ASSESSORS.LIST.replace(
+          "{matchId}",
+          setupModal.matchId
+        );
+        const listRes = await api.get(listUrl);
+        const payloadList: any = (listRes as any)?.data;
+        const existingArr: Array<{
+          id?: string;
+          assessorId?: string;
+          userId?: string;
+        }> = Array.isArray(payloadList)
+          ? payloadList
+          : (payloadList?.content as Array<any>) ||
+            (payloadList?.data as Array<any>) ||
+            [];
+        const existingByPerson = new Map<string, string>();
+        existingArr.forEach((row) => {
+          const pid = (row.assessorId || row.userId || "").toString();
+          const rid = (row.id || "").toString();
+          if (pid && rid) existingByPerson.set(pid, rid);
+        });
+        // Remove those not selected
+        for (const [personId, assignId] of existingByPerson.entries()) {
+          if (!uniqueAssessorIds.includes(personId) && assignId) {
+            try {
+              await api.delete(API_ENDPOINTS.MATCH_ASSESSORS.BY_ID(assignId));
+            } catch {}
+          }
+        }
+      } catch {}
+
+      // Add missing ones
+      for (const assessorId of uniqueAssessorIds) {
         if (!assessorId) continue;
         const payload: any = { userId: assessorId, specialization };
         if (specialization === "QUYEN" || specialization === "MUSIC") {
@@ -1795,7 +2016,9 @@ export default function ArrangeOrderPage({
           payload.role = "ASSESSOR";
           payload.position = 1;
         }
-        await api.post(API_ENDPOINTS.ASSESSORS.ASSIGN, payload);
+        try {
+          await api.post(API_ENDPOINTS.ASSESSORS.ASSIGN, payload);
+        } catch {}
       }
 
       // Save/link PerformanceMatch only for quyền/võ nhạc
@@ -1855,8 +2078,13 @@ export default function ArrangeOrderPage({
               contentName,
               participantIds: setupModal.selectedIds,
               participants: names,
-              assessors: { ...m.assessors, ...setupModal.assessors },
-              judgesCount: setupModal.judgesCount,
+              assessors: rolesToInclude.reduce((acc, key) => {
+                const id =
+                  setupModal.assessors[key as keyof Match["assessors"]];
+                if (id) (acc as any)[key] = id;
+                return acc;
+              }, {} as Match["assessors"]),
+              judgesCount: maxJudges,
               timerSec: setupModal.defaultTimerSec,
               performanceId: derivedPerformanceId,
               matchOrder: pm?.matchOrder ?? m.matchOrder,
@@ -2502,28 +2730,7 @@ export default function ArrangeOrderPage({
             {setupModal.step === 2 && (
               <div>
                 {/* Configuration Inputs */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Số assessor
-                    </label>
-                    <select
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={setupModal.judgesCount}
-                      onChange={(e) =>
-                        setSetupModal((p) => ({
-                          ...p,
-                          judgesCount: Number(e.target.value),
-                        }))
-                      }
-                    >
-                      {[3, 4, 5].map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="grid grid-cols-1 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Thời gian (giây)
@@ -2586,6 +2793,15 @@ export default function ArrangeOrderPage({
                         (assessor) => !selectedAssessorIds.includes(assessor.id)
                       );
 
+                      // Ensure the currently pre-assigned assessor (from BE) is selectable
+                      const currentId =
+                        (setupModal.assessors[
+                          role.key as keyof typeof setupModal.assessors
+                        ] as string) || "";
+                      const hasCurrent = currentId
+                        ? availableForThisRole.some((a) => a.id === currentId)
+                        : true;
+
                       return (
                         <div key={role.key} className="space-y-1">
                           <label className="block text-sm text-gray-700">
@@ -2608,6 +2824,11 @@ export default function ArrangeOrderPage({
                             }
                           >
                             <option value="">Chọn người chấm</option>
+                            {!hasCurrent && currentId && (
+                              <option value={currentId}>
+                                (Đã gán) {currentId}
+                              </option>
+                            )}
                             {availableForThisRole.length > 0 ? (
                               availableForThisRole.map((assessor) => (
                                 <option key={assessor.id} value={assessor.id}>
@@ -2761,12 +2982,28 @@ export default function ArrangeOrderPage({
                   >
                     Thiết lập
                   </button>
-                  <button
-                    onClick={() => beginMatch(match.id)}
-                    className="w-full px-2.5 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                  >
-                    Bắt đầu trận
-                  </button>
+                  {match.status === "IN_PROGRESS" ? (
+                    <button
+                      disabled
+                      className="w-full px-2.5 py-1 text-xs bg-blue-100 text-blue-700 rounded cursor-not-allowed"
+                    >
+                      Đang diễn ra
+                    </button>
+                  ) : match.status === "COMPLETED" ? (
+                    <button
+                      disabled
+                      className="w-full px-2.5 py-1 text-xs bg-gray-100 text-gray-600 rounded cursor-not-allowed"
+                    >
+                      Đã kết thúc
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => beginMatch(match.id)}
+                      className="w-full px-2.5 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700"
+                    >
+                      Bắt đầu trận
+                    </button>
+                  )}
                   <button
                     onClick={() => deleteMatch(match.id)}
                     className="mt-1 h-7 w-7 text-xs bg-white border border-red-300 text-red-500 rounded hover:bg-red-50"

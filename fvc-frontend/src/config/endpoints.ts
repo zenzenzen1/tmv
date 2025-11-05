@@ -16,7 +16,7 @@ export const API_ENDPOINTS = {
   PROFILE: {
     GET: "/v1/profile",
     UPDATE: "/v1/profile",
-    CHANGE_PASSWORD: "/v1/profile/change-password"
+    CHANGE_PASSWORD: "/v1/profile/change-password",
   },
   // User management
   USERS: {
@@ -158,6 +158,20 @@ export const API_ENDPOINTS = {
     LIST: "/v1/match-assessors/match/{matchId}",
     BY_ID: (id: string) => `/v1/match-assessors/${id}`,
     MY_ASSIGNMENTS: "/v1/match-assessors/my-assignments",
+  },
+
+  // Scoring (Performance projection)
+  SCORING: {
+    PERFORMANCE_BY_ID: "/v1/scoring/performance/{performanceId}",
+    SUBMIT: "/v1/scoring/submit",
+  },
+
+  // Performances (fallback/basic info)
+  PERFORMANCES: {
+    BY_ID: "/v1/performances/{id}",
+    BY_MATCH_ID: "/v1/performances/by-match/{matchId}",
+    START: (id: string) => `/v1/performances/${id}/start`,
+    COMPLETE: (id: string) => `/v1/performances/${id}/complete`,
   },
 
   // Common endpoints

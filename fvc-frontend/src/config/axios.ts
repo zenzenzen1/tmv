@@ -59,23 +59,28 @@ apiClient.interceptors.response.use(
 
     // Log response in development
     if (import.meta.env.DEV) {
-    //   console.log(
-    //     `✅ API Response: ${response.config.method?.toUpperCase()} ${
-    //       response.config.url
-    //     }`,
-    //     {
-    //       status: response.status,
-    //       duration: `${duration}ms`,
-    //       data: response.data,
-    //     }
-    //   );
+      //   console.log(
+      //     `✅ API Response: ${response.config.method?.toUpperCase()} ${
+      //       response.config.url
+      //     }`,
+      //     {
+      //       status: response.status,
+      //       duration: `${duration}ms`,
+      //       data: response.data,
+      //     }
+      //   );
     }
 
-    // Handle API-level errors
-    if (!response.data.success) {
+    // Handle API-level errors (only if response has success field)
+    if (
+      response.data &&
+      typeof response.data === "object" &&
+      "success" in response.data &&
+      !response.data.success
+    ) {
       const error: ErrorResponse = {
         success: false,
-        message: response.data.message || "An error occurred",
+        message: (response.data as any).message || "An error occurred",
         error: "API_ERROR",
         timestamp: new Date().toISOString(),
         path: response.config.url,

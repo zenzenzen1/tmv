@@ -150,7 +150,7 @@ const CompetitionFormPage: React.FC = () => {
         allowExtraRound: currentCompetition.allowExtraRound ?? true,
         maxExtraRounds: currentCompetition.maxExtraRounds || 1,
         tieBreakRule: currentCompetition.tieBreakRule || "WEIGHT",
-        assessorCount: currentCompetition.assessorCount || 5,
+        assessorCount: 5,
         injuryTimeoutSeconds: currentCompetition.injuryTimeoutSeconds || 60,
       });
     }
@@ -796,20 +796,13 @@ const CompetitionFormPage: React.FC = () => {
                       </Box>
                       <Box>
                         <TextField
-                          label="Số giám khảo"
+                          label="Số giám khảo (cố định)"
                           type="number"
-                          value={formData.assessorCount}
-                          onChange={(e) =>
-                            handleFieldChange(
-                              "assessorCount",
-                              parseInt(e.target.value)
-                            )
-                          }
-                          disabled={isView}
+                          value={5}
+                          disabled
                           fullWidth
-                          error={!!formErrors.assessorCount}
-                          helperText={formErrors.assessorCount || " "}
-                          inputProps={{ min: 1, max: 10 }}
+                          helperText={" "}
+                          inputProps={{ min: 5, max: 5 }}
                         />
                       </Box>
                       <Box>

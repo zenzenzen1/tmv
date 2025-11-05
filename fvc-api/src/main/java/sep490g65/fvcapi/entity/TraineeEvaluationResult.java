@@ -1,6 +1,7 @@
 package sep490g65.fvcapi.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,7 +30,7 @@ public class TraineeEvaluationResult extends BaseEntity {
     private User user;
 
     @Column(precision = 5, scale = 2)
-    private Double overallScore;
+    private BigDecimal overallScore;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)

@@ -1,6 +1,7 @@
 package sep490g65.fvcapi.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.request.CreatePerformanceRequest;
@@ -28,12 +29,14 @@ public class PerformanceServiceImpl implements PerformanceService {
     private final AssessorRepository assessorRepository;
     private final AssessorScoreRepository assessorScoreRepository;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository vovinamFistConfigRepository;
+    private final sep490g65.fvcapi.repository.PerformanceMatchRepository performanceMatchRepository;
     private final SubmittedApplicationFormRepository submittedApplicationFormRepository;
     private final PerformanceMatchService performanceMatchService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public PerformanceResponse createPerformance(CreatePerformanceRequest request) {
         // Validate competition exists
         Competition competition = competitionRepository.findById(request.getCompetitionId())
@@ -89,10 +92,19 @@ public class PerformanceServiceImpl implements PerformanceService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PerformanceResponse getPerformanceById(String id) {
         Performance performance = performanceRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Performance not found"));
         return convertToResponse(performance);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PerformanceResponse getPerformanceByMatchId(String matchId) {
+        sep490g65.fvcapi.entity.PerformanceMatch pm = performanceMatchRepository.findById(matchId)
+                .orElseThrow(() -> new RuntimeException("Performance match not found"));
+        return convertToResponse(pm.getPerformance());
     }
 
     @Override
@@ -134,7 +146,39 @@ public class PerformanceServiceImpl implements PerformanceService {
         }
         
         Performance savedPerformance = performanceRepository.save(performance);
+
+        // Sync PerformanceMatch status from Performance (PerformanceMatch mirrors Performance status)
+        try {
+            performanceMatchRepository.findByPerformanceId(id).ifPresent(pm -> {
+                PerformanceMatch.MatchStatus matchStatus = mapPerformanceStatusToMatchStatus(status);
+                if (matchStatus != null && pm.getStatus() != matchStatus) {
+                    // Only update if different to avoid infinite loop
+                    performanceMatchService.updatePerformanceMatchStatus(pm.getId(), matchStatus);
+                }
+            });
+        } catch (Exception ignored) {}
+
+        // Broadcast status change for performance
+        try {
+            java.util.Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("type", "STATUS_CHANGED");
+            payload.put("performanceId", savedPerformance.getId());
+            payload.put("status", savedPerformance.getStatus());
+            payload.put("startTime", savedPerformance.getStartTime());
+            payload.put("endTime", savedPerformance.getEndTime());
+            messagingTemplate.convertAndSend("/topic/performance/" + savedPerformance.getId() + "/status", payload);
+        } catch (Exception ignored) {}
+
         return convertToResponse(savedPerformance);
+    }
+
+    private PerformanceMatch.MatchStatus mapPerformanceStatusToMatchStatus(Performance.PerformanceStatus perfStatus) {
+        return switch (perfStatus) {
+            case PENDING -> PerformanceMatch.MatchStatus.PENDING;
+            case IN_PROGRESS -> PerformanceMatch.MatchStatus.IN_PROGRESS;
+            case COMPLETED -> PerformanceMatch.MatchStatus.COMPLETED;
+            case CANCELLED -> PerformanceMatch.MatchStatus.CANCELLED;
+        };
     }
 
     @Override

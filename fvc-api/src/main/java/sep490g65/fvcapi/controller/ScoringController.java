@@ -2,11 +2,13 @@ package sep490g65.fvcapi.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import sep490g65.fvcapi.dto.request.SubmitScoreRequest;
 import sep490g65.fvcapi.dto.response.PerformanceResponse;
 import sep490g65.fvcapi.entity.AssessorScore;
 import sep490g65.fvcapi.service.ScoringService;
+import sep490g65.fvcapi.service.PerformanceScoringService;
 
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
@@ -17,29 +19,39 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ScoringController {
 
-    private final ScoringService scoringService;
+    private final ScoringService scoringService; // might handle other modes
+    private final PerformanceScoringService performanceScoringService;
 
     @PostMapping("/submit")
-    public ResponseEntity<AssessorScore> submitScore(@Valid @RequestBody SubmitScoreRequest request) {
-        AssessorScore score = scoringService.submitScore(request);
-        return ResponseEntity.ok(score);
+    public ResponseEntity<?> submitScore(@Valid @RequestBody SubmitScoreRequest request) {
+        try {
+            AssessorScore score = performanceScoringService.submitScore(request);
+            return ResponseEntity.ok(score);
+        } catch (RuntimeException ex) {
+            // Map business validation errors to 400 instead of 500
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(java.util.Map.of(
+                            "success", false,
+                            "message", ex.getMessage(),
+                            "error", "VALIDATION_ERROR"));
+        }
     }
 
     @GetMapping("/performance/{performanceId}")
     public ResponseEntity<PerformanceResponse> getPerformanceScores(@PathVariable String performanceId) {
-        PerformanceResponse response = scoringService.getPerformanceScores(performanceId);
+        PerformanceResponse response = performanceScoringService.getPerformanceScores(performanceId);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/performance/{performanceId}/average")
     public ResponseEntity<BigDecimal> getAverageScore(@PathVariable String performanceId) {
-        BigDecimal averageScore = scoringService.calculateAverageScore(performanceId);
+        BigDecimal averageScore = performanceScoringService.calculateAverageScore(performanceId);
         return ResponseEntity.ok(averageScore);
     }
 
     @GetMapping("/performance/{performanceId}/scores")
     public ResponseEntity<List<AssessorScore>> getScoresByPerformanceId(@PathVariable String performanceId) {
-        List<AssessorScore> scores = scoringService.getScoresByPerformanceId(performanceId);
+        List<AssessorScore> scores = performanceScoringService.getScoresByPerformanceId(performanceId);
         return ResponseEntity.ok(scores);
     }
 

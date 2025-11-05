@@ -29,7 +29,6 @@ import { ToastProvider } from "./components/common/ToastProvider";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
-import BracketBuilder from "./pages/brackets/BracketBuilder";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
 import BracketBuilder from "./pages/brackets/BracketBuilder";
@@ -184,8 +183,14 @@ export default function App() {
         <Route path="scoring" element={<SelectMatchPage />} />
         <Route path="scoring/:matchId" element={<MatchScoringPage />} />
         <Route path="scoring/:matchId/assessor" element={<AssessorPage />} />
-        <Route path="scoring/assign-assessors" element={<AssignAssessorsPage />} />
-        <Route path="scoring/assign-assessors/:matchId" element={<AssignAssessorsPage />} />
+        <Route
+          path="scoring/assign-assessors"
+          element={<AssignAssessorsPage />}
+        />
+        <Route
+          path="scoring/assign-assessors/:matchId"
+          element={<AssignAssessorsPage />}
+        />
 
         {/* Brackets */}
         <Route path="brackets" element={<BracketBuilder />} />

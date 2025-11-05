@@ -30,6 +30,12 @@ public class PerformanceController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/by-match/{matchId}")
+    public ResponseEntity<PerformanceResponse> getPerformanceByMatch(@PathVariable String matchId) {
+        PerformanceResponse response = performanceService.getPerformanceByMatchId(matchId);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/competition/{competitionId}")
     public ResponseEntity<List<PerformanceResponse>> getPerformancesByCompetitionId(@PathVariable String competitionId) {
         List<PerformanceResponse> responses = performanceService.getPerformancesByCompetitionId(competitionId);

@@ -2,6 +2,7 @@ package sep490g65.fvcapi.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.request.CreatePerformanceMatchRequest;
@@ -32,6 +33,7 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
     private final CompetitionRepository competitionRepository;
     private final AssessorRepository assessorRepository;
     private final PerformanceAthleteRepository performanceAthleteRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     private int getNextMatchOrder(String competitionId) {
         List<PerformanceMatch> existing = performanceMatchRepository.findByCompetitionIdOrderByMatchOrder(competitionId);
@@ -131,8 +133,59 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
         }
 
         PerformanceMatch saved = performanceMatchRepository.save(performanceMatch);
+        
+        // Always broadcast PerformanceMatch status change (for realtime updates)
+        try {
+            java.util.Map<String, Object> matchPayload = new java.util.HashMap<>();
+            matchPayload.put("type", "STATUS_CHANGED");
+            matchPayload.put("matchId", saved.getId());
+            matchPayload.put("status", saved.getStatus().toString());
+            matchPayload.put("startTime", saved.getActualStartTime());
+            matchPayload.put("endTime", saved.getActualEndTime());
+            // Broadcast to PerformanceMatch topic
+            messagingTemplate.convertAndSend("/topic/performance-match/" + saved.getId() + "/status", matchPayload);
+        } catch (Exception ignored) {}
+        
+        // Sync Performance status from PerformanceMatch (PerformanceMatch mirrors Performance status)
+        Performance performance = saved.getPerformance();
+        if (performance != null && status != PerformanceMatch.MatchStatus.READY) {
+            // READY is PerformanceMatch-specific, skip syncing to Performance
+            Performance.PerformanceStatus perfStatus = mapMatchStatusToPerformanceStatus(status);
+            if (perfStatus != null && performance.getStatus() != perfStatus) {
+                performance.setStatus(perfStatus);
+                if (status == PerformanceMatch.MatchStatus.IN_PROGRESS) {
+                    performance.setStartTime(java.time.LocalDateTime.now());
+                } else if (status == PerformanceMatch.MatchStatus.COMPLETED) {
+                    performance.setEndTime(java.time.LocalDateTime.now());
+                }
+                performanceRepository.save(performance);
+            }
+            
+            // Always broadcast Performance status change (even if status didn't change, for realtime sync)
+            try {
+                java.util.Map<String, Object> payload = new java.util.HashMap<>();
+                payload.put("type", "STATUS_CHANGED");
+                payload.put("performanceId", performance.getId());
+                payload.put("status", performance.getStatus() != null ? performance.getStatus().toString() : perfStatus != null ? perfStatus.toString() : "UNKNOWN");
+                payload.put("startTime", performance.getStartTime());
+                payload.put("endTime", performance.getEndTime());
+                payload.put("matchId", saved.getId()); // Include matchId for reference
+                messagingTemplate.convertAndSend("/topic/performance/" + performance.getId() + "/status", payload);
+            } catch (Exception ignored) {}
+        }
+        
         List<PerformanceAthlete> athletes = performanceAthleteRepository.findByPerformanceId(saved.getPerformance().getId());
         return PerformanceMatchResponse.from(saved, athletes);
+    }
+
+    private Performance.PerformanceStatus mapMatchStatusToPerformanceStatus(PerformanceMatch.MatchStatus matchStatus) {
+        return switch (matchStatus) {
+            case PENDING -> Performance.PerformanceStatus.PENDING;
+            case READY -> Performance.PerformanceStatus.PENDING; // READY maps to PENDING in Performance
+            case IN_PROGRESS -> Performance.PerformanceStatus.IN_PROGRESS;
+            case COMPLETED -> Performance.PerformanceStatus.COMPLETED;
+            case CANCELLED -> Performance.PerformanceStatus.CANCELLED;
+        };
     }
 
     @Override

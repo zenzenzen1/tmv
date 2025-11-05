@@ -25,7 +25,7 @@ public class SubmitScoreRequest {
     
     @NotNull(message = "Score is required")
     @DecimalMin(value = "0.0", message = "Score must be at least 0.0")
-    @DecimalMax(value = "10.0", message = "Score must be at most 10.0")
+    @DecimalMax(value = "100.0", message = "Score must be at most 100.0")
     private BigDecimal score;
     
     private String criteriaScores;  // JSON string
