@@ -44,6 +44,12 @@ export const API_ENDPOINTS = {
     STATUS: (id: string) => `/v1/weight-classes/${id}/status`,
   },
 
+  // Fields
+  FIELDS: {
+    BASE: "/v1/fields",
+    BY_ID: (id: string) => `/v1/fields/${id}`,
+  },
+
   // Submitted Application Forms
   SUBMITTED_FORMS: {
     BASE: "/v1/submitted-forms",

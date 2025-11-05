@@ -38,6 +38,7 @@ import AssessorPage from "./pages/scoring/AssessorPage";
 import AssignAssessorsPage from "./pages/scoring/AssignAssessorsPage";
 import UserManagementPage from "./pages/user-management/UserManagementPage";
 import RegisterPage from "./pages/auth/RegisterPage";
+import FieldManagementPage from "./pages/field-management/FieldManagementPage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -155,6 +156,7 @@ export default function App() {
 
         {/* Content mgmt */}
         <Route path="weight-class" element={<WeightClassListPage />} />
+        <Route path="field-management" element={<FieldManagementPage />} />
         <Route path="fist-content" element={<FistContentListPage />} />
         <Route path="fist-content/:id/items" element={<FistItemsPage />} />
         <Route path="music-content" element={<MusicContentListPage />} />

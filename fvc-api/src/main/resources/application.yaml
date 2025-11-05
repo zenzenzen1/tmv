@@ -11,6 +11,7 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD} # Không có giá trị mặc định
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
 
+
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}

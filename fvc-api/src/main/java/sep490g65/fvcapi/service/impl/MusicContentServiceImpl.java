@@ -14,6 +14,7 @@ import sep490g65.fvcapi.dto.request.UpdateMusicContentRequest;
 import sep490g65.fvcapi.dto.response.MusicContentResponse;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
 import sep490g65.fvcapi.entity.MusicIntegratedPerformance;
+import sep490g65.fvcapi.exception.custom.BusinessException;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
 import sep490g65.fvcapi.service.MusicContentService;
@@ -59,7 +60,11 @@ public class MusicContentServiceImpl implements MusicContentService {
 
     @Override
     public MusicContentResponse create(CreateMusicContentRequest request) {
-        System.out.println("request.getIsActive() = " + request.getIsActive());
+        // Validate duplicate name (case-insensitive)
+        if (repository.existsByNameIgnoreCase(request.getName())) {
+            throw new BusinessException("Music content with this name already exists", "DUPLICATE_NAME");
+        }
+
         MusicIntegratedPerformance e = MusicIntegratedPerformance.builder()
                 .name(request.getName())
                 .description(request.getDescription())
