@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import sep490g65.fvcapi.enums.AttendanceStatus;
+import sep490g65.fvcapi.enums.AttendanceMethod;
 
 import java.time.LocalDateTime;
 
@@ -34,7 +35,16 @@ public class SessionAttendance extends BaseEntity {
     @Column(nullable = false, length = 20)
     private AttendanceStatus status;
 
-    private LocalDateTime checkedInAt;
+    @Column(name = "marked_at", nullable = false)
+    private LocalDateTime markedAt = LocalDateTime.now();
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "marked_by", nullable = false)
+    private User markedBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private AttendanceMethod method = AttendanceMethod.MANUAL;
 
     @Column(length = 255)
     private String note;
