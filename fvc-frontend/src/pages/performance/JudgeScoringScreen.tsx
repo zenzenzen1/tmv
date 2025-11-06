@@ -112,17 +112,22 @@ const JudgeScoringScreen: React.FC = () => {
                 status?: string;
                 startTime?: string;
               };
-              // If backend sends status, or only startTime, update immediately
+              // If backend sends status, update immediately without delay
               if (payload?.status) {
-                setStatus(payload.status);
-                setCanScore(payload.status === "COMPLETED");
-                setNotAllowed(payload.status === "PENDING");
+                const newStatus = payload.status.toUpperCase();
+                setStatus(newStatus);
+                setCanScore(newStatus === "COMPLETED");
+                setNotAllowed(newStatus === "PENDING" || newStatus === "READY");
+                // Don't call refreshStatus here to avoid flickering - WebSocket is source of truth
+                return;
               } else if (payload?.startTime) {
                 setStatus("IN_PROGRESS");
                 setCanScore(false);
                 setNotAllowed(false);
+                // Don't call refreshStatus here to avoid flickering
+                return;
               }
-              // Also trigger refresh to reconcile PM status
+              // Only refresh if no status was provided (fallback)
               refreshStatus();
             } catch (e) {
               console.warn("WS status parse error", e);

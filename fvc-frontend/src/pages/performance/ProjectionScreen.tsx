@@ -274,6 +274,8 @@ const ProjectionScreen: React.FC = () => {
           }
         );
         // Score subscription: update judge scores and history immediately
+        // Track assessor to slot mapping to prevent duplicates
+        const assessorSlotMap = new Map<string, number>();
         client.subscribe(
           `/topic/performance/${pid}/score-submitted`,
           (msg: { body: string }) => {
@@ -284,16 +286,36 @@ const ProjectionScreen: React.FC = () => {
                 submittedAt?: string;
               };
               if (!payload || typeof payload.score !== "number") return;
-              const idx = payload.assessorId
-                ? assessorIndexMapRef.current[payload.assessorId]
+              const assessorIdKey = payload.assessorId || "";
+
+              // Get index from assessorIndexMap first (preferred)
+              let idx = assessorIdKey
+                ? assessorIndexMapRef.current[assessorIdKey]
                 : undefined;
+
+              // If not in map, check if we've already assigned a slot for this assessor
+              if (!idx && assessorIdKey) {
+                idx = assessorSlotMap.get(assessorIdKey);
+              }
+
+              // If still no index, find first available slot (value is 0)
+              if (!idx) {
+                setJudgeScores((prev) => {
+                  const firstZeroIndex = prev.findIndex((v) => v === 0);
+                  if (firstZeroIndex >= 0 && assessorIdKey) {
+                    // Remember this mapping to prevent duplicates
+                    assessorSlotMap.set(assessorIdKey, firstZeroIndex + 1);
+                    idx = firstZeroIndex + 1;
+                  }
+                  return prev;
+                });
+              }
+
+              // Update score at the correct slot
               setJudgeScores((prev) => {
                 const next = [...prev];
                 if (idx && idx >= 1 && idx <= next.length) {
                   next[idx - 1] = payload.score as number;
-                } else {
-                  const zeroAt = next.findIndex((v) => v === 0);
-                  if (zeroAt >= 0) next[zeroAt] = payload.score as number;
                 }
                 // Compute average of submitted scores (ignore zeros and non-finite)
                 const valid = next.filter((v) => Number.isFinite(v) && v > 0);
@@ -303,8 +325,11 @@ const ProjectionScreen: React.FC = () => {
                 setTotal(rounded);
                 return next;
               });
-              // de-duplicate history by (assessorId, score)
-              const key = `${payload.assessorId || "_"}:${payload.score}`;
+
+              // de-duplicate history by (assessorId, score, timestamp)
+              const key = `${assessorIdKey}:${payload.score}:${
+                payload.submittedAt || ""
+              }`;
               if (historyKeysRef.current.has(key)) return;
               historyKeysRef.current.add(key);
               setHistory((prev) =>
@@ -325,8 +350,6 @@ const ProjectionScreen: React.FC = () => {
     return () => {
       if (stompRef.current?.connected) stompRef.current.deactivate();
     };
-    // Removed timeLeft from dependencies - it updates every 500ms and causes infinite reconnection
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [performanceId, matchId]);
 
   // Local countdown based on startTime and roundSeconds
@@ -342,6 +365,8 @@ const ProjectionScreen: React.FC = () => {
       const s = String(remaining % 60).padStart(2, "0");
       setTimeLeft(`${m}:${s}`);
       if (remaining <= 0) {
+        // Set time to 00:00 immediately when time expires
+        setTimeLeft("00:00");
         runningRef.current = false;
         if (!completionSentRef.current) {
           completionSentRef.current = true;
@@ -350,12 +375,16 @@ const ProjectionScreen: React.FC = () => {
             try {
               let pmId = matchId;
               if (!pmId && performanceId) {
-                const res = await api.get(
+                const res = await api.get<{
+                  data?:
+                    | { data?: { id?: string } | { id?: string } }
+                    | { id?: string };
+                }>(
                   API_ENDPOINTS.PERFORMANCE_MATCHES.BY_PERFORMANCE(
                     performanceId
                   )
                 );
-                const payload: any = (res as any)?.data;
+                const payload = res?.data;
                 const pm = (payload && (payload.data || payload)) as
                   | { id?: string }
                   | undefined;
@@ -374,7 +403,7 @@ const ProjectionScreen: React.FC = () => {
                   API_ENDPOINTS.PERFORMANCES.COMPLETE(performanceId)
                 );
               }
-            } catch (_) {
+            } catch {
               // ignore errors
             }
           };
@@ -383,6 +412,8 @@ const ProjectionScreen: React.FC = () => {
       }
     }, 500);
     return () => clearInterval(timer);
+    // Dependencies: matchId and performanceId are stable, no need to re-run effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
     <div className="bg-[#F5F7FB] min-h-screen flex flex-col items-center justify-start py-4">
@@ -456,7 +487,7 @@ const ProjectionScreen: React.FC = () => {
         {/* Row 3: Total & History */}
         <div className="grid md:grid-cols-5 grid-cols-1 gap-3 md:gap-6">
           <div className="md:col-span-2 col-span-1 bg-[#FACC15] rounded-xl flex flex-col items-center justify-center min-h-[140px] md:min-h-[150px] shadow font-bold mb-3 md:mb-0">
-            <div className="text-[#374151] font-semibold text-xl pb-2 pt-3 md:text-xl text-lg tracking-wide">
+            <div className="text-[#374151] font-semibold text-xl pb-2 pt-3 tracking-wide">
               TỔNG ĐIỂM
             </div>
             <div className="text-5xl md:text-5xl font-black text-black pb-3">

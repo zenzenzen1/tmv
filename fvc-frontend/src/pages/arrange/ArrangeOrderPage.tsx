@@ -1627,6 +1627,14 @@ export default function ArrangeOrderPage({
       return;
     }
 
+    // Check if match needs setup (no participants selected)
+    if (!match.participantIds || match.participantIds.length === 0) {
+      alert(
+        "Vui lòng setup trận đấu (chọn VĐV và gán trọng tài) trước khi bắt đầu."
+      );
+      return;
+    }
+
     const judgesCount = match.judgesCount ?? 5;
     const defaultTimerSec = match.timerSec ?? 120;
 
@@ -1665,42 +1673,320 @@ export default function ArrangeOrderPage({
     }
 
     // Prefer performanceId for quyền/võ nhạc projection; fallback to matchId
-    const pid = (match as any).performanceId as string | undefined;
+    let pid = (match as any).performanceId as string | undefined;
+    let pmId: string | undefined = undefined; // Will be set to actual PerformanceMatch ID
+
+    // Check if match.id is already a PerformanceMatch ID (UUID format, not manual-xxx)
+    // UUID format: 8-4-4-4-12 hex characters
+    const isUUIDFormat =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        match.id
+      );
+    if (isUUIDFormat && !match.id.startsWith("manual-")) {
+      // match.id is already a PerformanceMatch ID, use it directly
+      pmId = match.id;
+    }
+
+    // If we have performanceId, try to get PerformanceMatch ID first (if not already set)
+    if (pid && !pmId) {
+      try {
+        const pmRes = await api.get<{
+          success?: boolean;
+          message?: string;
+          data?: { id?: string; matchOrder?: number; status?: string };
+          id?: string;
+          matchOrder?: number;
+          status?: string;
+        }>(API_ENDPOINTS.PERFORMANCE_MATCHES.BY_PERFORMANCE(pid));
+        const pmData = pmRes.data as {
+          success?: boolean;
+          message?: string;
+          data?: { id?: string; matchOrder?: number; status?: string };
+          id?: string;
+          matchOrder?: number;
+          status?: string;
+        };
+        const pm = (pmData?.data || pmData) as {
+          id?: string;
+          matchOrder?: number;
+          status?: string;
+        };
+        if (
+          pm &&
+          typeof pm === "object" &&
+          pm.id &&
+          typeof pm.id === "string"
+        ) {
+          pmId = pm.id;
+        }
+      } catch (error) {
+        // PerformanceMatch might not exist yet, will create below
+        console.warn(
+          "PerformanceMatch not found for performanceId:",
+          pid,
+          error
+        );
+      }
+    }
+
+    // If no performanceId but match has participants, try to create/get PerformanceMatch
+    if (!pid && match.participantIds.length > 0) {
+      try {
+        // Find the athlete to get performanceId
+        const athleteId = match.participantIds[0];
+        const athlete = athletes.find((a) => a.id === athleteId);
+        const derivedPerformanceId = athlete?.performanceId;
+
+        if (derivedPerformanceId) {
+          // Create/save PerformanceMatch if it doesn't exist
+          const body: {
+            durationSeconds: number;
+            fistConfigId?: string | null;
+            fistItemId?: string | null;
+            musicContentId?: string | null;
+          } = {
+            durationSeconds: defaultTimerSec,
+          };
+          if (match.type === "quyen") {
+            if (match.fistConfigId) body.fistConfigId = match.fistConfigId;
+            if (match.fistItemId) body.fistItemId = match.fistItemId;
+          } else if (match.type === "music") {
+            if (match.musicContentId)
+              body.musicContentId = match.musicContentId;
+          }
+
+          const res = await api.post<{
+            success?: boolean;
+            message?: string;
+            data?: {
+              id?: string;
+              matchOrder?: number;
+              status?: string;
+              performanceId?: string;
+            };
+            id?: string;
+            matchOrder?: number;
+            status?: string;
+            performanceId?: string;
+          }>(
+            API_ENDPOINTS.PERFORMANCE_MATCHES.SAVE_BY_PERFORMANCE(
+              derivedPerformanceId
+            ),
+            body
+          );
+
+          // Unwrap BaseResponse structure: { success, message, data: { id, ... } }
+          // or direct PerformanceMatchResponse: { id, ... }
+          const responseData = res.data as {
+            success?: boolean;
+            message?: string;
+            data?: {
+              id?: string;
+              matchOrder?: number;
+              status?: string;
+              performanceId?: string;
+            };
+            id?: string;
+            matchOrder?: number;
+            status?: string;
+            performanceId?: string;
+          };
+
+          // Try to get PerformanceMatchResponse from data.data or data directly
+          const pm = (responseData?.data || responseData) as {
+            id?: string;
+            matchOrder?: number;
+            status?: string;
+            performanceId?: string;
+          };
+
+          if (
+            pm &&
+            typeof pm === "object" &&
+            pm.id &&
+            typeof pm.id === "string"
+          ) {
+            pmId = pm.id; // Use the actual PerformanceMatch ID from response
+            pid = derivedPerformanceId;
+
+            // Update match with new PerformanceMatch info (but keep original match.id for UI)
+            setMatches((prev) =>
+              prev.map((m) =>
+                m.id === match.id
+                  ? {
+                      ...m,
+                      performanceId: pid,
+                      matchOrder: pm.matchOrder,
+                      status: pm.status,
+                    }
+                  : m
+              )
+            );
+          } else {
+            console.error("Failed to get PerformanceMatch ID from response:", {
+              responseData,
+              pm,
+              res: res.data,
+            });
+            alert(
+              "Không thể tạo trận đấu. Vui lòng thử lại sau khi setup trận."
+            );
+            return;
+          }
+        } else {
+          console.error("No performanceId found for athlete:", athleteId);
+          alert(
+            "Không thể tìm thấy thông tin performance. Vui lòng thử lại sau khi setup trận."
+          );
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to create PerformanceMatch:", error);
+        alert("Không thể tạo trận đấu. Vui lòng thử lại sau khi setup trận.");
+        return;
+      }
+    }
 
     // If we have a performance, start it on the server so judges are notified in realtime
     // PerformanceMatch status is now the source of truth, it will sync to Performance automatically
+    // But we need pmId to update status - if we don't have it yet, try to get it again or create it
     if (pid) {
-      try {
-        // Update state optimistically first
-        setMatches((prev) =>
-          prev.map((m) =>
-            m.id === match.id ? { ...m, status: "IN_PROGRESS" } : m
-          )
-        );
+      // If we still don't have pmId, try to get/create it
+      if (!pmId) {
+        try {
+          // Try to get existing PerformanceMatch
+          const pmRes = await api.get<{
+            success?: boolean;
+            message?: string;
+            data?: { id?: string; matchOrder?: number; status?: string };
+            id?: string;
+            matchOrder?: number;
+            status?: string;
+          }>(API_ENDPOINTS.PERFORMANCE_MATCHES.BY_PERFORMANCE(pid));
+          const pmData = pmRes.data as {
+            success?: boolean;
+            message?: string;
+            data?: { id?: string; matchOrder?: number; status?: string };
+            id?: string;
+            matchOrder?: number;
+            status?: string;
+          };
+          const pm = (pmData?.data || pmData) as {
+            id?: string;
+            matchOrder?: number;
+            status?: string;
+          };
+          if (
+            pm &&
+            typeof pm === "object" &&
+            pm.id &&
+            typeof pm.id === "string"
+          ) {
+            pmId = pm.id;
+          }
+        } catch (error) {
+          // If PerformanceMatch doesn't exist, create it
+          console.warn("PerformanceMatch not found, creating new one:", error);
+          try {
+            const body: {
+              durationSeconds: number;
+              fistConfigId?: string | null;
+              fistItemId?: string | null;
+              musicContentId?: string | null;
+            } = {
+              durationSeconds: defaultTimerSec,
+            };
+            if (match.type === "quyen") {
+              if (match.fistConfigId) body.fistConfigId = match.fistConfigId;
+              if (match.fistItemId) body.fistItemId = match.fistItemId;
+            } else if (match.type === "music") {
+              if (match.musicContentId)
+                body.musicContentId = match.musicContentId;
+            }
 
-        // Then call API and wait for response before opening projection
-        await api.put(
-          `/v1/performance-matches/${encodeURIComponent(
-            match.id
-          )}/status/IN_PROGRESS`
-        );
+            const res = await api.post<{
+              success?: boolean;
+              message?: string;
+              data?: { id?: string; matchOrder?: number; status?: string };
+              id?: string;
+              matchOrder?: number;
+              status?: string;
+            }>(
+              API_ENDPOINTS.PERFORMANCE_MATCHES.SAVE_BY_PERFORMANCE(pid),
+              body
+            );
+            const responseData = res.data as {
+              success?: boolean;
+              message?: string;
+              data?: { id?: string; matchOrder?: number; status?: string };
+              id?: string;
+              matchOrder?: number;
+              status?: string;
+            };
+            const pm = (responseData?.data || responseData) as {
+              id?: string;
+              matchOrder?: number;
+              status?: string;
+            };
+            if (
+              pm &&
+              typeof pm === "object" &&
+              pm.id &&
+              typeof pm.id === "string"
+            ) {
+              pmId = pm.id;
+            }
+          } catch (createError) {
+            console.error("Failed to create PerformanceMatch:", createError);
+            alert(
+              "Không thể tạo trận đấu. Vui lòng thử lại sau khi setup trận."
+            );
+            return;
+          }
+        }
+      }
 
-        // Open projection after API call succeeds
-        const url = `/performance/projection?performanceId=${encodeURIComponent(
-          pid
-        )}`;
-        window.open(url, "_blank");
-      } catch (error) {
-        console.error("Failed to start match:", error);
-        // Revert optimistic update on error
-        setMatches((prev) =>
-          prev.map((m) =>
-            m.id === match.id ? { ...m, status: match.status || "PENDING" } : m
-          )
-        );
-        alert("Không thể bắt đầu trận đấu. Vui lòng thử lại.");
+      // Now we should have pmId, proceed to start the match
+      if (pmId) {
+        try {
+          // Update state optimistically first
+          setMatches((prev) =>
+            prev.map((m) =>
+              m.id === match.id ? { ...m, status: "IN_PROGRESS" } : m
+            )
+          );
+
+          // Then call API and wait for response before opening projection
+          // Use pmId (PerformanceMatch ID) instead of match.id
+          await api.put(
+            `/v1/performance-matches/${encodeURIComponent(
+              pmId
+            )}/status/IN_PROGRESS`
+          );
+
+          // Open projection after API call succeeds
+          const url = `/performance/projection?performanceId=${encodeURIComponent(
+            pid
+          )}`;
+          window.open(url, "_blank");
+        } catch (error) {
+          console.error("Failed to start match:", error);
+          // Revert optimistic update on error
+          setMatches((prev) =>
+            prev.map((m) =>
+              m.id === match.id
+                ? { ...m, status: match.status || "PENDING" }
+                : m
+            )
+          );
+          alert("Không thể bắt đầu trận đấu. Vui lòng thử lại.");
+        }
+      } else {
+        console.error("No PerformanceMatch ID available after creation");
+        alert("Không thể tìm thấy thông tin trận đấu. Vui lòng thử lại.");
       }
     } else {
+      // Fallback: use matchId for projection (manual matches without performance)
       const url = `/performance/projection?matchId=${encodeURIComponent(
         match.id
       )}`;
