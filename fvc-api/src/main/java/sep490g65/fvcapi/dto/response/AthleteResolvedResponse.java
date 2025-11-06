@@ -17,6 +17,15 @@ public class AthleteResolvedResponse {
     private String subCompetitionType;
     private String detailSubLabel;  // resolved label from FK
     private Athlete.AthleteStatus status;
+    // Content IDs for mapping
+    private String fistConfigId;
+    private String fistItemId;
+    private String musicContentId;
+    private String weightClassId;
+    // Team enrichment
+    private String performanceId;
+    private String teamName;
+    private String registrantEmail;
 
     public static AthleteResolvedResponse from(Athlete a) {
         return AthleteResolvedResponse.builder()
@@ -30,6 +39,13 @@ public class AthleteResolvedResponse {
                 .subCompetitionType(a.getSubCompetitionType())
                 .detailSubLabel(null) // to be filled by controller/service layer if needed
                 .status(a.getStatus())
+                .fistConfigId(a.getFistConfigId())
+                .fistItemId(a.getFistItemId())
+                .musicContentId(a.getMusicContentId())
+                .weightClassId(a.getWeightClassId())
+                .performanceId(null)
+                .teamName(null)
+                .registrantEmail(null)
                 .build();
     }
 }

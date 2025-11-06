@@ -76,15 +76,15 @@ public class DrawService {
         
         log.info("🎲 [Draw] Found {} athletes by competition relationship", athletes.size());
         
-        // If not found, try by tournament ID
+        // If not found, try legacy fallback by competitionId again (compat)
         if (athletes.isEmpty()) {
-            log.info("🎲 [Draw] No athletes found by competition. Trying by tournamentId: {}", request.getCompetitionId());
-            athletes = athleteRepository.findByTournamentIdAndCompetitionTypeAndWeightClassId(
+            log.info("🎲 [Draw] No athletes found, retrying competitionId fallback: {}", request.getCompetitionId());
+            athletes = athleteRepository.findByCompetitionIdAndCompetitionTypeAndWeightClassId(
                     request.getCompetitionId(),
                     Athlete.CompetitionType.fighting,
                     request.getWeightClassId()
             );
-            log.info("🎲 [Draw] Found {} athletes by tournamentId", athletes.size());
+            log.info("🎲 [Draw] Found {} athletes by competitionId fallback", athletes.size());
         }
         
         if (athletes.isEmpty()) {
@@ -95,12 +95,11 @@ public class DrawService {
             // Log sample athlete data
             if (!allAthletes.isEmpty()) {
                 Athlete sample = allAthletes.get(0);
-                log.info("📋 [Draw] Sample athlete data - ID: {}, Competition ID: {}, Competition Type: {}, Weight Class: {}, Tournament ID: {}", 
+                log.info("📋 [Draw] Sample athlete data - ID: {}, Competition ID: {}, Competition Type: {}, Weight Class: {}", 
                         sample.getId(), 
-                        sample.getCompetition() != null ? sample.getCompetition().getId() : "NULL",
+                        sample.getCompetitionId(),
                         sample.getCompetitionType(),
-                        sample.getWeightClassId(),
-                        sample.getTournamentId());
+                        sample.getWeightClassId());
             }
             
             throw new IllegalArgumentException("No athletes found for the specified competition and weight class");
@@ -154,7 +153,7 @@ public class DrawService {
     }
 
     private void updateAthleteCompetitionOrders(List<DrawResult> drawResults) {
-        log.info("🎲 [Draw Service] Updating athlete competition orders for {} results", drawResults.size());
+        log.info("🎲 [Draw Service] Persisting draw seed numbers for {} athletes", drawResults.size());
 
         int successCount = 0;
         int failCount = 0;
@@ -164,25 +163,25 @@ public class DrawService {
                 Optional<Athlete> athleteOpt = athleteRepository.findById(UUID.fromString(result.getAthleteId()));
                 if (athleteOpt.isPresent()) {
                     Athlete athlete = athleteOpt.get();
-                    Integer oldOrder = athlete.getCompetitionOrder();
-                    athlete.setCompetitionOrder(result.getSeedNumber());
+                    Integer oldSeed = athlete.getDrawSeedNumber();
+                    athlete.setDrawSeedNumber(result.getSeedNumber());
                     athleteRepository.save(athlete);
-                    
-                    log.debug("✅ [Draw Service] Updated athlete: {} (ID: {}), Old order: {}, New order (seed): {}", 
-                            athlete.getFullName(), result.getAthleteId(), oldOrder, result.getSeedNumber());
+
+                    log.debug("✅ [Draw Service] Updated athlete: {} (ID: {}), Old seed: {}, New seed: {}",
+                            athlete.getFullName(), result.getAthleteId(), oldSeed, result.getSeedNumber());
                     successCount++;
                 } else {
                     log.warn("⚠️ [Draw Service] Athlete not found for ID: {}", result.getAthleteId());
                     failCount++;
                 }
             } catch (Exception e) {
-                log.error("❌ [Draw Service] Failed to update athlete: {}, error: {}", 
+                log.error("❌ [Draw Service] Failed to update athlete: {}, error: {}",
                         result.getAthleteId(), e.getMessage(), e);
                 failCount++;
             }
         }
-        
-        log.info("🎲 [Draw Service] Completed updating orders - Success: {}, Failed: {}, Total: {}", 
+
+        log.info("🎲 [Draw Service] Completed persisting seeds - Success: {}, Failed: {}, Total: {}",
                 successCount, failCount, drawResults.size());
     }
 

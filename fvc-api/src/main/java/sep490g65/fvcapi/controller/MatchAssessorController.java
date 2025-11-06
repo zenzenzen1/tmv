@@ -10,8 +10,11 @@ import sep490g65.fvcapi.constants.ApiConstants;
 import sep490g65.fvcapi.dto.request.AssignMatchAssessorsRequest;
 import sep490g65.fvcapi.dto.request.CreateMatchAssessorRequest;
 import sep490g65.fvcapi.dto.request.UpdateMatchAssessorRequest;
+import org.springframework.security.core.Authentication;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.MatchAssessorResponse;
+import sep490g65.fvcapi.dto.response.MyAssignedMatchResponse;
+import sep490g65.fvcapi.repository.UserRepository;
 import sep490g65.fvcapi.service.MatchAssessorService;
 import sep490g65.fvcapi.utils.ResponseUtils;
 
@@ -24,6 +27,7 @@ import java.util.List;
 public class MatchAssessorController {
 
     private final MatchAssessorService matchAssessorService;
+    private final UserRepository userRepository;
 
     /**
      * Assign multiple assessors to a match at once
@@ -151,6 +155,36 @@ public class MatchAssessorController {
             log.error("Error removing all assessors from match {}", matchId, e);
             return ResponseEntity.ok(ResponseUtils.error(
                     e.getMessage(), "REMOVE_ALL_ASSESSORS_ERROR"));
+        }
+    }
+
+    /**
+     * Get my assigned matches (for current authenticated user)
+     */
+    @GetMapping("/my-assignments")
+    public ResponseEntity<BaseResponse<List<MyAssignedMatchResponse>>> getMyAssignedMatches(
+            Authentication authentication) {
+        try {
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ResponseUtils.error("Unauthorized", "UNAUTHORIZED"));
+            }
+
+            String email = authentication.getName();
+            var user = userRepository.findByPersonalMailIgnoreCase(email)
+                    .orElseGet(() -> userRepository.findByEduMailIgnoreCase(email)
+                            .orElseThrow(() -> new RuntimeException("User not found with email: " + email)));
+
+            List<MyAssignedMatchResponse> matches = matchAssessorService.getMyAssignedMatches(user.getId());
+            return ResponseEntity.ok(ResponseUtils.success("Assigned matches retrieved successfully", matches));
+        } catch (RuntimeException e) {
+            log.error("Failed to fetch assessor: {}", e.getMessage(), e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    "Failed to fetch assessor", "API_ERROR"));
+        } catch (Exception e) {
+            log.error("Error fetching assigned matches for current user", e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    "Failed to fetch assigned matches", "FETCH_MY_ASSIGNMENTS_ERROR"));
         }
     }
 }

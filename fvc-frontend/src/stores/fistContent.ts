@@ -1,9 +1,17 @@
-import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
-import { fistContentService, fistTypeService } from '../services/fistContent';
-import type { CreateFistContentRequest, FistContentFilters, FistContentResponse, UpdateFistContentRequest, FistConfigResponse, FistItemResponse, FistTypeResponse } from '../types';
-import type { PaginationResponse } from '../types/api';
-import { globalErrorHandler } from '../utils/errorHandler';
+import { create } from "zustand";
+import { devtools } from "zustand/middleware";
+import { fistContentService, fistTypeService } from "../services/fistContent";
+import type {
+  CreateFistContentRequest,
+  FistContentFilters,
+  FistContentResponse,
+  UpdateFistContentRequest,
+  FistConfigResponse,
+  FistItemResponse,
+  FistTypeResponse,
+} from "../types";
+import type { PaginationResponse } from "../types/api";
+import { globalErrorHandler } from "../utils/errorHandler";
 
 interface State {
   list: PaginationResponse<FistContentResponse> | null;
@@ -12,7 +20,7 @@ interface State {
   error: string | null;
   modalOpen: boolean;
   editing: FistContentResponse | null;
-  
+
   // Additional data for CompetitionModal
   fistConfigs: FistConfigResponse[];
   fistItems: FistItemResponse[];
@@ -40,7 +48,7 @@ type Store = State & Actions;
 const initialFilters: FistContentFilters = {
   page: 0,
   size: 10,
-  sort: 'createdAt,desc',
+  sort: "createdAt,desc",
 };
 
 export const useFistContentStore = create<Store>()(
@@ -51,7 +59,7 @@ export const useFistContentStore = create<Store>()(
     error: null,
     modalOpen: false,
     editing: null,
-    
+
     // Additional data for CompetitionModal
     fistConfigs: [],
     fistItems: [],
@@ -129,7 +137,7 @@ export const useFistContentStore = create<Store>()(
       try {
         set({ loading: true, error: null });
         const resp = await fistContentService.listItems({ size: 100 }); // Get all items
-        set({ fistItems: resp.data.content, loading: false });
+        set({ fistItems: resp.content, loading: false });
       } catch (err) {
         const { message } = globalErrorHandler(err);
         set({ error: message, loading: false });
@@ -147,5 +155,3 @@ export const useFistContentStore = create<Store>()(
     },
   }))
 );
-
-

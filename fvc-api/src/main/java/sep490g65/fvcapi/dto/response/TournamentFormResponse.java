@@ -20,6 +20,7 @@ public class TournamentFormResponse {
     private Integer numberOfParticipants;
     private LocalDateTime createdAt;
     private String status;
+    private String message;
 }
 
 
