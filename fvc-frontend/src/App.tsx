@@ -38,6 +38,7 @@ import AssessorPage from "./pages/scoring/AssessorPage";
 import AssignAssessorsPage from "./pages/scoring/AssignAssessorsPage";
 import ProjectionScreen from "./pages/performance/ProjectionScreen";
 import JudgeScoringScreen from "./pages/performance/JudgeScoringScreen";
+import PerformanceResultScreen from "./pages/performance/PerformanceResultScreen";
 import JudgeDashboard from "./pages/judge/JudgeDashboard";
 import AssessorLayout from "./components/layout/AssessorLayout";
 import { useIsAssessor } from "./stores/authStore";
@@ -125,6 +126,7 @@ export default function App() {
       {/* PERFORMANCE PUBLIC */}
       <Route path="/performance/projection" element={<ProjectionScreen />} />
       <Route path="/performance/judge" element={<JudgeScoringScreen />} />
+      <Route path="/performance/result" element={<PerformanceResultScreen />} />
       {/* Public Form Registration - Guest access */}
       <Route path="/public/forms/:slug" element={<FormRegistrationPage />} />
 

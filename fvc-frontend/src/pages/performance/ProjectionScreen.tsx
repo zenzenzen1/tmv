@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import scoringService, {
   type PerformanceResponseDto,
 } from "../../services/scoringService";
@@ -28,6 +28,7 @@ const ProjectionScreen: React.FC = () => {
   const [history, setHistory] = useState<JudgeHistory[]>([]);
   const [timeLeft, setTimeLeft] = useState<string>("00:00");
   const [total, setTotal] = useState<number>(0);
+  const navigate = useNavigate();
   const stompRef = useRef<Client | null>(null);
   const assessorIndexMapRef = useRef<Record<string, number>>({});
   const historyKeysRef = useRef<Set<string>>(new Set());
@@ -35,6 +36,8 @@ const ProjectionScreen: React.FC = () => {
   const startTimeMsRef = useRef<number | null>(null);
   const runningRef = useRef<boolean>(false);
   const completionSentRef = useRef<boolean>(false);
+  const allJudgesScoredRef = useRef<boolean>(false);
+  const redirectTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const key = performanceId || matchId;
@@ -323,6 +326,29 @@ const ProjectionScreen: React.FC = () => {
                 const avg = valid.length > 0 ? sum / valid.length : 0;
                 const rounded = Math.round(avg * 100) / 100;
                 setTotal(rounded);
+
+                // Check if all 5 judges have scored (all scores > 0)
+                const allScored =
+                  valid.length >= 5 &&
+                  next.filter((v) => Number.isFinite(v) && v > 0).length >= 5;
+                if (allScored && !allJudgesScoredRef.current) {
+                  allJudgesScoredRef.current = true;
+                  // Navigate to result screen after 5 seconds
+                  if (redirectTimerRef.current) {
+                    clearTimeout(redirectTimerRef.current);
+                  }
+                  redirectTimerRef.current = window.setTimeout(() => {
+                    const resultUrl = performanceId
+                      ? `/performance/result?performanceId=${encodeURIComponent(
+                          performanceId
+                        )}`
+                      : `/performance/result?matchId=${encodeURIComponent(
+                          matchId
+                        )}`;
+                    navigate(resultUrl);
+                  }, 5000); // 5 seconds delay
+                }
+
                 return next;
               });
 
@@ -349,8 +375,11 @@ const ProjectionScreen: React.FC = () => {
     stompRef.current = client;
     return () => {
       if (stompRef.current?.connected) stompRef.current.deactivate();
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+      }
     };
-  }, [performanceId, matchId]);
+  }, [performanceId, matchId, navigate]);
 
   // Local countdown based on startTime and roundSeconds
   useEffect(() => {
