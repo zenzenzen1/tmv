@@ -8,7 +8,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fvc-db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:thanh2003} # Không có giá trị mặc định
+    password: ${SPRING_DATASOURCE_PASSWORD:thanh2003}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
 
 
@@ -25,18 +25,18 @@ spring:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
     username: ${SPRING_MAIL_USERNAME:thanhldhe171856@fpt.edu.vn}
-    password: ${SPRING_MAIL_PASSWORD:sylyjfmfxkzpkglh} # Không có giá trị mặc định
+    password: ${SPRING_MAIL_PASSWORD:sylyjfmfxkzpkglh}
     protocol: smtp
     properties:
       mail:
         smtp:
-          auth: true
+          auth: ${SPRING_MAIL_SMTP_AUTH:true}
           starttls:
-            enable: true
+            enable: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:true}
 
   security:
     jwt:
-      secret: ${SPRING_SECURITY_JWT_SECRET} # Không có giá trị mặc định
+      secret: ${SPRING_SECURITY_JWT_SECRET:b9f3c7e2a5d1f0c4b8a3e6d9f2c1a7b4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0}
       expiration: ${SPRING_SECURITY_JWT_EXPIRATION:18000000}
 
 # Cấu hình logging

@@ -19,6 +19,8 @@ public class CreateMatchRequest {
     
     private String weightClassId;
     
+    private String fieldId;
+    
     @NotBlank(message = "Round type is required")
     private String roundType;
     

@@ -10,13 +10,16 @@ import java.util.Optional;
 
 public interface MatchEventRepository extends JpaRepository<MatchEvent, String> {
     
-    List<MatchEvent> findByMatchIdOrderByCreatedAtAsc(String matchId);
+    @Query("SELECT e FROM MatchEvent e WHERE e.match.id = :matchId ORDER BY e.createdAt ASC")
+    List<MatchEvent> findByMatchIdOrderByCreatedAtAsc(@Param("matchId") String matchId);
     
-    List<MatchEvent> findByMatchIdOrderByCreatedAtDesc(String matchId);
+    @Query("SELECT e FROM MatchEvent e WHERE e.match.id = :matchId ORDER BY e.createdAt DESC")
+    List<MatchEvent> findByMatchIdOrderByCreatedAtDesc(@Param("matchId") String matchId);
     
     @Query("SELECT e FROM MatchEvent e WHERE e.match.id = :matchId ORDER BY e.createdAt DESC")
     List<MatchEvent> findLatestEventsByMatchId(@Param("matchId") String matchId);
     
-    Optional<MatchEvent> findFirstByMatchIdOrderByCreatedAtDesc(String matchId);
+    @Query("SELECT e FROM MatchEvent e WHERE e.match.id = :matchId ORDER BY e.createdAt DESC")
+    Optional<MatchEvent> findFirstByMatchIdOrderByCreatedAtDesc(@Param("matchId") String matchId);
 }
 

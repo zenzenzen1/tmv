@@ -1,4 +1,3 @@
-
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/stores/authStore";
 import type { SystemRole } from "@/types/user";
@@ -18,8 +17,8 @@ export default function RequireRole({ roles, children, redirectTo = "/manage/tou
 
   if (!allowed) {
     return <Navigate to={redirectTo} replace state={{ from: location }} />;
-
   }
 
   return children;
 }
+
