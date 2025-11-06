@@ -7,6 +7,7 @@ export type MenuItem = {
 export const defaultMenuItems: MenuItem[] = [
   { key: "tournaments", label: "Danh sách giải đấu" },
   { key: "arrange", label: "Quản lý trận đấu" },
+  { key: "cycles", label: "Chu kỳ tuyển thành viên" },
   {
     section: "Quản lí form",
     key: "tournamentForm",
@@ -21,6 +22,7 @@ export const defaultMenuItems: MenuItem[] = [
   { section: "Quản lí nội dung", key: "music", label: "Võ nhạc" },
   { section: "Quản lí form", key: "formList", label: "Form đăng ký CLB" },
   { section: "Quản lí form", key: "submittedForms", label: "Kết quả đăng ký" },
+  { section: "Quản trị hệ thống", key: "memberManagement", label: "Quản lý thành viên" },
   { section: "Quản trị hệ thống", key: "users", label: "Quản lý người dùng" },
 ];
 
@@ -38,12 +40,14 @@ export const getMenuItemsByRole = (role?: SystemRole | null): MenuItem[] => {
         [
           "tournaments",
           "arrange",
+          "cycles",
           "tournamentForm",
           "formList",
           "submittedForms",
           "brackets",
           "athletes",
           "fieldManagement",
+          "memberManagement",
         ].includes(i.key)
       );
     case "ORGANIZATION_COMMITTEE":
