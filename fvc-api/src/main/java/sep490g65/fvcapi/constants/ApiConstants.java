@@ -42,4 +42,8 @@ public final class ApiConstants {
     // Resource Paths - Music Integrated Performances
     public static final String MUSIC_CONTENTS_PATH = "/music-contents";
     public static final String MUSIC_CONTENT_ID_PATH = "/{id}";
+
+    // Resource Paths - Fields
+    public static final String FIELDS_PATH = "/fields";
+    public static final String FIELD_ID_PATH = "/{id}";
 }

@@ -10,7 +10,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MatchScoreboardSnapshot {
+public class MatchScoreboardSnapshot extends BaseEntity {
 
     @Id
     @Column(name = "match_id")
@@ -46,14 +46,5 @@ public class MatchScoreboardSnapshot {
     @Column(name = "blue_warning_count", nullable = false)
     @Builder.Default
     private Integer blueWarningCount = 0;
-
-    @Column(name = "updated_at", nullable = false)
-    @Builder.Default
-    private java.time.LocalDateTime updatedAt = java.time.LocalDateTime.now();
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = java.time.LocalDateTime.now();
-    }
 }
 

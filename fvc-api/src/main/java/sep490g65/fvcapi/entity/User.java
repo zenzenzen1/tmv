@@ -54,8 +54,6 @@ public class User extends BaseEntity {
     @Column()
     private Boolean isInChallenge;
 
-    private LocalDateTime createdAt = LocalDateTime.now();
-
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CompetitionRole> competitionRoles;
 

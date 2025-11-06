@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "locations")
@@ -24,10 +25,10 @@ public class Location extends BaseEntity {
     private String address;
 
     @Column(precision = 10, scale = 7)
-    private Double lat;
+    private BigDecimal lat;
 
     @Column(precision = 10, scale = 7)
-    private Double lng;
+    private BigDecimal lng;
 }
 
 

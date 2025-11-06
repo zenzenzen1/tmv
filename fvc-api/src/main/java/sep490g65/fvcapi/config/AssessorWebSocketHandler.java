@@ -60,7 +60,10 @@ public class AssessorWebSocketHandler {
                 
                 // Get current round and time from match
                 var scoreboard = matchService.getScoreboard(request.getMatchId());
-                int timestampInRoundSeconds = scoreboard.getRoundDurationSeconds() - scoreboard.getTimeRemainingSeconds();
+                // Calculate timestamp based on when the vote was received
+                // Since time is tracked on frontend, we use 0 as default timestamp
+                // The actual timestamp will be managed by the frontend timer
+                int timestampInRoundSeconds = 0;
 
                 // Get all assessor IDs who voted for this score (consensus)
                 // response.getVotes() is Map<String, Integer> where:

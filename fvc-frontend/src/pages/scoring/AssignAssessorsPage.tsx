@@ -216,7 +216,7 @@ export default function AssignAssessorsPage() {
         assessors: assessorsList,
       });
 
-      setSuccess('Gán giám định thành công!');
+      setSuccess('Chỉ định giám định viên thành công!');
       
       // Refresh existing assessors
       const response = await apiClient.get(
@@ -229,7 +229,7 @@ export default function AssignAssessorsPage() {
         setSuccess(null);
       }, 2000);
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Không thể gán giám định');
+      setError(err?.response?.data?.message || err?.message || 'Không thể chỉ định giám định viên');
       console.error('Error assigning assessors:', err);
     } finally {
       setAssigning(false);
@@ -247,9 +247,9 @@ export default function AssignAssessorsPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Gán giám định cho trận đấu</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Chỉ định giám định viên cho trận đấu</h1>
         <p className="text-sm text-gray-600">
-          Chọn trận đấu và gán 5 giám định (vị trí 1-4: ASSESSOR, vị trí 5: JUDGER)
+          Chọn trận đấu và chỉ định 5 giám định (vị trí 1-4: ASSESSOR, vị trí 5: JUDGER)
         </p>
       </div>
 
@@ -287,7 +287,7 @@ export default function AssignAssessorsPage() {
       {/* Assign Assessors */}
       {selectedMatchId && (
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-lg font-semibold mb-4">Gán giám định (5 giám định + 1 trọng tài máy)</h2>
+          <h2 className="text-lg font-semibold mb-4">Chỉ định giám định viên (5 giám định + 1 trọng tài máy)</h2>
           <p className="text-sm text-gray-600 mb-4">
             Vị trí 1-5: Giám định | Vị trí 6: Trọng tài máy
           </p>
@@ -344,6 +344,10 @@ export default function AssignAssessorsPage() {
                           <option value="">-- Chọn giám định --</option>
                           {users
                             .filter(user => {
+                              // Only show users with TEACHER or EXECUTIVE_BOARD role
+                              const hasValidRole = user.systemRole === 'TEACHER' || user.systemRole === 'EXECUTIVE_BOARD';
+                              if (!hasValidRole) return false;
+                              
                               // Don't show users already assigned
                               const alreadyAssigned = Object.values(assignments)
                                 .some(a => a && a.userId === user.id);
@@ -376,7 +380,7 @@ export default function AssignAssessorsPage() {
               disabled={assigning}
               className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {assigning ? 'Đang gán...' : 'Gán giám định'}
+              {assigning ? 'Đang chỉ định...' : 'Chỉ định giám định'}
             </button>
           </div>
         </div>
