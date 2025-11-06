@@ -591,4 +591,31 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
             );
         }
     }
+
+    @Override
+    @Transactional
+    public ApplicationFormConfigResponse postponeClubRegistrationForm() {
+        log.info("🔄 [Postpone Club Registration Form] Starting to postpone club registration form");
+        
+        // Get the most recent form (ordered by updatedAt DESC) to handle multiple forms with same type
+        List<ApplicationFormConfig> configs = applicationFormConfigRepository
+                .findByFormTypeOrderByUpdatedAtDesc(ApplicationFormType.CLUB_REGISTRATION);
+        
+        if (configs.isEmpty()) {
+            throw new ResourceNotFoundException(
+                    "Club registration form not found. Please create it first.");
+        }
+        
+        // Get the most recent form (first in the list)
+        ApplicationFormConfig config = configs.get(0);
+        
+        FormStatus oldStatus = config.getStatus();
+        config.setStatus(FormStatus.POSTPONE);
+        ApplicationFormConfig savedConfig = applicationFormConfigRepository.save(config);
+        
+        log.info("✅ [Postpone Club Registration Form] Successfully postponed form. Old status: {}, New status: {}", 
+                oldStatus, FormStatus.POSTPONE);
+        
+        return mapToResponse(savedConfig);
+    }
 }

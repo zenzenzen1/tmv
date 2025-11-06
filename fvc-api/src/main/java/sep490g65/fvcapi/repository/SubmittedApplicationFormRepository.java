@@ -31,6 +31,10 @@ public interface SubmittedApplicationFormRepository extends JpaRepository<Submit
     @Query("SELECT s FROM SubmittedApplicationForm s WHERE s.applicationFormConfig.id = :formId")
     Page<SubmittedApplicationForm> findByFormId(@Param("formId") String formId, Pageable pageable);
 
+    // Query to find by performanceId stored in JSON formData field
+    @Query(value = "SELECT * FROM submitted_application_forms WHERE form_data->>'performanceId' = :performanceId LIMIT 1", nativeQuery = true)
+    java.util.Optional<SubmittedApplicationForm> findOneByPerformanceId(@Param("performanceId") String performanceId);
+
     boolean existsByEmailIgnoreCase(String email);
 
     boolean existsByApplicationFormConfig_IdAndEmailIgnoreCase(String applicationFormConfigId, String email);

@@ -645,25 +645,6 @@ export default function SubmittedFormsPage() {
     ];
   }, [rows, selectedIds, isAllSelected]);
 
-  const filtered = useReactMemo(() => {
-    if (!query.trim()) return rows;
-    const q = query.toLowerCase();
-    return rows.filter((r) => {
-      // Lấy tất cả các giá trị từ row để search
-      const searchableValues = [
-        r.fullName,
-        r.email,
-        r.studentCode,
-        r.note,
-        ...Object.values(r).filter((v) => typeof v === "string" && v.trim()),
-      ];
-
-      return searchableValues
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
-    });
-  }, [rows, query]);
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">

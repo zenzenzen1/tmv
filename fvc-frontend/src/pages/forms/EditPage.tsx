@@ -496,8 +496,9 @@ export default function FormEditPage() {
       }
       
       if (response.success) {
+        const isRepublishing = formStatus === 'POSTPONE' && status === 'PUBLISH';
         const message = status === 'PUBLISH' 
-          ? "Đã publish thành công!" 
+          ? (isRepublishing ? "Đã công khai lại thành công!" : "Đã publish thành công!")
           : status === 'DRAFT'
           ? "Đã lưu bản nháp thành công!"
           : "Đã lưu thành công!";
@@ -552,6 +553,7 @@ export default function FormEditPage() {
     try {
       setPendingPublish(true);
       await handleSave('PUBLISH');
+      // After successful publish, status will be PUBLISH, so the button will be disabled
     } finally {
       setPendingPublish(false);
       setConfirmPublishOpen(false);
@@ -569,12 +571,19 @@ export default function FormEditPage() {
   const confirmPostpone = async () => {
     try {
       setPendingPostpone(true);
-      await handleSave('POSTPONE');
-      setFormStatus('POSTPONE');
-      toast.success('Form đã được hoãn thành công');
+      const response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.POSTPONE_CLUB);
+      
+      if (response.success && response.data) {
+        setFormStatus('POSTPONE');
+        setPublicLink(null); // Clear public link when postponed
+        toast.success('Form đã được hoãn thành công');
+      } else {
+        toast.error(response.message || "Lỗi khi hoãn form");
+      }
     } catch (err: any) {
       console.error("Error postponing form:", err);
-      toast.error("Lỗi khi hoãn form: " + (err?.message || "Network error"));
+      const errorMessage = err?.response?.data?.message || err?.message || "Network error";
+      toast.error("Lỗi khi hoãn form: " + errorMessage);
     } finally {
       setPendingPostpone(false);
       setConfirmPostponeOpen(false);
@@ -612,13 +621,23 @@ export default function FormEditPage() {
             >
               {savingDraft ? "Đang lưu..." : "Lưu"}
             </button>
-            <button 
-              onClick={requestPublish} 
-              disabled={saving || savingDraft || pendingPostpone}
-              className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50"
-            >
-              {saving ? "Đang publish..." : "Publish"}
-            </button>
+            {formStatus === 'POSTPONE' ? (
+              <button 
+                onClick={requestPublish} 
+                disabled={saving || savingDraft || pendingPostpone || pendingPublish}
+                className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {pendingPublish ? "Đang công khai..." : saving ? "Đang publish..." : "Công khai lại"}
+              </button>
+            ) : (
+              <button 
+                onClick={requestPublish} 
+                disabled={saving || savingDraft || pendingPostpone || formStatus === 'PUBLISH'}
+                className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "Đang publish..." : "Publish"}
+              </button>
+            )}
             {formStatus === 'PUBLISH' && (
               <button 
                 onClick={requestPostpone} 
@@ -689,7 +708,7 @@ export default function FormEditPage() {
                 </svg>
               </div>
               <div className="text-[13px] text-orange-800">
-                Bạn chắc chắn muốn hoãn form này chứ?
+                Bạn có muốn hoãn form?
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -720,7 +739,9 @@ export default function FormEditPage() {
                 </svg>
               </div>
               <div className="text-[13px] text-amber-800">
-                Bạn chắc chắn muốn công khai form này chứ?
+                {formStatus === 'POSTPONE' 
+                  ? "Bạn chắc chắn muốn công khai lại form này chứ?"
+                  : "Bạn chắc chắn muốn công khai form này chứ?"}
               </div>
               <div className="flex items-center gap-2">
                 <button
