@@ -77,8 +77,9 @@ public class ApplicationFormController {
     public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> getPublicBySlug(@PathVariable String slug) {
         ApplicationFormConfig config = applicationFormConfigRepository.findByPublicSlug(slug)
                 .orElseThrow(() -> new RuntimeException("Public form not found"));
-        // Only allow published forms
-        if (config.getStatus() == null || !config.getStatus().name().equals("PUBLISH")) {
+        // Allow published and postponed forms (postponed forms can be viewed but not submitted)
+        if (config.getStatus() == null || 
+            (!config.getStatus().name().equals("PUBLISH") && !config.getStatus().name().equals("POSTPONE"))) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ResponseUtils.error("Form is not public", "FORM_NOT_PUBLIC"));
         }
@@ -163,9 +164,17 @@ public class ApplicationFormController {
         }
     }
 
+    // Specific POST routes should be placed before generic routes
     @PostMapping("/init-club-registration")
     public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> initClubRegistrationForm() {
         ApplicationFormConfigResponse data = applicationFormService.createDefaultClubRegistrationForm();
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
+    }
+
+    // This route must be before @PostMapping("/{identifier}") if it exists, or before any generic route
+    @PostMapping("/club-registration/postpone")
+    public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> postponeClubRegistrationForm() {
+        ApplicationFormConfigResponse data = applicationFormService.postponeClubRegistrationForm();
+        return ResponseEntity.ok(ResponseUtils.success("Form đăng ký câu lạc bộ đã được hoãn thành công", data));
     }
 }
