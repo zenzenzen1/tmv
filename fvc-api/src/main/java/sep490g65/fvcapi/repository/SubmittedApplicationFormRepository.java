@@ -30,6 +30,10 @@ public interface SubmittedApplicationFormRepository extends JpaRepository<Submit
 
     @Query("SELECT s FROM SubmittedApplicationForm s WHERE s.applicationFormConfig.id = :formId")
     Page<SubmittedApplicationForm> findByFormId(@Param("formId") String formId, Pageable pageable);
+
+    boolean existsByEmailIgnoreCase(String email);
+
+    boolean existsByApplicationFormConfig_IdAndEmailIgnoreCase(String applicationFormConfigId, String email);
 }
 
 
