@@ -245,7 +245,8 @@ export default function SubmittedFormsPage() {
 
   const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
-
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
   // Filters - Default to PENDING status
   const [status, setStatus] = useState<string>("PENDING");
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -255,6 +256,23 @@ export default function SubmittedFormsPage() {
   // Search
 
   const [query, setQuery] = useState<string>("");
+
+  const filtered = useReactMemo(() => {
+    if (!query.trim()) return rows;
+    const q = query.toLowerCase();
+    return rows.filter((r) => {
+      const searchableValues = [
+        r.fullName,
+        r.email,
+        r.studentCode,
+        r.note,
+        ...Object.values(r).filter(v => typeof v === 'string' && v.trim())
+      ];
+      return searchableValues
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+  }, [rows, query]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -356,6 +374,42 @@ export default function SubmittedFormsPage() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleBulkUpdateStatus = async (ids: string[], newStatus: "APPROVED" | "REJECTED") => {
+    if (!ids.length) return;
+    try {
+      setActionLoading(true);
+      await Promise.all(ids.map((sid) => api.patch(`/v1/submitted-forms/${sid}/status`, { status: newStatus })));
+      toast.success(`${newStatus === "APPROVED" ? "Đã duyệt" : "Đã từ chối"} ${ids.length} form`);
+      setSelectedIds(new Set());
+      await fetchData();
+    } catch (e: any) {
+      toast.error(e?.message || "Không thể cập nhật hàng loạt");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const allFilteredIds = useMemo(() => filtered.map(r => r.id), [filtered]);
+  const isAllSelected = allFilteredIds.length > 0 && allFilteredIds.every(id => selectedIds.has(id));
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (isAllSelected) {
+        allFilteredIds.forEach(id => next.delete(id));
+      } else {
+        allFilteredIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
   function safePick(jsonString: string, keys: string[]): string {
@@ -524,6 +578,27 @@ export default function SubmittedFormsPage() {
 
     return [
       {
+        key: "_select",
+        title: (
+          <input
+            type="checkbox"
+            aria-label="Chọn tất cả"
+            checked={isAllSelected}
+            onChange={toggleSelectAll}
+          />
+        ) as unknown as string,
+        sortable: false,
+        className: "w-10",
+        render: (row: SubmittedRow) => (
+          <input
+            type="checkbox"
+            aria-label={`Chọn form #${row.id}`}
+            checked={selectedIds.has(row.id)}
+            onChange={() => toggleSelectOne(row.id)}
+          />
+        ),
+      },
+      {
         key: "stt",
 
         title: "STT",
@@ -568,7 +643,7 @@ export default function SubmittedFormsPage() {
         ),
       },
     ];
-  }, [rows]);
+  }, [rows, selectedIds, isAllSelected]);
 
   const filtered = useReactMemo(() => {
     if (!query.trim()) return rows;
@@ -632,12 +707,33 @@ export default function SubmittedFormsPage() {
           >
             ⟵ Quay lại
           </button>
-          <button
-            onClick={() => exportCsv(filtered)}
-            className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
-          >
-            Xuất Excel
-          </button>
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <>
+                <button
+                  onClick={() => handleBulkUpdateStatus(Array.from(selectedIds), "APPROVED")}
+                  disabled={actionLoading}
+                  className="rounded-md bg-green-600 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-green-700 disabled:opacity-50"
+                >
+                  Duyệt đã chọn ({selectedIds.size})
+                </button>
+                <button
+                  onClick={() => handleBulkUpdateStatus(Array.from(selectedIds), "REJECTED")}
+                  disabled={actionLoading}
+                  className="rounded-md bg-red-600 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-red-700 disabled:opacity-50"
+                >
+                  Từ chối đã chọn ({selectedIds.size})
+                </button>
+                <div className="mx-1 w-px self-stretch bg-gray-300" />
+              </>
+            )}
+            <button
+              onClick={() => exportCsv(selectedIds.size > 0 ? filtered.filter(r => selectedIds.has(r.id)) : filtered)}
+              className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
+            >
+              {selectedIds.size > 0 ? `Xuất Excel (${selectedIds.size})` : "Xuất Excel"}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
