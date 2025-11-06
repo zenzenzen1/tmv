@@ -203,17 +203,37 @@ export default function SelectMatchPage() {
                 </div>
 
                 <div className="pt-4 border-t border-gray-200">
-                  <div className="flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
                     <span>
                       Vòng {match.currentRound}/{match.totalRounds}
                     </span>
                     <span>{formatDate(match.createdAt)}</span>
                   </div>
                   {match.startedAt && (
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-gray-500 mb-3">
                       Bắt đầu: {formatDate(match.startedAt)}
                     </p>
                   )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/manage/scoring/${match.id}/manage`);
+                      }}
+                      className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
+                    >
+                      Quản lý
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/scoring/${match.id}`);
+                      }}
+                      className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
+                    >
+                      Chấm điểm
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
