@@ -66,8 +66,16 @@ export default function AssignAssessorsPage() {
     async function fetchUsers() {
       try {
         setUsersLoading(true);
-        const response = await apiClient.get(API_ENDPOINTS.USERS.BASE);
-        setUsers(response.data?.data?.content || response.data?.data || []);
+        // Fetch all users with a large page size to get all TEACHER and EXECUTIVE_BOARD users
+        const response = await apiClient.get(API_ENDPOINTS.USERS.BASE, {
+          params: {
+            page: 0,
+            size: 1000 // Large size to get all users
+          }
+        });
+        const usersData = response.data?.data?.content || response.data?.data || [];
+        setUsers(usersData);
+        console.log('Fetched users:', usersData.length, usersData.map((u: User) => ({ id: u.id, name: u.fullName, role: u.systemRole })));
       } catch (err: any) {
         console.error('Error fetching users:', err);
         setError('Không thể tải danh sách users');
@@ -346,12 +354,21 @@ export default function AssignAssessorsPage() {
                             .filter(user => {
                               // Only show users with TEACHER or EXECUTIVE_BOARD role
                               const hasValidRole = user.systemRole === 'TEACHER' || user.systemRole === 'EXECUTIVE_BOARD';
-                              if (!hasValidRole) return false;
+                              if (!hasValidRole) {
+                                console.log('User filtered out - invalid role:', user.fullName, user.systemRole);
+                                return false;
+                              }
                               
                               // Don't show users already assigned
                               const alreadyAssigned = Object.values(assignments)
                                 .some(a => a && a.userId === user.id);
-                              return !alreadyAssigned;
+                              if (alreadyAssigned) {
+                                console.log('User filtered out - already assigned:', user.fullName);
+                                return false;
+                              }
+                              
+                              console.log('User available for selection:', user.fullName, user.systemRole);
+                              return true;
                             })
                             .map((user) => (
                               <option key={user.id} value={user.id}>

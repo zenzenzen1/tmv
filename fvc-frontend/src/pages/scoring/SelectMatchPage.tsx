@@ -156,88 +156,116 @@ export default function SelectMatchPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {matches.map((match) => (
-            <div
-              key={match.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => navigate(`/scoring/${match.id}`)}
-            >
-              <div className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                      {match.roundType}
-                    </h3>
-                    {match.weightClassId && (
-                      <p className="text-sm text-gray-500">
-                        Hạng cân: {getWeightClassName(match.weightClassId)}
+          {matches.map((match) => {
+            // Check if match has ended
+            const isMatchEnded = match.status === "KẾT THÚC" || match.status === "ENDED" || match.status === "FINISHED";
+            
+            // Navigate to result page if match ended, otherwise to scoring page
+            const handleMatchClick = () => {
+              if (isMatchEnded) {
+                navigate(`/scoring/${match.id}`);
+              } else {
+                navigate(`/scoring/${match.id}`);
+              }
+            };
+            
+            return (
+              <div
+                key={match.id}
+                className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+                onClick={handleMatchClick}
+              >
+                <div className="p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                        {match.roundType}
+                      </h3>
+                      {match.weightClassId && (
+                        <p className="text-sm text-gray-500">
+                          Hạng cân: {getWeightClassName(match.weightClassId)}
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(match.status)}`}
+                    >
+                      {match.status}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 text-sm">{match.redAthleteName}</p>
+                        {match.redAthleteUnit && (
+                          <p className="text-xs text-gray-500">{match.redAthleteUnit}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 text-sm">{match.blueAthleteName}</p>
+                        {match.blueAthleteUnit && (
+                          <p className="text-xs text-gray-500">{match.blueAthleteUnit}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-200">
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                      <span>
+                        Vòng {match.currentRound}/{match.totalRounds}
+                      </span>
+                      <span>{formatDate(match.createdAt)}</span>
+                    </div>
+                    {match.startedAt && (
+                      <p className="text-xs text-gray-500 mb-3">
+                        Bắt đầu: {formatDate(match.startedAt)}
                       </p>
                     )}
-                  </div>
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(match.status)}`}
-                  >
-                    {match.status}
-                  </span>
-                </div>
-
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 text-sm">{match.redAthleteName}</p>
-                      {match.redAthleteUnit && (
-                        <p className="text-xs text-gray-500">{match.redAthleteUnit}</p>
+                    <div className="flex gap-2">
+                      {isMatchEnded ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/scoring/${match.id}`);
+                          }}
+                          className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
+                        >
+                          Xem kết quả
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/manage/scoring/${match.id}/manage`);
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
+                          >
+                            Quản lý
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/scoring/${match.id}`);
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
+                          >
+                            Chấm điểm
+                          </button>
+                        </>
                       )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 text-sm">{match.blueAthleteName}</p>
-                      {match.blueAthleteUnit && (
-                        <p className="text-xs text-gray-500">{match.blueAthleteUnit}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-gray-200">
-                  <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                    <span>
-                      Vòng {match.currentRound}/{match.totalRounds}
-                    </span>
-                    <span>{formatDate(match.createdAt)}</span>
-                  </div>
-                  {match.startedAt && (
-                    <p className="text-xs text-gray-500 mb-3">
-                      Bắt đầu: {formatDate(match.startedAt)}
-                    </p>
-                  )}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/manage/scoring/${match.id}/manage`);
-                      }}
-                      className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
-                    >
-                      Quản lý
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/scoring/${match.id}`);
-                      }}
-                      className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
-                    >
-                      Chấm điểm
-                    </button>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
