@@ -1,6 +1,7 @@
 package sep490g65.fvcapi.controller;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +15,8 @@ import sep490g65.fvcapi.dto.response.PaginationResponse;
 import sep490g65.fvcapi.utils.ResponseUtils;
 import jakarta.validation.Valid;
 import sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest;
+import sep490g65.fvcapi.dto.request.UpdateSeedNumbersRequest;
+import sep490g65.fvcapi.dto.request.UpdateAthletesStatusRequest;
 
 import java.util.List;
 
@@ -21,6 +24,7 @@ import java.util.List;
 @RestController
 @RequestMapping(ApiConstants.API_BASE_PATH + "/athletes")
 @RequiredArgsConstructor
+@Slf4j
 public class AthleteController {
     private final AthleteService athleteService;
 
@@ -79,6 +83,41 @@ public class AthleteController {
                 request.getAthleteOrders()
         );
         return ResponseEntity.ok(ResponseUtils.success("Arrange order saved"));
+    }
+
+    @PutMapping("/seed-numbers")
+    public ResponseEntity<BaseResponse<Void>> updateSeedNumbers(@Valid @RequestBody UpdateSeedNumbersRequest request) {
+        log.info("🎲 [AthleteController] Received request to update seed numbers for {} athletes", request.getUpdates().size());
+        athleteService.updateSeedNumbers(request.getUpdates());
+        log.info("✅ [AthleteController] Successfully updated seed numbers");
+        return ResponseEntity.ok(ResponseUtils.success("Seed numbers updated successfully"));
+    }
+
+    @PutMapping("/status")
+    public ResponseEntity<BaseResponse<Void>> updateAthletesStatus(@Valid @RequestBody UpdateAthletesStatusRequest request) {
+        log.info("🔄 [AthleteController] Received request to update status for {} athletes to {}", 
+                request != null && request.getAthleteIds() != null ? request.getAthleteIds().size() : 0, 
+                request != null ? request.getStatus() : "null");
+        
+        if (request == null || request.getAthleteIds() == null || request.getAthleteIds().isEmpty()) {
+            log.warn("⚠️ [AthleteController] Invalid request: request or athleteIds is null/empty");
+            return ResponseEntity.ok(ResponseUtils.error("Invalid request: athleteIds cannot be empty", "INVALID_REQUEST"));
+        }
+        
+        if (request.getStatus() == null) {
+            log.warn("⚠️ [AthleteController] Invalid request: status is null");
+            return ResponseEntity.ok(ResponseUtils.error("Invalid request: status is required", "INVALID_REQUEST"));
+        }
+        
+        try {
+            athleteService.updateAthletesStatus(request.getAthleteIds(), request.getStatus());
+            log.info("✅ [AthleteController] Successfully updated athletes status");
+            return ResponseEntity.ok(ResponseUtils.success("Athletes status updated successfully"));
+        } catch (Exception e) {
+            log.error("❌ [AthleteController] Error updating athletes status", e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    "Failed to update athletes status: " + e.getMessage(), "UPDATE_STATUS_ERROR"));
+        }
     }
 }
 

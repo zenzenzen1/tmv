@@ -314,4 +314,70 @@ public class AthleteService {
                 weightClassId
         );
     }
+
+    @Transactional
+    public void updateSeedNumbers(List<sep490g65.fvcapi.dto.request.UpdateSeedNumbersRequest.SeedNumberUpdate> updates) {
+        log.info("🎲 [Update Seed Numbers] Starting update for {} athletes", updates.size());
+        
+        int successCount = 0;
+        int failCount = 0;
+        
+        for (sep490g65.fvcapi.dto.request.UpdateSeedNumbersRequest.SeedNumberUpdate update : updates) {
+            try {
+                Optional<Athlete> athleteOpt = athleteRepository.findById(UUID.fromString(update.getAthleteId()));
+                if (athleteOpt.isPresent()) {
+                    Athlete athlete = athleteOpt.get();
+                    Integer oldSeed = athlete.getDrawSeedNumber();
+                    athlete.setDrawSeedNumber(update.getSeedNumber());
+                    athleteRepository.save(athlete);
+                    log.debug("✅ [Update Seed Numbers] Athlete: {} ({}), Old seed: {}, New seed: {}", 
+                            athlete.getFullName(), update.getAthleteId(), oldSeed, update.getSeedNumber());
+                    successCount++;
+                } else {
+                    log.warn("⚠️ [Update Seed Numbers] Athlete not found: {}", update.getAthleteId());
+                    failCount++;
+                }
+            } catch (Exception e) {
+                log.error("❌ [Update Seed Numbers] Failed to update athlete: {}, error: {}", 
+                        update.getAthleteId(), e.getMessage(), e);
+                failCount++;
+            }
+        }
+        
+        log.info("🎲 [Update Seed Numbers] Completed - Success: {}, Failed: {}, Total: {}", 
+                successCount, failCount, updates.size());
+    }
+
+    @Transactional
+    public void updateAthletesStatus(List<String> athleteIds, Athlete.AthleteStatus status) {
+        log.info("🔄 [Update Athletes Status] Starting update for {} athletes to status: {}", athleteIds.size(), status);
+        
+        int successCount = 0;
+        int failCount = 0;
+        
+        for (String athleteId : athleteIds) {
+            try {
+                Optional<Athlete> athleteOpt = athleteRepository.findById(UUID.fromString(athleteId));
+                if (athleteOpt.isPresent()) {
+                    Athlete athlete = athleteOpt.get();
+                    Athlete.AthleteStatus oldStatus = athlete.getStatus();
+                    athlete.setStatus(status);
+                    athleteRepository.save(athlete);
+                    log.debug("✅ [Update Athletes Status] Athlete: {} ({}), Old status: {}, New status: {}", 
+                            athlete.getFullName(), athleteId, oldStatus, status);
+                    successCount++;
+                } else {
+                    log.warn("⚠️ [Update Athletes Status] Athlete not found: {}", athleteId);
+                    failCount++;
+                }
+            } catch (Exception e) {
+                log.error("❌ [Update Athletes Status] Failed to update athlete: {}, error: {}", 
+                        athleteId, e.getMessage(), e);
+                failCount++;
+            }
+        }
+        
+        log.info("🔄 [Update Athletes Status] Completed - Success: {}, Failed: {}, Total: {}", 
+                successCount, failCount, athleteIds.size());
+    }
 }

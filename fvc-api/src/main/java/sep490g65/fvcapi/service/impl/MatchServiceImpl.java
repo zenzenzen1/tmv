@@ -115,6 +115,31 @@ public class MatchServiceImpl implements MatchService {
     }
 
     @Override
+    @Transactional
+    public List<MatchScoreboardDto> bulkCreateMatches(List<CreateMatchRequest> requests, String userId) {
+        log.info("Bulk creating {} matches", requests.size());
+        
+        List<MatchScoreboardDto> createdMatches = new java.util.ArrayList<>();
+        
+        for (CreateMatchRequest request : requests) {
+            try {
+                MatchScoreboardDto match = createMatch(request, userId);
+                createdMatches.add(match);
+                log.debug("Created match: {}", match.getMatchId());
+            } catch (Exception e) {
+                log.error("Error creating match for red athlete: {}, blue athlete: {}", 
+                        request.getRedAthleteId(), request.getBlueAthleteId(), e);
+                // Continue with other matches even if one fails
+            }
+        }
+        
+        log.info("Bulk create completed. Successfully created {} out of {} matches", 
+                createdMatches.size(), requests.size());
+        
+        return createdMatches;
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<MatchListItemDto> listMatches(String competitionId, String status) {
         log.info("Listing matches - competitionId: {}, status: {}", competitionId, status);
