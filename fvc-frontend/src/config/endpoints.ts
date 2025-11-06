@@ -105,6 +105,8 @@ export const API_ENDPOINTS = {
   ATHLETES: {
     BASE: "/v1/athletes",
     ARRANGE_ORDER: "/v1/athletes/arrange-order",
+    SEED_NUMBERS: "/v1/athletes/seed-numbers",
+    STATUS: "/v1/athletes/status",
   },
 
   // Assessors
@@ -151,6 +153,7 @@ export const API_ENDPOINTS = {
   MATCHES: {
     LIST: "/v1/matches/list",
     CREATE: "/v1/matches/create",
+    BULK_CREATE: "/v1/matches/bulk-create",
     SCOREBOARD: "/v1/matches/{matchId}/scoreboard",
     EVENTS: "/v1/matches/{matchId}/events",
     SCORE: "/v1/matches/score",

@@ -18,6 +18,11 @@ public interface MatchService {
     MatchScoreboardDto createMatch(CreateMatchRequest request, String userId);
     
     /**
+     * Bulk create matches
+     */
+    List<MatchScoreboardDto> bulkCreateMatches(List<CreateMatchRequest> requests, String userId);
+    
+    /**
      * List all matches (optionally filtered by competition or status)
      */
     List<MatchListItemDto> listMatches(String competitionId, String status);

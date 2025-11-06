@@ -124,7 +124,6 @@ export default function FormManagementPage() {
   const getStatusBadge = (status: string) => {
     const statusMap = {
       DRAFT: { label: "Nháp", className: "bg-gray-100 text-gray-800" },
-<<<<<<< HEAD
       PUBLISH: {
         label: "Đã xuất bản",
         className: "bg-green-100 text-green-800",
