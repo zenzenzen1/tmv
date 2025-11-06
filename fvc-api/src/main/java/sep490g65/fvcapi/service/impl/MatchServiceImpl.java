@@ -455,6 +455,14 @@ public class MatchServiceImpl implements MatchService {
                             MessageConstants.MATCH_ALREADY_ENDED,
                             ErrorCode.MATCH_ALREADY_ENDED.getCode());
                 }
+                
+                // Cannot end match if it hasn't started yet
+                if (match.getStatus() == MatchStatus.PENDING) {
+                    throw new BusinessException(
+                            "Không thể kết thúc trận đấu khi trận đấu chưa bắt đầu. Trạng thái hiện tại: " + match.getStatus(),
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                
                 match.setStatus(MatchStatus.ENDED);
                 match.setEndedAt(LocalDateTime.now());
                 

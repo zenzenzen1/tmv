@@ -70,6 +70,9 @@ export default function MatchScoringPage() {
 
   // Check if match has ended
   const isMatchEnded = scoreboard?.status === 'KẾT THÚC' || scoreboard?.status === 'ENDED' || scoreboard?.status === 'FINISHED';
+  
+  // Check if match hasn't started yet
+  const isMatchPending = scoreboard?.status === 'CHỜ BẮT ĐẦU' || scoreboard?.status === 'PENDING';
 
   const fetchScoreboard = useCallback(async () => {
     if (!matchId) {
@@ -115,6 +118,12 @@ export default function MatchScoringPage() {
 
   const handleRoundEnd = useCallback(async () => {
     if (!matchId || !scoreboard || actionLoading) return;
+    
+    // Cannot end round if match hasn't started
+    if (scoreboard.status === 'CHỜ BẮT ĐẦU' || scoreboard.status === 'PENDING') {
+      toast.warning('Không thể kết thúc vòng khi trận đấu chưa bắt đầu', 5000);
+      return;
+    }
 
     try {
       setActionLoading(true);
@@ -286,6 +295,12 @@ export default function MatchScoringPage() {
 
   const handleMatchControl = async (action: 'START' | 'PAUSE' | 'RESUME' | 'END') => {
     if (!matchId || !scoreboard || actionLoading) return;
+    
+    // Cannot end match if it hasn't started
+    if (action === 'END' && (scoreboard.status === 'CHỜ BẮT ĐẦU' || scoreboard.status === 'PENDING')) {
+      toast.warning('Không thể kết thúc trận đấu khi trận đấu chưa bắt đầu', 5000);
+      return;
+    }
 
     try {
       setActionLoading(true);
@@ -821,8 +836,8 @@ export default function MatchScoringPage() {
                 handleMatchControl('END');
               }
             }}
-              disabled={actionLoading || isMatchEnded}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
+              disabled={actionLoading || isMatchEnded || isMatchPending}
+            className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
             {scoreboard && scoreboard.currentRound < scoreboard.totalRounds
               ? `Kết thúc vòng ${scoreboard.currentRound}`
