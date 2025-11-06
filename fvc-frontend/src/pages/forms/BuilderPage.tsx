@@ -265,7 +265,7 @@ export default function FormBuilderPage() {
                                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     disabled={f.id.startsWith("base-")} // Disable for base fields
                                   />
-                                  Required
+                                  Bắt buộc
                                 </label>
                                 {!f.id.startsWith("base-") && ( // Only show delete for custom fields
                                   <button
@@ -287,6 +287,28 @@ export default function FormBuilderPage() {
                                   placeholder="Nhập câu hỏi"
                                 />
                               </div>
+                              {/* Field name (machine name) */}
+                              <div>
+                                <div className="mb-1 text-xs font-medium text-gray-700">Tên trường (không dấu, không cách)</div>
+                                <input
+                                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                                  value={f.name}
+                                  onChange={(e) => handleChangeField(f.id, { name: e.target.value })}
+                                  placeholder="vd: ly_do_tham_gia"
+                                />
+                              </div>
+                              {/* Options for SELECT / CHECKBOX */}
+                              {(f.fieldType === "SELECT" || f.fieldType === "CHECKBOX") && (
+                                <div>
+                                  <div className="mb-1 text-xs font-medium text-gray-700">Tùy chọn (phân tách bằng dấu phẩy)</div>
+                                  <input
+                                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                                    value={f.options || ""}
+                                    onChange={(e) => handleChangeField(f.id, { options: e.target.value })}
+                                    placeholder="Ví dụ: Lựa chọn 1, Lựa chọn 2, Lựa chọn 3"
+                                  />
+                                </div>
+                              )}
                               <div>
                                 <div className="mb-1 text-xs font-medium text-gray-700">Ghi chú</div>
                                 <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
@@ -307,18 +329,21 @@ export default function FormBuilderPage() {
                                   {f.fieldType === "SELECT" && (
                                     <select className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm" disabled>
                                       <option>Chọn một tùy chọn</option>
+                                      {(f.options || "").split(",").map((op, idx) => (
+                                        <option key={idx}>{op.trim()}</option>
+                                      ))}
                                     </select>
                                   )}
                                   {f.fieldType === "CHECKBOX" && (
                                     <div className="space-y-2">
-                                      <label className="flex items-center gap-2 text-sm">
-                                        <input type="checkbox" className="rounded border-gray-300" disabled />
-                                        <span className="text-gray-500">Tùy chọn 1</span>
-                                      </label>
-                                      <label className="flex items-center gap-2 text-sm">
-                                        <input type="checkbox" className="rounded border-gray-300" disabled />
-                                        <span className="text-gray-500">Tùy chọn 2</span>
-                                      </label>
+                                      {((f.options || "").split(",").map(op => op.trim()).filter(Boolean).length
+                                        ? (f.options || "").split(",").map(op => op.trim()).filter(Boolean)
+                                        : ["Tùy chọn 1", "Tùy chọn 2"]).map((label, idx) => (
+                                        <label key={idx} className="flex items-center gap-2 text-sm">
+                                          <input type="checkbox" className="rounded border-gray-300" disabled />
+                                          <span className="text-gray-500">{label}</span>
+                                        </label>
+                                      ))}
                                     </div>
                                   )}
                                   {f.fieldType === "FILE" && (
@@ -357,42 +382,42 @@ export default function FormBuilderPage() {
             {showAddMenu && (
               <div className="absolute top-full left-0 mt-2 w-48 rounded-md border border-gray-200 bg-white shadow-lg z-10">
                 <div className="p-2">
-                  <div className="text-xs font-semibold text-gray-600 mb-2">LOẠI CÂU HỎI</div>
+                  <div className="text-xs font-semibold text-gray-600 mb-2">Loại câu hỏi</div>
                   <div className="space-y-1">
                     <button
                       className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
                       onClick={() => handleAdd("TEXT")}
                     >
                       <span>≡</span>
-                      <span>Short answer</span>
+                      <span>Câu trả lời ngắn</span>
                     </button>
                     <button
                       className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
                       onClick={() => handleAdd("DATE")}
                     >
                       <span>📅</span>
-                      <span>Date</span>
+                      <span>Ngày</span>
                     </button>
                     <button
                       className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
                       onClick={() => handleAdd("SELECT")}
                     >
                       <span>☰</span>
-                      <span>Multiple choice</span>
+                      <span>Chọn một (SELECT)</span>
                     </button>
                     <button
                       className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
                       onClick={() => handleAdd("CHECKBOX")}
                     >
                       <span>☑</span>
-                      <span>Checkboxes</span>
+                      <span>Nhiều lựa chọn (CHECKBOX)</span>
                     </button>
                     <button
                       className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
                       onClick={() => handleAdd("FILE")}
                     >
                       <span>📄</span>
-                      <span>File upload</span>
+                      <span>Tải tệp</span>
                     </button>
                   </div>
                 </div>
