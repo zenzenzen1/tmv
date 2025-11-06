@@ -4,6 +4,7 @@ import sep490g65.fvcapi.dto.request.AssignMatchAssessorsRequest;
 import sep490g65.fvcapi.dto.request.CreateMatchAssessorRequest;
 import sep490g65.fvcapi.dto.request.UpdateMatchAssessorRequest;
 import sep490g65.fvcapi.dto.response.MatchAssessorResponse;
+import sep490g65.fvcapi.dto.response.MyAssignedMatchResponse;
 
 import java.util.List;
 
@@ -48,5 +49,10 @@ public interface MatchAssessorService {
      * Get assessors by user ID
      */
     List<MatchAssessorResponse> getAssessorsByUserId(String userId);
+    
+    /**
+     * Get my assigned matches (for current user)
+     */
+    List<MyAssignedMatchResponse> getMyAssignedMatches(String userId);
 }
 

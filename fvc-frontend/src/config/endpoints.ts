@@ -16,7 +16,7 @@ export const API_ENDPOINTS = {
   PROFILE: {
     GET: "/v1/profile",
     UPDATE: "/v1/profile",
-    CHANGE_PASSWORD: "/v1/profile/change-password"
+    CHANGE_PASSWORD: "/v1/profile/change-password",
   },
   // User management
   USERS: {
@@ -107,14 +107,30 @@ export const API_ENDPOINTS = {
     ARRANGE_ORDER: "/v1/athletes/arrange-order",
   },
 
-  // Competition Orders
-  COMPETITION_ORDERS: {
-    BASE: "/v1/competition-orders",
-    BY_ID: (id: string) => `/v1/competition-orders/${id}`,
-    BY_COMPETITION: (competitionId: string) => `/v1/competition-orders/competition/${competitionId}`,
-    BY_COMPETITION_AND_CONTENT: (competitionId: string, contentSelectionId: string) => 
-      `/v1/competition-orders/competition/${competitionId}/content/${contentSelectionId}`,
-    BULK: "/v1/competition-orders/bulk",
+  // Assessors
+  ASSESSORS: {
+    BASE: "/v1/assessors",
+    AVAILABLE: "/v1/assessors/available",
+    MY_ASSIGNMENTS: "/v1/assessors/my-assignments",
+    BY_COMPETITION: (competitionId: string) =>
+      `/v1/assessors/competition/${competitionId}`,
+    BY_COMPETITION_AND_SPECIALIZATION: (
+      competitionId: string,
+      specialization: string
+    ) =>
+      `/v1/assessors/competition/${competitionId}/specialization/${specialization}`,
+    ASSIGN: "/v1/assessors/assign",
+    BY_ID: (id: string) => `/v1/assessors/${id}`,
+  },
+
+  // Performance matches (quyền/võ nhạc)
+  PERFORMANCE_MATCHES: {
+    SAVE_BY_PERFORMANCE: (performanceId: string) =>
+      `/v1/performance-matches/performance/${performanceId}/save`,
+    BY_PERFORMANCE: (performanceId: string) =>
+      `/v1/performance-matches/performance/${performanceId}`,
+    BY_COMPETITION: (competitionId: string) =>
+      `/v1/performance-matches/competition/${competitionId}`,
   },
 
   // Club Members
@@ -152,6 +168,21 @@ export const API_ENDPOINTS = {
     ASSIGN: "/v1/match-assessors/assign",
     LIST: "/v1/match-assessors/match/{matchId}",
     BY_ID: (id: string) => `/v1/match-assessors/${id}`,
+    MY_ASSIGNMENTS: "/v1/match-assessors/my-assignments",
+  },
+
+  // Scoring (Performance projection)
+  SCORING: {
+    PERFORMANCE_BY_ID: "/v1/scoring/performance/{performanceId}",
+    SUBMIT: "/v1/scoring/submit",
+  },
+
+  // Performances (fallback/basic info)
+  PERFORMANCES: {
+    BY_ID: "/v1/performances/{id}",
+    BY_MATCH_ID: "/v1/performances/by-match/{matchId}",
+    START: (id: string) => `/v1/performances/${id}/start`,
+    COMPLETE: (id: string) => `/v1/performances/${id}/complete`,
   },
 
   // Common endpoints

@@ -44,12 +44,8 @@ public class CompetitionOrderServiceImpl implements CompetitionOrderService {
                 .competitionName(order.getCompetition() != null ? order.getCompetition().getName() : null)
                 .orderIndex(order.getOrderIndex())
                 .contentSelectionId(order.getContentSelection() != null ? order.getContentSelection().getId() : null)
-                .athleteCount(order.getAthletes() != null ? order.getAthletes().size() : 0)
-                .athleteIds(order.getAthletes() != null 
-                        ? order.getAthletes().stream()
-                                .map(athlete -> athlete.getId().toString())
-                                .collect(Collectors.toList())
-                        : List.of())
+                .athleteCount(0)
+                .athleteIds(java.util.List.of())
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .build();

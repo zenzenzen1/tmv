@@ -22,6 +22,16 @@ public interface MatchAssessorRepository extends JpaRepository<MatchAssessor, St
     
     List<MatchAssessor> findByUserId(String userId);
     
+    @Query("SELECT DISTINCT ma FROM MatchAssessor ma " +
+           "LEFT JOIN FETCH ma.match m " +
+           "LEFT JOIN FETCH ma.performanceMatch pm " +
+           "LEFT JOIN FETCH pm.competition c " +
+           "LEFT JOIN FETCH pm.performance p " +
+           "LEFT JOIN FETCH p.athletes pa " +
+           "LEFT JOIN FETCH pa.athlete a " +
+           "WHERE ma.user.id = :userId")
+    List<MatchAssessor> findByUserIdWithRelations(@Param("userId") String userId);
+    
     List<MatchAssessor> findByRole(AssessorRole role);
     
     @Query("SELECT ma FROM MatchAssessor ma WHERE ma.match.id = :matchId AND ma.role = :role ORDER BY ma.position ASC")

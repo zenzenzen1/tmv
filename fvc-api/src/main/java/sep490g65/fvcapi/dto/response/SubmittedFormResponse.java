@@ -14,6 +14,7 @@ public class SubmittedFormResponse {
     private Long id;
     private String formData;
     private ApplicationFormStatus status;
+    private String createdAt;
 }
 
 

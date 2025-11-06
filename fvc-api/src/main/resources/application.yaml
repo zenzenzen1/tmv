@@ -2,8 +2,9 @@ server:
   port: ${SERVER_PORT:8080}
 
 spring:
-  application:
-    name: ${SPRING_APPLICATION_NAME:fvc-api}
+  devtools:
+    restart:
+      enabled: false
 
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fvc-db}
@@ -42,6 +43,15 @@ spring:
 # Cấu hình logging
 logging:
   level:
+
+    org.springframework.web.socket: WARN
+    org.springframework.messaging: WARN
+    org.apache.tomcat.websocket: WARN
+    org.hibernate.engine: WARN
+    org.hibernate.stat: WARN
+    # Reduce verbose logging for better performance
+    sep490g65.fvcapi.security.JwtAuthenticationFilter: INFO
+    sep490g65.fvcapi.service.UserDetailsServiceImpl: INFO
     root: ${LOGGING_LEVEL_ROOT:INFO}
     org.springframework.web: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB:DEBUG}
     org.hibernate.SQL: ${LOGGING_LEVEL_ORG_HIBERNATE_SQL:DEBUG}
