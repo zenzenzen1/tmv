@@ -41,6 +41,10 @@ public class RequestParam {
 
     private String dateTo;
 
+    // When true, return all records (no pagination). Bound from query param `all=true`.
+    @Builder.Default
+    private Boolean all = false;
+
     // Helper methods
     public boolean isAscending() {
         return "asc".equalsIgnoreCase(sortDirection);
@@ -68,5 +72,9 @@ public class RequestParam {
 
     public String getStatusFilter() {
         return hasStatus() ? status.trim() : null;
+    }
+
+    public boolean isAll() {
+        return all != null && all;
     }
 }

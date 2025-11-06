@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import sep490g65.fvcapi.entity.Athlete;
 
 @Data
 @Builder
@@ -18,11 +19,11 @@ public class ArrangeFistOrderRequest {
     @NotBlank(message = "Competition ID is required")
     private String competitionId;
     
-    @NotBlank(message = "Competition Type is required")
-    private String competitionType;
+    @NotNull(message = "Competition Type is required")
+    private Athlete.CompetitionType competitionType;
     
     @NotNull(message = "Athlete orders are required")
-    private List<AthleteOrder> orders;
+    private List<AthleteOrder> athleteOrders;
 
     @Data
     @Builder

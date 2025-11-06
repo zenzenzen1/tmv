@@ -17,9 +17,12 @@ import sep490g65.fvcapi.repository.PasswordHistoryRepository;
 import sep490g65.fvcapi.service.UserService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import sep490g65.fvcapi.dto.request.CreateUserRequest;
 import sep490g65.fvcapi.dto.response.UserResponse;
+import sep490g65.fvcapi.entity.ClubMember;
 import sep490g65.fvcapi.exception.BusinessException;
+import sep490g65.fvcapi.repository.ClubMemberRepository;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -33,6 +36,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final PasswordHistoryRepository passwordHistoryRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ClubMemberRepository clubMemberRepository;
 
     
     @Override
@@ -204,6 +208,31 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public UserResponse getUserById(String userId) {
+        log.info("Fetching user by id: {}", userId);
+        
+        try {
+            Optional<User> userOpt = userRepository.findById(userId);
+            if (userOpt.isEmpty()) {
+                log.warn("User not found with id: {}", userId);
+                throw new ResourceNotFoundException("User not found with id: " + userId);
+            }
+            
+            User user = userOpt.get();
+            log.info("Successfully fetched user with id: {}", userId);
+            return UserResponse.from(user);
+            
+        } catch (ResourceNotFoundException e) {
+            log.error("Resource not found error: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error fetching user by id: {}", e.getMessage(), e);
+            throw new BusinessException("Failed to fetch user", "USER_FETCH_FAILED");
+        }
+    }
+
+    @Override
     public UserResponse createUser(CreateUserRequest request) {
         log.info("Attempting to create new user with email: {}", request.getPersonalMail());
 
@@ -316,6 +345,49 @@ public class UserServiceImpl implements UserService {
         } catch (Exception e) {
             log.error("Error searching users: {}", e.getMessage(), e);
             throw new BusinessException("Failed to search users", "USER_SEARCH_FAILED");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UserResponse> searchChallengeUsers(Pageable pageable, String query) {
+        log.info("Searching challenge users - query: {}", query);
+        
+        try {
+            // Get all user IDs that have clubMember records
+            List<String> userIdsWithClubMember = clubMemberRepository.findAll().stream()
+                    .map(cm -> cm.getUser().getId())
+                    .distinct()
+                    .toList();
+            
+            if (userIdsWithClubMember.isEmpty()) {
+                return Page.empty(pageable);
+            }
+            
+            // Build specification: isInChallenge = true AND has clubMember
+            Specification<User> spec = (root, criteriaQuery, cb) -> 
+                cb.and(
+                    cb.equal(root.get("isInChallenge"), true),
+                    root.get("id").in(userIdsWithClubMember)
+                );
+            
+            // Apply search query filter if provided
+            if (query != null && !query.trim().isEmpty()) {
+                String searchTerm = "%" + query.trim().toLowerCase() + "%";
+                Specification<User> searchSpec = (root, criteriaQuery, cb) -> 
+                    cb.or(
+                        cb.like(cb.lower(root.get("fullName")), searchTerm),
+                        cb.like(cb.lower(root.get("personalMail")), searchTerm),
+                        cb.like(cb.lower(root.get("studentCode")), searchTerm)
+                    );
+                spec = spec.and(searchSpec);
+            }
+            
+            Page<User> userPage = userRepository.findAll(spec, pageable);
+            return userPage.map(UserResponse::from);
+        } catch (Exception e) {
+            log.error("Error searching challenge users: {}", e.getMessage(), e);
+            throw new BusinessException("Failed to search challenge users", "CHALLENGE_USER_SEARCH_FAILED");
         }
     }
 

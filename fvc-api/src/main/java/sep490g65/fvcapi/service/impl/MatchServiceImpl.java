@@ -11,19 +11,28 @@ import sep490g65.fvcapi.dto.request.RecordScoreEventRequest;
 import sep490g65.fvcapi.dto.response.MatchAthleteInfoDto;
 import sep490g65.fvcapi.dto.response.MatchEventDto;
 import sep490g65.fvcapi.dto.response.MatchListItemDto;
+import sep490g65.fvcapi.dto.response.MatchRoundDto;
 import sep490g65.fvcapi.dto.response.MatchScoreboardDto;
 import sep490g65.fvcapi.entity.Athlete;
 import sep490g65.fvcapi.entity.Match;
+import sep490g65.fvcapi.entity.MatchAssessor;
 import sep490g65.fvcapi.entity.MatchEvent;
+import sep490g65.fvcapi.entity.MatchRound;
+import sep490g65.fvcapi.enums.RoundType;
 import sep490g65.fvcapi.entity.MatchScoreboardSnapshot;
 import sep490g65.fvcapi.enums.*;
+import sep490g65.fvcapi.config.WebSocketConnectionEventListener.AssessorConnectionStatus;
 import sep490g65.fvcapi.exception.custom.BusinessException;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.repository.AthleteRepository;
 import sep490g65.fvcapi.repository.CompetitionRepository;
+import sep490g65.fvcapi.repository.MatchAssessorRepository;
 import sep490g65.fvcapi.repository.MatchEventRepository;
 import sep490g65.fvcapi.repository.MatchRepository;
+import sep490g65.fvcapi.repository.MatchRoundRepository;
 import sep490g65.fvcapi.repository.MatchScoreboardSnapshotRepository;
+import sep490g65.fvcapi.repository.WeightClassRepository;
+import sep490g65.fvcapi.repository.FieldRepository;
 import sep490g65.fvcapi.service.MatchService;
 import sep490g65.fvcapi.config.WebSocketConnectionEventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -42,6 +51,10 @@ public class MatchServiceImpl implements MatchService {
     private final MatchRepository matchRepository;
     private final MatchEventRepository matchEventRepository;
     private final MatchScoreboardSnapshotRepository scoreboardSnapshotRepository;
+    private final MatchAssessorRepository matchAssessorRepository;
+    private final MatchRoundRepository matchRoundRepository;
+    private final WeightClassRepository weightClassRepository;
+    private final FieldRepository fieldRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final AthleteRepository athleteRepository;
     private final CompetitionRepository competitionRepository;
@@ -71,6 +84,7 @@ public class MatchServiceImpl implements MatchService {
         Match match = Match.builder()
                 .competitionId(request.getCompetitionId())
                 .weightClassId(request.getWeightClassId())
+                .fieldId(request.getFieldId())
                 .roundType(request.getRoundType())
                 .redAthleteId(request.getRedAthleteId())
                 .blueAthleteId(request.getBlueAthleteId())
@@ -83,19 +97,48 @@ public class MatchServiceImpl implements MatchService {
                 .status(MatchStatus.PENDING)
                 .currentRound(1)
                 .totalRounds(request.getTotalRounds() != null ? request.getTotalRounds() : 3)
-                .roundDurationSeconds(request.getRoundDurationSeconds() != null ? request.getRoundDurationSeconds() : 120)
-                .timeRemainingSeconds(request.getRoundDurationSeconds() != null ? request.getRoundDurationSeconds() : 120)
+                .roundDurationSeconds(request.getRoundDurationSeconds() != null ? request.getRoundDurationSeconds() : 120) // Keep for backward compatibility
+                .mainRoundDurationSeconds(request.getRoundDurationSeconds() != null ? request.getRoundDurationSeconds() : 120) // Default main round duration
+                .tiebreakerDurationSeconds(60) // Default tiebreaker duration
                 .createdBy(userId)
                 .build();
 
         match = matchRepository.save(match);
         log.info("Match created successfully with ID: {}", match.getId());
 
+        // Create rounds for the match
+        createRoundsForMatch(match);
+
         // Create initial snapshot
         createInitialSnapshot(match);
 
         // Return scoreboard
         return getScoreboard(match.getId());
+    }
+
+    @Override
+    @Transactional
+    public List<MatchScoreboardDto> bulkCreateMatches(List<CreateMatchRequest> requests, String userId) {
+        log.info("Bulk creating {} matches", requests.size());
+        
+        List<MatchScoreboardDto> createdMatches = new java.util.ArrayList<>();
+        
+        for (CreateMatchRequest request : requests) {
+            try {
+                MatchScoreboardDto match = createMatch(request, userId);
+                createdMatches.add(match);
+                log.debug("Created match: {}", match.getMatchId());
+            } catch (Exception e) {
+                log.error("Error creating match for red athlete: {}, blue athlete: {}", 
+                        request.getRedAthleteId(), request.getBlueAthleteId(), e);
+                // Continue with other matches even if one fails
+            }
+        }
+        
+        log.info("Bulk create completed. Successfully created {} out of {} matches", 
+                createdMatches.size(), requests.size());
+        
+        return createdMatches;
     }
 
     @Override
@@ -177,15 +220,51 @@ public class MatchServiceImpl implements MatchService {
 
         String statusText = getStatusText(match.getStatus());
 
+        // Get weight class name instead of ID
+        String weightClassName = null;
+        if (match.getWeightClassId() != null && !match.getWeightClassId().isEmpty()) {
+            weightClassName = weightClassRepository.findById(match.getWeightClassId())
+                    .map(wc -> wc.getWeightClass())
+                    .orElse(null);
+        }
+
+        // Get field location instead of ID
+        String fieldLocation = null;
+        if (match.getFieldId() != null && !match.getFieldId().isEmpty()) {
+            fieldLocation = fieldRepository.findById(match.getFieldId())
+                    .map(f -> f.getLocation())
+                    .orElse(null);
+        }
+
+        // Get duration for current round (main round or tiebreaker)
+        Integer currentRoundDuration;
+        if (match.getCurrentRound() <= 2) {
+            currentRoundDuration = match.getMainRoundDurationSeconds();
+        } else {
+            currentRoundDuration = match.getTiebreakerDurationSeconds();
+        }
+        
+        // Try to get from MatchRound if exists
+        final Integer[] finalDuration = {currentRoundDuration};
+        matchRoundRepository.findByMatchIdAndRoundNumber(match.getId(), match.getCurrentRound())
+                .ifPresent(round -> {
+                    if (round.getScheduledDurationSeconds() != null) {
+                        finalDuration[0] = round.getScheduledDurationSeconds();
+                    }
+                });
+        currentRoundDuration = finalDuration[0];
+
         return MatchScoreboardDto.builder()
                 .matchId(match.getId())
                 .matchName(buildMatchName(match))
-                .weightClass(match.getWeightClassId())
+                .weightClass(weightClassName)
+                .field(fieldLocation)
                 .roundType(match.getRoundType())
                 .currentRound(match.getCurrentRound())
                 .totalRounds(match.getTotalRounds())
-                .roundDurationSeconds(match.getRoundDurationSeconds())
-                .timeRemainingSeconds(match.getTimeRemainingSeconds())
+                .roundDurationSeconds(currentRoundDuration)
+                .mainRoundDurationSeconds(match.getMainRoundDurationSeconds())
+                .tiebreakerDurationSeconds(match.getTiebreakerDurationSeconds())
                 .status(statusText)
                 .redAthlete(MatchAthleteInfoDto.builder()
                         .id(match.getRedAthleteId())
@@ -267,19 +346,80 @@ public class MatchServiceImpl implements MatchService {
 
         switch (request.getAction()) {
             case START:
-                if (match.getStatus() != MatchStatus.PENDING) {
+                if (match.getStatus() != MatchStatus.PENDING && match.getStatus() != MatchStatus.PAUSED) {
                     throw new BusinessException(
                             MessageConstants.INVALID_MATCH_STATUS,
                             ErrorCode.INVALID_MATCH_STATUS.getCode());
                 }
+                
+                // Validate assessors before starting match
+                List<MatchAssessor> allAssessors = matchAssessorRepository.findByMatchId(match.getId());
+                long assessorCount = allAssessors.size();
+                
+                // Check if we have exactly 6 assessors (5 ASSESSOR + 1 JUDGER)
+                if (assessorCount != 6) {
+                    throw new BusinessException(
+                            "Trận đấu cần đúng 6 người (5 giám định + 1 trọng tài) trước khi bắt đầu. Hiện tại có " + assessorCount + " người.",
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                
+                // Check if we have exactly 1 JUDGER (position 6)
+                long judgerCount = allAssessors.stream()
+                        .filter(a -> a.getRole() == AssessorRole.JUDGER || a.getPosition() == 6)
+                        .count();
+                if (judgerCount != 1) {
+                    throw new BusinessException(
+                            "Trận đấu cần đúng 1 trọng tài (vị trí 6). Hiện tại có " + judgerCount + " trọng tài.",
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                
+                // Check if we have exactly 5 ASSESSORs (positions 1-5)
+                long assessorRoleCount = allAssessors.stream()
+                        .filter(a -> a.getRole() == AssessorRole.ASSESSOR && a.getPosition() >= 1 && a.getPosition() <= 5)
+                        .count();
+                if (assessorRoleCount != 5) {
+                    throw new BusinessException(
+                            "Trận đấu cần đúng 5 giám định (vị trí 1-5). Hiện tại có " + assessorRoleCount + " giám định.",
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                
+                // Check if all 6 assessors are connected
+                AssessorConnectionStatus connectionStatus = webSocketConnectionEventListener.getConnectionStatus(match.getId());
+                int connectedCount = connectionStatus.getConnectedCount();
+                List<String> connectedAssessorIds = connectionStatus.getConnectedAssessors();
+                
+                // Get all assessor IDs
+                List<String> allAssessorIds = allAssessors.stream()
+                        .map(a -> a.getId())
+                        .collect(java.util.stream.Collectors.toList());
+                
+                // Check if all assessors are connected
+                if (connectedCount < 6) {
+                    List<String> missingAssessorIds = allAssessorIds.stream()
+                            .filter(id -> !connectedAssessorIds.contains(id))
+                            .collect(java.util.stream.Collectors.toList());
+                    throw new BusinessException(
+                            "Tất cả 6 người (5 giám định + 1 trọng tài) phải kết nối trước khi bắt đầu trận đấu. " +
+                            "Hiện tại có " + connectedCount + "/6 người đã kết nối. " +
+                            "Thiếu: " + missingAssessorIds.size() + " người.",
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                
                 match.setStatus(MatchStatus.IN_PROGRESS);
-                match.setStartedAt(LocalDateTime.now());
+                if (match.getStartedAt() == null) {
+                    match.setStartedAt(LocalDateTime.now());
+                }
                 if (request.getCurrentRound() != null) {
                     match.setCurrentRound(request.getCurrentRound());
                 }
-                if (request.getTimeRemainingSeconds() != null) {
-                    match.setTimeRemainingSeconds(request.getTimeRemainingSeconds());
-                }
+                
+                // Start the first round
+                matchRoundRepository.findByMatchIdAndRoundNumber(match.getId(), match.getCurrentRound())
+                        .ifPresent(round -> {
+                            round.setStatus(MatchStatus.IN_PROGRESS);
+                            round.setStartedAt(LocalDateTime.now());
+                            matchRoundRepository.save(round);
+                        });
                 break;
 
             case PAUSE:
@@ -289,9 +429,13 @@ public class MatchServiceImpl implements MatchService {
                             ErrorCode.INVALID_MATCH_STATUS.getCode());
                 }
                 match.setStatus(MatchStatus.PAUSED);
-                if (request.getTimeRemainingSeconds() != null) {
-                    match.setTimeRemainingSeconds(request.getTimeRemainingSeconds());
-                }
+                
+                // Pause current round
+                matchRoundRepository.findByMatchIdAndRoundNumber(match.getId(), match.getCurrentRound())
+                        .ifPresent(round -> {
+                            round.setStatus(MatchStatus.PAUSED);
+                            matchRoundRepository.save(round);
+                        });
                 break;
 
             case RESUME:
@@ -301,8 +445,79 @@ public class MatchServiceImpl implements MatchService {
                             ErrorCode.INVALID_MATCH_STATUS.getCode());
                 }
                 match.setStatus(MatchStatus.IN_PROGRESS);
-                if (request.getTimeRemainingSeconds() != null) {
-                    match.setTimeRemainingSeconds(request.getTimeRemainingSeconds());
+                
+                // Resume current round
+                matchRoundRepository.findByMatchIdAndRoundNumber(match.getId(), match.getCurrentRound())
+                        .ifPresent(round -> {
+                            round.setStatus(MatchStatus.IN_PROGRESS);
+                            matchRoundRepository.save(round);
+                        });
+                break;
+
+            case NEXT_ROUND:
+                if (match.getStatus() != MatchStatus.IN_PROGRESS && match.getStatus() != MatchStatus.PAUSED) {
+                    throw new BusinessException(
+                            MessageConstants.INVALID_MATCH_STATUS,
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                
+                // End current round
+                matchRoundRepository.findByMatchIdAndRoundNumber(match.getId(), match.getCurrentRound())
+                        .ifPresent(currentRound -> {
+                            currentRound.setStatus(MatchStatus.ENDED);
+                            currentRound.setEndedAt(LocalDateTime.now());
+                            // Calculate duration
+                            if (currentRound.getStartedAt() != null) {
+                                long durationSeconds = java.time.Duration.between(
+                                        currentRound.getStartedAt(), LocalDateTime.now()).getSeconds();
+                                currentRound.setDurationSeconds((int) durationSeconds);
+                            }
+                            // Get current scores from snapshot
+                            MatchScoreboardSnapshot snapshot = scoreboardSnapshotRepository.findByMatchId(match.getId())
+                                    .orElse(null);
+                            if (snapshot != null) {
+                                currentRound.setRedScore(snapshot.getRedScore());
+                                currentRound.setBlueScore(snapshot.getBlueScore());
+                            }
+                            matchRoundRepository.save(currentRound);
+                        });
+                
+                if (match.getCurrentRound() >= match.getTotalRounds()) {
+                    // Last round ended, end the match
+                    match.setStatus(MatchStatus.ENDED);
+                    match.setEndedAt(LocalDateTime.now());
+                    
+                    // Get final scores for notification
+                    MatchScoreboardDto finalScoreboard = getScoreboard(match.getId());
+                    String redScore = String.valueOf(finalScoreboard.getRedAthlete().getScore());
+                    String blueScore = String.valueOf(finalScoreboard.getBlueAthlete().getScore());
+                    String winner;
+                    if (finalScoreboard.getRedAthlete().getScore() > finalScoreboard.getBlueAthlete().getScore()) {
+                        winner = "ĐỎ";
+                    } else if (finalScoreboard.getBlueAthlete().getScore() > finalScoreboard.getRedAthlete().getScore()) {
+                        winner = "XANH";
+                    } else {
+                        winner = "HÒA";
+                    }
+                    
+                    // Notify all assessors and disconnect them
+                    webSocketConnectionEventListener.notifyMatchEndedAndDisconnect(
+                            match.getId(), redScore, blueScore, winner);
+                } else {
+                    // Move to next round
+                    int nextRound = match.getCurrentRound() + 1;
+                    match.setCurrentRound(nextRound);
+                    match.setStatus(MatchStatus.IN_PROGRESS);
+                    
+                    // Start next round
+                    matchRoundRepository.findByMatchIdAndRoundNumber(match.getId(), nextRound)
+                            .ifPresent(nextRoundEntity -> {
+                                nextRoundEntity.setStatus(MatchStatus.IN_PROGRESS);
+                                nextRoundEntity.setStartedAt(LocalDateTime.now());
+                                matchRoundRepository.save(nextRoundEntity);
+                            });
+                    
+                    log.info("Match {} moved to round {}", match.getId(), nextRound);
                 }
                 break;
 
@@ -312,8 +527,40 @@ public class MatchServiceImpl implements MatchService {
                             MessageConstants.MATCH_ALREADY_ENDED,
                             ErrorCode.MATCH_ALREADY_ENDED.getCode());
                 }
+                
+                // Cannot end match if it hasn't started yet
+                if (match.getStatus() == MatchStatus.PENDING) {
+                    throw new BusinessException(
+                            "Không thể kết thúc trận đấu khi trận đấu chưa bắt đầu. Trạng thái hiện tại: " + match.getStatus(),
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                
                 match.setStatus(MatchStatus.ENDED);
                 match.setEndedAt(LocalDateTime.now());
+                
+                // End current round if in progress
+                matchRoundRepository.findByMatchIdAndRoundNumber(match.getId(), match.getCurrentRound())
+                        .ifPresent(currentRound -> {
+                            if (currentRound.getStatus() == MatchStatus.IN_PROGRESS || 
+                                currentRound.getStatus() == MatchStatus.PAUSED) {
+                                currentRound.setStatus(MatchStatus.ENDED);
+                                currentRound.setEndedAt(LocalDateTime.now());
+                                // Calculate duration
+                                if (currentRound.getStartedAt() != null) {
+                                    long durationSeconds = java.time.Duration.between(
+                                            currentRound.getStartedAt(), LocalDateTime.now()).getSeconds();
+                                    currentRound.setDurationSeconds((int) durationSeconds);
+                                }
+                                // Get current scores from snapshot
+                                MatchScoreboardSnapshot snapshot = scoreboardSnapshotRepository.findByMatchId(match.getId())
+                                        .orElse(null);
+                                if (snapshot != null) {
+                                    currentRound.setRedScore(snapshot.getRedScore());
+                                    currentRound.setBlueScore(snapshot.getBlueScore());
+                                }
+                                matchRoundRepository.save(currentRound);
+                            }
+                        });
                 
                 // Get final scores for notification
                 MatchScoreboardDto finalScoreboard = getScoreboard(match.getId());
@@ -366,6 +613,261 @@ public class MatchServiceImpl implements MatchService {
         log.info("Last event undone for match {}", matchId);
     }
 
+    @Override
+    @Transactional
+    public void updateRoundDuration(String matchId, Integer roundDurationSeconds) {
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(matchId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        String.format(MessageConstants.MATCH_NOT_FOUND, matchId)));
+
+        // Only allow updating if match hasn't started yet
+        if (match.getStatus() != MatchStatus.PENDING) {
+            throw new BusinessException(
+                    "Chỉ có thể thay đổi thời gian vòng đấu khi trận đấu chưa bắt đầu. Trạng thái hiện tại: " + match.getStatus(),
+                    ErrorCode.INVALID_MATCH_STATUS.getCode());
+        }
+
+        if (roundDurationSeconds == null || roundDurationSeconds <= 0) {
+            throw new BusinessException(
+                    "Thời gian vòng đấu phải lớn hơn 0",
+                    ErrorCode.INVALID_MATCH_STATUS.getCode());
+        }
+
+        // Update main round duration (for backward compatibility, also update roundDurationSeconds)
+        match.setRoundDurationSeconds(roundDurationSeconds);
+        match.setMainRoundDurationSeconds(roundDurationSeconds);
+        matchRepository.save(match);
+        
+        // Update scheduled duration for main rounds (round 1-2)
+        List<MatchRound> rounds = matchRoundRepository.findByMatchIdOrderByRoundNumberAsc(matchId);
+        for (MatchRound round : rounds) {
+            if (round.getRoundNumber() <= 2 && round.getRoundType() == RoundType.MAIN) {
+                round.setScheduledDurationSeconds(roundDurationSeconds);
+                matchRoundRepository.save(round);
+            }
+        }
+
+        // Broadcast update via WebSocket
+        broadcastScoreboardUpdate(matchId);
+
+        log.info("Main round duration updated for match {} to {} seconds", matchId, roundDurationSeconds);
+    }
+
+    @Override
+    @Transactional
+    public void updateMainRoundDuration(String matchId, Integer mainRoundDurationSeconds) {
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(matchId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        String.format(MessageConstants.MATCH_NOT_FOUND, matchId)));
+
+        // Only allow updating if match hasn't started yet
+        if (match.getStatus() != MatchStatus.PENDING) {
+            throw new BusinessException(
+                    "Chỉ có thể thay đổi thời gian hiệp chính khi trận đấu chưa bắt đầu. Trạng thái hiện tại: " + match.getStatus(),
+                    ErrorCode.INVALID_MATCH_STATUS.getCode());
+        }
+
+        if (mainRoundDurationSeconds == null || mainRoundDurationSeconds <= 0) {
+            throw new BusinessException(
+                    "Thời gian hiệp chính phải lớn hơn 0",
+                    ErrorCode.INVALID_MATCH_STATUS.getCode());
+        }
+
+        // Update main round duration
+        match.setMainRoundDurationSeconds(mainRoundDurationSeconds);
+        match.setRoundDurationSeconds(mainRoundDurationSeconds); // Keep for backward compatibility
+        matchRepository.save(match);
+        
+        // Update scheduled duration for main rounds (round 1-2)
+        List<MatchRound> rounds = matchRoundRepository.findByMatchIdOrderByRoundNumberAsc(matchId);
+        for (MatchRound round : rounds) {
+            if (round.getRoundNumber() <= 2 && round.getRoundType() == RoundType.MAIN) {
+                round.setScheduledDurationSeconds(mainRoundDurationSeconds);
+                matchRoundRepository.save(round);
+            }
+        }
+
+        // Broadcast update via WebSocket
+        broadcastScoreboardUpdate(matchId);
+
+        log.info("Main round duration updated for match {} to {} seconds", matchId, mainRoundDurationSeconds);
+    }
+
+    @Override
+    @Transactional
+    public void updateTiebreakerDuration(String matchId, Integer tiebreakerDurationSeconds) {
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(matchId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        String.format(MessageConstants.MATCH_NOT_FOUND, matchId)));
+
+        // Only allow updating if match hasn't started yet
+        if (match.getStatus() != MatchStatus.PENDING) {
+            throw new BusinessException(
+                    "Chỉ có thể thay đổi thời gian hiệp phụ khi trận đấu chưa bắt đầu. Trạng thái hiện tại: " + match.getStatus(),
+                    ErrorCode.INVALID_MATCH_STATUS.getCode());
+        }
+
+        if (tiebreakerDurationSeconds == null || tiebreakerDurationSeconds <= 0) {
+            throw new BusinessException(
+                    "Thời gian hiệp phụ phải lớn hơn 0",
+                    ErrorCode.INVALID_MATCH_STATUS.getCode());
+        }
+
+        // Update tiebreaker duration
+        match.setTiebreakerDurationSeconds(tiebreakerDurationSeconds);
+        matchRepository.save(match);
+        
+        // Update scheduled duration for tiebreaker rounds (round 3+)
+        List<MatchRound> rounds = matchRoundRepository.findByMatchIdOrderByRoundNumberAsc(matchId);
+        for (MatchRound round : rounds) {
+            if (round.getRoundNumber() > 2 && round.getRoundType() == RoundType.TIEBREAKER) {
+                round.setScheduledDurationSeconds(tiebreakerDurationSeconds);
+                matchRoundRepository.save(round);
+            }
+        }
+
+        // Broadcast update via WebSocket
+        broadcastScoreboardUpdate(matchId);
+
+        log.info("Tiebreaker duration updated for match {} to {} seconds", matchId, tiebreakerDurationSeconds);
+    }
+
+    @Override
+    @Transactional
+    public void updateTotalRounds(String matchId, Integer totalRounds) {
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(matchId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        String.format(MessageConstants.MATCH_NOT_FOUND, matchId)));
+
+        // Only allow updating if match hasn't started yet
+        if (match.getStatus() != MatchStatus.PENDING) {
+            throw new BusinessException(
+                    "Chỉ có thể thay đổi số lượng vòng đấu khi trận đấu chưa bắt đầu. Trạng thái hiện tại: " + match.getStatus(),
+                    ErrorCode.INVALID_MATCH_STATUS.getCode());
+        }
+
+        if (totalRounds == null || totalRounds < 1) {
+            throw new BusinessException(
+                    "Số lượng vòng đấu phải lớn hơn hoặc bằng 1",
+                    ErrorCode.INVALID_MATCH_STATUS.getCode());
+        }
+
+        int currentTotalRounds = match.getTotalRounds();
+        
+        // Update total rounds
+        match.setTotalRounds(totalRounds);
+        
+        // Adjust rounds: create or delete as needed
+        if (totalRounds > currentTotalRounds) {
+            // Create additional rounds
+            for (int roundNumber = currentTotalRounds + 1; roundNumber <= totalRounds; roundNumber++) {
+                // Round 1-2: Main rounds, Round 3+: Tiebreaker
+                RoundType roundType = (roundNumber <= 2) ? RoundType.MAIN : RoundType.TIEBREAKER;
+                Integer scheduledDuration = (roundNumber <= 2) 
+                        ? match.getMainRoundDurationSeconds() 
+                        : match.getTiebreakerDurationSeconds();
+                
+                MatchRound round = MatchRound.builder()
+                        .match(match)
+                        .matchId(match.getId())
+                        .roundNumber(roundNumber)
+                        .roundType(roundType)
+                        .status(MatchStatus.PENDING)
+                        .redScore(0)
+                        .blueScore(0)
+                        .scheduledDurationSeconds(scheduledDuration)
+                        .build();
+                matchRoundRepository.save(round);
+            }
+            log.info("Added {} rounds for match {} (from {} to {})", 
+                    totalRounds - currentTotalRounds, matchId, currentTotalRounds, totalRounds);
+        } else if (totalRounds < currentTotalRounds) {
+            // Delete excess rounds (only if they are PENDING)
+            List<MatchRound> roundsToDelete = matchRoundRepository.findByMatchIdOrderByRoundNumberAsc(matchId);
+            for (MatchRound round : roundsToDelete) {
+                if (round.getRoundNumber() > totalRounds && round.getStatus() == MatchStatus.PENDING) {
+                    matchRoundRepository.delete(round);
+                }
+            }
+            log.info("Removed {} rounds for match {} (from {} to {})", 
+                    currentTotalRounds - totalRounds, matchId, currentTotalRounds, totalRounds);
+        }
+        
+        // Ensure currentRound doesn't exceed totalRounds
+        if (match.getCurrentRound() > totalRounds) {
+            match.setCurrentRound(totalRounds);
+        }
+        
+        matchRepository.save(match);
+
+        // Broadcast update via WebSocket
+        broadcastScoreboardUpdate(matchId);
+
+        log.info("Total rounds updated for match {} to {}", matchId, totalRounds);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MatchRoundDto> getRoundHistory(String matchId) {
+        log.info("Getting round history for match {}", matchId);
+        
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(matchId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        String.format(MessageConstants.MATCH_NOT_FOUND, matchId)));
+        
+        List<MatchRound> rounds = matchRoundRepository.findByMatchIdOrderByRoundNumberAsc(matchId);
+        
+        return rounds.stream()
+                .map(round -> MatchRoundDto.builder()
+                        .id(round.getId())
+                        .matchId(round.getMatchId())
+                        .roundNumber(round.getRoundNumber())
+                        .roundType(round.getRoundType() != null ? round.getRoundType().name() : 
+                                (round.getRoundNumber() <= 2 ? "MAIN" : "TIEBREAKER"))
+                        .status(getStatusText(round.getStatus()))
+                        .startedAt(round.getStartedAt())
+                        .endedAt(round.getEndedAt())
+                        .redScore(round.getRedScore())
+                        .blueScore(round.getBlueScore())
+                        .durationSeconds(round.getDurationSeconds())
+                        .scheduledDurationSeconds(round.getScheduledDurationSeconds())
+                        .notes(round.getNotes())
+                        .createdAt(round.getCreatedAt())
+                        .updatedAt(round.getUpdatedAt())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void updateField(String matchId, String fieldId) {
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(matchId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        String.format(MessageConstants.MATCH_NOT_FOUND, matchId)));
+
+        // Only allow updating if match hasn't started yet
+        if (match.getStatus() != MatchStatus.PENDING) {
+            throw new BusinessException(
+                    "Chỉ có thể thay đổi sân thi đấu khi trận đấu chưa bắt đầu. Trạng thái hiện tại: " + match.getStatus(),
+                    ErrorCode.INVALID_MATCH_STATUS.getCode());
+        }
+
+        // Validate field exists if fieldId is provided
+        if (fieldId != null && !fieldId.isEmpty()) {
+            fieldRepository.findById(fieldId)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            String.format("Field not found: %s", fieldId)));
+        }
+
+        match.setFieldId(fieldId);
+        matchRepository.save(match);
+
+        // Broadcast update via WebSocket
+        broadcastScoreboardUpdate(matchId);
+
+        log.info("Field updated for match {} to field {}", matchId, fieldId);
+    }
+
     private void broadcastScoreboardUpdate(String matchId) {
         try {
             MatchScoreboardDto scoreboard = getScoreboard(matchId);
@@ -374,6 +876,31 @@ public class MatchServiceImpl implements MatchService {
         } catch (Exception e) {
             log.error("Error broadcasting scoreboard update for match {}", matchId, e);
         }
+    }
+
+    private void createRoundsForMatch(Match match) {
+        log.info("Creating {} rounds for match {}", match.getTotalRounds(), match.getId());
+        for (int roundNumber = 1; roundNumber <= match.getTotalRounds(); roundNumber++) {
+            // Round 1-2: Main rounds (hiệp chính), Round 3+: Tiebreaker (hiệp phụ)
+            RoundType roundType = (roundNumber <= 2) ? RoundType.MAIN : RoundType.TIEBREAKER;
+            Integer scheduledDuration = (roundNumber <= 2) 
+                    ? match.getMainRoundDurationSeconds() 
+                    : match.getTiebreakerDurationSeconds();
+            
+            MatchRound round = MatchRound.builder()
+                    .match(match)
+                    .matchId(match.getId())
+                    .roundNumber(roundNumber)
+                    .roundType(roundType)
+                    .status(MatchStatus.PENDING)
+                    .redScore(0)
+                    .blueScore(0)
+                    .scheduledDurationSeconds(scheduledDuration)
+                    .build();
+            matchRoundRepository.save(round);
+        }
+        log.info("Created {} rounds for match {} (2 main + {} tiebreaker)", 
+                match.getTotalRounds(), match.getId(), Math.max(0, match.getTotalRounds() - 2));
     }
 
     private MatchScoreboardSnapshot createInitialSnapshot(Match match) {

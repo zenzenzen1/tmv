@@ -10,7 +10,7 @@ public final class ApiConstants {
     public static final String API_BASE_PATH = "/api/" + API_VERSION;
 
     // Pagination
-    public static final int DEFAULT_PAGE_SIZE = 10;
+    public static final int DEFAULT_PAGE_SIZE = 50;
     public static final int MAX_PAGE_SIZE = 100;
     public static final String DEFAULT_SORT_BY = "id";
     public static final String DEFAULT_SORT_DIRECTION = "asc";
@@ -42,4 +42,14 @@ public final class ApiConstants {
     // Resource Paths - Music Integrated Performances
     public static final String MUSIC_CONTENTS_PATH = "/music-contents";
     public static final String MUSIC_CONTENT_ID_PATH = "/{id}";
+
+    // Resource Paths - Fields
+    public static final String FIELDS_PATH = "/fields";
+    public static final String FIELD_ID_PATH = "/{id}";
+
+	// Resource Paths - Epic A
+	public static final String CYCLES_PATH = "/cycles";
+	public static final String PHASES_PATH = "/phases";
+	public static final String TEAMS_PATH = "/teams";
+	public static final String TEAM_MEMBERS_SUBPATH = "/members";
 }

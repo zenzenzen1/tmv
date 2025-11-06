@@ -16,7 +16,7 @@ export const API_ENDPOINTS = {
   PROFILE: {
     GET: "/v1/profile",
     UPDATE: "/v1/profile",
-    CHANGE_PASSWORD: "/v1/profile/change-password"
+    CHANGE_PASSWORD: "/v1/profile/change-password",
   },
   // User management
   USERS: {
@@ -44,6 +44,12 @@ export const API_ENDPOINTS = {
     STATUS: (id: string) => `/v1/weight-classes/${id}/status`,
   },
 
+  // Fields
+  FIELDS: {
+    BASE: "/v1/fields",
+    BY_ID: (id: string) => `/v1/fields/${id}`,
+  },
+
   // Submitted Application Forms
   SUBMITTED_FORMS: {
     BASE: "/v1/submitted-forms",
@@ -57,6 +63,12 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/v1/application-forms/${id}`,
     BY_TYPE: (type: string) => `/v1/application-forms/${type}`,
     INIT_CLUB: "/v1/application-forms/init-club-registration",
+    POSTPONE_CLUB: "/v1/application-forms/club-registration/postpone",
+  },
+
+  // Waitlist
+  WAITLIST: {
+    ADD: "/v1/waitlist/add",
   },
 
   // Tournament forms
@@ -99,16 +111,34 @@ export const API_ENDPOINTS = {
   ATHLETES: {
     BASE: "/v1/athletes",
     ARRANGE_ORDER: "/v1/athletes/arrange-order",
+    SEED_NUMBERS: "/v1/athletes/seed-numbers",
+    STATUS: "/v1/athletes/status",
   },
 
-  // Competition Orders
-  COMPETITION_ORDERS: {
-    BASE: "/v1/competition-orders",
-    BY_ID: (id: string) => `/v1/competition-orders/${id}`,
-    BY_COMPETITION: (competitionId: string) => `/v1/competition-orders/competition/${competitionId}`,
-    BY_COMPETITION_AND_CONTENT: (competitionId: string, contentSelectionId: string) => 
-      `/v1/competition-orders/competition/${competitionId}/content/${contentSelectionId}`,
-    BULK: "/v1/competition-orders/bulk",
+  // Assessors
+  ASSESSORS: {
+    BASE: "/v1/assessors",
+    AVAILABLE: "/v1/assessors/available",
+    MY_ASSIGNMENTS: "/v1/assessors/my-assignments",
+    BY_COMPETITION: (competitionId: string) =>
+      `/v1/assessors/competition/${competitionId}`,
+    BY_COMPETITION_AND_SPECIALIZATION: (
+      competitionId: string,
+      specialization: string
+    ) =>
+      `/v1/assessors/competition/${competitionId}/specialization/${specialization}`,
+    ASSIGN: "/v1/assessors/assign",
+    BY_ID: (id: string) => `/v1/assessors/${id}`,
+  },
+
+  // Performance matches (quyền/võ nhạc)
+  PERFORMANCE_MATCHES: {
+    SAVE_BY_PERFORMANCE: (performanceId: string) =>
+      `/v1/performance-matches/performance/${performanceId}/save`,
+    BY_PERFORMANCE: (performanceId: string) =>
+      `/v1/performance-matches/performance/${performanceId}`,
+    BY_COMPETITION: (competitionId: string) =>
+      `/v1/performance-matches/competition/${competitionId}`,
   },
 
   // Club Members
@@ -129,11 +159,17 @@ export const API_ENDPOINTS = {
   MATCHES: {
     LIST: "/v1/matches/list",
     CREATE: "/v1/matches/create",
+    BULK_CREATE: "/v1/matches/bulk-create",
     SCOREBOARD: "/v1/matches/{matchId}/scoreboard",
     EVENTS: "/v1/matches/{matchId}/events",
     SCORE: "/v1/matches/score",
     CONTROL: "/v1/matches/control",
     UNDO: "/v1/matches/{matchId}/undo",
+    UPDATE_ROUND_DURATION: "/v1/matches/{matchId}/round-duration",
+    UPDATE_MAIN_ROUND_DURATION: "/v1/matches/{matchId}/main-round-duration",
+    UPDATE_TIEBREAKER_DURATION: "/v1/matches/{matchId}/tiebreaker-duration",
+    UPDATE_FIELD: "/v1/matches/{matchId}/field",
+    UPDATE_TOTAL_ROUNDS: "/v1/matches/{matchId}/total-rounds",
   },
 
   // Match Assessors
@@ -141,6 +177,21 @@ export const API_ENDPOINTS = {
     ASSIGN: "/v1/match-assessors/assign",
     LIST: "/v1/match-assessors/match/{matchId}",
     BY_ID: (id: string) => `/v1/match-assessors/${id}`,
+    MY_ASSIGNMENTS: "/v1/match-assessors/my-assignments",
+  },
+
+  // Scoring (Performance projection)
+  SCORING: {
+    PERFORMANCE_BY_ID: "/v1/scoring/performance/{performanceId}",
+    SUBMIT: "/v1/scoring/submit",
+  },
+
+  // Performances (fallback/basic info)
+  PERFORMANCES: {
+    BY_ID: "/v1/performances/{id}",
+    BY_MATCH_ID: "/v1/performances/by-match/{matchId}",
+    START: (id: string) => `/v1/performances/${id}/start`,
+    COMPLETE: (id: string) => `/v1/performances/${id}/complete`,
   },
 
   // Common endpoints

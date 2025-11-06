@@ -12,28 +12,26 @@ import org.springframework.data.repository.query.Param;
 
 import sep490g65.fvcapi.entity.Athlete;
 
-public interface AthleteRepository extends JpaRepository<Athlete, java.util.UUID>, JpaSpecificationExecutor<Athlete> {
-    Optional<Athlete> findByTournamentIdAndEmail(String tournamentId, String email);
+import java.util.Optional;
+import java.util.List;
 
-    Page<Athlete> findByTournamentId(String tournamentId, Pageable pageable);
+public interface AthleteRepository extends JpaRepository<Athlete, java.util.UUID>, JpaSpecificationExecutor<Athlete> {
+    Optional<Athlete> findByCompetitionIdAndEmail(String competitionId, String email);
+
+    Page<Athlete> findByCompetitionId(String competitionId, Pageable pageable);
 
     Page<Athlete> findByCompetitionType(Athlete.CompetitionType competitionType, Pageable pageable);
 
-    Page<Athlete> findByTournamentIdAndCompetitionType(String tournamentId, Athlete.CompetitionType competitionType, Pageable pageable);
+    Page<Athlete> findByCompetitionIdAndCompetitionType(String competitionId, Athlete.CompetitionType competitionType, Pageable pageable);
 
-    List<Athlete> findByCompetitionTypeAndCompetitionId(Athlete.CompetitionType competitionType, String competitionId);
+    List<Athlete> findByCompetitionIdAndCompetitionType(String competitionId, Athlete.CompetitionType competitionType);
+
+    void deleteByEmailAndCompetitionId(String email, String competitionId);
     
-    List<Athlete> findByTournamentIdAndCompetitionTypeAndWeightClassId(
-        String tournamentId, 
+    List<Athlete> findByCompetitionIdAndCompetitionTypeAndWeightClassId(
+        String competitionId, 
         Athlete.CompetitionType competitionType, 
         String weightClassId
-    );
-    
-    @Query("SELECT a FROM Athlete a WHERE a.competition.id = :competitionId AND a.competitionType = :competitionType AND a.weightClassId = :weightClassId")
-    List<Athlete> findByCompetitionIdAndCompetitionTypeAndWeightClassId(
-        @Param("competitionId") String competitionId,
-        @Param("competitionType") Athlete.CompetitionType competitionType,
-        @Param("weightClassId") String weightClassId
     );
 }
 

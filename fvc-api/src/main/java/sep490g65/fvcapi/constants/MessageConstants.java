@@ -126,4 +126,14 @@ public final class MessageConstants {
     public static final String INVALID_MATCH_STATUS = "Invalid match status for this operation";
     public static final String INVALID_EVENT_TYPE = "Invalid event type for this operation";
 
+    // Field Messages
+    public static final String FIELDS_RETRIEVED = "Fields retrieved";
+    public static final String FIELD_RETRIEVED = "Field retrieved";
+    public static final String FIELD_CREATED = "Field created";
+    public static final String FIELD_UPDATED = "Field updated";
+    public static final String FIELD_DELETED = "Field deleted";
+
+    // Field Error Messages
+    public static final String FIELD_NOT_FOUND = "Field not found with id: %s";
+
 }

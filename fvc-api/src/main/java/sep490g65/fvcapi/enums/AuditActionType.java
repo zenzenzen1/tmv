@@ -1,0 +1,16 @@
+package sep490g65.fvcapi.enums;
+
+public enum AuditActionType {
+    CHECKIN,
+    ATTENDANCE_EDIT,
+    EVALUATION_SUBMIT,
+    PREFERENCE_UPDATE,
+    INTERVIEW_SCHEDULE,
+    APPROVAL,
+    EVENT_JOIN,
+    EVENT_CHECKIN,
+    SESSION_CREATE,
+    SESSION_EDIT
+}
+
+

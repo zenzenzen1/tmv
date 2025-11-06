@@ -8,6 +8,7 @@ import FistContentListPage from "../fist-content/ListPage";
 import MusicContentListPage from "../music-content/ListPage";
 import AthleteManagementWrapper from "../athletes/AthleteManagementWrapper";
 import SubmittedFormsPage from "../submitted-forms/ListPage";
+import BracketBuilder from "../brackets/BracketBuilder";
 
 export default function TournamentManage() {
   const [activeMenu, setActiveMenu] = useState<string>("tournamentForm");
@@ -18,6 +19,7 @@ export default function TournamentManage() {
   const contentFist = <FistContentListPage />;
   const contentMusic = <MusicContentListPage />;
   const contentSubmittedForms = <SubmittedFormsPage />;
+  const contentBrackets = <BracketBuilder />;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#F0F6FF] to-[#E0EAFF] grid grid-cols-[16rem_1fr] grid-rows-[1fr_auto] items-stretch">
@@ -32,6 +34,7 @@ export default function TournamentManage() {
         {activeMenu === "forms" && contentFist}
         {activeMenu === "music" && contentMusic}
         {activeMenu === "submittedForms" && contentSubmittedForms}
+        {activeMenu === "brackets" && contentBrackets}
       </div>
       <div className="col-span-2">
         <Footer />

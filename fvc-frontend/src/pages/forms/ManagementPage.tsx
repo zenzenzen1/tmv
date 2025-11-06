@@ -124,7 +124,6 @@ export default function FormManagementPage() {
   const getStatusBadge = (status: string) => {
     const statusMap = {
       DRAFT: { label: "Nháp", className: "bg-gray-100 text-gray-800" },
-<<<<<<< HEAD
       PUBLISH: {
         label: "Đã xuất bản",
         className: "bg-green-100 text-green-800",
@@ -358,7 +357,12 @@ export default function FormManagementPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={() => handleEdit(form.id)}
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleEdit(form.id);
+                            }}
                             aria-label="Chỉnh sửa"
                             title="Chỉnh sửa"
                             className="text-blue-600 hover:text-blue-800 transition-colors"
@@ -375,7 +379,12 @@ export default function FormManagementPage() {
                             </svg>
                           </button>
                           <button
-                            onClick={() => handleView(form.id)}
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleView(form.id);
+                            }}
                             aria-label="Xem"
                             title="Xem"
                             className="text-green-600 hover:text-green-800 transition-colors"

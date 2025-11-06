@@ -22,11 +22,17 @@ public class EmailService {
 
     private final SpringTemplateEngine templateEngine;
 
-    @Value("${spring.mail.username}")
+    @Value("${spring.mail.username:}")
     private String from;
     
     public void sendNewAccountPassword(String toEmail, String toName, String password, String loginUrl) {
         try {
+            // Check if mail is configured
+            if (from == null || from.isEmpty()) {
+                log.warn("Mail not configured. Skipping email send to {}", toEmail);
+                return;
+            }
+            
             MimeMessage message = javaMailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
 
@@ -48,6 +54,8 @@ public class EmailService {
             log.info("Sent new account password email to {}", toEmail);
         } catch (MessagingException e) {
             log.error("Error when sending new account password email to {}: ", toEmail, e);
+        } catch (Exception e) {
+            log.error("Unexpected error when sending email to {}: ", toEmail, e);
         }
     }
 }

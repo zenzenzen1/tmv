@@ -23,7 +23,7 @@ export type CommonTableProps<T> = {
   className?: string;
 };
 
-export function CommonTable<T extends Record<string, unknown>>({
+export function CommonTable<T extends object>({
   columns,
   data,
   keyField,
@@ -92,7 +92,7 @@ export function CommonTable<T extends Record<string, unknown>>({
   return (
     <div className={className}>
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white/95 shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
-        <table className="min-w-full table-fixed divide-y divide-gray-200">
+        <table className="w-full table-auto divide-y divide-gray-200">
           <thead className="bg-[#f6f9ff]">
             <tr>
               {columns.map((col) => {
@@ -107,7 +107,7 @@ export function CommonTable<T extends Record<string, unknown>>({
                   <th
                     key={String(col.key)}
                     aria-sort={ariaSort}
-                    className={`px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap text-ellipsis overflow-hidden ${
+                    className={`px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600 break-words ${
                       col.className ?? ""
                     }`}
                   >
@@ -140,7 +140,7 @@ export function CommonTable<T extends Record<string, unknown>>({
                   {columns.map((col) => (
                     <td
                       key={String(col.key)}
-                      className={`px-5 py-3 text-sm text-gray-800 overflow-hidden text-ellipsis ${
+                      className={`px-5 py-3 text-sm text-gray-800 align-top break-words ${
                         col.className ?? ""
                       }`}
                     >

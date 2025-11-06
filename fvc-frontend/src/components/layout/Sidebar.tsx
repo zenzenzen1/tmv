@@ -34,8 +34,11 @@ export default function TournamentSidebar({
   // Map menu keys to routes
   const keyToPath: Record<string, string> = {
     tournaments: "/manage/tournaments",
+    arrange: "/manage/performance",
+    cycles: "/manage/cycles",
     tournamentForm: "/manage/tournament-forms",
     weightClassPage: "/manage/weight-class",
+    fieldManagement: "/manage/field-management",
     athletes: "/manage/athletes",
     fighting: "/manage/athletes/fighting",
     forms: "/manage/fist-content",
@@ -43,7 +46,7 @@ export default function TournamentSidebar({
     formList: "/manage/form-list",
     submittedForms: "/manage/submitted-forms",
     brackets: "/manage/brackets",
-    memberManagement: "/member-management",
+    memberManagement: "/manage/member-management",
     scoring: "/manage/scoring",
     users: "/manage/users",
   };

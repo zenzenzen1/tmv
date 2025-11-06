@@ -36,6 +36,7 @@ import java.util.UUID;
 public class ApplicationFormServiceImpl implements ApplicationFormService {
 
     private final ApplicationFormConfigRepository applicationFormConfigRepository;
+    private final sep490g65.fvcapi.service.WaitlistService waitlistService;
 
     @Override
     @Transactional(readOnly = true)
@@ -144,6 +145,10 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         // Validate business rules for update
         validateFormUpdate(request, config);
 
+        // Track status change for waitlist processing
+        FormStatus oldStatus = config.getStatus();
+        boolean isRepublishing = oldStatus == FormStatus.POSTPONE && request.getStatus() == FormStatus.PUBLISH;
+
         // Update basic info
         config.setName(request.getName());
         config.setDescription(request.getDescription());
@@ -177,8 +182,22 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         }
 
         ApplicationFormConfig savedConfig = applicationFormConfigRepository.save(config);
+        
+        // Process waitlist if form is being republished
+        if (isRepublishing) {
+            try {
+                int processedCount = waitlistService.processWaitlistForForm(savedConfig.getId());
+                log.info("✅ [Republish Form] Processed {} waitlist entries for form: {}", processedCount, savedConfig.getId());
+            } catch (Exception e) {
+                log.error("❌ [Republish Form] Error processing waitlist for form: {}", savedConfig.getId(), e);
+                // Don't fail the publish operation if waitlist processing fails
+            }
+        }
+        
         return mapToResponse(savedConfig);
     }
+
+    // Removed duplicate updateById (non-@Override) to avoid method redefinition
 
     @Override
     @Transactional
@@ -190,6 +209,10 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         // Validate business rules for update
         validateFormUpdate(request, config);
 
+        // Track status change for waitlist processing
+        FormStatus oldStatus = config.getStatus();
+        boolean isRepublishing = oldStatus == FormStatus.POSTPONE && request.getStatus() == FormStatus.PUBLISH;
+
         // Update basic info
         config.setName(request.getName());
         config.setDescription(request.getDescription());
@@ -223,6 +246,18 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         }
 
         ApplicationFormConfig savedConfig = applicationFormConfigRepository.save(config);
+        
+        // Process waitlist if form is being republished
+        if (isRepublishing) {
+            try {
+                int processedCount = waitlistService.processWaitlistForForm(savedConfig.getId());
+                log.info("✅ [Republish Form] Processed {} waitlist entries for form: {}", processedCount, savedConfig.getId());
+            } catch (Exception e) {
+                log.error("❌ [Republish Form] Error processing waitlist for form: {}", savedConfig.getId(), e);
+                // Don't fail the publish operation if waitlist processing fails
+            }
+        }
+        
         return mapToResponse(savedConfig);
     }
 
@@ -588,5 +623,32 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
                 "PUBLISH_WITHOUT_END_DATE"
             );
         }
+    }
+
+    @Override
+    @Transactional
+    public ApplicationFormConfigResponse postponeClubRegistrationForm() {
+        log.info("🔄 [Postpone Club Registration Form] Starting to postpone club registration form");
+        
+        // Get the most recent form (ordered by updatedAt DESC) to handle multiple forms with same type
+        List<ApplicationFormConfig> configs = applicationFormConfigRepository
+                .findByFormTypeOrderByUpdatedAtDesc(ApplicationFormType.CLUB_REGISTRATION);
+        
+        if (configs.isEmpty()) {
+            throw new ResourceNotFoundException(
+                    "Club registration form not found. Please create it first.");
+        }
+        
+        // Get the most recent form (first in the list)
+        ApplicationFormConfig config = configs.get(0);
+        
+        FormStatus oldStatus = config.getStatus();
+        config.setStatus(FormStatus.POSTPONE);
+        ApplicationFormConfig savedConfig = applicationFormConfigRepository.save(config);
+        
+        log.info("✅ [Postpone Club Registration Form] Successfully postponed form. Old status: {}, New status: {}", 
+                oldStatus, FormStatus.POSTPONE);
+        
+        return mapToResponse(savedConfig);
     }
 }
