@@ -59,9 +59,13 @@ public class UserServiceImpl implements UserService {
         }
         User user = users.get(); 
         
-        // Update fullName
+        // Update fullName - normalize to remove special whitespace characters
         if (request.getFullName() != null && !request.getFullName().trim().isEmpty()) {
-            user.setFullName(request.getFullName().trim());
+            // Normalize: replace all Unicode whitespace with regular space, then trim and collapse multiple spaces
+            String normalizedName = request.getFullName()
+                    .replaceAll("\\s+", " ")  // Replace all whitespace with single space
+                    .trim();
+            user.setFullName(normalizedName);
         }
         
         // Update personalMail with validation
