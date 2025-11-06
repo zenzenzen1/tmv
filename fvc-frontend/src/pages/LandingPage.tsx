@@ -148,26 +148,6 @@ export default function LandingPage() {
               >
                 Đăng nhập
               </Button>
-              <Button
-                variant="outlined"
-                size="large"
-                onClick={() => navigate('/register')}
-                sx={{
-                  px: 4,
-                  py: 1.5,
-                  fontSize: '1.1rem',
-                  fontWeight: 600,
-                  borderRadius: 2,
-                  borderColor: 'white',
-                  color: 'white',
-                  '&:hover': {
-                    borderColor: 'white',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  },
-                }}
-              >
-                Đăng ký
-              </Button>
             </Stack>
           </Box>
         </Container>
@@ -229,14 +209,7 @@ export default function LandingPage() {
       {/* Benefits Section */}
       <Box sx={{ bgcolor: 'grey.50', py: 8 }}>
         <Container maxWidth="lg">
-          <Box sx={{ textAlign: 'center', mb: 6 }}>
-            <Typography variant="h3" component="h2" sx={{ fontWeight: 700, mb: 2 }}>
-              Tại sao chọn FVCMS?
-            </Typography>
-            <Typography variant="h6" color="text.secondary" sx={{ maxWidth: '700px', mx: 'auto' }}>
-              Những lợi ích bạn nhận được khi sử dụng hệ thống của chúng tôi
-            </Typography>
-          </Box>
+    
 
           <Box
             sx={{
@@ -293,20 +266,6 @@ export default function LandingPage() {
             Tham gia cùng chúng tôi để trải nghiệm hệ thống quản lý CLB Vovinam tốt nhất
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center">
-            <Button
-              variant="contained"
-              size="large"
-              onClick={() => navigate('/register')}
-              sx={{
-                px: 4,
-                py: 1.5,
-                fontSize: '1.1rem',
-                fontWeight: 600,
-                borderRadius: 2,
-              }}
-            >
-              Đăng ký ngay
-            </Button>
             <Button
               variant="outlined"
               size="large"
