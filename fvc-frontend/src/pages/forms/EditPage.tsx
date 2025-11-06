@@ -574,9 +574,9 @@ export default function FormEditPage() {
       const response = await apiService.post<any>(API_ENDPOINTS.APPLICATION_FORMS.POSTPONE_CLUB);
       
       if (response.success && response.data) {
-        setFormStatus('POSTPONE');
+      setFormStatus('POSTPONE');
         setPublicLink(null); // Clear public link when postponed
-        toast.success('Form đã được hoãn thành công');
+      toast.success('Form đã được hoãn thành công');
       } else {
         toast.error(response.message || "Lỗi khi hoãn form");
       }
@@ -622,8 +622,8 @@ export default function FormEditPage() {
               {savingDraft ? "Đang lưu..." : "Lưu"}
             </button>
             {formStatus === 'POSTPONE' ? (
-              <button 
-                onClick={requestPublish} 
+            <button 
+              onClick={requestPublish} 
                 disabled={saving || savingDraft || pendingPostpone || pendingPublish}
                 className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -634,9 +634,9 @@ export default function FormEditPage() {
                 onClick={requestPublish} 
                 disabled={saving || savingDraft || pendingPostpone || formStatus === 'PUBLISH'}
                 className="rounded-md bg-[#2563eb] px-4 py-2 text-[13px] font-semibold text-white shadow hover:bg-[#1f4ec3] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? "Đang publish..." : "Publish"}
-              </button>
+            >
+              {saving ? "Đang publish..." : "Publish"}
+            </button>
             )}
             {formStatus === 'PUBLISH' && (
               <button 

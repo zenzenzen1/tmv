@@ -77,8 +77,9 @@ public class ApplicationFormController {
     public ResponseEntity<BaseResponse<ApplicationFormConfigResponse>> getPublicBySlug(@PathVariable String slug) {
         ApplicationFormConfig config = applicationFormConfigRepository.findByPublicSlug(slug)
                 .orElseThrow(() -> new RuntimeException("Public form not found"));
-        // Only allow published forms
-        if (config.getStatus() == null || !config.getStatus().name().equals("PUBLISH")) {
+        // Allow published and postponed forms (postponed forms can be viewed but not submitted)
+        if (config.getStatus() == null || 
+            (!config.getStatus().name().equals("PUBLISH") && !config.getStatus().name().equals("POSTPONE"))) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ResponseUtils.error("Form is not public", "FORM_NOT_PUBLIC"));
         }

@@ -66,6 +66,11 @@ export const API_ENDPOINTS = {
     POSTPONE_CLUB: "/v1/application-forms/club-registration/postpone",
   },
 
+  // Waitlist
+  WAITLIST: {
+    ADD: "/v1/waitlist/add",
+  },
+
   // Tournament forms
   TOURNAMENT_FORMS: {
     BASE: "/v1/tournament-forms",

@@ -36,6 +36,7 @@ import java.util.UUID;
 public class ApplicationFormServiceImpl implements ApplicationFormService {
 
     private final ApplicationFormConfigRepository applicationFormConfigRepository;
+    private final sep490g65.fvcapi.service.WaitlistService waitlistService;
 
     @Override
     @Transactional(readOnly = true)
@@ -144,6 +145,10 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         // Validate business rules for update
         validateFormUpdate(request, config);
 
+        // Track status change for waitlist processing
+        FormStatus oldStatus = config.getStatus();
+        boolean isRepublishing = oldStatus == FormStatus.POSTPONE && request.getStatus() == FormStatus.PUBLISH;
+
         // Update basic info
         config.setName(request.getName());
         config.setDescription(request.getDescription());
@@ -177,6 +182,18 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         }
 
         ApplicationFormConfig savedConfig = applicationFormConfigRepository.save(config);
+        
+        // Process waitlist if form is being republished
+        if (isRepublishing) {
+            try {
+                int processedCount = waitlistService.processWaitlistForForm(savedConfig.getId());
+                log.info("✅ [Republish Form] Processed {} waitlist entries for form: {}", processedCount, savedConfig.getId());
+            } catch (Exception e) {
+                log.error("❌ [Republish Form] Error processing waitlist for form: {}", savedConfig.getId(), e);
+                // Don't fail the publish operation if waitlist processing fails
+            }
+        }
+        
         return mapToResponse(savedConfig);
     }
 
@@ -192,6 +209,10 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         // Validate business rules for update
         validateFormUpdate(request, config);
 
+        // Track status change for waitlist processing
+        FormStatus oldStatus = config.getStatus();
+        boolean isRepublishing = oldStatus == FormStatus.POSTPONE && request.getStatus() == FormStatus.PUBLISH;
+
         // Update basic info
         config.setName(request.getName());
         config.setDescription(request.getDescription());
@@ -225,6 +246,18 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         }
 
         ApplicationFormConfig savedConfig = applicationFormConfigRepository.save(config);
+        
+        // Process waitlist if form is being republished
+        if (isRepublishing) {
+            try {
+                int processedCount = waitlistService.processWaitlistForForm(savedConfig.getId());
+                log.info("✅ [Republish Form] Processed {} waitlist entries for form: {}", processedCount, savedConfig.getId());
+            } catch (Exception e) {
+                log.error("❌ [Republish Form] Error processing waitlist for form: {}", savedConfig.getId(), e);
+                // Don't fail the publish operation if waitlist processing fails
+            }
+        }
+        
         return mapToResponse(savedConfig);
     }
 

@@ -25,6 +25,7 @@ type FormConfig = {
   name: string;
   description: string;
   formType: string;
+  status?: string;
   fields: FormField[];
 };
 
@@ -38,6 +39,7 @@ export default function FormRegistrationPage() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [addingToWaitlist, setAddingToWaitlist] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -71,6 +73,12 @@ export default function FormRegistrationPage() {
         }
 
         setFormConfig(response.data);
+        
+        // Check if form is postponed
+        if (response.data.status === "POSTPONE") {
+          // Form is postponed - user can view but cannot submit
+          // This will be handled in the render section
+        }
 
         // Initialize form data with empty values
         const initialData: Record<string, any> = {};
@@ -191,10 +199,83 @@ export default function FormRegistrationPage() {
     return isValid;
   };
 
+  const handleAddToWaitlist = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formConfig) return;
+
+    // Validate form before adding to waitlist
+    if (!validateForm()) {
+      toast.error("Vui lòng kiểm tra lại thông tin đã nhập");
+      return;
+    }
+
+    try {
+      setAddingToWaitlist(true);
+
+      // Extract email from form data
+      let email = "";
+      Object.keys(formData).forEach((key) => {
+        if (key.toLowerCase().includes("email")) {
+          email = String(formData[key] || "").trim();
+        }
+      });
+
+      if (!email) {
+        toast.error("Vui lòng nhập email để thêm vào danh sách chờ");
+        setAddingToWaitlist(false);
+        return;
+      }
+
+      // Map form data similar to handleSubmit
+      const mappedFormData: any = {};
+      Object.keys(formData).forEach((key) => {
+        const value = formData[key];
+        if (value && String(value).trim() !== "") {
+          mappedFormData[key] = value;
+        }
+      });
+
+      const response = await apiService.post<any>(
+        API_ENDPOINTS.WAITLIST.ADD,
+        {
+          applicationFormConfigId: formConfig.id,
+          formData: mappedFormData,
+          email: email,
+        }
+      );
+
+      if (response.success) {
+        toast.success("Đã thêm vào danh sách chờ thành công! Bạn sẽ được thông báo khi form được mở lại.");
+        // Clear form data
+        const initialData: Record<string, any> = {};
+        formConfig.fields?.forEach((field: FormField) => {
+          initialData[field.name] = "";
+        });
+        setFormData(initialData);
+      } else {
+        toast.error(response.message || "Không thể thêm vào danh sách chờ");
+      }
+    } catch (error: any) {
+      console.error("Error adding to waitlist:", error);
+      const errorMessage =
+        error?.response?.data?.message || error?.message || "Network error";
+      toast.error("Lỗi khi thêm vào danh sách chờ: " + errorMessage);
+    } finally {
+      setAddingToWaitlist(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formConfig) return;
+    
+    // Prevent submission if form is postponed
+    if (formConfig.status === "POSTPONE") {
+      toast.error("Form đã bị hoãn. Không thể gửi đăng ký mới.");
+      return;
+    }
 
     // Validate form before submission
     if (!validateForm()) {
@@ -744,14 +825,61 @@ export default function FormRegistrationPage() {
 
             {/* Submit Section */}
             {!isPreview && (
-              <div className="px-6 py-5 border-t border-[#dadce0] flex items-center justify-end bg-[#f8f9fa] rounded-b-xl">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="bg-[#1a73e8] hover:bg-[#1669c1] text-white font-medium rounded px-6 py-2 disabled:opacity-50"
-                >
-                  {submitting ? "Đang gửi..." : "Gửi"}
-                </button>
+              <div className="px-6 py-5 border-t border-[#dadce0] bg-[#f8f9fa] rounded-b-xl">
+                {formConfig.status === "POSTPONE" ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div className="flex-shrink-0">
+                        <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-semibold text-orange-800 mb-1">
+                          Form đã bị hoãn
+                        </h3>
+                        <p className="text-sm text-orange-700">
+                          Form đăng ký này đã tạm thời bị hoãn. Bạn có thể thêm vào danh sách chờ và sẽ được thông báo khi form được mở lại.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={handleAddToWaitlist}
+                        disabled={addingToWaitlist}
+                        className="bg-orange-500 hover:bg-orange-600 text-white font-medium rounded px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {addingToWaitlist ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Đang thêm...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Thêm vào danh sách chờ
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="bg-[#1a73e8] hover:bg-[#1669c1] text-white font-medium rounded px-6 py-2 disabled:opacity-50"
+                    >
+                      {submitting ? "Đang gửi..." : "Gửi"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </form>
