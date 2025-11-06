@@ -921,7 +921,7 @@ export default function FormEditPage() {
                                     onChange={(e) => handleChangeField(f.id, { required: e.target.checked })}
                                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                   />
-                                  Required
+                                  Bắt buộc
                                 </label>
                                 <button 
                                   className="text-red-500 hover:text-red-700 text-sm"
@@ -1025,14 +1025,14 @@ export default function FormEditPage() {
             {showAddMenu && (
               <div className="absolute top-full left-0 mt-2 w-48 rounded-md border border-gray-200 bg-white shadow-lg z-10">
                 <div className="p-2">
-                  <div className="text-xs font-semibold text-gray-600 mb-2">LOẠI CÂU HỎI</div>
+                <div className="text-xs font-semibold text-gray-600 mb-2">Loại câu hỏi</div>
                   <div className="space-y-1">
                     <button
                       className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
                       onClick={() => handleAdd("TEXT")}
                     >
                       <span>≡</span>
-                      <span>Short answer</span>
+                      <span>Câu trả lời ngắn</span>
                     </button>
                     <button
                       className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
@@ -1046,14 +1046,14 @@ export default function FormEditPage() {
                       onClick={() => handleAdd("SELECT")}
                     >
                       <span>☰</span>
-                      <span>Multiple choice</span>
+                      <span>Chọn một (SELECT)</span>
                     </button>
                     <button
                       className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
                       onClick={() => handleAdd("CHECKBOX")}
                     >
                       <span>☑</span>
-                      <span>Checkboxes</span>
+                      <span>Nhiều lựa chọn (CHECKBOX)</span>
                     </button>
                   </div>
                 </div>

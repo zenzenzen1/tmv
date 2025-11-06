@@ -197,7 +197,7 @@ export default function App() {
         <Route
           path="forms"
           element={
-            <RequireRole roles={["ORGANIZATION_COMMITTEE"]}>
+            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
               <FormListPage />
             </RequireRole>
           }
@@ -205,7 +205,7 @@ export default function App() {
         <Route
           path="forms/new"
           element={
-            <RequireRole roles={["ORGANIZATION_COMMITTEE"]}>
+            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
               <FormBuilderPage />
             </RequireRole>
           }
@@ -213,7 +213,7 @@ export default function App() {
         <Route
           path="forms/:id/edit"
           element={
-            <RequireRole roles={["ORGANIZATION_COMMITTEE"]}>
+            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
               <FormEditPage />
             </RequireRole>
           }
@@ -221,7 +221,7 @@ export default function App() {
         <Route
           path="forms/:id/view"
           element={
-            <RequireRole roles={["EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
               <FormRegistrationPage />
             </RequireRole>
           }
@@ -229,7 +229,7 @@ export default function App() {
         <Route
           path="forms/:id/fill"
           element={
-            <RequireRole roles={["EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
               <PublishedForm />
             </RequireRole>
           }

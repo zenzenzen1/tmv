@@ -32,6 +32,7 @@ export default function FormRegistrationPage() {
   const navigate = useNavigate();
   const { id, slug } = useParams<{ id?: string; slug?: string }>();
   const toast = useToast();
+  const isPreview = !!id && !slug; // /manage/forms/:id/view → xem trước, không gửi
 
   const [formConfig, setFormConfig] = useState<FormConfig | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -492,11 +493,15 @@ export default function FormRegistrationPage() {
               required={field.required}
             >
               <option value="">Chọn một tùy chọn</option>
-              {field.options?.split(",").map((option, index) => (
-                <option key={index} value={option.trim()}>
-                  {option.trim()}
-                </option>
-              ))}
+              {(field.options || "")
+                .split(/[\n,]+/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+                .map((option, index) => (
+                  <option key={index} value={option}>
+                    {option}
+                  </option>
+                ))}
             </select>
             {hasError && (
               <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
@@ -521,7 +526,11 @@ export default function FormRegistrationPage() {
         return (
           <div>
             <div className="space-y-2">
-              {field.options?.split(",").map((option, index) => {
+              {(field.options || "")
+                .split(/[\n,]+/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+                .map((option, index) => {
                 const isChecked = Array.isArray(value)
                   ? value.includes(option.trim())
                   : false;
@@ -551,9 +560,7 @@ export default function FormRegistrationPage() {
                         }
                       }}
                     />
-                    <span className="text-sm text-gray-700">
-                      {option.trim()}
-                    </span>
+                    <span className="text-sm text-gray-700">{option.trim()}</span>
                   </label>
                 );
               })}
@@ -687,127 +694,67 @@ export default function FormRegistrationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 py-12 px-4">
-      <div className="max-w-3xl mx-auto">
-        {/* Header Section */}
-        <div className="text-center mb-8">
-          <div className="inline-block mb-4">
-            <div className="bg-blue-100 rounded-full p-3">
-              <svg
-                className="w-8 h-8 text-blue-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-            </div>
+    <div className="min-h-screen bg-[#f0ebf8] py-10 px-4">
+      <div className="max-w-2xl mx-auto">
+        {/* Top color bar like Google Forms */}
+        <div className="h-4 w-full rounded-t-xl" style={{ background: "linear-gradient(90deg, #673ab7 0%, #8e24aa 100%)" }} />
+
+        {/* Form card */}
+        <div className="bg-white rounded-b-xl shadow-md border border-[#dadce0]">
+          {/* Header Section */}
+          <div className="p-6 pb-4 border-b border-[#dadce0]">
+            {isPreview && (
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  className="inline-flex items-center gap-2 text-[#1a73e8] hover:bg-[#f1f3f4] px-3 py-1.5 rounded"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Quay lại
+                </button>
+              </div>
+            )}
+            <h1 className="mt-4 text-3xl font-semibold text-[#202124]">{formConfig.name}</h1>
+            {formConfig.description && (
+              <p className="mt-2 text-sm text-[#5f6368]">{formConfig.description}</p>
+            )}
+            {/* Removed global required hint; show only per-field markers */}
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-3">
-            {formConfig.name}
-          </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            {formConfig.description}
-          </p>
-        </div>
 
-        {/* Form Card */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-              <h2 className="text-white font-semibold text-lg">
-                Thông tin đăng ký
-              </h2>
-            </div>
-
-            <div className="p-8 space-y-6">
+          {/* Questions */}
+          <form onSubmit={handleSubmit}>
+            <div className="p-6 space-y-6">
               {formConfig.fields
                 ?.sort((a, b) => a.sortOrder - b.sortOrder)
                 .map((field) => (
-                  <div key={field.id} className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-700">
+                  <div key={field.id} className="rounded-xl border border-[#dadce0] p-5">
+                    <label className="block text-base font-medium text-[#202124] mb-3">
                       {field.label}
-                      {field.required && (
-                        <span className="text-red-500 ml-1" title="Bắt buộc">
-                          *
-                        </span>
-                      )}
+                      {field.required && <span className="text-[#d93025] ml-1">*</span>}
                     </label>
-                    {renderField(field)}
+                    <div className="text-sm">
+                      {renderField(field)}
+                    </div>
                   </div>
                 ))}
             </div>
 
-            {/* Submit Button Section */}
-            <div className="bg-gray-50 px-8 py-6 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500">
-                  <span className="text-red-500">*</span> Các trường đánh dấu là
-                  bắt buộc
-                </p>
+            {/* Submit Section */}
+            {!isPreview && (
+              <div className="px-6 py-5 border-t border-[#dadce0] flex items-center justify-end bg-[#f8f9fa] rounded-b-xl">
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-3 text-white font-semibold hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  className="bg-[#1a73e8] hover:bg-[#1669c1] text-white font-medium rounded px-6 py-2 disabled:opacity-50"
                 >
-                  {submitting ? (
-                    <span className="flex items-center gap-2">
-                      <svg
-                        className="animate-spin h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      Đang gửi...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                      Gửi đăng ký
-                    </span>
-                  )}
+                  {submitting ? "Đang gửi..." : "Gửi"}
                 </button>
               </div>
-            </div>
-          </div>
-        </form>
-
-        {/* Footer Info */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-500">
-            Mọi thông tin bạn cung cấp sẽ được bảo mật và chỉ sử dụng cho mục
-            đích đăng ký
-          </p>
+            )}
+          </form>
         </div>
       </div>
     </div>
