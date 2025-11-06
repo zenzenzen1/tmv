@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCompetitionStore } from "@/stores/competition";
 import { useWeightClassStore } from "@/stores/weightClass";
+import { useToast } from "../../components/common/ToastContext";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { PaginationResponse } from "../../types/api";
@@ -39,6 +40,7 @@ interface BracketMatch {
 }
 
 export default function BracketBuilder() {
+  const toast = useToast();
   const { competitions, fetchCompetitions } = useCompetitionStore();
   const { list: wcList, fetch: fetchWc } = useWeightClassStore();
 
@@ -101,8 +103,8 @@ export default function BracketBuilder() {
 
     let cancelled = false;
     const fetchAthletes = async () => {
-      setLoadingAthletes(true);
-      try {
+    setLoadingAthletes(true);
+    try {
         const params = new URLSearchParams({
           competitionId,
           competitionType: "fighting",
@@ -131,13 +133,13 @@ export default function BracketBuilder() {
           
           setAthletes(filteredAthletes);
         }
-      } catch (error) {
-        console.error("Error fetching athletes:", error);
+    } catch (error) {
+      console.error("Error fetching athletes:", error);
         if (!cancelled) setAthletes([]);
-      } finally {
+    } finally {
         if (!cancelled) setLoadingAthletes(false);
-      }
-    };
+    }
+  };
 
     fetchAthletes();
     return () => {
@@ -193,11 +195,13 @@ export default function BracketBuilder() {
           status: "IN_PROGRESS",
         });
         console.log(`✅ Updated status to IN_PROGRESS for ${newAthleteIds.length} athletes`, response);
+        toast.success(`Đã thêm ${newAthleteIds.length} vận động viên vào danh sách thi đấu!`);
       } catch (error: any) {
         console.error("❌ Error updating athletes status:", error);
         console.error("Error details:", error?.response?.data || error?.message);
         // Show error to user
-        alert(`Có lỗi khi cập nhật trạng thái: ${error?.response?.data?.message || error?.message || "Unknown error"}`);
+        const errorMessage = error?.response?.data?.message || error?.message || "Unknown error";
+        toast.error(`Có lỗi khi cập nhật trạng thái: ${errorMessage}`);
       }
     }
 
@@ -282,19 +286,19 @@ export default function BracketBuilder() {
     const duplicates = seedNumbers.filter((num, index) => seedNumbers.indexOf(num) !== index);
     
     if (duplicates.length > 0) {
-      alert("Có số bốc thăm trùng lặp! Vui lòng kiểm tra lại.");
+      toast.error("Có số bốc thăm trùng lặp! Vui lòng kiểm tra lại.");
       return;
     }
     
     // Check if all athletes have seed numbers
     if (competitionAthletes.some((a) => !a.seedNumber)) {
-      alert("Vui lòng nhập số bốc thăm cho tất cả vận động viên!");
+      toast.error("Vui lòng nhập số bốc thăm cho tất cả vận động viên!");
       return;
     }
     
     // Check for validation errors
     if (Object.keys(seedNumberErrors).length > 0) {
-      alert("Có lỗi validation! Vui lòng kiểm tra lại số bốc thăm.");
+      toast.error("Có lỗi validation! Vui lòng kiểm tra lại số bốc thăm.");
       return;
     }
     
@@ -307,10 +311,11 @@ export default function BracketBuilder() {
 
       await api.put(`${API_ENDPOINTS.ATHLETES.SEED_NUMBERS}`, { updates });
       
-      alert("Đã lưu số bốc thăm thành công!");
-    } catch (error) {
+      toast.success("Đã lưu số bốc thăm thành công!");
+    } catch (error: any) {
       console.error("Error saving seed numbers:", error);
-      alert("Có lỗi xảy ra khi lưu số bốc thăm!");
+      const errorMessage = error?.response?.data?.message || error?.message || "Có lỗi xảy ra khi lưu số bốc thăm!";
+      toast.error(errorMessage);
     } finally {
       setSavingSeedNumbers(false);
     }
@@ -326,12 +331,12 @@ export default function BracketBuilder() {
   // Create matches from bracket structure
   const handleCreateMatches = async () => {
     if (!calculateBracket || !competitionId || !weightClassId) {
-      alert("Vui lòng chọn giải đấu và hạng cân!");
+      toast.error("Vui lòng chọn giải đấu và hạng cân!");
       return;
     }
 
     if (competitionAthletes.some((a) => !a.seedNumber)) {
-      alert("Vui lòng nhập số bốc thăm cho tất cả vận động viên!");
+      toast.error("Vui lòng nhập số bốc thăm cho tất cả vận động viên!");
       return;
     }
 
@@ -354,10 +359,11 @@ export default function BracketBuilder() {
         matches: matchesToCreate,
       });
 
-      alert(`Đã tạo thành công ${matchesToCreate.length} trận đấu vòng đầu!`);
-    } catch (error) {
+      toast.success(`Đã tạo thành công ${matchesToCreate.length} trận đấu vòng đầu!`);
+    } catch (error: any) {
       console.error("Error creating matches:", error);
-      alert("Có lỗi xảy ra khi tạo trận đấu!");
+      const errorMessage = error?.response?.data?.message || error?.message || "Có lỗi xảy ra khi tạo trận đấu!";
+      toast.error(errorMessage);
     } finally {
       setCreatingMatches(false);
     }
@@ -488,13 +494,13 @@ export default function BracketBuilder() {
             <div>
               <span className="font-medium">Giải đấu: </span>
               {competitionOptions.find((c) => c.value === competitionId)?.label}
-            </div>
+          </div>
           )}
           {weightClassId && (
             <div>
               <span className="font-medium">Hạng cân: </span>
               {weightClassOptions.find((w) => w.value === weightClassId)?.label}
-            </div>
+                </div>
           )}
         </div>
       </div>
@@ -503,37 +509,37 @@ export default function BracketBuilder() {
       {competitionId && weightClassId && competitionAthletes.length === 0 && (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-xl font-semibold mb-4">Danh sách vận động viên</h2>
-          
-          {loadingAthletes ? (
+
+                  {loadingAthletes ? (
             <div className="text-center py-8 text-gray-500">
-              Đang tải danh sách vận động viên...
-            </div>
-          ) : athletes.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+                        Đang tải danh sách vận động viên...
+                    </div>
+                  ) : athletes.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
               Không có vận động viên nào trong giải đấu và hạng cân này.
-            </div>
-          ) : (
+                    </div>
+                  ) : (
             <>
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                            <input
+                              type="checkbox"
                     checked={selectedAthleteIds.size === athletes.length && athletes.length > 0}
                     onChange={handleSelectAll}
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   <label className="text-sm font-medium text-gray-700">
                     Chọn tất cả ({selectedAthleteIds.size}/{athletes.length})
-                  </label>
-                </div>
-                <button
+                    </label>
+                  </div>
+                  <button
                   onClick={handleAddToCompetition}
                   disabled={selectedAthleteIds.size === 0}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
                   Thêm vào danh sách thi đấu ({selectedAthleteIds.size})
-                </button>
-              </div>
+                  </button>
+                </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -565,7 +571,7 @@ export default function BracketBuilder() {
                     {athletes.map((athlete, index) => (
                       <tr key={athlete.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <input
+                      <input
                             type="checkbox"
                             checked={selectedAthleteIds.has(athlete.id)}
                             onChange={() => handleToggleSelect(athlete.id)}
@@ -606,16 +612,16 @@ export default function BracketBuilder() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+                          </div>
             </>
           )}
-        </div>
-      )}
+                    </div>
+                  )}
 
       {/* Competition Athletes List with Seed Numbers */}
       {competitionAthletes.length > 0 && (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Danh sách thi đấu</h2>
             <div className="flex gap-2">
               <button
@@ -675,14 +681,14 @@ export default function BracketBuilder() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col">
-                        <input
-                          type="number"
-                          min="1"
+                    <input
+                      type="number"
+                      min="1"
                           max={competitionAthletes.length}
                           value={athlete.seedNumber || ""}
-                          onChange={(e) =>
+                      onChange={(e) =>
                             handleSeedNumberChange(
-                              athlete.id,
+                          athlete.id,
                               e.target.value ? parseInt(e.target.value, 10) : null
                             )
                           }
@@ -698,15 +704,15 @@ export default function BracketBuilder() {
                             {seedNumberErrors[athlete.id]}
                           </span>
                         )}
-                      </div>
+                  </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
+              <button
                         onClick={() => handleRemoveFromCompetition(athlete.id)}
                         className="text-red-600 hover:text-red-800 font-medium"
-                      >
+              >
                         Xóa
-                      </button>
+              </button>
                     </td>
                   </tr>
                 ))}
@@ -734,17 +740,17 @@ export default function BracketBuilder() {
               <p>
                 Tổng số vòng đấu: {calculateBracket.totalRounds}
               </p>
-            </div>
-          </div>
+                          </div>
+                        </div>
           
           <div className="mt-4">
-            <button
+              <button
               onClick={handleCreateMatches}
               disabled={creatingMatches}
               className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-            >
+              >
               {creatingMatches ? "Đang tạo trận đấu..." : "Tạo trận đấu"}
-            </button>
+              </button>
           </div>
         </div>
       )}

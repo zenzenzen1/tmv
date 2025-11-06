@@ -301,7 +301,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = false)
     public void updateSubmissionStatus(Long submissionId, ApplicationFormStatus status) {
         sep490g65.fvcapi.entity.SubmittedApplicationForm s = submittedRepository.findById(submissionId).orElseThrow();
         s.setStatus(status);
