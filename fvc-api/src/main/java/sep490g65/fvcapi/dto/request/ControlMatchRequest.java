@@ -21,7 +21,5 @@ public class ControlMatchRequest {
     private MatchControlAction action;
     
     private Integer currentRound;
-    
-    private Integer timeRemainingSeconds;
 }
 

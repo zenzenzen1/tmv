@@ -44,6 +44,12 @@ export const API_ENDPOINTS = {
     STATUS: (id: string) => `/v1/weight-classes/${id}/status`,
   },
 
+  // Fields
+  FIELDS: {
+    BASE: "/v1/fields",
+    BY_ID: (id: string) => `/v1/fields/${id}`,
+  },
+
   // Submitted Application Forms
   SUBMITTED_FORMS: {
     BASE: "/v1/submitted-forms",
@@ -150,6 +156,11 @@ export const API_ENDPOINTS = {
     SCORE: "/v1/matches/score",
     CONTROL: "/v1/matches/control",
     UNDO: "/v1/matches/{matchId}/undo",
+    UPDATE_ROUND_DURATION: "/v1/matches/{matchId}/round-duration",
+    UPDATE_MAIN_ROUND_DURATION: "/v1/matches/{matchId}/main-round-duration",
+    UPDATE_TIEBREAKER_DURATION: "/v1/matches/{matchId}/tiebreaker-duration",
+    UPDATE_FIELD: "/v1/matches/{matchId}/field",
+    UPDATE_TOTAL_ROUNDS: "/v1/matches/{matchId}/total-rounds",
   },
 
   // Match Assessors

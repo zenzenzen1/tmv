@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import sep490g65.fvcapi.enums.EvaluationResultStatus;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "trainee_evaluation_results",

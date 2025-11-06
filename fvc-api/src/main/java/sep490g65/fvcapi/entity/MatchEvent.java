@@ -18,7 +18,7 @@ import sep490g65.fvcapi.enums.Corner;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MatchEvent {
+public class MatchEvent extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -55,8 +55,5 @@ public class MatchEvent {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    @Builder.Default
-    private java.time.LocalDateTime createdAt = java.time.LocalDateTime.now();
 }
 
