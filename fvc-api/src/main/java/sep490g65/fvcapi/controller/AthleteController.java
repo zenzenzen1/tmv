@@ -25,7 +25,7 @@ public class AthleteController {
     @GetMapping
     public ResponseEntity<BaseResponse<PaginationResponse<sep490g65.fvcapi.dto.response.AthleteResolvedResponse>>> list(@RequestParam(defaultValue = "0") int page,
                                                                          @RequestParam(defaultValue = "5") int size,
-                                                                         @RequestParam(required = false) String tournamentId,
+                                                                         @RequestParam(required = false, name = "competitionId") String competitionId,
                                                                          @RequestParam(required = false) Athlete.CompetitionType competitionType,
                                                                          @RequestParam(required = false) String subCompetitionType,
                                                                          @RequestParam(required = false) String detailSubCompetitionType,
@@ -33,12 +33,19 @@ public class AthleteController {
                                                                          @RequestParam(required = false) Athlete.Gender gender,
                                                                          @RequestParam(required = false) Athlete.AthleteStatus status) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<Athlete> result = athleteService.list(tournamentId, competitionType, subCompetitionType, detailSubCompetitionType, name, gender, status, pageable);
+        Page<Athlete> result = athleteService.list(competitionId, competitionType, subCompetitionType, detailSubCompetitionType, name, gender, status, pageable);
         // Map to resolved label DTO with backend label resolution
         Page<sep490g65.fvcapi.dto.response.AthleteResolvedResponse> mapped = result.map(a -> {
             String label = athleteService.resolveDetailLabel(a);
             sep490g65.fvcapi.dto.response.AthleteResolvedResponse dto = sep490g65.fvcapi.dto.response.AthleteResolvedResponse.from(a);
             dto.setDetailSubLabel(label);
+            // Enrich with team info via performance link and submission
+            sep490g65.fvcapi.service.AthleteService.TeamInfo t = athleteService.resolveTeamInfo(a);
+            if (t != null) {
+                dto.setPerformanceId(t.getPerformanceId());
+                if (t.getTeamName() != null) dto.setTeamName(t.getTeamName());
+                if (t.getRegistrantEmail() != null) dto.setRegistrantEmail(t.getRegistrantEmail());
+            }
             return dto;
         });
         PaginationResponse<sep490g65.fvcapi.dto.response.AthleteResolvedResponse> payload = ResponseUtils.createPaginatedResponse(mapped);
@@ -47,7 +54,12 @@ public class AthleteController {
 
     @PostMapping("/arrange-order")
     public ResponseEntity<BaseResponse<Void>> arrangeOrder(@Valid @RequestBody ArrangeFistOrderRequest request) {
-        athleteService.arrangeOrder(request.getCompetitionId(), request.getCompetitionType(), request.getOrders());
+        // TODO: Implement arrange order logic
+        athleteService.arrangeOrder(
+                request.getCompetitionId(),
+                request.getCompetitionType() != null ? request.getCompetitionType().name() : null,
+                request.getAthleteOrders()
+        );
         return ResponseEntity.ok(ResponseUtils.success("Arrange order saved"));
     }
 }

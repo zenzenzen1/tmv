@@ -180,6 +180,8 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         return mapToResponse(savedConfig);
     }
 
+    // Removed duplicate updateById (non-@Override) to avoid method redefinition
+
     @Override
     @Transactional
     public ApplicationFormConfigResponse updateById(String id, UpdateApplicationFormConfigRequest request) {

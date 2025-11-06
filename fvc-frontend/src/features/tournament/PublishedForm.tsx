@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../services/api";
-import { fistContentService } from "../../services/fistContent";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import { useToast } from "../../components/common/ToastContext";
 
@@ -22,6 +21,7 @@ type FormMeta = {
   status?: string;
   formType?: string;
   fields?: FormField[];
+  endDate?: string;
 };
 
 export default function PublishedForm() {
@@ -30,6 +30,7 @@ export default function PublishedForm() {
   const [meta, setMeta] = useState<FormMeta | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [expired, setExpired] = useState<boolean>(false);
   const [dynamicValues, setDynamicValues] = useState<
     Record<string, string | string[]>
   >({});
@@ -49,11 +50,12 @@ export default function PublishedForm() {
   const [selectedGender, setSelectedGender] = useState<string>("");
 
   // Team registration helpers
+  const [teamName, setTeamName] = useState<string>("");
   const [participantsPerEntry, setParticipantsPerEntry] = useState<
     number | undefined
   >(undefined);
   const [teamMembers, setTeamMembers] = useState<
-    Array<{ fullName: string; email: string; gender: string }>
+    Array<{ fullName: string; studentId: string }>
   >([]);
 
   // API data states
@@ -70,6 +72,7 @@ export default function PublishedForm() {
     Array<{
       id: string;
       name: string;
+      performersPerEntry?: number;
     }>
   >([]);
 
@@ -82,6 +85,7 @@ export default function PublishedForm() {
       level?: number;
       configId?: string;
       configName?: string;
+      participantsPerEntry?: number;
     }>
   >([]);
 
@@ -93,6 +97,7 @@ export default function PublishedForm() {
       level?: number;
       configId?: string;
       configName?: string;
+      participantsPerEntry?: number;
     }>
   >([]);
 
@@ -111,6 +116,16 @@ export default function PublishedForm() {
         }
 
         setMeta(res.data);
+        try {
+          const ed = (res.data as unknown as { endDate?: string })?.endDate;
+          if (ed) {
+            const now = Date.now();
+            const endTs = Date.parse(ed);
+            if (!Number.isNaN(endTs) && now > endTs) setExpired(true);
+          }
+        } catch {
+          /* ignore */
+        }
         console.log("PublishedForm - Loaded form data:", res.data);
         console.log(
           "PublishedForm - Fields count:",
@@ -167,60 +182,115 @@ export default function PublishedForm() {
           }
         }
 
-        // Load weight classes
-        try {
-          const weightClassesRes = await api.get<{
-            content: Array<{
-              id: string;
-              weightClass: string;
-              gender: string;
-              minWeight: number;
-              maxWeight: number;
-            }>;
-            totalElements: number;
-          }>(API_ENDPOINTS.WEIGHT_CLASSES.BASE);
-          setWeightClasses(weightClassesRes.data?.content || []);
-        } catch (weightError) {
-          console.warn("Failed to load weight classes:", weightError);
-          setWeightClasses([]);
-        }
-
-        // Load music contents
-        try {
-          const musicContentsRes = await api.get<{
-            content: Array<{ id: string; name: string }>;
-            totalElements: number;
-          }>(API_ENDPOINTS.MUSIC_CONTENTS.BASE);
-          setMusicContents(musicContentsRes.data?.content || []);
-        } catch (musicError) {
-          console.warn("Failed to load music contents:", musicError);
-          setMusicContents([]);
-        }
-
         // Only load competition-related data for COMPETITION_REGISTRATION forms
         if (res.data.formType === "COMPETITION_REGISTRATION") {
-          // Load fist configs (Đa luyện, Đơn luyện)
+          // Map options based on the selected competition of this form
           try {
-            const fistConfigsRes = await fistContentService.list({ size: 100 });
-            console.log("PublishedForm - Fist configs loaded:", fistConfigsRes);
-            // Swap: Use configs as items for dropdown
-            setFistItems(fistConfigsRes.content || []);
-          } catch (configError) {
-            console.warn("Failed to load fist configs:", configError);
-            setFistItems([]);
-          }
+            const compId: string | undefined = (
+              res.data as unknown as { competitionId?: string }
+            )?.competitionId;
+            if (!compId) throw new Error("Missing competitionId in form meta");
+            type CompetitionDetail = {
+              weightClasses?: Array<{
+                id: string;
+                weightClass: string;
+                gender: string;
+                minWeight: number;
+                maxWeight: number;
+              }>;
+              vovinamFistConfigs?: Array<{ id: string; name: string }>;
+              fistConfigItemSelections?: Record<
+                string,
+                Array<{ id: string; name: string }>
+              >;
+              musicPerformances?: Array<{ id: string; name: string }>;
+            };
+            const compRes = await api.get<
+              CompetitionDetail | { data: CompetitionDetail }
+            >(API_ENDPOINTS.COMPETITIONS.BY_ID(compId));
+            const rawUnknown = (compRes as unknown as { data: unknown }).data;
+            const isWrapped = (
+              val: unknown
+            ): val is { data: CompetitionDetail } => {
+              return (
+                typeof val === "object" &&
+                val !== null &&
+                "data" in (val as Record<string, unknown>)
+              );
+            };
+            const comp: CompetitionDetail = isWrapped(rawUnknown)
+              ? rawUnknown.data
+              : (rawUnknown as CompetitionDetail);
 
-          // Load fist items (Đơn luyện 1, Đơn luyện 2, etc.)
-          try {
-            const fistItemsRes = await fistContentService.listItems({
-              size: 100,
+            setWeightClasses(comp?.weightClasses || []);
+            setMusicContents(comp?.musicPerformances || []);
+            const cfgs = comp?.vovinamFistConfigs || [];
+            const cfgsWithMeta = (cfgs as Array<Record<string, unknown>>).map(
+              (c) => ({
+                id: c.id,
+                name: c.name,
+                description: (c as { description?: string | null }).description,
+                level: (c as { level?: number }).level,
+                configId: (c as { configId?: string }).configId,
+                configName: (c as { configName?: string }).configName,
+                participantsPerEntry:
+                  typeof (c as { participantsPerEntry?: unknown })
+                    .participantsPerEntry === "number"
+                    ? ((c as { participantsPerEntry?: number })
+                        .participantsPerEntry as number)
+                    : undefined,
+              })
+            );
+            setFistConfigs(
+              cfgsWithMeta as Array<{
+                id: string;
+                name: string;
+                description?: string | null;
+                level?: number;
+                configId?: string;
+                configName?: string;
+                participantsPerEntry?: number;
+              }>
+            );
+            const items: Array<{
+              id: string;
+              name: string;
+              configId?: string;
+              participantsPerEntry?: number;
+            }> = [];
+            const selections = comp?.fistConfigItemSelections || {};
+            Object.keys(selections).forEach((cfgId) => {
+              (selections[cfgId] || []).forEach((it: unknown) =>
+                items.push({
+                  id: (it as { id: string }).id,
+                  name: (it as { name: string }).name,
+                  configId: cfgId,
+                  participantsPerEntry:
+                    typeof (it as { participantsPerEntry?: unknown })
+                      .participantsPerEntry === "number"
+                      ? ((it as { participantsPerEntry?: number })
+                          .participantsPerEntry as number)
+                      : undefined,
+                })
+              );
             });
-            console.log("PublishedForm - Fist items loaded:", fistItemsRes);
-            // Swap: Use items as configs for buttons
-            setFistConfigs(fistItemsRes.content || []);
-          } catch (itemError) {
-            console.warn("Failed to load fist items:", itemError);
+            setFistItems(
+              items as Array<{
+                id: string;
+                name: string;
+                description?: string | null;
+                level?: number;
+                configId?: string;
+                configName?: string;
+                participantsPerEntry?: number;
+              }>
+            );
+          } catch (err) {
+            console.warn("Failed to load competition-mapped options:", err);
+            setWeightClasses([]);
+            setMusicContents([]);
             setFistConfigs([]);
+            setFistItems([]);
           }
         } else {
           // Not a competition form, show error
@@ -239,69 +309,91 @@ export default function PublishedForm() {
   useEffect(() => {
     let required: number | undefined = undefined;
     if (competitionType === "quyen") {
-      // Try by selected item id first (when present). Note: data sources may swap; check both arrays.
       if (fistConfigId) {
-        const fromItems = (fistItems as any[]).find(
-          (i) => i.id === fistConfigId
-        );
-        const fromConfigs = (fistConfigs as any[]).find(
-          (i) => i.id === fistConfigId
-        );
-        const candidate = (fromItems || fromConfigs) as any;
+        const byIdInItems = fistItems.find((i) => i.id === fistConfigId);
+        const byIdInConfigs = fistConfigs.find((i) => i.id === fistConfigId);
+        const candidate = byIdInItems || byIdInConfigs;
         if (candidate && typeof candidate.participantsPerEntry === "number") {
           required = candidate.participantsPerEntry;
         }
       }
-      // If still unknown, try by selected button name (quyenCategory) or dropdown (quyenContent) against both lists
-      if (!required) {
-        const selectedName = (
-          quyenCategory ||
-          quyenContent ||
-          ""
-        ).toLowerCase();
-        if (selectedName) {
-          const byNameInItems = (fistItems as any[]).find(
-            (x) => (x?.name || "").toLowerCase() === selectedName
-          ) as any;
-          const byNameInConfigs = (fistConfigs as any[]).find(
-            (x) => (x?.name || "").toLowerCase() === selectedName
-          ) as any;
-          const candidate = byNameInItems || byNameInConfigs;
-          if (candidate && typeof candidate.participantsPerEntry === "number") {
-            required = candidate.participantsPerEntry;
+      // If undefined, try fetching metadata from backend for item/config
+      if (!required && fistConfigId) {
+        (async () => {
+          try {
+            const itemRes = await api.get(
+              API_ENDPOINTS.FIST_CONTENTS.ITEM_BY_ID(fistConfigId)
+            );
+            const itemUnknown = (itemRes as unknown as { data?: unknown }).data;
+            const itemData = ((itemUnknown as { data?: unknown })?.data ??
+              itemUnknown) as Record<string, unknown> | undefined;
+            const itemRequired =
+              (itemData?.participantsPerEntry as number) ||
+              (itemData?.performersPerEntry as number);
+            if (typeof itemRequired === "number") {
+              setParticipantsPerEntry(itemRequired);
+              return;
+            }
+            // Fallback: fetch config-level meta if available
+            const itemConfigId =
+              (itemData?.configId as string) ||
+              fistItems.find((i) => i.id === fistConfigId)?.configId ||
+              undefined;
+            if (itemConfigId) {
+              try {
+                const cfgRes = await api.get(
+                  API_ENDPOINTS.FIST_CONTENTS.BY_ID(itemConfigId)
+                );
+                const cfgUnknown = (cfgRes as unknown as { data?: unknown })
+                  .data;
+                const cfgData = ((cfgUnknown as { data?: unknown })?.data ??
+                  cfgUnknown) as Record<string, unknown> | undefined;
+                const cfgRequired =
+                  (cfgData?.participantsPerEntry as number) ||
+                  (cfgData?.performersPerEntry as number);
+                if (typeof cfgRequired === "number") {
+                  setParticipantsPerEntry(cfgRequired);
+                }
+              } catch {
+                /* ignore */
+              }
+            }
+          } catch {
+            /* ignore */
           }
+        })();
+      }
+      // If undefined, treat as individual (no team fields).
+    }
+    if (competitionType === "music") {
+      if (musicContentId) {
+        const perf = musicContents.find((m) => m.id === musicContentId);
+        if (perf && typeof perf.performersPerEntry === "number") {
+          required = perf.performersPerEntry;
+        } else {
+          // Try to fetch performersPerEntry from backend if not present in list
+          (async () => {
+            try {
+              const res = await api.get(
+                API_ENDPOINTS.MUSIC_CONTENTS.BY_ID(musicContentId)
+              );
+              const rawUnknown = (res as unknown as { data?: unknown }).data;
+              const data = ((rawUnknown as { data?: unknown })?.data ||
+                rawUnknown) as Record<string, unknown>;
+              const performers = data?.performersPerEntry as number;
+              if (typeof performers === "number") {
+                setParticipantsPerEntry(performers);
+                return;
+              }
+            } catch {
+              /* ignore */
+            }
+          })();
         }
       }
-      // As a last fallback, infer by keyword
-      if (!required) {
-        const keyword = (quyenCategory || quyenContent || "").toLowerCase();
-        if (keyword.includes("song")) required = 2;
-        else if (keyword.includes("tam") || keyword.includes("đa"))
-          required = 3;
-      }
-    }
-    if (competitionType === "music" && musicContentId) {
-      const perf = musicContents.find((m) => m.id === musicContentId) as any;
-      if (perf && typeof perf.performersPerEntry === "number") {
-        required = perf.performersPerEntry;
-      }
+      // No default; if not specified, keep as undefined (treated as individual)
     }
     setParticipantsPerEntry(required);
-
-    // Merge: Keep HEAD implementation - use fieldErrors state for validation
-    // Keep teamMembers length = max(required - 1, 0). We already have one main registrant in standard fields
-    const extras = required && required > 1 ? required - 1 : 0;
-    setTeamMembers((prev) => {
-      const next = [...prev];
-      if (next.length < extras) {
-        for (let i = next.length; i < extras; i++) {
-          next.push({ fullName: "", email: "", gender: "" });
-        }
-      } else if (next.length > extras) {
-        next.length = extras;
-      }
-      return next;
-    });
   }, [
     competitionType,
     fistConfigId,
@@ -312,6 +404,25 @@ export default function PublishedForm() {
     quyenCategory,
     quyenContent,
   ]);
+
+  // Resize team members whenever participantsPerEntry changes (including async fetch)
+  useEffect(() => {
+    const extras =
+      participantsPerEntry && participantsPerEntry > 1
+        ? participantsPerEntry - 1
+        : 0;
+    setTeamMembers((prev) => {
+      const next = [...prev];
+      if (next.length < extras) {
+        for (let i = next.length; i < extras; i++) {
+          next.push({ fullName: "", studentId: "" });
+        }
+      } else if (next.length > extras) {
+        next.length = extras;
+      }
+      return next;
+    });
+  }, [participantsPerEntry]);
 
   // Field validations - Merge: HEAD uses fieldErrors state instead of individual validation memoized values
 
@@ -326,20 +437,35 @@ export default function PublishedForm() {
   };
 
   const buildFormDataJson = (): string => {
+    // Derive competitionType robustly at serialization time
+    const derivedType: typeof competitionType =
+      competitionType && competitionType.length > 0
+        ? competitionType
+        : quyenCategory || fistConfigId
+        ? "quyen"
+        : weightClassId
+        ? "fighting"
+        : musicContentId
+        ? "music"
+        : "";
+
     const formData: Record<string, unknown> = {
-      competitionType,
+      competitionType: derivedType,
       submittedAtClient: new Date().toISOString(), // Add client timestamp
     };
 
-    // Merge: Keep HEAD implementation - add competition-specific data
-    if (competitionType === "fighting") {
+    // Add competition-specific data
+    if (derivedType === "fighting") {
       formData.weightClass = weightClass;
       formData.weightClassId = weightClassId;
-    } else if (competitionType === "quyen") {
-      formData.quyenCategory = quyenCategory;
-      formData.quyenContent = quyenContent;
-      formData.fistConfigId = fistConfigId;
-    } else if (competitionType === "music") {
+    } else if (derivedType === "quyen") {
+      formData.quyenCategory = quyenCategory; // config (Đơn/Song/Đa luyện)
+      formData.quyenContent = quyenContent; // item display name
+      // IDs: config vs item
+      formData.fistConfigId = quyenCategory;
+      formData.quyenContentId = fistConfigId; // selected item id
+      formData.fistItemId = fistConfigId;
+    } else if (derivedType === "music") {
       formData.musicCategory = musicCategory;
       formData.musicContentId = musicContentId;
     }
@@ -347,7 +473,14 @@ export default function PublishedForm() {
     // Team infos (for multi-performer entries)
     if (participantsPerEntry && participantsPerEntry > 1) {
       formData.participantsPerEntry = participantsPerEntry;
-      formData.teamMembers = teamMembers;
+      if (derivedType === "quyen" || derivedType === "music") {
+        formData.teamName = teamName;
+      }
+      formData.teamMembers = teamMembers.map((m) => ({
+        fullName: m.fullName,
+        studentId: m.studentId,
+        gender: selectedGender || "",
+      }));
     }
 
     // Add dynamic field values
@@ -366,11 +499,17 @@ export default function PublishedForm() {
     // Validate required fields from dynamic fields
     const errors: Record<string, string> = {};
 
-    // Check required dynamic fields
+    // Check required dynamic fields (only for fields that are actually rendered)
     if (meta && meta.fields) {
       console.log("Meta fields:", meta.fields);
       meta.fields.forEach((field) => {
-        if (field.required) {
+        // Skip validation for "Nội dung thi đấu" field as it's handled separately
+        const isCompetitionTypeField = field.label === "Nội dung thi đấu";
+
+        // Only validate fields that are actually rendered
+        const willShow = !isCompetitionTypeField; // Same logic as rendering
+
+        if (field.required && !isCompetitionTypeField && willShow) {
           const fieldName =
             field.name ||
             field.id ||
@@ -406,8 +545,20 @@ export default function PublishedForm() {
       errors.musicContent = "Vui lòng chọn nội dung thi đấu";
     }
 
-    // Check if competition type is selected
-    if (!competitionType) {
+    // Check if competition type is selected (robustly)
+    const effectiveType =
+      competitionType && competitionType.length > 0
+        ? competitionType
+        : quyenCategory || fistConfigId
+        ? "quyen"
+        : weightClassId
+        ? "fighting"
+        : musicContentId
+        ? "music"
+        : "";
+    console.log("Validation - competitionType(effective):", effectiveType);
+    if (!effectiveType) {
+      console.log("Validation failed - no competition type selected");
       errors.competitionType = "Vui lòng chọn nội dung thi đấu";
     }
 
@@ -423,33 +574,49 @@ export default function PublishedForm() {
               idx + 2
             }: thiếu họ tên`;
           }
-          if (!m.email || !m.email.trim()) {
-            errors[`teamMember_${idx}_email`] = `Thành viên ${
+          if (!m.studentId || !m.studentId.trim()) {
+            errors[`teamMember_${idx}_studentId`] = `Thành viên ${
               idx + 2
-            }: thiếu email`;
-          }
-          if (!m.gender || !m.gender.trim()) {
-            errors[`teamMember_${idx}_gender`] = `Thành viên ${
-              idx + 2
-            }: thiếu giới tính`;
+            }: thiếu MSSV`;
           }
         });
       }
+      if (
+        (competitionType === "quyen" || competitionType === "music") &&
+        !teamName.trim()
+      ) {
+        errors.teamName = "Vui lòng nhập tên đội";
+      }
     }
 
-    // Also check if there's a dynamic field for competition type
-    if (meta && meta.fields) {
-      const competitionField = meta.fields.find(
-        (field) => field.label === "Nội dung thi đấu"
-      );
-      if (competitionField && competitionField.required) {
-        const value = dynamicValues[competitionField.name];
-        if (!value || (typeof value === "string" && value.trim() === "")) {
-          errors[
-            competitionField.name
-          ] = `${competitionField.label} là bắt buộc`;
+    // Competition type validation is handled above, no need to check meta.fields again
+
+    // Team member MSSV uniqueness validation (additional members)
+    try {
+      const captainStudentId = String(dynamicValues.studentId || "")
+        .trim()
+        .toUpperCase();
+      const seen: Record<string, number[]> = {};
+      teamMembers.forEach((m, idx) => {
+        const sid = String(m.studentId || "")
+          .trim()
+          .toUpperCase();
+        if (!sid) return;
+        if (!seen[sid]) seen[sid] = [];
+        seen[sid].push(idx);
+        if (captainStudentId && sid === captainStudentId) {
+          errors[`teamMembers.${idx}.studentId`] = "MSSV trùng với người nộp";
+        }
+      });
+      for (const idxs of Object.values(seen)) {
+        if (idxs.length > 1) {
+          idxs.forEach((i) => {
+            errors[`teamMembers.${i}.studentId`] = "MSSV thành viên bị trùng";
+          });
         }
       }
+    } catch {
+      /* ignore */
     }
 
     setFieldErrors(errors);
@@ -461,13 +628,82 @@ export default function PublishedForm() {
       console.log("Weight class ID:", weightClassId);
       console.log("Fist config ID:", fistConfigId);
       console.log("Music content ID:", musicContentId);
+      console.log("Selected gender:", selectedGender);
+      console.log("Team members:", teamMembers);
+      console.log("Participants per entry:", participantsPerEntry);
       show("Vui lòng kiểm tra lại thông tin", "error");
       return;
     }
 
+    // Server-side duplication check against existing submissions in this form (MSSV uniqueness)
+    try {
+      const resp = await api.get(`/v1/tournament-forms/${id}/submissions`, {
+        params: { all: true },
+      });
+      const rootUnknown = resp.data as unknown;
+      const pageDataUnknown =
+        (rootUnknown as Record<string, unknown>)?.data ?? rootUnknown;
+      const contentUnknown = (pageDataUnknown as { content?: unknown })
+        ?.content;
+      const submitted = Array.isArray(contentUnknown)
+        ? (contentUnknown as unknown[])
+        : [];
+      const existingIds = new Set<string>();
+      const toUpper = (s?: string) => (s || "").trim().toUpperCase();
+      for (const row of submitted) {
+        let fdObj: Record<string, unknown> = {};
+        try {
+          const r = row as Record<string, unknown>;
+          const fd = typeof r.formData === "string" ? r.formData : "";
+          fdObj = fd ? (JSON.parse(fd) as Record<string, unknown>) : {};
+        } catch {
+          /* ignore */
+        }
+        const sid = toUpper(fdObj?.studentId as string | undefined);
+        if (sid) existingIds.add(sid);
+        const membersUnknown = (fdObj?.teamMembers as unknown) || [];
+        const members = Array.isArray(membersUnknown)
+          ? (membersUnknown as Array<Record<string, unknown>>)
+          : [];
+        for (const m of members) {
+          const msid = toUpper(m?.studentId as string | undefined);
+          if (msid) existingIds.add(msid);
+        }
+      }
+      const captainSid = toUpper(String(dynamicValues.studentId || ""));
+      if (captainSid && existingIds.has(captainSid)) {
+        errors["studentId"] = "MSSV đã đăng ký trong form này";
+      }
+      teamMembers.forEach((m, idx) => {
+        const s = toUpper(m?.studentId || "");
+        if (s && existingIds.has(s)) {
+          errors[`teamMembers.${idx}.studentId`] =
+            "MSSV đã đăng ký trong form này";
+        }
+      });
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
+        show("MSSV đã tồn tại trong form này", "error");
+        return;
+      }
+    } catch (dupErr) {
+      // nếu gọi kiểm tra lỗi mạng, không chặn submit, nhưng log lại
+      console.warn("Could not verify duplicate MSSV against DB", dupErr);
+    }
+
     try {
       const formDataJson = buildFormDataJson();
-      // Merge: Keep HEAD implementation for submission payload construction
+      const effectiveType =
+        competitionType && competitionType.length > 0
+          ? competitionType
+          : quyenCategory || fistConfigId
+          ? "quyen"
+          : weightClassId
+          ? "fighting"
+          : musicContentId
+          ? "music"
+          : "";
+
       const submissionData = {
         fullName: dynamicValues.fullName || "",
         email: dynamicValues.email || "",
@@ -475,9 +711,11 @@ export default function PublishedForm() {
         club: dynamicValues.club || "Không có",
         gender: dynamicValues.gender || "",
         formDataJson,
+        competitionType: effectiveType,
         weightClassId:
           competitionType === "fighting" ? weightClassId : undefined,
-        fistConfigId: competitionType === "quyen" ? fistConfigId : undefined,
+        // For Quyền: configId = category, itemId = selected content
+        fistConfigId: competitionType === "quyen" ? quyenCategory : undefined,
         fistItemId: competitionType === "quyen" ? fistConfigId : undefined,
         musicContentId:
           competitionType === "music" ? musicContentId : undefined,
@@ -587,6 +825,11 @@ export default function PublishedForm() {
       <div className="max-w-4xl mx-auto px-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-6">{meta.name}</h1>
+          {expired && (
+            <div className="mb-6 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-yellow-800">
+              Form đã hết thời hạn đăng ký.
+            </div>
+          )}
           {meta.description && (
             <p className="text-gray-600 mb-6">{meta.description}</p>
           )}
@@ -607,23 +850,8 @@ export default function PublishedForm() {
                     const isCompetitionType =
                       field.label === "Nội dung thi đấu";
 
-                    // Use the same defaultFieldLabels as FormBuilder
-                    const defaultFieldLabels = [
-                      "Họ và tên",
-                      "Email",
-                      "MSSV",
-                      "Số điện thoại",
-                      "Giới tính",
-                      "Câu lạc bộ",
-                      "Nội dung thi đấu",
-                    ];
-                    const isCustomField = !defaultFieldLabels.includes(
-                      field.label
-                    );
-
                     console.log("Field filter result:", {
                       isCompetitionType,
-                      isCustomField,
                       willShow: !isCompetitionType,
                     });
                     return !isCompetitionType;
@@ -925,22 +1153,32 @@ export default function PublishedForm() {
                   </label>
                   <div className="ml-6 mt-2">
                     <div className="flex items-center flex-wrap gap-2 mb-2">
-                      {fistConfigs.map((config) => (
+                      {fistConfigs.map((cfg) => (
                         <button
-                          key={config.id}
+                          key={cfg.id}
                           type="button"
                           onClick={() => {
-                            setCompetitionType("quyen");
-                            setQuyenCategory(config.name);
-                            setQuyenContent(""); // reset selected content when category changes
+                            // Toggle only sub-competition selection; do not change competitionType
+                            if (quyenCategory === cfg.id) {
+                              setQuyenCategory("");
+                              setQuyenContent("");
+                              setFistConfigId("");
+                            } else {
+                              setQuyenCategory(cfg.id);
+                              setQuyenContent(""); // reset selected content when category changes
+                              // Auto-select competition type = quyen when picking a subcompetition
+                              if (competitionType !== "quyen") {
+                                setCompetitionType("quyen");
+                              }
+                            }
                           }}
                           className={`rounded-full border px-3 py-1.5 text-xs ${
-                            quyenCategory === config.name
+                            quyenCategory === cfg.id
                               ? "border-blue-500 text-blue-600 bg-blue-50"
                               : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
                           }`}
                         >
-                          {config.name}
+                          {cfg.name}
                         </button>
                       ))}
                     </div>
@@ -953,7 +1191,7 @@ export default function PublishedForm() {
                         onChange={(e) => {
                           const id = e.target.value;
                           setFistConfigId(id);
-                          const item = fistItems.find((item) => item.id === id);
+                          const item = fistItems.find((it) => it.id === id);
                           setQuyenContent(item?.name || "");
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -965,18 +1203,10 @@ export default function PublishedForm() {
                             return null;
                           }
 
-                          // Find the selected config (VovinamFistItem)
-                          const selectedConfig = fistConfigs.find(
-                            (config) => config.name === quyenCategory
+                          // Show items (VovinamFistItem) belonging to the selected category id
+                          const filteredItems = fistItems.filter(
+                            (item) => item.configId === quyenCategory
                           );
-
-                          // If category selected, show fistItems (VovinamFistConfig) that match configId
-                          const filteredItems =
-                            selectedConfig && selectedConfig.configId
-                              ? fistItems.filter(
-                                  (item) => item.id === selectedConfig.configId
-                                )
-                              : [];
 
                           return (
                             filteredItems &&
@@ -1060,58 +1290,80 @@ export default function PublishedForm() {
               </div>
             </div>
 
-            {/* Extra team member fields when multi-performer is required */}
+            {/* Team fields and extra members when multi-performer is required */}
             {participantsPerEntry && participantsPerEntry > 1 && (
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Thành viên bổ sung ({participantsPerEntry - 1})
-                </label>
-                <div className="space-y-4">
-                  {teamMembers.map((m, idx) => (
-                    <div
-                      key={idx}
-                      className="grid grid-cols-1 md:grid-cols-3 gap-3"
-                    >
-                      <input
-                        type="text"
-                        placeholder={`Họ và tên thành viên ${idx + 2}`}
-                        value={m.fullName}
-                        onChange={(e) => {
-                          const next = [...teamMembers];
-                          next[idx] = {
-                            ...next[idx],
-                            fullName: e.target.value,
-                          };
-                          setTeamMembers(next);
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        type="email"
-                        placeholder="Email"
-                        value={m.email}
-                        onChange={(e) => {
-                          const next = [...teamMembers];
-                          next[idx] = { ...next[idx], email: e.target.value };
-                          setTeamMembers(next);
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <select
-                        value={m.gender}
-                        onChange={(e) => {
-                          const next = [...teamMembers];
-                          next[idx] = { ...next[idx], gender: e.target.value };
-                          setTeamMembers(next);
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-4">
+                {(competitionType === "quyen" ||
+                  competitionType === "music") && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tên đội <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Nhập tên đội"
+                    />
+                    {fieldErrors.teamName && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {fieldErrors.teamName}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Thành viên bổ sung ({participantsPerEntry - 1})
+                  </label>
+                  <div className="space-y-4">
+                    {teamMembers.map((m, idx) => (
+                      <div
+                        key={idx}
+                        className="grid grid-cols-1 md:grid-cols-2 gap-3"
                       >
-                        <option value="">Chọn giới tính</option>
-                        <option value="Nam">Nam</option>
-                        <option value="Nữ">Nữ</option>
-                      </select>
-                    </div>
-                  ))}
+                        <input
+                          type="text"
+                          placeholder={`Họ và tên thành viên ${idx + 2}`}
+                          value={m.fullName}
+                          onChange={(e) => {
+                            const next = [...teamMembers];
+                            next[idx] = {
+                              ...next[idx],
+                              fullName: e.target.value,
+                            };
+                            setTeamMembers(next);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <input
+                          type="text"
+                          placeholder="MSSV"
+                          value={m.studentId}
+                          onChange={(e) => {
+                            const next = [...teamMembers];
+                            next[idx] = {
+                              ...next[idx],
+                              studentId: e.target.value,
+                            };
+                            setTeamMembers(next);
+                          }}
+                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            fieldErrors[`teamMembers.${idx}.studentId`]
+                              ? "border-red-400"
+                              : "border-gray-300"
+                          }`}
+                        />
+                        {fieldErrors[`teamMembers.${idx}.studentId`] && (
+                          <div className="md:col-span-2 text-xs text-red-600 -mt-2">
+                            {fieldErrors[`teamMembers.${idx}.studentId`]}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -1120,9 +1372,14 @@ export default function PublishedForm() {
             <div className="pt-6">
               <button
                 type="submit"
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium"
+                disabled={expired}
+                className={`w-full py-3 px-4 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  expired
+                    ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
+                }`}
               >
-                Đăng ký
+                {expired ? "Đã hết hạn" : "Đăng ký"}
               </button>
             </div>
           </form>

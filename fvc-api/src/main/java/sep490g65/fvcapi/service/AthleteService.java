@@ -14,6 +14,9 @@ import sep490g65.fvcapi.dto.request.CreateCompetitionOrderRequest;
 import sep490g65.fvcapi.entity.Athlete;
 import sep490g65.fvcapi.entity.CompetitionOrder;
 import sep490g65.fvcapi.repository.AthleteRepository;
+import sep490g65.fvcapi.repository.PerformanceAthleteRepository;
+import sep490g65.fvcapi.repository.SubmittedApplicationFormRepository;
+import sep490g65.fvcapi.entity.PerformanceAthlete;
 import sep490g65.fvcapi.repository.WeightClassRepository;
 import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
@@ -33,11 +36,13 @@ public class AthleteService {
     private final CompetitionOrderService competitionOrderService;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository fistConfigRepository;
     private final MusicIntegratedPerformanceRepository musicRepository;
+    private final PerformanceAthleteRepository performanceAthleteRepository;
+    private final SubmittedApplicationFormRepository submittedApplicationFormRepository;
 
     @Transactional
     public Athlete upsert(Athlete prototype) {
         return athleteRepository
-                .findByTournamentIdAndEmail(prototype.getTournamentId(), prototype.getEmail())
+                .findByCompetitionIdAndEmail(prototype.getCompetitionId(), prototype.getEmail())
                 .map(existing -> {
                     existing.setFullName(prototype.getFullName());
                     existing.setGender(prototype.getGender());
@@ -56,8 +61,18 @@ public class AthleteService {
                 .orElseGet(() -> athleteRepository.save(prototype));
     }
 
+    @Transactional
+    public Athlete create(Athlete athlete) {
+        return athleteRepository.save(athlete);
+    }
+
+    @Transactional
+    public void deleteByEmailAndCompetitionId(String email, String competitionId) {
+        athleteRepository.deleteByEmailAndCompetitionId(email, competitionId);
+    }
+
     public Page<Athlete> list(
-            String tournamentId,
+            String competitionId,
             Athlete.CompetitionType competitionType,
             String subCompetitionType,
             String detailSubCompetitionType,
@@ -66,16 +81,101 @@ public class AthleteService {
             Athlete.AthleteStatus status,
             Pageable pageable) {
         Specification<Athlete> spec = Specification.where(null);
-        if (tournamentId != null && !tournamentId.isBlank()) {
-            spec = spec.and((root, q, cb) -> cb.equal(root.get("tournamentId"), tournamentId));
+        if (competitionId != null && !competitionId.isBlank()) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("competitionId"), competitionId));
         }
         if (competitionType != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("competitionType"), competitionType));
         }
         if (subCompetitionType != null && !subCompetitionType.isBlank()) {
-            spec = spec.and((root, q, cb) -> cb.equal(root.get("subCompetitionType"), subCompetitionType));
+            // For Quyền, allow matching by either stored label or by fistConfigId resolved from the label
+            if (competitionType == Athlete.CompetitionType.quyen) {
+                String label = subCompetitionType.trim();
+                String configId = null;
+                try {
+                    configId = fistConfigRepository
+                            .findFirstByNameStartingWithIgnoreCase(label)
+                            .map(cfg -> cfg.getId())
+                            .orElse(null);
+                } catch (Exception ignored) {}
+
+                final String resolvedConfigId = configId; // effectively final for lambda
+                spec = spec.and((root, q, cb) -> {
+                    if (resolvedConfigId != null) {
+                        return cb.or(
+                                cb.equal(root.get("subCompetitionType"), label),
+                                cb.equal(root.get("fistConfigId"), resolvedConfigId)
+                        );
+                    }
+                    return cb.equal(root.get("subCompetitionType"), label);
+                });
+            } else {
+                spec = spec.and((root, q, cb) -> cb.equal(root.get("subCompetitionType"), subCompetitionType));
+            }
         }
-        // legacy filter removed: detailSubCompetitionType no longer used
+        // Filter by detailSubCompetitionType (for quyền/music detail items)
+        if (detailSubCompetitionType != null && !detailSubCompetitionType.isBlank() && competitionType != null) {
+            String detailLabel = detailSubCompetitionType.trim();
+            if (competitionType == Athlete.CompetitionType.quyen) {
+                // For Quyền, match by fistItemId resolved from name
+                try {
+                    String itemId = fistItemRepository.findAll().stream()
+                            .filter(item -> item.getName() != null && item.getName().toLowerCase().startsWith(detailLabel.toLowerCase()))
+                            .findFirst()
+                            .map(item -> item.getId())
+                            .orElse(null);
+                    if (itemId != null) {
+                        final String resolvedItemId = itemId;
+                        spec = spec.and((root, q, cb) -> cb.equal(root.get("fistItemId"), resolvedItemId));
+                    } else {
+                        // Fallback: match by stored detailSubCompetitionType or detailSubLabel
+                        spec = spec.and((root, q, cb) -> 
+                            cb.or(
+                                cb.equal(root.get("detailSubCompetitionType"), detailLabel),
+                                cb.like(cb.lower(root.get("detailSubCompetitionType")), "%" + detailLabel.toLowerCase() + "%")
+                            )
+                        );
+                    }
+                } catch (Exception ignored) {
+                    // Fallback to string match
+                    spec = spec.and((root, q, cb) -> 
+                        cb.or(
+                            cb.equal(root.get("detailSubCompetitionType"), detailLabel),
+                            cb.like(cb.lower(root.get("detailSubCompetitionType")), "%" + detailLabel.toLowerCase() + "%")
+                        )
+                    );
+                }
+            } else if (competitionType == Athlete.CompetitionType.music) {
+                // For Music, match by musicContentId resolved from name
+                try {
+                    String contentId = musicRepository.findAll().stream()
+                            .filter(m -> m.getName() != null && m.getName().toLowerCase().startsWith(detailLabel.toLowerCase()))
+                            .findFirst()
+                            .map(content -> content.getId())
+                            .orElse(null);
+                    if (contentId != null) {
+                        final String resolvedContentId = contentId;
+                        spec = spec.and((root, q, cb) -> cb.equal(root.get("musicContentId"), resolvedContentId));
+                    } else {
+                        // Fallback: match by stored detailSubCompetitionType
+                        spec = spec.and((root, q, cb) -> 
+                            cb.or(
+                                cb.equal(root.get("detailSubCompetitionType"), detailLabel),
+                                cb.like(cb.lower(root.get("detailSubCompetitionType")), "%" + detailLabel.toLowerCase() + "%")
+                            )
+                        );
+                    }
+                } catch (Exception ignored) {
+                    // Fallback to string match
+                    spec = spec.and((root, q, cb) -> 
+                        cb.or(
+                            cb.equal(root.get("detailSubCompetitionType"), detailLabel),
+                            cb.like(cb.lower(root.get("detailSubCompetitionType")), "%" + detailLabel.toLowerCase() + "%")
+                        )
+                    );
+                }
+            }
+        }
         if (name != null && !name.isBlank()) {
             String pattern = "%" + name.trim().toLowerCase() + "%";
             spec = spec.and((root, q, cb) -> cb.like(cb.lower(root.get("fullName")), pattern));
@@ -130,14 +230,49 @@ public class AthleteService {
         return null;
     }
     
-    /**
-     * Arranges competition order for athletes in a competition.
-     * Merge: Master branch implementation creates CompetitionOrder entities for athletes.
-     * 
-     * @param competitionId The competition ID
-     * @param competitionType The competition type as string (will be converted to enum)
-     * @param orders List of athlete orders (currently unused but reserved for future use)
-     */
+    // Resolve team info via Performance linkage and submission
+    public TeamInfo resolveTeamInfo(Athlete a) {
+        TeamInfo info = new TeamInfo();
+        try {
+            if (a == null || a.getId() == null) return info;
+            java.util.List<PerformanceAthlete> links = performanceAthleteRepository.findByAthleteId(a.getId());
+            if (links == null || links.isEmpty()) return info;
+            // Prefer the first link (or could add logic to pick latest)
+            PerformanceAthlete pa = links.get(0);
+            if (pa.getPerformance() != null) {
+                String perfId = pa.getPerformance().getId();
+                info.setPerformanceId(perfId);
+                info.setTeamName(pa.getPerformance().getTeamName());
+                // Try to resolve registrant email from submitted form by performanceId
+                submittedApplicationFormRepository.findOneByPerformanceId(perfId).ifPresent(s -> {
+                    String mail = s.getEmail();
+                    if (mail != null && !mail.isBlank()) {
+                        info.setRegistrantEmail(mail);
+                    } else {
+                        // Fallback: try to parse email from formData JSON
+                        try {
+                            String formJson = s.getFormData();
+                            if (formJson != null) {
+                                com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(formJson);
+                                if (node != null && node.hasNonNull("email")) {
+                                    info.setRegistrantEmail(node.get("email").asText(""));
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                });
+            }
+        } catch (Exception ignored) {}
+        return info;
+    }
+    
+    @lombok.Data
+    public static class TeamInfo {
+        private String performanceId;
+        private String teamName;
+        private String registrantEmail;
+    }
+    
     @Transactional
     public void arrangeOrder(String competitionId, String competitionType, List<sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest.AthleteOrder> orders) {
         log.info("🎲 [Arrange Order] Starting arrangement for competitionId: {}, competitionType: {}, total athletes: {}", 
@@ -152,12 +287,9 @@ public class AthleteService {
                 Optional<Athlete> athleteOpt = athleteRepository.findById(UUID.fromString(order.getAthleteId()));
                 if (athleteOpt.isPresent()) {
                     Athlete athlete = athleteOpt.get();
-                    Integer oldOrder = athlete.getCompetitionOrder();
-                    athlete.setCompetitionOrder(order.getOrderIndex());
-                    athleteRepository.save(athlete);
-                    
-                    log.debug("✅ [Arrange Order] Athlete: {} ({}), Old order: {}, New order: {}", 
-                            athlete.getFullName(), order.getAthleteId(), oldOrder, order.getOrderIndex());
+                    // competition order field removed; skipping persistence update
+                    log.debug("✅ [Arrange Order] Athlete: {} ({}), New order: {} (no-op)", 
+                            athlete.getFullName(), order.getAthleteId(), order.getOrderIndex());
                     successCount++;
                 } else {
                     log.warn("⚠️ [Arrange Order] Athlete not found: {}", order.getAthleteId());

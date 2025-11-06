@@ -6,6 +6,7 @@ export type MenuItem = {
 
 export const defaultMenuItems: MenuItem[] = [
   { key: "tournaments", label: "Danh sách giải đấu" },
+  { key: "arrange", label: "Quản lý trận đấu" },
   {
     section: "Quản lí form",
     key: "tournamentForm",
@@ -36,6 +37,7 @@ export const getMenuItemsByRole = (role?: SystemRole | null): MenuItem[] => {
       return defaultMenuItems.filter((i) =>
         [
           "tournaments",
+          "arrange",
           "tournamentForm",
           "formList",
           "submittedForms",
@@ -52,8 +54,6 @@ export const getMenuItemsByRole = (role?: SystemRole | null): MenuItem[] => {
     case "TEACHER":
     default:
       // Minimal or read-only by default
-      return defaultMenuItems.filter((i) =>
-        ["tournaments"].includes(i.key)
-      );
+      return defaultMenuItems.filter((i) => ["tournaments"].includes(i.key));
   }
 };

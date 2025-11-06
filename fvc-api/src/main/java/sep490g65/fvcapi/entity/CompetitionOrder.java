@@ -31,8 +31,7 @@ public class CompetitionOrder extends BaseEntity {
     @JoinColumn(name = "competition_id", nullable = false)
     private Competition competition;
 
-    @OneToMany(fetch = FetchType.LAZY, mappedBy = "competitionOrderObject")
-    private List<Athlete> athletes;
+    // Removed back-reference to athletes (competitionOrderObject) since it no longer exists on Athlete
 
     // Optional: scope order by a specific selected content (e.g., fist item)
     @ManyToOne(fetch = FetchType.LAZY)

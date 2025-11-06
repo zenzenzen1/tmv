@@ -19,6 +19,7 @@ public class CreateFormRequest {
     @NotBlank
     private String competitionId;
     private FormStatus status;
+    private java.time.LocalDateTime endDate;
     private java.util.List<FormFieldUpsert> fields;
 }
 
