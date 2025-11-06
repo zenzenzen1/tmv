@@ -1,8 +1,22 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useCyclesStore } from "../../stores/cyclesStore";
 import type { ChallengeCycleDto, ChallengeCycleStatus } from "../../types/cycle";
+import {
+  Button,
+  Chip,
+  InputAdornment,
+  MenuItem,
+  Paper,
+  Select,
+  TextField,
+  Typography,
+} from "@mui/material";
+import { Search, Add } from "@mui/icons-material";
+import CommonTable, { type TableColumn } from "../../components/common/CommonTable";
 
 export default function CycleList() {
+  const navigate = useNavigate();
   const { items, page, loading, error, fetch } = useCyclesStore();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<ChallengeCycleStatus | "">("");
@@ -11,96 +25,182 @@ export default function CycleList() {
     fetch({ page: 0 });
   }, [fetch]);
 
-  const onFilter = () => {
+  const handleFilter = () => {
     fetch({ page: 0, search: search || undefined, status: status || undefined });
   };
 
+  const handlePageChange = (newPage: number) => {
+    fetch({ page: newPage - 1, search: search || undefined, status: status || undefined });
+  };
+
+  const getStatusColor = (status: ChallengeCycleStatus): "default" | "success" | "info" | "secondary" => {
+    switch (status) {
+      case "ACTIVE":
+        return "success";
+      case "COMPLETED":
+        return "info";
+      case "ARCHIVED":
+        return "secondary";
+      default:
+        return "default";
+    }
+  };
+
+  const getStatusLabel = (status: ChallengeCycleStatus): string => {
+    const labels: Record<ChallengeCycleStatus, string> = {
+      DRAFT: "Nháp",
+      ACTIVE: "Đang hoạt động",
+      COMPLETED: "Đã hoàn thành",
+      ARCHIVED: "Đã lưu trữ",
+    };
+    return labels[status] || status;
+  };
+
+  const currentPage = page?.page ?? 0;
+  const totalElements = page?.totalElements ?? 0;
+  const pageSize = page?.size ?? 10;
+
+  const columns: TableColumn<ChallengeCycleDto>[] = [
+    {
+      key: "index",
+      title: "STT",
+      sortable: false,
+      render: (cycle) => {
+        const idx = items.findIndex((item) => item.id === cycle.id);
+        return currentPage * pageSize + idx + 1;
+      },
+    },
+    {
+      key: "name",
+      title: "Tên Chu Kỳ",
+      render: (cycle) => (
+        <div>
+          <div className="font-medium">{cycle.name}</div>
+          {cycle.description && (
+            <div className="text-sm text-gray-500">
+              {cycle.description.slice(0, 50)}
+              {cycle.description.length > 50 ? "..." : ""}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      title: "Trạng Thái",
+      render: (cycle) => (
+        <Chip
+          size="small"
+          label={getStatusLabel(cycle.status)}
+          color={getStatusColor(cycle.status)}
+        />
+      ),
+    },
+    {
+      key: "startDate",
+      title: "Ngày Bắt Đầu",
+    },
+    {
+      key: "endDate",
+      title: "Ngày Kết Thúc",
+      render: (cycle) => cycle.endDate || "-",
+    },
+    {
+      key: "actions",
+      title: "Thao Tác",
+      className: "text-right",
+      sortable: false,
+      render: (cycle) => (
+        <div className="text-right">
+          <Button
+            size="small"
+            variant="text"
+            color="primary"
+            onClick={() => navigate(`/manage/cycles/${cycle.id}`)}
+          >
+            Xem
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Quản Lý Chu Kỳ Tuyển Thành Viên</h1>
+      <Typography variant="h5" fontWeight="medium" className="mb-4">
+        Quản Lý Chu Kỳ Tuyển Thành Viên
+      </Typography>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard label="Tổng Số Chu Kỳ" value={page?.totalElements ?? 0} icon="📦" />
-        <StatCard label="Chu Kỳ Đang Hoạt Động" value={(items || []).filter(c => c.status === "ACTIVE").length} icon="⚡" />
-        <StatCard label="Thành Viên Đang Thử Thách" value={45} icon="👥" />
-        <StatCard label="Số Đội" value={3} icon="👤" />
-      </div>
+      <Paper sx={{ p: 3 }}>
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <TextField
+            placeholder="Tìm kiếm theo tên chu kỳ, mô tả..."
+            size="small"
+            className="flex-1 min-w-[200px]"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === "Enter") {
+                handleFilter();
+              }
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <Select
+            size="small"
+            displayEmpty
+            value={status}
+            onChange={(e) => setStatus(e.target.value as ChallengeCycleStatus | "")}
+            renderValue={(v) => (v ? getStatusLabel(v as ChallengeCycleStatus) : "Tất cả trạng thái")}
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="">Tất cả trạng thái</MenuItem>
+            <MenuItem value="DRAFT">Nháp</MenuItem>
+            <MenuItem value="ACTIVE">Đang hoạt động</MenuItem>
+            <MenuItem value="COMPLETED">Đã hoàn thành</MenuItem>
+            <MenuItem value="ARCHIVED">Đã lưu trữ</MenuItem>
+          </Select>
+          <Button variant="contained" onClick={handleFilter}>
+            Lọc
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<Add />}
+            onClick={() => navigate("/manage/cycles/new")}
+          >
+            Tạo Chu Kỳ Mới
+          </Button>
+        </div>
 
-      <div className="flex items-center gap-3">
-        <input className="input-field flex-1" placeholder="Tìm kiếm theo tên chu kỳ, mô tả..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        <select className="input-field max-w-xs" value={status}
-                onChange={(e) => setStatus(e.target.value as any)}>
-          <option value="">Tất cả trạng thái</option>
-          <option value="DRAFT">Nháp</option>
-          <option value="ACTIVE">Đang hoạt động</option>
-          <option value="COMPLETED">Đã hoàn thành</option>
-          <option value="ARCHIVED">Đã lưu trữ</option>
-        </select>
-        <button className="btn-primary" onClick={onFilter}>Lọc</button>
-        <a className="btn-primary" href="/manage/cycles/new">+ Tạo Chu Kỳ Mới</a>
-      </div>
-
-      <div className="card">
-        <table className="w-full text-left">
-          <thead>
-          <tr className="border-b">
-            <th className="py-2 px-3">#</th>
-            <th className="py-2 px-3">Tên Chu Kỳ</th>
-            <th className="py-2 px-3">Trạng Thái</th>
-            <th className="py-2 px-3">Ngày Bắt Đầu</th>
-            <th className="py-2 px-3">Ngày Kết Thúc</th>
-            <th className="py-2 px-3">Thao Tác</th>
-          </tr>
-          </thead>
-          <tbody>
-          {loading && (
-            <tr><td colSpan={6} className="py-6 text-center">Đang tải...</td></tr>
-          )}
-          {error && !loading && (
-            <tr><td colSpan={6} className="py-6 text-center text-red-600">{error}</td></tr>
-          )}
-          {!loading && !error && items.map((c: ChallengeCycleDto, idx: number) => (
-            <tr key={c.id} className="border-t">
-              <td className="py-3 px-3">{idx + 1}</td>
-              <td className="py-3 px-3">
-                <div className="font-medium">{c.name}</div>
-                <div className="text-sm text-gray-500">{c.description?.slice(0, 40) || ""}</div>
-              </td>
-              <td className="py-3 px-3"><StatusBadge status={c.status} /></td>
-              <td className="py-3 px-3">{c.startDate}</td>
-              <td className="py-3 px-3">{c.endDate}</td>
-              <td className="py-3 px-3">
-                <a className="text-primary-600 hover:underline" href={`/manage/cycles/${c.id}`}>Xem</a>
-              </td>
-            </tr>
-          ))}
-          </tbody>
-        </table>
-      </div>
+        {loading && (
+          <div className="text-gray-500 py-6 text-center">Đang tải...</div>
+        )}
+        {error && !loading && (
+          <div className="text-red-600 py-6 text-center">{error}</div>
+        )}
+        {!loading && !error && (
+          <CommonTable<ChallengeCycleDto>
+            columns={columns}
+            data={items}
+            keyField="id"
+            page={currentPage + 1}
+            pageSize={pageSize}
+            total={totalElements}
+            onPageChange={handlePageChange}
+            showPageSizeSelector={false}
+          />
+        )}
+        {!loading && !error && items.length === 0 && (
+          <div className="text-center text-gray-500 py-8">Không có dữ liệu</div>
+        )}
+      </Paper>
     </div>
   );
 }
-
-function StatCard({ label, value, icon }: { label: string; value: number; icon: string }) {
-  return (
-    <div className="card flex items-center justify-between">
-      <div>
-        <div className="text-gray-500 text-sm">{label}</div>
-        <div className="text-2xl font-semibold mt-1">{value}</div>
-      </div>
-      <div className="text-3xl">{icon}</div>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: ChallengeCycleStatus }) {
-  const map: Record<string, string> = {
-    DRAFT: "bg-gray-100 text-gray-700",
-    ACTIVE: "bg-green-100 text-green-700",
-    COMPLETED: "bg-blue-100 text-blue-700",
-    ARCHIVED: "bg-purple-100 text-purple-700",
-  };
-  return <span className={`px-2 py-1 rounded text-xs ${map[status]}`}>{status}</span>;
-}
-
-
