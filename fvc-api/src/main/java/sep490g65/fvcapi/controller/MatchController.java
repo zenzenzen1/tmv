@@ -14,6 +14,7 @@ import sep490g65.fvcapi.dto.request.RecordScoreEventRequest;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.MatchEventDto;
 import sep490g65.fvcapi.dto.response.MatchListItemDto;
+import sep490g65.fvcapi.dto.response.MatchRoundDto;
 import sep490g65.fvcapi.dto.response.MatchScoreboardDto;
 import sep490g65.fvcapi.service.MatchService;
 import sep490g65.fvcapi.utils.ResponseUtils;
@@ -131,6 +132,74 @@ public class MatchController {
             log.error("Error updating round duration for match {}", matchId, e);
             return ResponseEntity.ok(ResponseUtils.error(
                     e.getMessage(), "MATCH_UPDATE_DURATION_ERROR"));
+        }
+    }
+
+    @PatchMapping("/{matchId}/main-round-duration")
+    public ResponseEntity<BaseResponse<Void>> updateMainRoundDuration(
+            @PathVariable String matchId,
+            @RequestParam Integer mainRoundDurationSeconds) {
+        try {
+            matchService.updateMainRoundDuration(matchId, mainRoundDurationSeconds);
+            return ResponseEntity.ok(ResponseUtils.success("Main round duration updated successfully"));
+        } catch (Exception e) {
+            log.error("Error updating main round duration for match {}", matchId, e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    e.getMessage(), "MATCH_UPDATE_MAIN_ROUND_DURATION_ERROR"));
+        }
+    }
+
+    @PatchMapping("/{matchId}/tiebreaker-duration")
+    public ResponseEntity<BaseResponse<Void>> updateTiebreakerDuration(
+            @PathVariable String matchId,
+            @RequestParam Integer tiebreakerDurationSeconds) {
+        try {
+            matchService.updateTiebreakerDuration(matchId, tiebreakerDurationSeconds);
+            return ResponseEntity.ok(ResponseUtils.success("Tiebreaker duration updated successfully"));
+        } catch (Exception e) {
+            log.error("Error updating tiebreaker duration for match {}", matchId, e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    e.getMessage(), "MATCH_UPDATE_TIEBREAKER_DURATION_ERROR"));
+        }
+    }
+
+    @PatchMapping("/{matchId}/field")
+    public ResponseEntity<BaseResponse<Void>> updateField(
+            @PathVariable String matchId,
+            @RequestParam(required = false) String fieldId) {
+        try {
+            matchService.updateField(matchId, fieldId);
+            return ResponseEntity.ok(ResponseUtils.success("Field updated successfully"));
+        } catch (Exception e) {
+            log.error("Error updating field for match {}", matchId, e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    e.getMessage(), "MATCH_UPDATE_FIELD_ERROR"));
+        }
+    }
+
+    @PatchMapping("/{matchId}/total-rounds")
+    public ResponseEntity<BaseResponse<Void>> updateTotalRounds(
+            @PathVariable String matchId,
+            @RequestParam Integer totalRounds) {
+        try {
+            matchService.updateTotalRounds(matchId, totalRounds);
+            return ResponseEntity.ok(ResponseUtils.success("Total rounds updated successfully"));
+        } catch (Exception e) {
+            log.error("Error updating total rounds for match {}", matchId, e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    e.getMessage(), "MATCH_UPDATE_TOTAL_ROUNDS_ERROR"));
+        }
+    }
+
+    @GetMapping("/{matchId}/rounds")
+    public ResponseEntity<BaseResponse<List<MatchRoundDto>>> getRoundHistory(@PathVariable String matchId) {
+        try {
+            List<MatchRoundDto> rounds = matchService.getRoundHistory(matchId);
+            return ResponseEntity.ok(ResponseUtils.success("Round history retrieved successfully", rounds));
+        } catch (Exception e) {
+            log.error("Error fetching round history for match {}", matchId, e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    e.getMessage(), "MATCH_ROUND_HISTORY_ERROR"));
         }
     }
 }

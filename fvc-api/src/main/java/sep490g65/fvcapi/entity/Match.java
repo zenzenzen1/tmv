@@ -77,7 +77,15 @@ public class Match extends BaseEntity {
 
     @Column(name = "round_duration_seconds", nullable = false)
     @Builder.Default
-    private Integer roundDurationSeconds = 120;
+    private Integer roundDurationSeconds = 120; // Deprecated: Use mainRoundDurationSeconds
+    
+    @Column(name = "main_round_duration_seconds", nullable = false)
+    @Builder.Default
+    private Integer mainRoundDurationSeconds = 120; // Duration for main rounds (hiệp chính)
+    
+    @Column(name = "tiebreaker_duration_seconds", nullable = false)
+    @Builder.Default
+    private Integer tiebreakerDurationSeconds = 60; // Duration for tiebreaker round (hiệp phụ)
 
     @Column(name = "started_at")
     private LocalDateTime startedAt;
@@ -105,5 +113,9 @@ public class Match extends BaseEntity {
     @OneToMany(mappedBy = "match", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<MatchAssessor> assessors = new ArrayList<>();
+
+    @OneToMany(mappedBy = "match", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<MatchRound> rounds = new ArrayList<>();
 }
 

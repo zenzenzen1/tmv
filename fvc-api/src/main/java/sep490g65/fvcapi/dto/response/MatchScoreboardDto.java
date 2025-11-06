@@ -17,7 +17,9 @@ public class MatchScoreboardDto {
     private String roundType;
     private Integer currentRound;
     private Integer totalRounds;
-    private Integer roundDurationSeconds;
+    private Integer roundDurationSeconds; // Duration for current round
+    private Integer mainRoundDurationSeconds; // Duration for main rounds (hiệp chính)
+    private Integer tiebreakerDurationSeconds; // Duration for tiebreaker rounds (hiệp phụ)
     private String status;
     private MatchAthleteInfoDto redAthlete;
     private MatchAthleteInfoDto blueAthlete;

@@ -100,7 +100,7 @@ export default function SelectMatchPage() {
           onClick={() => navigate('/manage/scoring/assign-assessors')}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
         >
-          Gán giám định
+          Chỉ định giám định
         </button>
       </div>
 

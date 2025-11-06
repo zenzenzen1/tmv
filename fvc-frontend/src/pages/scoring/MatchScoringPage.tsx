@@ -426,9 +426,9 @@ export default function MatchScoringPage() {
         <div className="font-bold text-2xl mb-3">{scoreboard.matchName}</div>
         <div className="flex items-center gap-4 flex-wrap">
           {scoreboard.weightClass && (
-            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-md text-sm font-medium">
-              Hạng cân: {scoreboard.weightClass}
-            </span>
+          <span className="px-3 py-1 bg-green-100 text-green-800 rounded-md text-sm font-medium">
+            Hạng cân: {scoreboard.weightClass}
+          </span>
           )}
           {scoreboard.field && (
             <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-md text-sm font-medium">
@@ -455,7 +455,7 @@ export default function MatchScoringPage() {
             onClick={() => navigate(`/manage/scoring/assign-assessors/${matchId}`)}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
           >
-            Gán giám định
+            Chỉ định giám định
           </button>
         <button
           onClick={() => navigate(-1)}
@@ -814,11 +814,19 @@ export default function MatchScoringPage() {
             </button>
           </div>
             <button
-            onClick={() => handleMatchControl('END')}
+            onClick={() => {
+              if (scoreboard && scoreboard.currentRound < scoreboard.totalRounds) {
+                handleRoundEnd();
+              } else {
+                handleMatchControl('END');
+              }
+            }}
               disabled={actionLoading || isMatchEnded}
             className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
             >
-            Kết thúc
+            {scoreboard && scoreboard.currentRound < scoreboard.totalRounds
+              ? `Kết thúc vòng ${scoreboard.currentRound}`
+              : 'Kết thúc trận đấu'}
             </button>
           <div className="flex gap-3">
             <button

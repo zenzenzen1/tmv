@@ -141,6 +141,10 @@ export const API_ENDPOINTS = {
     CONTROL: "/v1/matches/control",
     UNDO: "/v1/matches/{matchId}/undo",
     UPDATE_ROUND_DURATION: "/v1/matches/{matchId}/round-duration",
+    UPDATE_MAIN_ROUND_DURATION: "/v1/matches/{matchId}/main-round-duration",
+    UPDATE_TIEBREAKER_DURATION: "/v1/matches/{matchId}/tiebreaker-duration",
+    UPDATE_FIELD: "/v1/matches/{matchId}/field",
+    UPDATE_TOTAL_ROUNDS: "/v1/matches/{matchId}/total-rounds",
   },
 
   // Match Assessors
