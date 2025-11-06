@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import ErrorMessage from '../../components/common/ErrorMessage';
+import { useToast } from '../../components/common/ToastContext';
 import apiClient from '../../config/axios';
 import { API_ENDPOINTS } from '../../config/endpoints';
 import matchScoringService from '../../services/matchScoringService';
@@ -40,11 +40,11 @@ interface VoteResponse {
 export default function AssessorPage() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const user = useAuthStore((state) => state.user);
   
   const [assessorInfo, setAssessorInfo] = useState<AssessorInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [selectedCorner, setSelectedCorner] = useState<'RED' | 'BLUE' | null>(null);
   const [selectedScore, setSelectedScore] = useState<1 | 2 | null>(null);
@@ -57,13 +57,13 @@ export default function AssessorPage() {
   useEffect(() => {
     async function fetchAssessorInfo() {
       if (!matchId) {
-        setError('Match ID không hợp lệ');
+        toast.error('Match ID không hợp lệ');
         setLoading(false);
         return;
       }
 
       if (!user || !user.id) {
-        setError('Bạn cần đăng nhập để truy cập màn hình giám định');
+        toast.error('Bạn cần đăng nhập để truy cập màn hình giám định');
         setLoading(false);
         return;
       }
@@ -82,7 +82,7 @@ export default function AssessorPage() {
         
         if (!assessor) {
           console.error('Assessor not found. User ID:', user.id, 'Available assessors:', assessors.map((a: any) => ({ id: a.id, userId: a.userId, position: a.position })));
-          setError('Bạn chưa được gán làm giám định cho trận đấu này');
+          toast.error('Bạn chưa được gán làm giám định cho trận đấu này');
           setLoading(false);
           return;
         }
@@ -114,7 +114,8 @@ export default function AssessorPage() {
         // Connect WebSocket
         connectWebSocket(matchId, assessor.id);
       } catch (err: any) {
-        setError(err?.message || 'Không thể tải thông tin giám định');
+        const errorMessage = err?.message || 'Không thể tải thông tin giám định';
+        toast.error(errorMessage);
         console.error('Error fetching assessor info:', err);
       } finally {
         setLoading(false);
@@ -187,7 +188,7 @@ export default function AssessorPage() {
               setSelectedScore(null);
               setIsConfirming(false);
               // Show success notification
-              alert(`✅ Điểm đã được chấp nhận! (${response.voteCount}/${response.totalAssessors} giám định)`);
+              toast.success(`✅ Điểm đã được chấp nhận! (${response.voteCount}/${response.totalAssessors} giám định)`);
             }
           } catch (e) {
             console.error('Error parsing vote response', e);
@@ -196,7 +197,7 @@ export default function AssessorPage() {
 
         // Subscribe to errors
         stompClient.subscribe(`/topic/match/${matchId}/assessor-error`, (message) => {
-          setError(message.body);
+          toast.error(message.body);
         });
 
         // Subscribe to vote reset
@@ -217,7 +218,7 @@ export default function AssessorPage() {
               ? `Trận đấu kết thúc! Hòa ${data.redScore} - ${data.blueScore}`
               : `Trận đấu kết thúc! ${data.winner} thắng ${data.redScore} - ${data.blueScore}`;
             
-            alert(winnerMessage);
+            toast.success(winnerMessage);
             
             // Disconnect WebSocket
             if (stompClient.connected) {
@@ -247,7 +248,7 @@ export default function AssessorPage() {
       },
       onStompError: (frame) => {
         console.error('STOMP error:', frame);
-        setError('Lỗi kết nối WebSocket: ' + frame.headers['message']);
+        toast.error('Lỗi kết nối WebSocket: ' + frame.headers['message']);
         setConnected(false);
       },
       onDisconnect: () => {
@@ -301,7 +302,7 @@ export default function AssessorPage() {
         setIsConfirming(false);
       }, 1000);
     } catch (err: any) {
-      setError('Không thể gửi vote: ' + err.message);
+      toast.error('Không thể gửi vote: ' + err.message);
       setIsConfirming(false);
     }
   };
@@ -314,16 +315,10 @@ export default function AssessorPage() {
     );
   }
 
-  if (error && !assessorInfo) {
+  if (loading && !assessorInfo) {
     return (
       <div className="p-6">
-        <ErrorMessage error={error} />
-        <button
-          onClick={() => navigate(-1)}
-          className="mt-4 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-        >
-          Quay lại
-        </button>
+        <LoadingSpinner />
       </div>
     );
   }
@@ -430,11 +425,6 @@ export default function AssessorPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="mb-4">
-          <ErrorMessage error={error} />
-        </div>
-      )}
 
       {/* Vote Status */}
       {voteStatus && (
