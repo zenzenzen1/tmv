@@ -17,6 +17,7 @@ export default function BracketBuilder() {
   const [competitionType, setCompetitionType] = useState<string>("individual");
   const [athleteCount, setAthleteCount] = useState<number>(0);
   const [athleteFile, setAthleteFile] = useState<File | null>(null);
+  const [activeTab, setActiveTab] = useState<"manual" | "import">("manual");
 
   // New states for athlete list
   const [athletes, setAthletes] = useState<any[]>([]);
@@ -548,213 +549,340 @@ export default function BracketBuilder() {
           </div>
         </div>
 
-        {/* Athletes List */}
-        {competitionId.length > 0 && weightClassId.length > 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-            <h3 className="text-lg font-semibold mb-4">
-              Danh sách vận động viên
-            </h3>
+        {/* Athletes Selection Tabs */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+          {/* Tab Navigation */}
+          <div className="flex border-b border-gray-200 mb-4">
+            <button
+              onClick={() => setActiveTab("manual")}
+              className={`px-6 py-3 font-medium text-sm transition-colors ${
+                activeTab === "manual"
+                  ? "text-blue-600 border-b-2 border-blue-600"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              ✋ Chọn thủ công
+            </button>
+            <button
+              onClick={() => setActiveTab("import")}
+              className={`px-6 py-3 font-medium text-sm transition-colors ${
+                activeTab === "import"
+                  ? "text-blue-600 border-b-2 border-blue-600"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              📥 Import danh sách
+            </button>
+          </div>
 
-            {loadingAthletes ? (
-              <div className="text-center py-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600">
-                  Đang tải danh sách vận động viên...
-                </p>
-              </div>
-            ) : athletes.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <p>Không có vận động viên nào trong hạng cân này</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {athletes.map((athlete) => (
-                  <div
-                    key={athlete.id}
-                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedAthletes.includes(athlete.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedAthletes([
-                              ...selectedAthletes,
-                              athlete.id,
-                            ]);
-                          } else {
-                            setSelectedAthletes(
-                              selectedAthletes.filter((id) => id !== athlete.id)
-                            );
+          {/* Tab Content: Manual Selection */}
+          {activeTab === "manual" && (
+            <div>
+              {competitionId.length === 0 || weightClassId.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="mb-2">Vui lòng chọn giải đấu và hạng cân trước</p>
+                  <p className="text-sm">Sau khi chọn, danh sách vận động viên sẽ hiển thị tại đây</p>
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-lg font-semibold mb-4">
+                    Danh sách vận động viên
+                  </h3>
+
+                  {loadingAthletes ? (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                      <p className="mt-2 text-gray-600">
+                        Đang tải danh sách vận động viên...
+                      </p>
+                    </div>
+                  ) : athletes.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>Không có vận động viên nào trong hạng cân này</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {athletes.map((athlete) => (
+                        <div
+                          key={athlete.id}
+                          className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedAthletes.includes(athlete.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedAthletes([
+                                    ...selectedAthletes,
+                                    athlete.id,
+                                  ]);
+                                } else {
+                                  setSelectedAthletes(
+                                    selectedAthletes.filter((id) => id !== athlete.id)
+                                  );
+                                }
+                              }}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                {athlete.fullName}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                {athlete.studentId} • {athlete.club} •{" "}
+                                {athlete.gender === "MALE" ? "Nam" : "Nữ"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {athlete.status === "NOT_STARTED"
+                              ? "Chưa bắt đầu"
+                              : athlete.status === "IN_PROGRESS"
+                              ? "Đang thi đấu"
+                              : athlete.status === "DONE"
+                              ? "Hoàn thành"
+                              : "Vi phạm"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {athletes.length > 0 && (
+                    <div className="mt-4 flex justify-between items-center">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() =>
+                            setSelectedAthletes(athletes.map((a) => a.id))
                           }
-                        }}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {athlete.fullName}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {athlete.studentId} • {athlete.club} •{" "}
-                          {athlete.gender === "MALE" ? "Nam" : "Nữ"}
-                        </p>
+                          className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                        >
+                          Chọn tất cả
+                        </button>
+                        <button
+                          onClick={() => setSelectedAthletes([])}
+                          className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                        >
+                          Bỏ chọn tất cả
+                        </button>
+                      </div>
+                      <div className="flex gap-3 flex-wrap">
+                        <button
+                          onClick={() => {
+                            console.log('Chia nhánh đấu clicked, selectedAthletes:', selectedAthletes.length);
+                            if (selectedAthletes.length === 0) {
+                              alert("Vui lòng chọn ít nhất 1 vận động viên");
+                              return;
+                            }
+                            
+                            // Set athlete count and names
+                            setAthleteCount(selectedAthletes.length);
+                            const selectedAthleteNames = selectedAthletes.map(id => {
+                              const athlete = athletes.find(a => a.id === id);
+                              return athlete ? athlete.fullName : `VĐV ${id}`;
+                            });
+                            
+                            // Set seed names first, then generate bracket
+                            setSeedNames(selectedAthleteNames);
+                            
+                            // Generate bracket with athlete names
+                            computePairings(selectedAthletes.length, selectedAthleteNames);
+                            
+                            console.log('Generated bracket for', selectedAthletes.length, 'athletes');
+                            console.log('Athlete names:', selectedAthleteNames);
+                            console.log('All rounds:', roundPairs);
+                            console.log('Rounds count:', roundsCount);
+                            
+                            // Show success message
+                            alert(`Đã tạo nhánh đấu cho ${selectedAthletes.length} vận động viên!`);
+                          }}
+                          disabled={selectedAthletes.length === 0}
+                          className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+                        >
+                          Chia nhánh đấu ({selectedAthletes.length} VĐV)
+                        </button>
+                        
+                        <div className="flex gap-2">
+                          <button
+                            onClick={generateSeedingList}
+                            disabled={selectedAthletes.length === 0}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+                            title="Bốc thăm tự động (Online)"
+                          >
+                            🎲 Bốc thăm tự động
+                          </button>
+                          
+                          <button
+                            onClick={initializeManualSeeding}
+                            disabled={selectedAthletes.length === 0}
+                            className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+                            title="Nhập số bốc thăm thủ công (Offline)"
+                          >
+                            ✏️ Nhập số thủ công
+                          </button>
+                          
+                          <button
+                            onClick={loadDrawHistory}
+                            disabled={competitionId.length === 0 || weightClassId.length === 0}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+                            title="Xem lịch sử bốc thăm"
+                          >
+                            📋 Lịch sử bốc thăm
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {athlete.status === "NOT_STARTED"
-                        ? "Chưa bắt đầu"
-                        : athlete.status === "IN_PROGRESS"
-                        ? "Đang thi đấu"
-                        : athlete.status === "DONE"
-                        ? "Hoàn thành"
-                        : "Vi phạm"}
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Tab Content: Import */}
+          {activeTab === "import" && (
+              <div>
+                <h3 className="text-lg font-semibold mb-4">
+                  Import danh sách từ file
+                </h3>
+
+                {/* Competition and Weight Class Selection for Import */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Chọn giải đấu
+                    </label>
+                    <MultiSelect
+                      options={competitionOptions}
+                      selectedValues={competitionId}
+                      onChange={(vals) => setCompetitionId(vals.slice(-1))}
+                      label=""
+                      placeholder="Chọn 1 giải"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Chọn hạng cân
+                    </label>
+                    <MultiSelect
+                      options={weightClassOptions}
+                      selectedValues={weightClassId}
+                      onChange={(vals) => setWeightClassId(vals.slice(-1))}
+                      label=""
+                      placeholder="Chọn 1 hạng cân"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Loại thi đấu
+                    </label>
+                    <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+                      {competitionType === "individual" ? "Đối kháng cá nhân" : "Song luyện đối kháng"}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {athletes.length > 0 && (
-              <div className="mt-4 flex justify-between items-center">
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() =>
-                      setSelectedAthletes(athletes.map((a) => a.id))
-                    }
-                    className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                  >
-                    Chọn tất cả
-                  </button>
-                  <button
-                    onClick={() => setSelectedAthletes([])}
-                    className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                  >
-                    Bỏ chọn tất cả
-                  </button>
-                </div>
-                <div className="flex gap-3 flex-wrap">
-                  <button
-                    onClick={() => {
-                      console.log('Chia nhánh đấu clicked, selectedAthletes:', selectedAthletes.length);
-                      if (selectedAthletes.length === 0) {
-                        alert("Vui lòng chọn ít nhất 1 vận động viên");
-                        return;
-                      }
-                      
-                      // Set athlete count and names
-                      setAthleteCount(selectedAthletes.length);
-                      const selectedAthleteNames = selectedAthletes.map(id => {
-                        const athlete = athletes.find(a => a.id === id);
-                        return athlete ? athlete.fullName : `VĐV ${id}`;
-                      });
-                      
-                      // Set seed names first, then generate bracket
-                      setSeedNames(selectedAthleteNames);
-                      
-                      // Generate bracket with athlete names
-                      computePairings(selectedAthletes.length, selectedAthleteNames);
-                      
-                      console.log('Generated bracket for', selectedAthletes.length, 'athletes');
-                      console.log('Athlete names:', selectedAthleteNames);
-                      console.log('All rounds:', roundPairs);
-                      console.log('Rounds count:', roundsCount);
-                      
-                      // Show success message
-                      alert(`Đã tạo nhánh đấu cho ${selectedAthletes.length} vận động viên!`);
-                    }}
-                    disabled={selectedAthletes.length === 0}
-                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
-                  >
-                    Chia nhánh đấu ({selectedAthletes.length} VĐV)
-                  </button>
-                  
-                  <div className="flex gap-2">
-                    <button
-                      onClick={generateSeedingList}
-                      disabled={selectedAthletes.length === 0}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
-                      title="Bốc thăm tự động (Online)"
-                    >
-                      🎲 Bốc thăm tự động
-                    </button>
-                    
-                    <button
-                      onClick={initializeManualSeeding}
-                      disabled={selectedAthletes.length === 0}
-                      className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
-                      title="Nhập số bốc thăm thủ công (Offline)"
-                    >
-                      ✏️ Nhập số thủ công
-                    </button>
-                    
-                    <button
-                      onClick={loadDrawHistory}
-                      disabled={competitionId.length === 0 || weightClassId.length === 0}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
-                      title="Xem lịch sử bốc thăm"
-                    >
-                      📋 Lịch sử bốc thăm
-                    </button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Số vận động viên đã import
+                    </label>
+                    <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+                      {athleteCount} vận động viên
+                    </div>
                   </div>
                 </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Chọn file danh sách VĐV
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept=".csv,.xlsx,.xls"
+                        onChange={(e) => setAthleteFile(e.target.files?.[0] || null)}
+                        className="hidden"
+                        id="athlete-file"
+                      />
+                      <label
+                        htmlFor="athlete-file"
+                        className="block w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 text-center transition-colors"
+                      >
+                        {athleteFile ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="text-green-600">✓</span>
+                            <span className="font-medium">{athleteFile.name}</span>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-gray-600">📁 Chọn tệp CSV/XLSX</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Hỗ trợ định dạng: .csv, .xlsx, .xls
+                            </p>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+                  </div>
+
+                  {athleteFile && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm text-blue-800 mb-2">
+                        <strong>File đã chọn:</strong> {athleteFile.name}
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        Nhấn "Import" để xử lý file và thêm vận động viên vào danh sách
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleImport}
+                      disabled={!athleteFile}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+                    >
+                      📥 Import danh sách
+                    </button>
+                    {athleteFile && (
+                      <button
+                        onClick={() => {
+                          setAthleteFile(null);
+                          const fileInput = document.getElementById("athlete-file") as HTMLInputElement;
+                          if (fileInput) fileInput.value = "";
+                        }}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 font-medium"
+                      >
+                        Xóa file
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Calculate Bracket Button for Import Tab */}
+                <div className="mt-6 flex gap-3">
+                  <button 
+                    className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    onClick={handleGenerate}
+                    disabled={athleteCount <= 0 || competitionId.length === 0 || weightClassId.length === 0}
+                  >
+                    Tính nhánh
+                  </button>
+                  {roundsCount > 0 && (
+                    <button
+                      onClick={generateBracketImage}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Xuất ảnh
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
-        )}
-
-        <div className="grid grid-cols-1 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Import danh sách VĐV (Tùy chọn)
-            </label>
-            <div className="relative">
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={(e) => setAthleteFile(e.target.files?.[0] || null)}
-                className="hidden"
-                id="athlete-file"
-              />
-              <label
-                htmlFor="athlete-file"
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 text-center"
-              >
-                {athleteFile ? athleteFile.name : "Chọn tệp CSV/XLSX"}
-              </label>
-            </div>
-          </div>
         </div>
-
-        <div className="flex gap-3 justify-between">
-          <div className="flex space-x-3">
-            <button 
-              className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
-              onClick={handleGenerate}
-              disabled={athleteCount <= 0}
-            >
-              Tính nhánh
-            </button>
-            {roundsCount > 0 && (
-              <button
-                onClick={generateBracketImage}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Xuất ảnh
-              </button>
-            )}
-          </div>
-          <div>
-            <button
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              onClick={handleImport}
-              disabled={!athleteFile}
-            >
-              Import
-            </button>
-          </div>
-        </div>
-      </div>
 
       {roundsCount > 0 && selectedAthletes.length > 0 && (
         <div
@@ -768,8 +896,7 @@ export default function BracketBuilder() {
               <div
                 className="absolute top-0 left-0 w-full h-full"
                 style={{
-                  backgroundImage:
-                    "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+                  backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.1\'%3E%3Ccircle cx=\'30\' cy=\'30\' r=\'2\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
                 }}
               ></div>
             </div>

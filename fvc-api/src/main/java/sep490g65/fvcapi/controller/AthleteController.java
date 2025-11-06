@@ -15,6 +15,8 @@ import sep490g65.fvcapi.utils.ResponseUtils;
 import jakarta.validation.Valid;
 import sep490g65.fvcapi.dto.request.ArrangeFistOrderRequest;
 
+import java.util.List;
+
 
 @RestController
 @RequestMapping(ApiConstants.API_BASE_PATH + "/athletes")
@@ -43,6 +45,22 @@ public class AthleteController {
         });
         PaginationResponse<sep490g65.fvcapi.dto.response.AthleteResolvedResponse> payload = ResponseUtils.createPaginatedResponse(mapped);
         return ResponseEntity.ok(ResponseUtils.success("Athletes retrieved", payload));
+    }
+
+    @GetMapping("/by-competition-weight-class")
+    public ResponseEntity<BaseResponse<List<sep490g65.fvcapi.dto.response.AthleteResolvedResponse>>> getByCompetitionAndWeightClass(
+            @RequestParam String competitionId,
+            @RequestParam String weightClassId) {
+        List<Athlete> athletes = athleteService.getByCompetitionAndWeightClass(competitionId, weightClassId);
+        List<sep490g65.fvcapi.dto.response.AthleteResolvedResponse> mapped = athletes.stream()
+                .map(a -> {
+                    String label = athleteService.resolveDetailLabel(a);
+                    sep490g65.fvcapi.dto.response.AthleteResolvedResponse dto = sep490g65.fvcapi.dto.response.AthleteResolvedResponse.from(a);
+                    dto.setDetailSubLabel(label);
+                    return dto;
+                })
+                .toList();
+        return ResponseEntity.ok(ResponseUtils.success("Athletes retrieved", mapped));
     }
 
     @PostMapping("/arrange-order")

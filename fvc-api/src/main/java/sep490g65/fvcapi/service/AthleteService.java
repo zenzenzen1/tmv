@@ -131,6 +131,23 @@ public class AthleteService {
     }
     
     /**
+     * Gets list of athletes by competition and weight class.
+     * Used for bracket generation.
+     * 
+     * @param competitionId The competition ID
+     * @param weightClassId The weight class ID
+     * @return List of athletes matching the criteria
+     */
+    public List<Athlete> getByCompetitionAndWeightClass(String competitionId, String weightClassId) {
+        log.info("Fetching athletes for competitionId: {}, weightClassId: {}", competitionId, weightClassId);
+        return athleteRepository.findByCompetitionIdAndCompetitionTypeAndWeightClassId(
+            competitionId,
+            Athlete.CompetitionType.fighting,
+            weightClassId
+        );
+    }
+
+    /**
      * Arranges competition order for athletes in a competition.
      * Merge: Master branch implementation creates CompetitionOrder entities for athletes.
      * 
