@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FVCMS — Member Landing</title>
+    <meta name="description" content="Landing page cho member FVCMS: xem form mở, lịch thi đấu và hồ sơ cá nhân." />
+    <link rel="icon" href="/logo.png" />
+    <style>
+      :root{
+        --primary:#0ea5e9;
+        --primary-dark:#0284c7;
+        --accent:#7c3aed;
+        --bg-top:#F0F6FF;
+        --bg-bottom:#E0EAFF;
+        --text:#0f172a;
+        --muted:#475569;
+        --ring: rgba(2,132,199,.25);
+        --card:#ffffff;
+        --border:#e2e8f0;
+      }
+      *{box-sizing:border-box}
+      html,body{height:100%}
+      body{
+        margin:0;
+        font-family: Inter, Roboto, Helvetica, Arial, sans-serif;
+        color:var(--text);
+        background: linear-gradient(to bottom, var(--bg-top), var(--bg-bottom));
+      }
+      .container{max-width:1120px;margin:0 auto;padding:24px}
+
+      .appbar{
+        position:sticky;top:0;z-index:50;
+        background:#fff;color:var(--text);
+        box-shadow:0 1px 3px rgba(0,0,0,0.1);
+        border-bottom:1px solid var(--border);
+      }
+      .toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;gap:12px;position:relative}
+      .left{display:flex;align-items:center;gap:8px}
+      .nav{display:flex;align-items:center;gap:14px;margin:0 12px;position:absolute;left:50%;transform:translateX(-50%)}
+      .nav a{color:#64748b;text-decoration:none;font-size:16px;padding:8px 10px;border-radius:8px}
+      .nav a:hover{background:#f8fafc;color:#0f172a}
+      .nav a.active{color:var(--primary);background:#f0f9ff}
+      .back-btn{
+        display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;border:none;background:transparent;color:#64748b;cursor:pointer
+      }
+      .back-btn:hover{background:#f3f4f6}
+      .title{font-weight:700;font-size:28px;letter-spacing:.5px;color:var(--primary)}
+      .right{display:flex;align-items:center;gap:8px}
+      .user-name{color:#64748b;font-size:14px;display:none}
+      @media (min-width: 640px){ .user-name{display:block} }
+      .avatar-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;border:none;cursor:pointer;background:transparent}
+      .avatar{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:999px;background:var(--primary);color:#fff;font-weight:600;font-size:14px}
+
+      .menu{display:none;position:absolute;right:24px;top:64px;min-width:200px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.08);padding:8px 0}
+      .menu .info{padding:12px 16px;border-bottom:1px solid var(--border)}
+      .menu .info .name{font-weight:600;font-size:14px}
+      .menu .info .role{color:#64748b;font-size:12px}
+      .menu a, .menu button{display:flex;align-items:center;gap:10px;width:100%;padding:10px 16px;background:#fff;border:0;text-align:left;font-size:14px;color:#0f172a;cursor:pointer}
+      .menu a:hover, .menu button:hover{background:#f8fafc}
+      .menu .danger{color:#ef4444}
+
+      .hero{margin:0}
+      .hero-banner{position:relative;width:100%;height:100vh;overflow:hidden;background:url('herosection.jpg') center/cover no-repeat}
+      .hero-banner::before{content:"";position:absolute;inset:0;background:linear-gradient(135deg, rgba(15,23,42,.55), rgba(15,23,42,.25));backdrop-filter:blur(1px)}
+      .hero-content{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;padding:24px 28px;max-width:min(820px, 92vw);margin:0 auto;text-align:center}
+      .hero-content h1{font-size:40px;line-height:1.15;margin:0;color:#fff;letter-spacing:-.01em;text-shadow:0 2px 8px rgba(0,0,0,.35)}
+      .hero-content p{margin:0;color:rgba(255,255,255,.92);font-size:16px;text-shadow:0 1px 4px rgba(0,0,0,.25)}
+      .hero-cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+      .btn-primary{box-shadow:0 8px 20px rgba(14,165,233,.25)}
+
+      /* Intro section below hero */
+      .intro{position:relative;padding:32px 0 8px}
+      .intro-card{position:relative;top:0;background:transparent;border:0;border-radius:0;box-shadow:none;padding:0;display:grid;grid-template-columns:1fr 1.2fr;gap:28px;align-items:center;margin-top:0}
+      .intro-media{border-radius:16px;overflow:hidden;border:1px solid var(--border);background:linear-gradient(135deg, rgba(59,130,246,.12), rgba(124,58,237,.10))}
+      .intro-media-inner{aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;padding:18px}
+      .intro-media-inner img{max-width:100%;height:auto}
+      .intro-copy h2{margin:0 0 10px;font-size:22px;letter-spacing:.3px}
+      .intro-copy p{margin:0 0 10px;color:#475569;font-size:14px}
+      .intro-cta{margin-top:8px}
+      .intro-cta .btn{padding:10px 14px}
+      @media (max-width: 960px){ .intro-card{grid-template-columns:1fr} }
+      .hero-badges{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 22px}
+      .badge{font-size:12px;color:#065f46;background:#ecfdf5;border:1px solid #a7f3d0;padding:6px 10px;border-radius:999px}
+      .hero-cta{display:flex;gap:10px;flex-wrap:wrap}
+      .btn{appearance:none;border:1px solid var(--border);background:#fff;color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer;font-size:14px;text-decoration:none}
+      .btn:hover{background:#f8fafc}
+      .btn-primary{background:var(--primary);border-color:var(--primary);color:#fff}
+      .btn-primary:hover{background:var(--primary-dark);border-color:var(--primary-dark)}
+
+      .mock{position:relative;background:radial-gradient(1200px 300px at 20% 0%, rgba(59,130,246,.15), transparent),radial-gradient(800px 250px at 80% 10%, rgba(124,58,237,.12), transparent);border:1px solid var(--border);background-color:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(2,6,23,.06);aspect-ratio:16/10;overflow:hidden}
+      .mock .bar{display:flex;gap:6px;padding:10px;border-bottom:1px solid var(--border);background:#f8fafc}
+      .dot{width:10px;height:10px;border-radius:50%;background:#e2e8f0}
+      .panel{display:grid;grid-template-columns:260px 1fr;height:100%}
+      .side{border-right:1px solid var(--border);padding:14px}
+      .side h4{margin:0 0 10px;font-size:13px;color:#334155}
+      .side ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+      .side li{font-size:13px;color:#475569;border:1px dashed #e2e8f0;border-radius:8px;padding:8px 10px;background:#fff}
+      .content{padding:14px;display:grid;gap:12px;background:#fafcff}
+      .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px}
+      .card h5{margin:0 0 6px;font-size:14px}
+      .card p{margin:0;color:#64748b;font-size:13px}
+      .features{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:26px 0}
+      .feature{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px}
+      .feature h3{margin:0 0 6px;font-size:15px}
+      .feature p{margin:0;color:#64748b;font-size:13px}
+      .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:8px 0 30px}
+      .kpi{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center}
+      .kpi strong{display:block;font-size:20px}
+      .kpi span{color:#64748b;font-size:12px}
+      .footer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--border);padding:16px 0;margin-top:30px;color:#64748b;font-size:13px}
+      @media (max-width: 960px){ .hero{grid-template-columns:1fr} }
+      @media (max-width: 640px){ .features{grid-template-columns:1fr} .kpis{grid-template-columns:repeat(2,1fr)} }
+      a:focus,button:focus{outline:2px solid var(--ring);outline-offset:2px}
+    </style>
+  </head>
+  <body>
+    <div class="appbar">
+      <div class="toolbar">
+        <div class="left">
+          <div class="title">FVC</div>
+        </div>
+        <nav class="nav" aria-label="Member navigation">
+          <a href="/" class="active">Trang chủ</a>
+          <a href="/news">News</a>
+          <a href="/tournament">Giải đấu</a>
+          <a href="/my-matches">Trận của tôi</a>
+          <a href="/club-activities">Hoạt động CLB</a>
+          <a href="/achievements">Thành tích</a>
+        </nav>
+        <div class="right">
+          <div class="user-name">Member Name</div>
+          <button class="avatar-btn" aria-label="Mở menu người dùng" title="Tài khoản">
+            <div class="avatar">M</div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full-width hero outside container -->
+    <section class="hero">
+      <div class="hero-banner">
+        <div class="hero-content">
+          <h1>Chào mừng bạn đến với Hệ thống Quản lý CLB Vovinam FPTU</h1>
+          <p>Hệ thống quản lý giải đấu, thành tích và hoạt động CLB Vovinam toàn diện.</p>
+          <p>Chúng tôi mang đến một nền tảng giúp tổ chức giải đấu một cách chuyên nghiệp, dễ dàng theo dõi thành tích của vận động viên và quản lý các hoạt động nội bộ của CLB.</p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="/">Khám phá ngay!</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="container">
+      <main>
+        <section class="intro">
+          <div class="intro-card">
+            <div class="intro-media">
+              <div class="intro-media-inner">
+                <img src="/logo.png" alt="FVCMS illustration" />
+              </div>
+            </div>
+            <div class="intro-copy">
+              <h2>Giới thiệu</h2>
+              <p><strong>FVCMS (FPTU Vovinam Club Management System)</strong> là một giải pháp toàn diện giúp quản lý mọi khía cạnh của CLB Vovinam, từ việc tổ chức giải đấu, theo dõi thành tích cho đến quản lý các hoạt động của CLB.</p>
+              <p>Hệ thống này được thiết kế để phục vụ cho cả vận động viên, huấn luyện viên, và trọng tài, tạo ra một môi trường công bằng, minh bạch và hiệu quả cho tất cả người tham gia.</p>
+              <div class="intro-cta">
+                <a class="btn" href="#tinh-nang">Tìm hiểu thêm</a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="features">
+          <div class="feature">
+            <h3>Trải nghiệm mượt</h3>
+            <p>Giao diện rõ ràng, tối ưu cho thành viên.</p>
+          </div>
+          <div class="feature">
+            <h3>Thông báo kịp thời</h3>
+            <p>Cập nhật trạng thái, lịch và kết quả nhanh chóng.</p>
+          </div>
+          <div class="feature">
+            <h3>Minh bạch</h3>
+            <p>Dữ liệu và kết quả hiển thị công khai theo quy định.</p>
+          </div>
+        </section>
+
+        <section class="kpis">
+          <div class="kpi">
+            <strong>24/7</strong>
+            <span>Truy cập mọi lúc</span>
+          </div>
+          <div class="kpi">
+            <strong>Nhanh</strong>
+            <span>Tra cứu tức thì</span>
+          </div>
+          <div class="kpi">
+            <strong>An toàn</strong>
+            <span>Bảo vệ dữ liệu người dùng</span>
+          </div>
+          <div class="kpi">
+            <strong>Đồng bộ</strong>
+            <span>Thông tin nhất quán</span>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>© <span id="y"></span> FVCMS</span>
+        <span>Hỗ trợ: contact@example.com</span>
+      </footer>
+    </div>
+
+    <script>
+      document.getElementById('y').textContent = new Date().getFullYear().toString();
+    </script>
+  </body>
+  </html>
+
+

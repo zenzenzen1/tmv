@@ -7,6 +7,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.PlatformTransactionManager;
 import sep490g65.fvcapi.dto.request.RequestParam;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
 import sep490g65.fvcapi.dto.response.TournamentFormResponse;
@@ -49,6 +53,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     private final AthleteService athleteService;
     private final CompetitionRoleRepository competitionRoleRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final PlatformTransactionManager transactionManager;
 
     private TournamentFormResponse toDto(Competition c) {
         String status = resolveStatus(c);
@@ -275,86 +280,222 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 String formJson = s.getFormData();
                 JsonNode root = formJson != null ? objectMapper.readTree(formJson) : objectMapper.createObjectNode();
 
-                String fullName = textOrNull(root, "fullName");
-                String email = textOrNull(root, "email");
-                String club = textOrNull(root, "club");
-                String competitionTypeStr = textOrNull(root, "competitionType");
-                String genderStr = textOrNull(root, "gender");
-                String studentId = textOrNull(root, "studentId");
-
-                Athlete.Gender gender = parseGender(genderStr);
-                Athlete.CompetitionType competitionType = parseCompetitionType(competitionTypeStr);
-                
-                // Extract hierarchical competition structure
-                String subCompetitionType = resolveSubCompetitionType(root, competitionTypeStr);
-
-                String tournamentId = null;
-                if (s.getApplicationFormConfig() != null && s.getApplicationFormConfig().getCompetition() != null) {
-                    String compId = s.getApplicationFormConfig().getCompetition().getId();
-                    if (compId != null && !compId.isBlank()) {
-                        tournamentId = compId;
-                    }
-                }
-
-                if (tournamentId != null && fullName != null && email != null && gender != null && competitionType != null) {
-                // Extract preferred IDs for tight linking and storing into detail_sub
-                String weightClassId = textOrNull(root, "weightClassId");
-                String fistItemId    = textOrNull(root, "fistItemId");
-                String musicContentId= textOrNull(root, "musicContentId");
-
-                Athlete.AthleteBuilder builder = Athlete.builder()
-                        .tournamentId(tournamentId)
-                        .fullName(fullName)
-                        .email(email)
-                        .studentId(studentId)
-                        .gender(gender)
-                        .club(club)
-                        .competitionType(competitionType)
-                        .subCompetitionType(subCompetitionType)
-                        .status(Athlete.AthleteStatus.NOT_STARTED);
-
-                    // Prefer IDs from submission formData for FK columns
-                    String fistConfigId  = textOrNull(root, "fistConfigId");
-
-                    if (weightClassId != null && !weightClassId.isBlank()) builder.weightClassId(weightClassId);
-                    if (fistConfigId  != null && !fistConfigId.isBlank())  builder.fistConfigId(fistConfigId);
-                    // Stop persisting fistItemId per requirement; rely on fistConfigId only for Quyền labels
-                    if (musicContentId!= null && !musicContentId.isBlank()) builder.musicContentId(musicContentId);
-
-                    Athlete athlete = athleteService.upsert(builder.build());
-                    
-                    // Create CompetitionRole for the athlete (always create)
-                    Competition competition = competitionRepository.findById(tournamentId).orElse(null);
-                    User user = userRepository.findByPersonalMail(email).orElse(null);
-                    
-                    if (competition != null) {
-                        // Check if CompetitionRole already exists
-                        boolean roleExists = false;
-                        if (user != null) {
-                            roleExists = competitionRoleRepository.existsByCompetitionIdAndUserIdAndRole(
-                                tournamentId, user.getId(), CompetitionRoleType.ATHLETE);
-                        } else {
-                            // For non-system users, check by email
-                            roleExists = competitionRoleRepository.existsByCompetitionIdAndEmailAndRole(
-                                tournamentId, email, CompetitionRoleType.ATHLETE);
-                        }
-                        
-                        if (!roleExists) {
-                            CompetitionRole competitionRole = CompetitionRole.builder()
-                                .competition(competition)
-                                .user(user) // null if user doesn't exist
-                                .email(email) // store email for non-system users
-                                .role(CompetitionRoleType.ATHLETE)
-                                .build();
-                            
-                            competitionRoleRepository.save(competitionRole);
-                        }
-                    }
-                    // Note: Athlete record and CompetitionRole are always created
-                }
+                // Chạy side-effects trong transaction REQUIRES_NEW thông qua TransactionTemplate để tránh self-invocation issue
+                TransactionTemplate tpl = new TransactionTemplate(transactionManager);
+                tpl.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+                tpl.execute(statusIgnored -> {
+                    try { upsertAthleteAndRole(root, s); } catch (Exception ignoredInner) { }
+                    return null;
+                });
             } catch (Exception ignored) {
-                // Intentionally ignore to avoid breaking approval flow; consider logging if needed
+                // Không để lỗi phụ làm hỏng quá trình cập nhật trạng thái
             }
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    protected void upsertAthleteAndRole(JsonNode root, sep490g65.fvcapi.entity.SubmittedApplicationForm s) {
+        String fullName = textOrNull(root, "fullName");
+        String email = textOrNull(root, "email");
+        String club = textOrNull(root, "club");
+        String competitionTypeStr = textOrNull(root, "competitionType");
+        String genderStr = textOrNull(root, "gender");
+        String studentId = textOrNull(root, "studentId");
+
+        Athlete.Gender gender = parseGender(genderStr);
+        Athlete.CompetitionType competitionType = parseCompetitionType(competitionTypeStr);
+
+        String subCompetitionType = resolveSubCompetitionType(root, competitionTypeStr);
+
+        String competitionId = null;
+        if (s.getApplicationFormConfig() != null && s.getApplicationFormConfig().getCompetition() != null) {
+            String compId = s.getApplicationFormConfig().getCompetition().getId();
+            if (compId != null && !compId.isBlank()) {
+                competitionId = compId;
+            }
+        }
+
+        String perfIdForTeam = textOrNull(root, "performanceId");
+        try {
+            Integer ppe = root.hasNonNull("participantsPerEntry") ? root.get("participantsPerEntry").asInt() : null;
+            boolean hasMembers = root.has("teamMembers") && root.get("teamMembers").isArray() && root.get("teamMembers").size() > 0;
+            boolean _unused = (ppe != null && ppe > 1) || hasMembers || (perfIdForTeam != null && !perfIdForTeam.isBlank());
+        } catch (Exception ignoredCalc) {}
+
+        if (competitionId != null && fullName != null && email != null && gender != null && competitionType != null) {
+            String weightClassId = textOrNull(root, "weightClassId");
+            String fistItemId    = textOrNull(root, "fistItemId");
+            if (fistItemId == null || fistItemId.isBlank()) {
+                String qid = textOrNull(root, "quyenContentId");
+                if (qid != null && !qid.isBlank()) fistItemId = qid;
+            }
+            String musicContentId= textOrNull(root, "musicContentId");
+            String fistConfigId  = textOrNull(root, "fistConfigId");
+
+            String subCompetitionTypeFinal = subCompetitionType;
+            try {
+                if (competitionType == Athlete.CompetitionType.quyen) {
+                    String quyenCategoryFromForm = textOrNull(root, "quyenCategory");
+                    if (quyenCategoryFromForm != null && !quyenCategoryFromForm.isBlank()) {
+                        subCompetitionTypeFinal = quyenCategoryFromForm;
+                    }
+                    if (subCompetitionTypeFinal == null || subCompetitionTypeFinal.isBlank() || "Quyền".equalsIgnoreCase(subCompetitionTypeFinal)) {
+                        if (fistConfigId != null && !fistConfigId.isBlank()) {
+                            var cfg = fistConfigRepository.findById(fistConfigId).orElse(null);
+                            if (cfg != null && cfg.getName() != null && !cfg.getName().isBlank()) {
+                                subCompetitionTypeFinal = cfg.getName();
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignoredResolveCfg) { }
+
+            try { athleteService.deleteByEmailAndCompetitionId(email, competitionId); } catch (Exception ignoredDelete) { }
+
+            try {
+                Athlete.AthleteBuilder builder = Athlete.builder()
+                    .competitionId(competitionId)
+                    .fullName(fullName)
+                    .email(email)
+                    .studentId(studentId)
+                    .gender(gender)
+                    .club(club)
+                    .competitionType(competitionType)
+                    .subCompetitionType(subCompetitionTypeFinal)
+                    .status(Athlete.AthleteStatus.NOT_STARTED);
+
+                if (weightClassId != null && !weightClassId.isBlank()) builder.weightClassId(weightClassId);
+                if (fistConfigId  != null && !fistConfigId.isBlank())  builder.fistConfigId(fistConfigId);
+                if (musicContentId!= null && !musicContentId.isBlank()) builder.musicContentId(musicContentId);
+                if (fistItemId != null && !fistItemId.isBlank()) builder.fistItemId(fistItemId);
+
+                athleteService.create(builder.build());
+            } catch (Exception ignoredCreateAthlete) { }
+
+            try {
+                Competition competition = competitionRepository.findById(competitionId).orElse(null);
+                User user = userRepository.findByPersonalMail(email).orElse(null);
+                if (competition != null) {
+                    boolean roleExists = false;
+                    if (user != null) {
+                        roleExists = competitionRoleRepository.existsByCompetitionIdAndUserIdAndRole(
+                            competitionId, user.getId(), CompetitionRoleType.ATHLETE);
+                    } else {
+                        roleExists = competitionRoleRepository.existsByCompetitionIdAndEmailAndRole(
+                            competitionId, email, CompetitionRoleType.ATHLETE);
+                    }
+                    if (!roleExists) {
+                        CompetitionRole competitionRole = CompetitionRole.builder()
+                            .competition(competition)
+                            .user(user)
+                            .email(email)
+                            .role(CompetitionRoleType.ATHLETE)
+                            .build();
+                        try { competitionRoleRepository.save(competitionRole); } catch (Exception ignoredSaveRole) { }
+                    }
+                }
+            } catch (Exception ignoredRole) { }
+        }
+
+        if (perfIdForTeam != null && !perfIdForTeam.isBlank()) {
+            try { performanceService.approve(perfIdForTeam); } catch (Exception ignoredApprove) { }
+            try {
+                final String competitionIdFinal;
+                if (s.getApplicationFormConfig() != null && s.getApplicationFormConfig().getCompetition() != null) {
+                    competitionIdFinal = s.getApplicationFormConfig().getCompetition().getId();
+                } else { return; }
+
+                try {
+                    PerformanceResponse perfResponse = performanceService.getPerformanceById(perfIdForTeam);
+                    String performanceContentId = perfResponse.getContentId();
+                    Performance.ContentType perfContentType = perfResponse.getContentType();
+
+                    final String fistConfigIdFromForm = textOrNull(root, "fistConfigId");
+                    final String quyenContentIdFromForm = textOrNull(root, "quyenContentId");
+                    final String fistItemIdFromForm = textOrNull(root, "fistItemId");
+                    final String musicContentIdFromForm = textOrNull(root, "musicContentId");
+
+                    String finalFistConfigId = fistConfigIdFromForm;
+                    String finalMusicContentId = musicContentIdFromForm;
+                    if (perfContentType == Performance.ContentType.QUYEN && performanceContentId != null && !performanceContentId.isBlank()) {
+                        finalFistConfigId = finalFistConfigId != null ? finalFistConfigId : performanceContentId;
+                    } else if (perfContentType == Performance.ContentType.MUSIC && performanceContentId != null && !performanceContentId.isBlank()) {
+                        finalMusicContentId = finalMusicContentId != null ? finalMusicContentId : performanceContentId;
+                    }
+
+                    java.util.Set<String> emails = new java.util.LinkedHashSet<>();
+                    if (email != null && !email.isBlank()) emails.add(email);
+                    try {
+                        JsonNode members = root.get("teamMembers");
+                        if (members != null && members.isArray()) {
+                            for (JsonNode m : members) {
+                                if (m.hasNonNull("email")) {
+                                    String em = m.get("email").asText("").trim();
+                                    if (!em.isBlank()) emails.add(em);
+                                }
+                            }
+                        }
+                    } catch (Exception ignoredMembers) {}
+
+                    for (String em : emails) {
+                        try {
+                            java.util.Optional<sep490g65.fvcapi.entity.Athlete> existingOpt = 
+                                    athleteService.list(competitionIdFinal, null, null, null, null, null, null, org.springframework.data.domain.Pageable.unpaged())
+                                    .getContent()
+                                    .stream().filter(a -> em.equalsIgnoreCase(a.getEmail())).findFirst();
+                            if (existingOpt.isPresent()) {
+                                Athlete existingAthlete = existingOpt.get();
+                                Athlete.CompetitionType perfCompetitionType = Athlete.CompetitionType.fighting;
+                                if (perfContentType == Performance.ContentType.QUYEN) {
+                                    perfCompetitionType = Athlete.CompetitionType.quyen;
+                                } else if (perfContentType == Performance.ContentType.MUSIC) {
+                                    perfCompetitionType = Athlete.CompetitionType.music;
+                                }
+                                existingAthlete.setCompetitionType(perfCompetitionType);
+
+                                String perfSubCompType = null;
+                                if (perfContentType == Performance.ContentType.QUYEN) {
+                                    try {
+                                        String tryCfgId = null;
+                                        if (finalFistConfigId != null && !finalFistConfigId.isBlank()) tryCfgId = finalFistConfigId;
+                                        if ((tryCfgId == null || tryCfgId.isBlank()) && existingAthlete.getFistConfigId() != null) {
+                                            tryCfgId = existingAthlete.getFistConfigId();
+                                        }
+                                        if ((tryCfgId == null || tryCfgId.isBlank())) {
+                                            String chosenFistItemLocal = quyenContentIdFromForm != null && !quyenContentIdFromForm.isBlank()
+                                                    ? quyenContentIdFromForm
+                                                    : (fistItemIdFromForm != null && !fistItemIdFromForm.isBlank() ? fistItemIdFromForm : existingAthlete.getFistItemId());
+                                            if (chosenFistItemLocal != null && !chosenFistItemLocal.isBlank()) {
+                                                var item = fistItemRepository.findById(chosenFistItemLocal).orElse(null);
+                                                if (item != null && item.getVovinamFistConfig() != null) tryCfgId = item.getVovinamFistConfig().getId();
+                                            }
+                                        }
+                                        if (tryCfgId != null && !tryCfgId.isBlank()) {
+                                            var cfg = fistConfigRepository.findById(tryCfgId).orElse(null);
+                                            if (cfg != null && cfg.getName() != null && !cfg.getName().isBlank()) {
+                                                perfSubCompType = cfg.getName();
+                                            }
+                                        }
+                                    } catch (Exception ignoredCfg) { }
+                                    if (perfSubCompType == null) perfSubCompType = "Quyền";
+                                } else if (perfContentType == Performance.ContentType.FIGHTING) {
+                                    perfSubCompType = "Hạng cân";
+                                } else if (perfContentType == Performance.ContentType.MUSIC) {
+                                    perfSubCompType = "Tiết mục";
+                                }
+                                if (perfSubCompType != null) existingAthlete.setSubCompetitionType(perfSubCompType);
+                                if (finalFistConfigId != null && !finalFistConfigId.isBlank()) existingAthlete.setFistConfigId(finalFistConfigId);
+                                String chosenFistItem = quyenContentIdFromForm != null && !quyenContentIdFromForm.isBlank()
+                                        ? quyenContentIdFromForm
+                                        : (fistItemIdFromForm != null && !fistItemIdFromForm.isBlank() ? fistItemIdFromForm : null);
+                                if (chosenFistItem != null) existingAthlete.setFistItemId(chosenFistItem);
+                                if (finalMusicContentId != null && !finalMusicContentId.isBlank()) existingAthlete.setMusicContentId(finalMusicContentId);
+                                try { athleteService.create(existingAthlete); } catch (Exception ignoredUpsert) { }
+                            }
+                        } catch (Exception ignoredLoop) { }
+                    }
+                } catch (Exception ignoredPerf) { }
+            } catch (Exception ignoredPropagate) { }
         }
     }
 
