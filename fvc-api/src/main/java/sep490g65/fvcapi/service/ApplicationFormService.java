@@ -25,4 +25,6 @@ public interface ApplicationFormService {
     ApplicationFormConfigResponse createDefaultClubRegistrationForm();
 
     Page<ApplicationFormConfigResponse> listPaginated(int page, int size, String search, String dateFrom, String dateTo, String status);
+
+    ApplicationFormConfigResponse postponeClubRegistrationForm();
 }

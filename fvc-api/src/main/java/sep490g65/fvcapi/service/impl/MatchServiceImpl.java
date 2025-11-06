@@ -15,11 +15,13 @@ import sep490g65.fvcapi.dto.response.MatchRoundDto;
 import sep490g65.fvcapi.dto.response.MatchScoreboardDto;
 import sep490g65.fvcapi.entity.Athlete;
 import sep490g65.fvcapi.entity.Match;
+import sep490g65.fvcapi.entity.MatchAssessor;
 import sep490g65.fvcapi.entity.MatchEvent;
 import sep490g65.fvcapi.entity.MatchRound;
 import sep490g65.fvcapi.enums.RoundType;
 import sep490g65.fvcapi.entity.MatchScoreboardSnapshot;
 import sep490g65.fvcapi.enums.*;
+import sep490g65.fvcapi.config.WebSocketConnectionEventListener.AssessorConnectionStatus;
 import sep490g65.fvcapi.exception.custom.BusinessException;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.repository.AthleteRepository;
@@ -351,10 +353,55 @@ public class MatchServiceImpl implements MatchService {
                 }
                 
                 // Validate assessors before starting match
-                long assessorCount = matchAssessorRepository.countByMatchId(match.getId());
-                if (assessorCount < 5) {
+                List<MatchAssessor> allAssessors = matchAssessorRepository.findByMatchId(match.getId());
+                long assessorCount = allAssessors.size();
+                
+                // Check if we have exactly 6 assessors (5 ASSESSOR + 1 JUDGER)
+                if (assessorCount != 6) {
                     throw new BusinessException(
-                            "Trận đấu cần ít nhất 5 giám định viên trước khi bắt đầu. Hiện tại có " + assessorCount + " giám định viên.",
+                            "Trận đấu cần đúng 6 người (5 giám định + 1 trọng tài) trước khi bắt đầu. Hiện tại có " + assessorCount + " người.",
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                
+                // Check if we have exactly 1 JUDGER (position 6)
+                long judgerCount = allAssessors.stream()
+                        .filter(a -> a.getRole() == AssessorRole.JUDGER || a.getPosition() == 6)
+                        .count();
+                if (judgerCount != 1) {
+                    throw new BusinessException(
+                            "Trận đấu cần đúng 1 trọng tài (vị trí 6). Hiện tại có " + judgerCount + " trọng tài.",
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                
+                // Check if we have exactly 5 ASSESSORs (positions 1-5)
+                long assessorRoleCount = allAssessors.stream()
+                        .filter(a -> a.getRole() == AssessorRole.ASSESSOR && a.getPosition() >= 1 && a.getPosition() <= 5)
+                        .count();
+                if (assessorRoleCount != 5) {
+                    throw new BusinessException(
+                            "Trận đấu cần đúng 5 giám định (vị trí 1-5). Hiện tại có " + assessorRoleCount + " giám định.",
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                
+                // Check if all 6 assessors are connected
+                AssessorConnectionStatus connectionStatus = webSocketConnectionEventListener.getConnectionStatus(match.getId());
+                int connectedCount = connectionStatus.getConnectedCount();
+                List<String> connectedAssessorIds = connectionStatus.getConnectedAssessors();
+                
+                // Get all assessor IDs
+                List<String> allAssessorIds = allAssessors.stream()
+                        .map(a -> a.getId())
+                        .collect(java.util.stream.Collectors.toList());
+                
+                // Check if all assessors are connected
+                if (connectedCount < 6) {
+                    List<String> missingAssessorIds = allAssessorIds.stream()
+                            .filter(id -> !connectedAssessorIds.contains(id))
+                            .collect(java.util.stream.Collectors.toList());
+                    throw new BusinessException(
+                            "Tất cả 6 người (5 giám định + 1 trọng tài) phải kết nối trước khi bắt đầu trận đấu. " +
+                            "Hiện tại có " + connectedCount + "/6 người đã kết nối. " +
+                            "Thiếu: " + missingAssessorIds.size() + " người.",
                             ErrorCode.INVALID_MATCH_STATUS.getCode());
                 }
                 

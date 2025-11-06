@@ -63,6 +63,12 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/v1/application-forms/${id}`,
     BY_TYPE: (type: string) => `/v1/application-forms/${type}`,
     INIT_CLUB: "/v1/application-forms/init-club-registration",
+    POSTPONE_CLUB: "/v1/application-forms/club-registration/postpone",
+  },
+
+  // Waitlist
+  WAITLIST: {
+    ADD: "/v1/waitlist/add",
   },
 
   // Tournament forms
