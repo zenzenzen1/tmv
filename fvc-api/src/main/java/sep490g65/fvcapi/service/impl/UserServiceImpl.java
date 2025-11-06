@@ -126,7 +126,9 @@ public class UserServiceImpl implements UserService {
     public void changePassword(String email, ChangePasswordRequest request) {
         log.info("Changing password for email: {}", email);
         
-        List<User> users = userRepository.findAllByPersonalMailIgnoreCase(email);
+        // Normalize email (trim and lowercase) to ensure consistency
+        String normalizedEmail = email != null ? email.trim().toLowerCase() : email;
+        List<User> users = userRepository.findAllByPersonalMailIgnoreCase(normalizedEmail);
         if (users.isEmpty()) {
             throw new ResourceNotFoundException("User not found");
         }
@@ -157,16 +159,27 @@ public class UserServiceImpl implements UserService {
         
         // Hash and set new password
         String hashedPassword = passwordEncoder.encode(request.getNewPassword());
+        log.debug("Hashed new password for user: {}", normalizedEmail);
         user.setHashPassword(hashedPassword);
         
-        userRepository.save(user);
+        // Save user and flush to ensure password is persisted immediately
+        User savedUser = userRepository.save(user);
+        userRepository.flush(); // Force immediate database write
+        
+        log.debug("User password saved. Verifying password can be matched...");
+        // Verify the saved password can be matched (for debugging)
+        boolean verifyMatch = passwordEncoder.matches(request.getNewPassword(), savedUser.getHashPassword());
+        log.debug("Password verification after save: {}", verifyMatch);
+        if (!verifyMatch) {
+            log.error("CRITICAL: Saved password cannot be verified! User ID: {}", savedUser.getId());
+        }
 
         // Save password history record
         PasswordHistory history = new PasswordHistory();
-        history.setUser(user);
+        history.setUser(savedUser);
         history.setHashPassword(hashedPassword);
         passwordHistoryRepository.save(history);
-        log.info("Password changed successfully for user ID: {}", user.getId());
+        log.info("Password changed successfully for user ID: {}, email: {}", savedUser.getId(), normalizedEmail);
     }
 
     private ProfileResponse mapToProfileResponse(User user) {
