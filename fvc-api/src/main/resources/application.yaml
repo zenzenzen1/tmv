@@ -6,9 +6,9 @@ spring:
     name: ${SPRING_APPLICATION_NAME:fvc-api}
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD} # Không có giá trị mặc định
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fvc-db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:123}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
 
 
@@ -22,21 +22,21 @@ spring:
         format_sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:true}
 
   mail:
-    host: ${SPRING_MAIL_HOST}
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
-    username: ${SPRING_MAIL_USERNAME}
-    password: ${SPRING_MAIL_PASSWORD} # Không có giá trị mặc định
+    username: ${SPRING_MAIL_USERNAME:thanhldhe171856@fpt.edu.vn}
+    password: ${SPRING_MAIL_PASSWORD:sylyjfmfxkzpkglh}
     protocol: smtp
     properties:
       mail:
         smtp:
-          auth: true
+          auth: ${SPRING_MAIL_SMTP_AUTH:true}
           starttls:
-            enable: true
+            enable: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:true}
 
   security:
     jwt:
-      secret: ${SPRING_SECURITY_JWT_SECRET} # Không có giá trị mặc định
+      secret: ${SPRING_SECURITY_JWT_SECRET:b9f3c7e2a5d1f0c4b8a3e6d9f2c1a7b4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0}
       expiration: ${SPRING_SECURITY_JWT_EXPIRATION:18000000}
 
 # Cấu hình logging
@@ -54,7 +54,7 @@ app:
     password-encoder:
       strength: ${APP_SECURITY_PASSWORD_ENCODER_STRENGTH:12}
     cors:
-      allowed-origins: ${APP_SECURITY_CORS_ALLOWED_ORIGINS}
-      allowed-methods: ${APP_SECURITY_CORS_ALLOWED_METHODS}
-      allowed-headers: ${APP_SECURITY_CORS_ALLOWED_HEADERS}
+      allowed-origins: ${APP_SECURITY_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+      allowed-methods: ${APP_SECURITY_CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,OPTIONS,PATCH}
+      allowed-headers: ${APP_SECURITY_CORS_ALLOWED_HEADERS:*}
       allow-credentials: ${APP_SECURITY_CORS_ALLOW_CREDENTIALS:true}

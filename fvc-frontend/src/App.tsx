@@ -36,6 +36,7 @@ import MatchScoringPage from "./pages/scoring/MatchScoringPage";
 import SelectMatchPage from "./pages/scoring/SelectMatchPage";
 import AssessorPage from "./pages/scoring/AssessorPage";
 import AssignAssessorsPage from "./pages/scoring/AssignAssessorsPage";
+import MatchManagementPage from "./pages/scoring/MatchManagementPage";
 import UserManagementPage from "./pages/user-management/UserManagementPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import FieldManagementPage from "./pages/field-management/FieldManagementPage";
@@ -360,6 +361,14 @@ export default function App() {
           element={
             <RequireRole roles={["ORGANIZATION_COMMITTEE"]}>
               <AssignAssessorsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="scoring/:matchId/manage"
+          element={
+            <RequireRole roles={["ORGANIZATION_COMMITTEE"]}>
+              <MatchManagementPage />
             </RequireRole>
           }
         />
