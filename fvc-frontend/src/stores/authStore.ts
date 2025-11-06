@@ -137,7 +137,7 @@ export const useAuthStore = create<AuthStore>()(
           console.error("Logout error:", error);
         } finally {
           // Reset state
-          const newState = {
+          const newState: AuthState = {
             user: null,
             isAuthenticated: false,
             isLoading: false,
@@ -210,3 +210,9 @@ export const useIsAuthenticated = () =>
 
 export const useIsAdmin = () =>
   useAuthStore((state) => state.user?.systemRole === "ADMIN");
+
+export const useIsAssessor = () => {
+  const user = useAuthStore((state) => state.user);
+  // Only TEACHER role can access assessor dashboard
+  return user && user.systemRole === "TEACHER";
+};

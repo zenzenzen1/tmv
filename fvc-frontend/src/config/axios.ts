@@ -1,4 +1,3 @@
-
 import axios, { AxiosError } from "axios";
 import type {
   AxiosInstance,
@@ -6,6 +5,7 @@ import type {
   InternalAxiosRequestConfig,
 } from "axios";
 import type { BaseResponse, ErrorResponse } from "../types/api";
+import { useAuthStore } from "../stores/authStore";
 
 // Extend AxiosRequestConfig to include metadata
 interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
@@ -59,23 +59,28 @@ apiClient.interceptors.response.use(
 
     // Log response in development
     if (import.meta.env.DEV) {
-    //   console.log(
-    //     `✅ API Response: ${response.config.method?.toUpperCase()} ${
-    //       response.config.url
-    //     }`,
-    //     {
-    //       status: response.status,
-    //       duration: `${duration}ms`,
-    //       data: response.data,
-    //     }
-    //   );
+      //   console.log(
+      //     `✅ API Response: ${response.config.method?.toUpperCase()} ${
+      //       response.config.url
+      //     }`,
+      //     {
+      //       status: response.status,
+      //       duration: `${duration}ms`,
+      //       data: response.data,
+      //     }
+      //   );
     }
 
-    // Handle API-level errors
-    if (!response.data.success) {
+    // Handle API-level errors (only if response has success field)
+    if (
+      response.data &&
+      typeof response.data === "object" &&
+      "success" in response.data &&
+      !response.data.success
+    ) {
       const error: ErrorResponse = {
         success: false,
-        message: response.data.message || "An error occurred",
+        message: (response.data as any).message || "An error occurred",
         error: "API_ERROR",
         timestamp: new Date().toISOString(),
         path: response.config.url,
@@ -92,8 +97,13 @@ apiClient.interceptors.response.use(
       ? new Date().getTime() - customConfig.metadata.startTime.getTime()
       : 0;
 
-    // Log error in development
-    if (import.meta.env.DEV) {
+    // Log error in development (skip 400/404 for submissions endpoints - expected behavior)
+    const isSubmissionsEndpoint = error.config?.url?.includes("/submissions");
+    const isExpectedError =
+      isSubmissionsEndpoint &&
+      (error.response?.status === 400 || error.response?.status === 404);
+
+    if (import.meta.env.DEV && !isExpectedError) {
       console.error(
         `❌ API Error: ${error.config?.method?.toUpperCase()} ${
           error.config?.url
@@ -141,10 +151,22 @@ apiClient.interceptors.response.use(
       };
     }
 
-    // Handle specific status codes
-    if (error.response?.status === 401) {
-      // Unauthorized - JWT cookie will be cleared by backend
-      console.warn('🔒 Unauthorized access - please login again');
+    // Handle specific status codes for authentication errors
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // Unauthorized/Forbidden - token expired or invalid
+      console.warn("🔒 Authentication failed - redirecting to login");
+
+      // Clear auth state
+      const { logout } = useAuthStore.getState();
+      logout();
+
+      // Redirect to login page
+      if (
+        typeof window !== "undefined" &&
+        window.location.pathname !== "/login"
+      ) {
+        window.location.href = "/login";
+      }
     }
 
     return Promise.reject(errorResponse);

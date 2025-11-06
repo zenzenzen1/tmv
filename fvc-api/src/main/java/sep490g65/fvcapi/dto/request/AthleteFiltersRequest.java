@@ -12,7 +12,7 @@ import sep490g65.fvcapi.entity.Athlete;
 @AllArgsConstructor
 public class AthleteFiltersRequest {
     
-    private String tournamentId;
+    private String competitionId;
     private String contentId;
     private Athlete.CompetitionType competitionType;
     private String subCompetitionType;
