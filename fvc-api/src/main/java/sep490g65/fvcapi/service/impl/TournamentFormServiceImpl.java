@@ -326,11 +326,11 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 // Extract hierarchical competition structure
                 String subCompetitionType = resolveSubCompetitionType(root, competitionTypeStr);
 
-                String tournamentId = null;
+                String competitionId = null;
                 if (s.getApplicationFormConfig() != null && s.getApplicationFormConfig().getCompetition() != null) {
                     String compId = s.getApplicationFormConfig().getCompetition().getId();
                     if (compId != null && !compId.isBlank()) {
-                        tournamentId = compId;
+                        competitionId = compId;
                     }
                 }
 
@@ -344,7 +344,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 } catch (Exception ignoredCalc) {}
 
                 // Create Athlete for both individual and team submissions
-                if (tournamentId != null && fullName != null && email != null && gender != null && competitionType != null) {
+                if (competitionId != null && fullName != null && email != null && gender != null && competitionType != null) {
                 // Extract preferred IDs for tight linking and storing into detail_sub
                 String weightClassId = textOrNull(root, "weightClassId");
                 String fistItemId    = textOrNull(root, "fistItemId");
@@ -376,15 +376,15 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                     }
                 } catch (Exception ignoredResolveCfg) { }
 
-                    // First, delete existing athlete with same email and tournament_id to avoid duplicates
+                    // First, delete existing athlete with same email and competition_id to avoid duplicates
                     try {
-                        athleteService.deleteByEmailAndTournamentId(email, tournamentId);
+                        athleteService.deleteByEmailAndCompetitionId(email, competitionId);
                     } catch (Exception ignoredDelete) {
                         // Ignore if athlete doesn't exist
                     }
 
                     Athlete.AthleteBuilder builder = Athlete.builder()
-                        .tournamentId(tournamentId)
+                        .competitionId(competitionId)
                         .fullName(fullName)
                         .email(email)
                         .studentId(studentId)
@@ -405,7 +405,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                     Athlete athlete = athleteService.create(builder.build());
                     
                     // Create CompetitionRole for the athlete (always create)
-                    Competition competition = competitionRepository.findById(tournamentId).orElse(null);
+                    Competition competition = competitionRepository.findById(competitionId).orElse(null);
                     User user = userRepository.findByPersonalMail(email).orElse(null);
                     
                     if (competition != null) {
@@ -413,11 +413,11 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                         boolean roleExists = false;
                         if (user != null) {
                             roleExists = competitionRoleRepository.existsByCompetitionIdAndUserIdAndRole(
-                                tournamentId, user.getId(), CompetitionRoleType.ATHLETE);
+                                competitionId, user.getId(), CompetitionRoleType.ATHLETE);
                         } else {
                             // For non-system users, check by email
                             roleExists = competitionRoleRepository.existsByCompetitionIdAndEmailAndRole(
-                                tournamentId, email, CompetitionRoleType.ATHLETE);
+                                competitionId, email, CompetitionRoleType.ATHLETE);
                         }
                         
                         if (!roleExists) {
@@ -438,7 +438,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                     try { performanceService.approve(perfIdForTeam); } catch (Exception ignoredApprove) { }
                     // After approval, propagate content IDs from Performance to all team members' athlete rows
                     try {
-                        final String tournamentIdFinal = tournamentId;
+                        final String competitionIdFinal = competitionId;
                         
                         // Get Performance to extract content information
                         try {
@@ -479,7 +479,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                                 try {
                                     // Only update existing athletes to avoid creating invalid rows without required fields
                                     java.util.Optional<sep490g65.fvcapi.entity.Athlete> existingOpt = 
-                                            athleteService.list(tournamentIdFinal, null, null, null, null, null, null, org.springframework.data.domain.Pageable.unpaged())
+                                            athleteService.list(competitionIdFinal, null, null, null, null, null, null, org.springframework.data.domain.Pageable.unpaged())
                                             .getContent()
                                             .stream().filter(a -> em.equalsIgnoreCase(a.getEmail())).findFirst();
                                     if (existingOpt.isPresent()) {

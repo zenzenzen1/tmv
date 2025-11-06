@@ -48,7 +48,7 @@ type AthleteApi = {
   detailSubLabel?: string | null; // new from backend DTO (resolved label)
   studentId?: string | null;
   club?: string | null;
-  tournamentId?: string | null;
+  competitionId?: string | null;
   tournamentName?: string | null; // optional if backend enriches later
   status: "NOT_STARTED" | "IN_PROGRESS" | "DONE" | "VIOLATED" | string;
   // Content IDs for mapping
@@ -130,7 +130,7 @@ export default function AthleteManagementPage({
     return () => window.removeEventListener("athletes:refetch", handleRefetch);
   }, []);
 
-  const [selectedTournament, setSelectedTournament] = useState<string>(""); // tournamentId
+  const [selectedTournament, setSelectedTournament] = useState<string>(""); // competitionId
   const [rows, setRows] = useState<AthleteRow[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
   const [tournaments, setTournaments] = useState<
@@ -285,7 +285,7 @@ export default function AthleteManagementPage({
         // mark fetching only when we actually send request
         setIsFetching(true);
         const requestId = ++latestRequestIdRef.current;
-        qs.set("tournamentId", selectedTournament);
+        qs.set("competitionId", selectedTournament);
         if (debouncedName) qs.set("name", debouncedName);
         if (genderFilter) qs.set("gender", genderFilter);
         if (statusFilter) qs.set("status", statusFilter);
@@ -830,7 +830,7 @@ export default function AthleteManagementPage({
               club: a.club ?? "",
               tournament:
                 a.tournamentName ??
-                (tournaments.find((t) => t.id === a.tournamentId)?.name || ""),
+                (tournaments.find((t) => t.id === a.competitionId)?.name || ""),
               status:
                 a.status === "NOT_STARTED"
                   ? "CHỜ ĐẤU"

@@ -1343,7 +1343,7 @@ export default function ArrangeOrderPage({
         qs.set("page", "0");
         qs.set("size", "200");
         qs.set("competitionType", activeTab);
-        qs.set("tournamentId", selectedTournament);
+        qs.set("competitionId", selectedTournament);
 
         // Add filter parameters
         if (debouncedName) {
@@ -1640,7 +1640,7 @@ export default function ArrangeOrderPage({
 
     const projectionPayload = {
       matchId: match.id,
-      tournamentId: selectedTournament,
+      competitionId: selectedTournament,
       type: match.type,
       contentName: match.contentName,
       participants: match.participants.map((name, idx) => ({

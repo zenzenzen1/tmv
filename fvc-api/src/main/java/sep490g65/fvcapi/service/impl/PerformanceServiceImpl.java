@@ -314,7 +314,7 @@ public class PerformanceServiceImpl implements PerformanceService {
                         continue;
                     }
 
-                    // Reuse existing athlete by (tournamentId, email) to avoid unique constraint violation
+                    // Reuse existing athlete by (competitionId, email) to avoid unique constraint violation
                     // Ensure DB non-null constraint on email: synthesize internal email if missing
                     if (email == null || email.isBlank()) {
                         String normalized = name != null ? name.trim().toLowerCase().replaceAll("[^a-z0-9]+", ".") : "member";
@@ -323,7 +323,7 @@ public class PerformanceServiceImpl implements PerformanceService {
                     }
 
                     java.util.Optional<Athlete> existing = athleteRepository
-                            .findByTournamentIdAndEmail(performance.getCompetition().getId(), email);
+                            .findByCompetitionIdAndEmail(performance.getCompetition().getId(), email);
                     if (existing.isPresent()) {
                         athlete = existing.get();
                     } else {
@@ -349,7 +349,7 @@ public class PerformanceServiceImpl implements PerformanceService {
                         }
 
                         athlete = Athlete.builder()
-                                .tournamentId(performance.getCompetition().getId())
+                                .competitionId(performance.getCompetition().getId())
                                 .fullName(name)
                                 .email(email)
                                 .studentId(pa.getTempStudentId())

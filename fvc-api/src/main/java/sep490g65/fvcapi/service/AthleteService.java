@@ -42,7 +42,7 @@ public class AthleteService {
     @Transactional
     public Athlete upsert(Athlete prototype) {
         return athleteRepository
-                .findByTournamentIdAndEmail(prototype.getTournamentId(), prototype.getEmail())
+                .findByCompetitionIdAndEmail(prototype.getCompetitionId(), prototype.getEmail())
                 .map(existing -> {
                     existing.setFullName(prototype.getFullName());
                     existing.setGender(prototype.getGender());
@@ -67,12 +67,12 @@ public class AthleteService {
     }
 
     @Transactional
-    public void deleteByEmailAndTournamentId(String email, String tournamentId) {
-        athleteRepository.deleteByEmailAndTournamentId(email, tournamentId);
+    public void deleteByEmailAndCompetitionId(String email, String competitionId) {
+        athleteRepository.deleteByEmailAndCompetitionId(email, competitionId);
     }
 
     public Page<Athlete> list(
-            String tournamentId,
+            String competitionId,
             Athlete.CompetitionType competitionType,
             String subCompetitionType,
             String detailSubCompetitionType,
@@ -81,8 +81,8 @@ public class AthleteService {
             Athlete.AthleteStatus status,
             Pageable pageable) {
         Specification<Athlete> spec = Specification.where(null);
-        if (tournamentId != null && !tournamentId.isBlank()) {
-            spec = spec.and((root, q, cb) -> cb.equal(root.get("tournamentId"), tournamentId));
+        if (competitionId != null && !competitionId.isBlank()) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("competitionId"), competitionId));
         }
         if (competitionType != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("competitionType"), competitionType));
@@ -287,12 +287,9 @@ public class AthleteService {
                 Optional<Athlete> athleteOpt = athleteRepository.findById(UUID.fromString(order.getAthleteId()));
                 if (athleteOpt.isPresent()) {
                     Athlete athlete = athleteOpt.get();
-                    Integer oldOrder = athlete.getCompetitionOrder();
-                    athlete.setCompetitionOrder(order.getOrderIndex());
-                    athleteRepository.save(athlete);
-                    
-                    log.debug("✅ [Arrange Order] Athlete: {} ({}), Old order: {}, New order: {}", 
-                            athlete.getFullName(), order.getAthleteId(), oldOrder, order.getOrderIndex());
+                    // competition order field removed; skipping persistence update
+                    log.debug("✅ [Arrange Order] Athlete: {} ({}), New order: {} (no-op)", 
+                            athlete.getFullName(), order.getAthleteId(), order.getOrderIndex());
                     successCount++;
                 } else {
                     log.warn("⚠️ [Arrange Order] Athlete not found: {}", order.getAthleteId());

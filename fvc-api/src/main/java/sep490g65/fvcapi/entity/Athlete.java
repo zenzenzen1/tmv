@@ -7,7 +7,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "athletes", indexes = {
-        @Index(name = "idx_athlete_tournament_email", columnList = "tournament_id,email", unique = true),
+        @Index(name = "idx_athlete_competition_email", columnList = "competition_id,email", unique = true),
         @Index(name = "idx_athlete_competition_type", columnList = "competition_type")
 })
 @Getter
@@ -21,8 +21,8 @@ public class Athlete extends BaseEntity {
     @GeneratedValue
     private UUID id;
 
-    @Column(name = "tournament_id", nullable = false)
-    private String tournamentId;
+    @Column(name = "competition_id", nullable = false)
+    private String competitionId;
 
     @Column(nullable = false)
     private String fullName;
@@ -52,7 +52,9 @@ public class Athlete extends BaseEntity {
     @Column(nullable = false)
     private AthleteStatus status; // NOT_STARTED / IN_PROGRESS / DONE / VIOLATED
 
-    // Removed competition order and competition references as per new requirements
+    // Draw seed number assigned by drawing process (nullable until drawn)
+    @Column(name = "draw_seed_number")
+    private Integer drawSeedNumber;
 
 
     public enum Gender { MALE, FEMALE }

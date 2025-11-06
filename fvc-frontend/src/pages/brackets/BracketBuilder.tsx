@@ -121,7 +121,7 @@ export default function BracketBuilder() {
       const response = await api.get<PaginationResponse<any>>(
         API_ENDPOINTS.ATHLETES.BASE,
         {
-          tournamentId: competitionId[0],
+          competitionId: competitionId[0],
           competitionType: "fighting", // Only fighting athletes for brackets
           weightClassId: weightClassId[0],
           page: 0,
@@ -283,7 +283,7 @@ export default function BracketBuilder() {
         winnerOffset += prevRoundWinnersCount;
         prevRoundWinnersCount = nextRound.length;
       }
-      
+
       setRoundsCount(allRounds.length);
     }
 

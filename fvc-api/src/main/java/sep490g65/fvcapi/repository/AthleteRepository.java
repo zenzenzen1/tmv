@@ -16,27 +16,20 @@ import java.util.Optional;
 import java.util.List;
 
 public interface AthleteRepository extends JpaRepository<Athlete, java.util.UUID>, JpaSpecificationExecutor<Athlete> {
-    Optional<Athlete> findByTournamentIdAndEmail(String tournamentId, String email);
+    Optional<Athlete> findByCompetitionIdAndEmail(String competitionId, String email);
 
-    Page<Athlete> findByTournamentId(String tournamentId, Pageable pageable);
+    Page<Athlete> findByCompetitionId(String competitionId, Pageable pageable);
 
     Page<Athlete> findByCompetitionType(Athlete.CompetitionType competitionType, Pageable pageable);
 
-    Page<Athlete> findByTournamentIdAndCompetitionType(String tournamentId, Athlete.CompetitionType competitionType, Pageable pageable);
+    Page<Athlete> findByCompetitionIdAndCompetitionType(String competitionId, Athlete.CompetitionType competitionType, Pageable pageable);
 
-    void deleteByEmailAndTournamentId(String email, String tournamentId);
+    void deleteByEmailAndCompetitionId(String email, String competitionId);
     
-    List<Athlete> findByTournamentIdAndCompetitionTypeAndWeightClassId(
-        String tournamentId, 
+    List<Athlete> findByCompetitionIdAndCompetitionTypeAndWeightClassId(
+        String competitionId, 
         Athlete.CompetitionType competitionType, 
         String weightClassId
-    );
-    
-    @Query("SELECT a FROM Athlete a WHERE a.tournamentId = :competitionId AND a.competitionType = :competitionType AND a.weightClassId = :weightClassId")
-    List<Athlete> findByCompetitionIdAndCompetitionTypeAndWeightClassId(
-        @Param("competitionId") String competitionId,
-        @Param("competitionType") Athlete.CompetitionType competitionType,
-        @Param("weightClassId") String weightClassId
     );
 }
 

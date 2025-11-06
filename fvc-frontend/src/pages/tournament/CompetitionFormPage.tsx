@@ -32,6 +32,15 @@ import {
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useToast } from "../../components/common/ToastContext";
+import {
+  validateLength,
+  validateDurationRange,
+  validateAssessorCountRange,
+  validateNonNegative,
+  validateNumericRange,
+  validateDateRange,
+  validateRoundCountRange,
+} from "../../utils/validation";
 
 const CompetitionFormPage: React.FC = () => {
   const navigate = useNavigate();
