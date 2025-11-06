@@ -65,6 +65,7 @@ export default function MatchScoringPage() {
   const [localTimeRemaining, setLocalTimeRemaining] = useState<number | null>(null);
   const [connectedAssessors, setConnectedAssessors] = useState<string[]>([]);
   const [connectedAssessorsCount, setConnectedAssessorsCount] = useState(0);
+  const [selectedRound, setSelectedRound] = useState<number | 'all'>('all');
   const stompClientRef = useRef<Client | null>(null);
 
   // Check if match has ended
@@ -89,16 +90,15 @@ export default function MatchScoringPage() {
       setEvents(eventData);
       setAssessors(assessorData.sort((a, b) => a.position - b.position));
       
-      // Sync local time with server data only when status changes or initializing
+      // Initialize timer from roundDurationSeconds when match starts or round changes
       if (data.status === 'ĐANG ĐẤU') {
-        // When match is in progress, only initialize if not already set
-        // or if there's a significant difference (status changed)
         setLocalTimeRemaining((prev) => {
-          if (prev === null || scoreboard?.status !== 'ĐANG ĐẤU') {
-            // Initialize or status changed
-            return data.timeRemainingSeconds;
+          // Always reset timer when round changes
+          if (prev === null || scoreboard?.currentRound !== data.currentRound) {
+            console.log(`Round changed: ${scoreboard?.currentRound} -> ${data.currentRound}, resetting timer to ${data.roundDurationSeconds}s`);
+            return data.roundDurationSeconds;
           }
-          // Keep current local time, don't sync with server to avoid jumps
+          // Keep current local time if same round
           return prev;
         });
       } else {
@@ -112,6 +112,49 @@ export default function MatchScoringPage() {
       setLoading(false);
     }
   }, [matchId]);
+
+  const handleRoundEnd = useCallback(async () => {
+    if (!matchId || !scoreboard || actionLoading) return;
+
+    try {
+      setActionLoading(true);
+      await matchScoringService.controlMatch(matchId, {
+        action: 'NEXT_ROUND',
+      });
+      
+      const updatedScoreboard = await matchScoringService.getScoreboard(matchId);
+      setScoreboard(updatedScoreboard);
+      
+      // If match ended, show notification
+      if (updatedScoreboard.status === 'KẾT THÚC' || updatedScoreboard.status === 'ENDED') {
+        const redScore = updatedScoreboard.redAthlete.score || 0;
+        const blueScore = updatedScoreboard.blueAthlete.score || 0;
+        
+        if (redScore > blueScore) {
+          toast.success(`🎉 Trận đấu kết thúc! Vận động viên ĐỎ thắng với tỷ số ${redScore} - ${blueScore}!`, 10000);
+        } else if (blueScore > redScore) {
+          toast.success(`🎉 Trận đấu kết thúc! Vận động viên XANH thắng với tỷ số ${blueScore} - ${redScore}!`, 10000);
+        } else {
+          toast.warning(`Trận đấu kết thúc! Hòa! Tỷ số ${redScore} - ${blueScore}`, 10000);
+        }
+      } else {
+        // Round ended, moved to next round
+        toast.info(`⏱️ Vòng ${scoreboard.currentRound} kết thúc! Chuyển sang vòng ${updatedScoreboard.currentRound}`, 5000);
+        // Update scoreboard state first
+        setScoreboard(updatedScoreboard);
+        // Reset timer for new round immediately
+        setLocalTimeRemaining(updatedScoreboard.roundDurationSeconds);
+      }
+
+      // Refresh data to ensure everything is in sync
+      await fetchScoreboard();
+    } catch (err: any) {
+      setError(err?.message || 'Không thể chuyển vòng');
+      console.error('Error ending round:', err);
+    } finally {
+      setActionLoading(false);
+    }
+  }, [matchId, scoreboard, actionLoading, toast, fetchScoreboard]);
 
   useEffect(() => {
     fetchScoreboard();
@@ -183,10 +226,20 @@ export default function MatchScoringPage() {
       return;
     }
 
+    // Prevent multiple timer intervals
+    let isHandlingRoundEnd = false;
+
     // Countdown timer - update every second
     const timerInterval = setInterval(() => {
       setLocalTimeRemaining((prev) => {
         if (prev === null || prev <= 0) {
+          // Time's up - automatically move to next round or end match
+          if (!isHandlingRoundEnd) {
+            isHandlingRoundEnd = true;
+            handleRoundEnd().finally(() => {
+              isHandlingRoundEnd = false;
+            });
+          }
           return 0;
         }
         return prev - 1;
@@ -194,7 +247,7 @@ export default function MatchScoringPage() {
     }, 1000);
 
     return () => clearInterval(timerInterval);
-  }, [scoreboard?.status, localTimeRemaining]);
+  }, [scoreboard?.status, scoreboard?.currentRound, localTimeRemaining, handleRoundEnd]);
 
   const handleScoreEvent = async (
     corner: Corner,
@@ -210,7 +263,7 @@ export default function MatchScoringPage() {
       setActionLoading(true);
       const currentTime = scoreboard.status === 'ĐANG ĐẤU' && localTimeRemaining !== null
         ? localTimeRemaining
-        : scoreboard.timeRemainingSeconds;
+        : scoreboard.roundDurationSeconds;
       const timestampInRoundSeconds = scoreboard.roundDurationSeconds - currentTime;
       
       await matchScoringService.recordScoreEvent(matchId, {
@@ -236,14 +289,9 @@ export default function MatchScoringPage() {
 
     try {
       setActionLoading(true);
-      const currentTime = scoreboard.status === 'ĐANG ĐẤU' && localTimeRemaining !== null
-        ? localTimeRemaining
-        : scoreboard.timeRemainingSeconds;
-      
       await matchScoringService.controlMatch(matchId, {
         action,
         currentRound: scoreboard.currentRound,
-        timeRemainingSeconds: currentTime,
       });
 
       const updatedScoreboard = await matchScoringService.getScoreboard(matchId);
@@ -305,6 +353,7 @@ export default function MatchScoringPage() {
       setActionLoading(false);
     }
   };
+
 
   const getAssessorPositionFromEvent = (judgeId: string | null | undefined): number | null => {
     if (!judgeId) return null;
@@ -376,9 +425,16 @@ export default function MatchScoringPage() {
       <div className="mb-6">
         <div className="font-bold text-2xl mb-3">{scoreboard.matchName}</div>
         <div className="flex items-center gap-4 flex-wrap">
-          <span className="px-3 py-1 bg-green-100 text-green-800 rounded-md text-sm font-medium">
-            Hạng cân: {scoreboard.weightClass}
-          </span>
+          {scoreboard.weightClass && (
+            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-md text-sm font-medium">
+              Hạng cân: {scoreboard.weightClass}
+            </span>
+          )}
+          {scoreboard.field && (
+            <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-md text-sm font-medium">
+              Sân: {scoreboard.field}
+            </span>
+          )}
           <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-md text-sm font-medium">
             Vòng: {scoreboard.roundType}
           </span>
@@ -436,7 +492,7 @@ export default function MatchScoringPage() {
             {formatTime(
               scoreboard.status === 'ĐANG ĐẤU' && localTimeRemaining !== null
                 ? localTimeRemaining
-                : scoreboard.timeRemainingSeconds
+                : scoreboard.roundDurationSeconds
             )}
           </div>
         </div>
@@ -783,7 +839,7 @@ export default function MatchScoringPage() {
         </div>
       </div>
 
-      {/* Event history */}
+      {/* Round tabs and event history */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="font-bold text-lg">Lịch sử sự kiện</div>
@@ -798,6 +854,97 @@ export default function MatchScoringPage() {
             </button>
           </div>
         </div>
+
+        {/* Round tabs */}
+        <div className="mb-4 flex gap-2 border-b border-gray-200">
+          <button
+            onClick={() => setSelectedRound('all')}
+            className={`px-4 py-2 font-medium text-sm transition-colors ${
+              selectedRound === 'all'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Tất cả
+          </button>
+          {Array.from({ length: scoreboard.totalRounds }, (_, i) => i + 1).map((round) => {
+            const roundEvents = events.filter(e => e.round === round);
+            const redScore = roundEvents
+              .filter(e => e.corner === 'RED' && (e.eventType === 'SCORE_PLUS_1' || e.eventType === 'SCORE_PLUS_2'))
+              .reduce((sum, e) => sum + (e.eventType === 'SCORE_PLUS_1' ? 1 : 2), 0) -
+              roundEvents.filter(e => e.corner === 'RED' && e.eventType === 'SCORE_MINUS_1').length;
+            const blueScore = roundEvents
+              .filter(e => e.corner === 'BLUE' && (e.eventType === 'SCORE_PLUS_1' || e.eventType === 'SCORE_PLUS_2'))
+              .reduce((sum, e) => sum + (e.eventType === 'SCORE_PLUS_1' ? 1 : 2), 0) -
+              roundEvents.filter(e => e.corner === 'BLUE' && e.eventType === 'SCORE_MINUS_1').length;
+            
+            return (
+              <button
+                key={round}
+                onClick={() => setSelectedRound(round)}
+                className={`px-4 py-2 font-medium text-sm transition-colors relative ${
+                  selectedRound === round
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Vòng {round}
+                {roundEvents.length > 0 && (
+                  <span className="ml-2 text-xs text-gray-500">
+                    ({redScore} - {blueScore})
+                  </span>
+                )}
+                {round === scoreboard.currentRound && (
+                  <span className="ml-1 text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">
+                    Đang đấu
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Round summary (if specific round selected) */}
+        {selectedRound !== 'all' && (() => {
+          const roundEvents = events.filter(e => e.round === selectedRound);
+          const redScore = roundEvents
+            .filter(e => e.corner === 'RED' && (e.eventType === 'SCORE_PLUS_1' || e.eventType === 'SCORE_PLUS_2'))
+            .reduce((sum, e) => sum + (e.eventType === 'SCORE_PLUS_1' ? 1 : 2), 0) -
+            roundEvents.filter(e => e.corner === 'RED' && e.eventType === 'SCORE_MINUS_1').length;
+          const blueScore = roundEvents
+            .filter(e => e.corner === 'BLUE' && (e.eventType === 'SCORE_PLUS_1' || e.eventType === 'SCORE_PLUS_2'))
+            .reduce((sum, e) => sum + (e.eventType === 'SCORE_PLUS_1' ? 1 : 2), 0) -
+            roundEvents.filter(e => e.corner === 'BLUE' && e.eventType === 'SCORE_MINUS_1').length;
+          const redWarnings = roundEvents.filter(e => e.corner === 'RED' && e.eventType === 'WARNING').length;
+          const blueWarnings = roundEvents.filter(e => e.corner === 'BLUE' && e.eventType === 'WARNING').length;
+          const redMedicalTimeouts = roundEvents.filter(e => e.corner === 'RED' && e.eventType === 'MEDICAL_TIMEOUT').length;
+          const blueMedicalTimeouts = roundEvents.filter(e => e.corner === 'BLUE' && e.eventType === 'MEDICAL_TIMEOUT').length;
+
+          return (
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="border-l-4 border-red-500 pl-4">
+                  <h3 className="font-semibold text-red-600 mb-2">Vận động viên Đỏ - Vòng {selectedRound}</h3>
+                  <div className="space-y-1 text-sm">
+                    <div>Điểm: <span className="font-bold">{redScore}</span></div>
+                    <div>Cảnh cáo: <span className="font-bold">{redWarnings}</span></div>
+                    <div>Tạm dừng y tế: <span className="font-bold">{redMedicalTimeouts}</span></div>
+                    <div>Số sự kiện: <span className="font-bold">{roundEvents.filter(e => e.corner === 'RED').length}</span></div>
+                  </div>
+                </div>
+                <div className="border-l-4 border-blue-500 pl-4">
+                  <h3 className="font-semibold text-blue-600 mb-2">Vận động viên Xanh - Vòng {selectedRound}</h3>
+                  <div className="space-y-1 text-sm">
+                    <div>Điểm: <span className="font-bold">{blueScore}</span></div>
+                    <div>Cảnh cáo: <span className="font-bold">{blueWarnings}</span></div>
+                    <div>Tạm dừng y tế: <span className="font-bold">{blueMedicalTimeouts}</span></div>
+                    <div>Số sự kiện: <span className="font-bold">{roundEvents.filter(e => e.corner === 'BLUE').length}</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
             <thead>
@@ -818,11 +965,17 @@ export default function MatchScoringPage() {
                   </td>
                 </tr>
               ) : (
-                events.map((event, idx) => {
+                (selectedRound === 'all' 
+                  ? events 
+                  : events.filter(e => e.round === selectedRound)
+                ).map((event, idx) => {
                   const assessorPositions = getAssessorPositionsFromEvent(event);
+                  const displayIndex = selectedRound === 'all' 
+                    ? idx + 1 
+                    : events.findIndex(e => e.id === event.id) + 1;
                   return (
                     <tr key={event.id} className="border-b border-gray-200 hover:bg-gray-50">
-                      <td className="p-2 text-center border">{idx + 1}</td>
+                      <td className="p-2 text-center border">{displayIndex}</td>
                       <td className="p-2 text-center border">{event.round}</td>
                       <td className="p-2 text-center border">
                       {formatEventTime(event.timestampInRoundSeconds)}

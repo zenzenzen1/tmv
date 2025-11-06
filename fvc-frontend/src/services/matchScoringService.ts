@@ -17,11 +17,11 @@ export interface MatchScoreboard {
   matchId: string;
   matchName: string;
   weightClass: string;
+  field: string;
   roundType: string;
   currentRound: number;
   totalRounds: number;
   roundDurationSeconds: number;
-  timeRemainingSeconds: number;
   status: string; // e.g., 'CHỜ BẮT ĐẦU' | 'ĐANG ĐẤU' | 'TẠM DỪNG' | 'KẾT THÚC'
   redAthlete: MatchAthleteInfo;
   blueAthlete: MatchAthleteInfo;
@@ -71,9 +71,8 @@ export interface RecordScoreEventRequest {
 
 export interface ControlMatchRequest {
   matchId: string;
-  action: "START" | "PAUSE" | "RESUME" | "END";
+  action: "START" | "PAUSE" | "RESUME" | "NEXT_ROUND" | "END";
   currentRound?: number;
-  timeRemainingSeconds?: number;
 }
 
 export interface MatchListItem {
@@ -140,6 +139,13 @@ export const matchScoringService = {
     const url = API_ENDPOINTS.MATCH_ASSESSORS.LIST.replace("{matchId}", matchId);
     const res = await apiClient.get<{ success: boolean; data: MatchAssessor[] }>(url);
     return res.data.data;
+  },
+
+  async updateRoundDuration(matchId: string, roundDurationSeconds: number): Promise<void> {
+    const url = API_ENDPOINTS.MATCHES.UPDATE_ROUND_DURATION.replace("{matchId}", matchId);
+    await apiClient.patch(url, null, {
+      params: { roundDurationSeconds },
+    });
   },
 };
 

@@ -119,5 +119,19 @@ public class MatchController {
                     e.getMessage(), "MATCH_UNDO_ERROR"));
         }
     }
+
+    @PatchMapping("/{matchId}/round-duration")
+    public ResponseEntity<BaseResponse<Void>> updateRoundDuration(
+            @PathVariable String matchId,
+            @RequestParam Integer roundDurationSeconds) {
+        try {
+            matchService.updateRoundDuration(matchId, roundDurationSeconds);
+            return ResponseEntity.ok(ResponseUtils.success("Round duration updated successfully"));
+        } catch (Exception e) {
+            log.error("Error updating round duration for match {}", matchId, e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    e.getMessage(), "MATCH_UPDATE_DURATION_ERROR"));
+        }
+    }
 }
 

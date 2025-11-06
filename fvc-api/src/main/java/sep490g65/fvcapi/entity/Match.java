@@ -32,6 +32,9 @@ public class Match extends BaseEntity {
     @Column(name = "weight_class_id")
     private String weightClassId;
 
+    @Column(name = "field_id")
+    private String fieldId;
+
     @Column(name = "round_type", nullable = false, length = 50)
     private String roundType;
 
@@ -75,10 +78,6 @@ public class Match extends BaseEntity {
     @Column(name = "round_duration_seconds", nullable = false)
     @Builder.Default
     private Integer roundDurationSeconds = 120;
-
-    @Column(name = "time_remaining_seconds", nullable = false)
-    @Builder.Default
-    private Integer timeRemainingSeconds = 120;
 
     @Column(name = "started_at")
     private LocalDateTime startedAt;

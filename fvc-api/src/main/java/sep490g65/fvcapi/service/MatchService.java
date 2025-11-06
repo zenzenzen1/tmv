@@ -45,5 +45,10 @@ public interface MatchService {
      * Undo last event
      */
     void undoLastEvent(String matchId);
+    
+    /**
+     * Update round duration for a match
+     */
+    void updateRoundDuration(String matchId, Integer roundDurationSeconds);
 }
 

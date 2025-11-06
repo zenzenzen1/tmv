@@ -140,6 +140,7 @@ export const API_ENDPOINTS = {
     SCORE: "/v1/matches/score",
     CONTROL: "/v1/matches/control",
     UNDO: "/v1/matches/{matchId}/undo",
+    UPDATE_ROUND_DURATION: "/v1/matches/{matchId}/round-duration",
   },
 
   // Match Assessors

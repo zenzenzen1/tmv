@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import matchScoringService, { type MatchScoreboard, type MatchAssessor } from "../../services/matchScoringService";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import ErrorMessage from "../../components/common/ErrorMessage";
+import { useToast } from "../../components/common/ToastContext";
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -32,6 +33,7 @@ function getStatusColor(status: string): string {
 export default function MatchManagementPage() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const [scoreboard, setScoreboard] = useState<MatchScoreboard | null>(null);
   const [assessors, setAssessors] = useState<MatchAssessor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,11 +78,10 @@ export default function MatchManagementPage() {
       setActionLoading(true);
       setError(null);
       await matchScoringService.controlMatch(matchId, {
-        action: "START",
-        timeRemainingSeconds: roundDuration
+        action: "START"
       });
       await fetchMatchData();
-      alert("Trận đấu đã được bắt đầu!");
+      toast.success("Trận đấu đã được bắt đầu!", 5000);
     } catch (err: any) {
       setError(err?.message || "Không thể bắt đầu trận đấu");
       console.error("Error starting match:", err);
@@ -92,30 +93,27 @@ export default function MatchManagementPage() {
   const handleUpdateDuration = async () => {
     if (!matchId || !scoreboard) return;
 
+    // Only allow updating if match hasn't started
+    if (scoreboard.status !== "CHỜ BẮT ĐẦU" && scoreboard.status !== "PENDING") {
+      setShowDurationModal(false);
+      toast.warning("Chỉ có thể thay đổi thời gian vòng đấu khi trận đấu chưa bắt đầu.", 5000);
+      return;
+    }
+
+    if (roundDuration <= 0) {
+      setError("Thời gian vòng đấu phải lớn hơn 0");
+      return;
+    }
+
     try {
       setActionLoading(true);
       setError(null);
-      
-      // If match is in progress, update time remaining
-      if (scoreboard.status === "ĐANG ĐẤU" || scoreboard.status === "IN_PROGRESS") {
-        // Pause, update time, then resume
-        await matchScoringService.controlMatch(matchId, {
-          action: "PAUSE",
-        });
-        await matchScoringService.controlMatch(matchId, {
-          action: "START",
-          timeRemainingSeconds: roundDuration
-        });
-        alert("Thời gian còn lại đã được cập nhật!");
-      } else {
-        // For pending matches, just update the display
-        alert("Thời gian vòng đấu chỉ có thể thay đổi khi trận đấu đang diễn ra. Thời gian này sẽ được áp dụng khi bắt đầu trận đấu.");
-      }
-      
+      await matchScoringService.updateRoundDuration(matchId, roundDuration);
       await fetchMatchData();
       setShowDurationModal(false);
+      toast.success(`Đã cập nhật thời gian vòng đấu thành ${formatTime(roundDuration)} (${roundDuration} giây)!`, 5000);
     } catch (err: any) {
-      setError(err?.message || "Không thể cập nhật thời gian");
+      setError(err?.message || "Không thể cập nhật thời gian vòng đấu");
       console.error("Error updating duration:", err);
     } finally {
       setActionLoading(false);
@@ -123,7 +121,6 @@ export default function MatchManagementPage() {
   };
 
   const canStartMatch = scoreboard && (scoreboard.status === "CHỜ BẮT ĐẦU" || scoreboard.status === "PENDING");
-  const isMatchInProgress = scoreboard && (scoreboard.status === "ĐANG ĐẤU" || scoreboard.status === "IN_PROGRESS");
 
   if (loading) {
     return (
@@ -169,7 +166,9 @@ export default function MatchManagementPage() {
           </button>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Quản lý trận đấu</h1>
           <p className="text-sm text-gray-600">
-            {scoreboard.roundType} - {scoreboard.weightClass || "Không có hạng cân"}
+            {scoreboard.roundType}
+            {scoreboard.weightClass && ` - ${scoreboard.weightClass}`}
+            {scoreboard.field && ` - Sân: ${scoreboard.field}`}
           </p>
         </div>
         <div className="flex gap-3">
@@ -232,7 +231,7 @@ export default function MatchManagementPage() {
 
         {/* Match Settings */}
         <div className="mt-6 pt-6 border-t border-gray-200">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div>
               <p className="text-sm text-gray-600">Vòng hiện tại</p>
               <p className="text-lg font-semibold text-gray-900">
@@ -245,14 +244,6 @@ export default function MatchManagementPage() {
                 {formatTime(scoreboard.roundDurationSeconds)}
               </p>
             </div>
-            {isMatchInProgress && (
-              <div>
-                <p className="text-sm text-gray-600">Thời gian còn lại</p>
-                <p className="text-lg font-semibold text-blue-600">
-                  {formatTime(scoreboard.timeRemainingSeconds)}
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -344,14 +335,13 @@ export default function MatchManagementPage() {
               <p className="mt-1 text-sm text-gray-500">
                 Hiện tại: {formatTime(roundDuration)} ({roundDuration} giây)
               </p>
-              {isMatchInProgress && (
-                <p className="mt-2 text-sm text-amber-600">
-                  ⚠️ Trận đấu đang diễn ra. Thời gian này sẽ được cập nhật cho vòng hiện tại.
-                </p>
-              )}
-              {canStartMatch && (
+              {canStartMatch ? (
                 <p className="mt-2 text-sm text-blue-600">
-                  ℹ️ Thời gian này sẽ được áp dụng khi bắt đầu trận đấu.
+                  ℹ️ Bạn có thể thay đổi thời gian vòng đấu trước khi bắt đầu trận đấu.
+                </p>
+              ) : (
+                <p className="mt-2 text-sm text-amber-600">
+                  ⚠️ Không thể thay đổi thời gian vòng đấu khi trận đấu đã bắt đầu.
                 </p>
               )}
             </div>
@@ -365,10 +355,10 @@ export default function MatchManagementPage() {
               </button>
               <button
                 onClick={handleUpdateDuration}
-                disabled={actionLoading}
+                disabled={actionLoading || !canStartMatch}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {actionLoading ? "Đang cập nhật..." : "Cập nhật"}
+                {actionLoading ? "Đang cập nhật..." : canStartMatch ? "Cập nhật" : "Đóng"}
               </button>
             </div>
           </div>
