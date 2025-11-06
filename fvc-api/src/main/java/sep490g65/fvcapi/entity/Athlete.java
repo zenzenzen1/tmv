@@ -1,6 +1,5 @@
 package sep490g65.fvcapi.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -53,18 +52,7 @@ public class Athlete extends BaseEntity {
     @Column(nullable = false)
     private AthleteStatus status; // NOT_STARTED / IN_PROGRESS / DONE / VIOLATED
 
-    @Column(name = "competition_order")
-    private Integer competitionOrder;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "competition_order_id")
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-    private CompetitionOrder competitionOrderObject;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "competition_id")
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-    private Competition competition;
+    // Removed competition order and competition references as per new requirements
 
 
     public enum Gender { MALE, FEMALE }
