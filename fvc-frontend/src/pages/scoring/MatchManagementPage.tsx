@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import matchScoringService, { type MatchScoreboard, type MatchAssessor } from "../../services/matchScoringService";
 import { fieldService } from "../../services/fieldService";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
-import ErrorMessage from "../../components/common/ErrorMessage";
 import { useToast } from "../../components/common/ToastContext";
 import type { FieldResponse } from "../../types";
 import apiClient from "../../config/axios";
@@ -58,7 +57,6 @@ export default function MatchManagementPage() {
   const [fields, setFields] = useState<FieldResponse[]>([]);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [roundDuration, setRoundDuration] = useState<number>(120);
   const [mainRoundDuration, setMainRoundDuration] = useState<number>(120);
@@ -82,13 +80,12 @@ export default function MatchManagementPage() {
 
   const fetchMatchData = useCallback(async () => {
     if (!matchId) {
-      setError("Match ID không hợp lệ");
+      toast.error("Match ID không hợp lệ");
       setLoading(false);
       return;
     }
 
     try {
-      setError(null);
       const [data, assessorData] = await Promise.all([
         matchScoringService.getScoreboard(matchId),
         matchScoringService.getMatchAssessors(matchId).catch(() => [])
@@ -101,12 +98,13 @@ export default function MatchManagementPage() {
       setTiebreakerDuration(data.tiebreakerDurationSeconds || 60);
       setTotalRounds(data.totalRounds);
     } catch (err: any) {
-      setError(err?.message || "Không thể tải dữ liệu trận đấu");
+      const errorMessage = err?.message || "Không thể tải dữ liệu trận đấu";
+      toast.error(errorMessage);
       console.error("Error fetching match data:", err);
     } finally {
       setLoading(false);
     }
-  }, [matchId]);
+  }, [matchId, toast]);
 
   // Fetch fields list
   useEffect(() => {
@@ -187,14 +185,26 @@ export default function MatchManagementPage() {
 
     try {
       setActionLoading(true);
-      setError(null);
       
-      // Check if assessors are assigned
-      if (assessors.length < 5) {
-        toast.error(`Trận đấu cần ít nhất 5 giám định viên. Hiện tại có ${assessors.length} giám định viên.`, 5000);
+      // Check if we have exactly 6 assessors (5 ASSESSOR + 1 JUDGER)
+      if (assessors.length !== 6) {
+        toast.error(`Trận đấu cần đúng 6 người (5 giám định + 1 trọng tài) trước khi bắt đầu. Hiện tại có ${assessors.length} người.`, 5000);
         setActionLoading(false);
         return;
       }
+
+      // Check if we have exactly 1 JUDGER (position 6)
+      const judgerCount = assessors.filter(
+        (a) => a.role === "JUDGER" || a.position === 6
+      ).length;
+      if (judgerCount !== 1) {
+        toast.error(`Trận đấu cần đúng 1 trọng tài (vị trí 6). Hiện tại có ${judgerCount} trọng tài.`, 5000);
+        setActionLoading(false);
+        return;
+      }
+
+      // Note: Connection check will be done on backend
+      // Frontend can show a warning but backend will enforce it
       
       await matchScoringService.controlMatch(matchId, {
         action: "START"
@@ -203,7 +213,6 @@ export default function MatchManagementPage() {
       toast.success("Trận đấu đã được bắt đầu!", 5000);
     } catch (err: any) {
       const errorMessage = err?.response?.data?.message || err?.message || "Không thể bắt đầu trận đấu";
-      setError(errorMessage);
       toast.error(errorMessage, 5000);
       console.error("Error starting match:", err);
     } finally {
@@ -222,19 +231,19 @@ export default function MatchManagementPage() {
     }
 
     if (roundDuration <= 0) {
-      setError("Thời gian vòng đấu phải lớn hơn 0");
+      toast.error("Thời gian vòng đấu phải lớn hơn 0");
       return;
     }
 
     try {
       setActionLoading(true);
-      setError(null);
       await matchScoringService.updateRoundDuration(matchId, roundDuration);
       await fetchMatchData();
       setShowDurationModal(false);
       toast.success(`Đã cập nhật thời gian vòng đấu thành ${formatTime(roundDuration)} (${roundDuration} giây)!`, 5000);
     } catch (err: any) {
-      setError(err?.message || "Không thể cập nhật thời gian vòng đấu");
+      const errorMessage = err?.message || "Không thể cập nhật thời gian vòng đấu";
+      toast.error(errorMessage);
       console.error("Error updating duration:", err);
     } finally {
       setActionLoading(false);
@@ -252,13 +261,12 @@ export default function MatchManagementPage() {
     }
 
     if (mainRoundDuration <= 0 || tiebreakerDuration <= 0) {
-      setError("Thời gian hiệp chính và hiệp phụ phải lớn hơn 0");
+      toast.error("Thời gian hiệp chính và hiệp phụ phải lớn hơn 0");
       return;
     }
 
     try {
       setActionLoading(true);
-      setError(null);
       
       // Update both durations
       await Promise.all([
@@ -271,7 +279,6 @@ export default function MatchManagementPage() {
       toast.success(`Đã cập nhật cấu hình rounds! Hiệp chính: ${formatTime(mainRoundDuration)}, Hiệp phụ: ${formatTime(tiebreakerDuration)}`, 5000);
     } catch (err: any) {
       const errorMessage = err?.response?.data?.message || err?.message || "Không thể cập nhật cấu hình rounds";
-      setError(errorMessage);
       toast.error(errorMessage, 5000);
       console.error("Error updating rounds config:", err);
     } finally {
@@ -290,20 +297,18 @@ export default function MatchManagementPage() {
     }
 
     if (totalRounds < 1) {
-      setError("Số lượng vòng đấu phải lớn hơn hoặc bằng 1");
+      toast.error("Số lượng vòng đấu phải lớn hơn hoặc bằng 1");
       return;
     }
 
     try {
       setActionLoading(true);
-      setError(null);
       await matchScoringService.updateTotalRounds(matchId, totalRounds);
       await fetchMatchData();
       setShowRoundsModal(false);
       toast.success(`Đã cập nhật số lượng vòng đấu thành ${totalRounds}!`, 5000);
     } catch (err: any) {
       const errorMessage = err?.response?.data?.message || err?.message || "Không thể cập nhật số lượng vòng đấu";
-      setError(errorMessage);
       toast.error(errorMessage, 5000);
       console.error("Error updating total rounds:", err);
     } finally {
@@ -322,7 +327,6 @@ export default function MatchManagementPage() {
 
     try {
       setActionLoading(true);
-      setError(null);
       await matchScoringService.updateField(matchId, selectedFieldId);
       await fetchMatchData();
       const fieldName = selectedFieldId 
@@ -330,7 +334,8 @@ export default function MatchManagementPage() {
         : "đã bỏ chọn";
       toast.success(`Đã cập nhật sân thi đấu thành ${fieldName}!`, 5000);
     } catch (err: any) {
-      setError(err?.message || "Không thể cập nhật sân thi đấu");
+      const errorMessage = err?.message || "Không thể cập nhật sân thi đấu";
+      toast.error(errorMessage);
       console.error("Error updating field:", err);
     } finally {
       setActionLoading(false);
@@ -385,7 +390,6 @@ export default function MatchManagementPage() {
 
     try {
       setAssigning(true);
-      setError(null);
       await apiClient.post(API_ENDPOINTS.MATCH_ASSESSORS.ASSIGN, {
         matchId,
         assessors: assessorsList,
@@ -395,7 +399,8 @@ export default function MatchManagementPage() {
       await fetchMatchData();
       setShowAssignModal(false);
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || "Không thể chỉ định giám định viên");
+      const errorMessage = err?.response?.data?.message || err?.message || "Không thể chỉ định giám định viên";
+      toast.error(errorMessage);
       console.error("Error assigning assessors:", err);
     } finally {
       setAssigning(false);
@@ -412,13 +417,6 @@ export default function MatchManagementPage() {
     );
   }
 
-  if (error && !scoreboard) {
-    return (
-      <div className="p-6 max-w-7xl mx-auto">
-        <ErrorMessage error={error} onRetry={fetchMatchData} />
-      </div>
-    );
-  }
 
   if (!scoreboard) {
     return (
@@ -472,7 +470,6 @@ export default function MatchManagementPage() {
         </div>
       </div>
 
-      {error && <ErrorMessage error={error} />}
 
       {/* Match Info Card */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">

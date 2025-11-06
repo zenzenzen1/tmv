@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import matchScoringService, { type MatchListItem } from "../../services/matchScoringService";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
-import ErrorMessage from "../../components/common/ErrorMessage";
+import { useToast } from "../../components/common/ToastContext";
 import { useWeightClassStore } from "../../stores/weightClass";
 import type { WeightClassResponse } from "../../types";
 
@@ -40,9 +40,9 @@ function getStatusColor(status: string): string {
 
 export default function SelectMatchPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [matches, setMatches] = useState<MatchListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const { list: weightClassList, fetch: fetchWeightClasses } = useWeightClassStore();
 
@@ -74,18 +74,18 @@ export default function SelectMatchPage() {
     async function fetchMatches() {
       try {
         setLoading(true);
-        setError(null);
         const data = await matchScoringService.listMatches(undefined, statusFilter || undefined);
         setMatches(data);
       } catch (err: any) {
-        setError(err?.message || "Không thể tải danh sách trận đấu");
+        const errorMessage = err?.message || "Không thể tải danh sách trận đấu";
+        toast.error(errorMessage);
         console.error("Error fetching matches:", err);
       } finally {
         setLoading(false);
       }
     }
     fetchMatches();
-  }, [statusFilter]);
+  }, [statusFilter, toast]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -125,8 +125,6 @@ export default function SelectMatchPage() {
           </div>
         </div>
       </div>
-
-      {error && <ErrorMessage error={error} />}
 
       {loading ? (
         <div className="flex justify-center py-12">

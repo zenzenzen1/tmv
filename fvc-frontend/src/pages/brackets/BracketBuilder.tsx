@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCompetitionStore } from "@/stores/competition";
 import { useWeightClassStore } from "@/stores/weightClass";
+import { useToast } from "../../components/common/ToastContext";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { PaginationResponse } from "../../types/api";
@@ -39,6 +40,7 @@ interface BracketMatch {
 }
 
 export default function BracketBuilder() {
+  const toast = useToast();
   const { competitions, fetchCompetitions } = useCompetitionStore();
   const { list: wcList, fetch: fetchWc } = useWeightClassStore();
 
@@ -193,11 +195,13 @@ export default function BracketBuilder() {
           status: "IN_PROGRESS",
         });
         console.log(`✅ Updated status to IN_PROGRESS for ${newAthleteIds.length} athletes`, response);
+        toast.success(`Đã thêm ${newAthleteIds.length} vận động viên vào danh sách thi đấu!`);
       } catch (error: any) {
         console.error("❌ Error updating athletes status:", error);
         console.error("Error details:", error?.response?.data || error?.message);
         // Show error to user
-        alert(`Có lỗi khi cập nhật trạng thái: ${error?.response?.data?.message || error?.message || "Unknown error"}`);
+        const errorMessage = error?.response?.data?.message || error?.message || "Unknown error";
+        toast.error(`Có lỗi khi cập nhật trạng thái: ${errorMessage}`);
       }
     }
 
@@ -282,19 +286,19 @@ export default function BracketBuilder() {
     const duplicates = seedNumbers.filter((num, index) => seedNumbers.indexOf(num) !== index);
     
     if (duplicates.length > 0) {
-      alert("Có số bốc thăm trùng lặp! Vui lòng kiểm tra lại.");
+      toast.error("Có số bốc thăm trùng lặp! Vui lòng kiểm tra lại.");
       return;
     }
     
     // Check if all athletes have seed numbers
     if (competitionAthletes.some((a) => !a.seedNumber)) {
-      alert("Vui lòng nhập số bốc thăm cho tất cả vận động viên!");
+      toast.error("Vui lòng nhập số bốc thăm cho tất cả vận động viên!");
       return;
     }
     
     // Check for validation errors
     if (Object.keys(seedNumberErrors).length > 0) {
-      alert("Có lỗi validation! Vui lòng kiểm tra lại số bốc thăm.");
+      toast.error("Có lỗi validation! Vui lòng kiểm tra lại số bốc thăm.");
       return;
     }
     
@@ -307,10 +311,11 @@ export default function BracketBuilder() {
 
       await api.put(`${API_ENDPOINTS.ATHLETES.SEED_NUMBERS}`, { updates });
       
-      alert("Đã lưu số bốc thăm thành công!");
-    } catch (error) {
+      toast.success("Đã lưu số bốc thăm thành công!");
+    } catch (error: any) {
       console.error("Error saving seed numbers:", error);
-      alert("Có lỗi xảy ra khi lưu số bốc thăm!");
+      const errorMessage = error?.response?.data?.message || error?.message || "Có lỗi xảy ra khi lưu số bốc thăm!";
+      toast.error(errorMessage);
     } finally {
       setSavingSeedNumbers(false);
     }
@@ -326,12 +331,12 @@ export default function BracketBuilder() {
   // Create matches from bracket structure
   const handleCreateMatches = async () => {
     if (!calculateBracket || !competitionId || !weightClassId) {
-      alert("Vui lòng chọn giải đấu và hạng cân!");
+      toast.error("Vui lòng chọn giải đấu và hạng cân!");
       return;
     }
 
     if (competitionAthletes.some((a) => !a.seedNumber)) {
-      alert("Vui lòng nhập số bốc thăm cho tất cả vận động viên!");
+      toast.error("Vui lòng nhập số bốc thăm cho tất cả vận động viên!");
       return;
     }
 
@@ -354,10 +359,11 @@ export default function BracketBuilder() {
         matches: matchesToCreate,
       });
 
-      alert(`Đã tạo thành công ${matchesToCreate.length} trận đấu vòng đầu!`);
-    } catch (error) {
+      toast.success(`Đã tạo thành công ${matchesToCreate.length} trận đấu vòng đầu!`);
+    } catch (error: any) {
       console.error("Error creating matches:", error);
-      alert("Có lỗi xảy ra khi tạo trận đấu!");
+      const errorMessage = error?.response?.data?.message || error?.message || "Có lỗi xảy ra khi tạo trận đấu!";
+      toast.error(errorMessage);
     } finally {
       setCreatingMatches(false);
     }
