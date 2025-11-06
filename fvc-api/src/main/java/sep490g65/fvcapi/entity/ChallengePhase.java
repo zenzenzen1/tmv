@@ -30,6 +30,8 @@ public class ChallengePhase extends BaseEntity {
     @Column(nullable = false, length = 150)
     private String name;
 
+    private String description;
+
     private LocalDate startDate;
 
     private LocalDate endDate;

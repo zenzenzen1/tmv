@@ -47,6 +47,9 @@ import UserManagementPage from "./pages/user-management/UserManagementPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import FieldManagementPage from "./pages/field-management/FieldManagementPage";
 import RequireRole from "./components/common/RequireRole";
+import CycleList from "./pages/cycles/CycleList";
+import CycleDetail from "./pages/cycles/CycleDetail";
+import CycleCreate from "./pages/cycles/CycleCreate";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -157,6 +160,42 @@ export default function App() {
           element={
             <RequireRole roles={["EXECUTIVE_BOARD"]}>
               <TournamentListPage />
+            </RequireRole>
+          }
+        />
+
+        {/* Member Management */}
+        <Route
+          path="member-management"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD"]}>
+              <MemberManagementListPage />
+            </RequireRole>
+          }
+        />
+
+        {/* Challenge Cycles */}
+        <Route
+          path="cycles"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <CycleList />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="cycles/new"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <CycleCreate />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="cycles/:id"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <CycleDetail />
             </RequireRole>
           }
         />

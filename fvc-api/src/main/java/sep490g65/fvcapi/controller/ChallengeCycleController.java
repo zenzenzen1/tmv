@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import sep490g65.fvcapi.constants.ApiConstants;
+import sep490g65.fvcapi.dto.cycle.ChallengeCycleBulkCreateRequest;
 import sep490g65.fvcapi.dto.cycle.ChallengeCycleCreateRequest;
 import sep490g65.fvcapi.dto.cycle.ChallengeCycleDto;
 import sep490g65.fvcapi.dto.cycle.ChallengeCycleUpdateRequest;
@@ -47,6 +48,13 @@ public class ChallengeCycleController {
         ChallengeCycleDto created = challengeCycleService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ResponseUtils.success("Cycle created", created));
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<BaseResponse<ChallengeCycleDto>> createBulk(@RequestBody @Validated ChallengeCycleBulkCreateRequest request) {
+        ChallengeCycleDto created = challengeCycleService.createBulk(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ResponseUtils.success("Cycle created with phases and teams", created));
     }
 
     @PutMapping("/{id}")

@@ -21,16 +21,32 @@ public class ChallengeCycleUpdateRequest {
     @NotNull
     private LocalDate startDate;
 
-    @NotNull
-    private LocalDate endDate;
+    private LocalDate endDate; // Optional - sẽ được tính từ startDate + cycleDurationMonths
+
+    private Integer cycleDurationMonths; // Số tháng của cycle
+
+    private Integer phaseDurationWeeks; // Số tuần của mỗi phase
 
     @NotNull
     private ChallengeCycleStatus status;
 
-    @AssertTrue(message = "endDate must be on or after startDate")
+    @AssertTrue(message = "endDate must be on or after startDate (if provided)")
     public boolean isValidDateRange() {
-        if (startDate == null || endDate == null) return true;
-        return !endDate.isBefore(startDate);
+        if (startDate == null) return true;
+        if (endDate != null) {
+            return !endDate.isBefore(startDate);
+        }
+        return true; // endDate sẽ được tính tự động nếu có cycleDurationMonths
+    }
+
+    @AssertTrue(message = "cycleDurationMonths must be positive (if provided)")
+    public boolean isValidCycleDuration() {
+        return cycleDurationMonths == null || cycleDurationMonths > 0;
+    }
+
+    @AssertTrue(message = "phaseDurationWeeks must be positive (if provided)")
+    public boolean isValidPhaseDuration() {
+        return phaseDurationWeeks == null || phaseDurationWeeks > 0;
     }
 }
 

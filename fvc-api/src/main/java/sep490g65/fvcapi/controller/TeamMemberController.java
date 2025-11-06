@@ -70,8 +70,9 @@ public class TeamMemberController {
             @RequestBody @Validated TeamMemberBulkAddRequest request,
             Pageable pageable
     ) {
+        Page<TeamMemberDto> page = teamMemberService.bulkAddMembers(teamId, request, pageable);
         return ResponseEntity.ok(ResponseUtils.success("Bulk add completed",
-                teamMemberService.bulkAddMembers(teamId, request, pageable)));
+                ResponseUtils.createPaginatedResponse(page)));
     }
 
     @PostMapping(ApiConstants.TEAMS_PATH + "/{teamId}" + ApiConstants.TEAM_MEMBERS_SUBPATH + "/{userId}/readd")

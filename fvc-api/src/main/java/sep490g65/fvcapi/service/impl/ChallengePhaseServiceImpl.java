@@ -3,6 +3,7 @@ package sep490g65.fvcapi.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.phase.ChallengePhaseCreateRequest;
@@ -32,7 +33,20 @@ public class ChallengePhaseServiceImpl implements ChallengePhaseService {
     @Override
     @Transactional(readOnly = true)
     public Page<ChallengePhaseDto> listByCycle(String cycleId, PhaseStatus status, String search, Pageable pageable) {
-        return challengePhaseRepository.searchByCycle(cycleId, status, search, pageable)
+        Specification<ChallengePhase> spec = (root, query, cb) -> 
+            cb.equal(root.get("cycle").get("id"), cycleId);
+        
+        if (status != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
+        }
+        
+        if (search != null && !search.trim().isEmpty()) {
+            String searchPattern = "%" + search.toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> 
+                cb.like(cb.lower(root.get("name")), searchPattern));
+        }
+        
+        return challengePhaseRepository.findAll(spec, pageable)
                 .map(this::toDto);
     }
 

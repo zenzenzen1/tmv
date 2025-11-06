@@ -18,6 +18,8 @@ public class ChallengeCycleDto {
     private String description;
     private LocalDate startDate;
     private LocalDate endDate;
+    private Integer cycleDurationMonths;
+    private Integer phaseDurationWeeks;
     private ChallengeCycleStatus status;
 }
 

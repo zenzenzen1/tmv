@@ -3,6 +3,7 @@ package sep490g65.fvcapi.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.team.TeamCreateRequest;
@@ -27,7 +28,20 @@ public class TeamServiceImpl implements TeamService {
     @Override
     @Transactional(readOnly = true)
     public Page<TeamDto> listByCycle(String cycleId, String search, Pageable pageable) {
-        return teamRepository.searchByCycle(cycleId, search, pageable).map(this::toDto);
+        Specification<Team> spec = (root, query, cb) -> 
+            cb.equal(root.get("cycle").get("id"), cycleId);
+        
+        if (search != null && !search.trim().isEmpty()) {
+            String searchPattern = "%" + search.toLowerCase() + "%";
+            Specification<Team> searchSpec = (root, query, cb) -> 
+                cb.or(
+                    cb.like(cb.lower(root.get("code")), searchPattern),
+                    cb.like(cb.lower(root.get("name")), searchPattern)
+                );
+            spec = spec.and(searchSpec);
+        }
+        
+        return teamRepository.findAll(spec, pageable).map(this::toDto);
     }
 
     @Override
