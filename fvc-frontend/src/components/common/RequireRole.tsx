@@ -12,7 +12,7 @@ export default function RequireRole({ roles, children, redirectTo = "/manage/tou
   const { user } = useAuth();
   const location = useLocation();
 
-  const currentRole = user?.systemRole;
+  const currentRole = user?.systemRole as SystemRole | undefined;
   const allowed = currentRole ? roles.includes(currentRole) : false;
 
   if (!allowed) {

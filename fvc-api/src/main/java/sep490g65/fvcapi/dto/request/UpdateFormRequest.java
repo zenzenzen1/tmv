@@ -11,6 +11,7 @@ public class UpdateFormRequest {
     private ApplicationFormType formType;
     private String competitionId;
     private FormStatus status; // DRAFT | PUBLISH | ARCHIVED | POSTPONE
+    private java.time.LocalDateTime endDate;
     private java.util.List<FormFieldUpsert> fields;
 }
 

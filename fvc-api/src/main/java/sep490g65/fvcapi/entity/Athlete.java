@@ -1,6 +1,5 @@
 package sep490g65.fvcapi.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -8,7 +7,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "athletes", indexes = {
-        @Index(name = "idx_athlete_tournament_email", columnList = "tournament_id,email", unique = true),
+        @Index(name = "idx_athlete_competition_email", columnList = "competition_id,email", unique = true),
         @Index(name = "idx_athlete_competition_type", columnList = "competition_type")
 })
 @Getter
@@ -22,13 +21,13 @@ public class Athlete extends BaseEntity {
     @GeneratedValue
     private UUID id;
 
-    @Column(name = "tournament_id", nullable = false)
-    private String tournamentId;
+    @Column(name = "competition_id", nullable = false)
+    private String competitionId;
 
     @Column(nullable = false)
     private String fullName;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String email;
 
     @Column(name = "student_id")
@@ -53,18 +52,9 @@ public class Athlete extends BaseEntity {
     @Column(nullable = false)
     private AthleteStatus status; // NOT_STARTED / IN_PROGRESS / DONE / VIOLATED
 
-    @Column(name = "competition_order")
-    private Integer competitionOrder;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "competition_order_id")
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-    private CompetitionOrder competitionOrderObject;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "competition_id")
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-    private Competition competition;
+    // Draw seed number assigned by drawing process (nullable until drawn)
+    @Column(name = "draw_seed_number")
+    private Integer drawSeedNumber;
 
 
     public enum Gender { MALE, FEMALE }

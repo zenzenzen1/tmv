@@ -122,8 +122,8 @@ public class ArrangeOrderServiceImpl implements ArrangeOrderService {
                 ? Athlete.CompetitionType.quyen 
                 : Athlete.CompetitionType.music;
         
-        List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(
-                competitionType, request.getCompetitionId());
+        List<Athlete> athletes = athleteRepository.findByCompetitionIdAndCompetitionType(
+                request.getCompetitionId(), competitionType);
         
         // Apply filters
         List<Athlete> filtered = athletes.stream()
@@ -246,8 +246,8 @@ public class ArrangeOrderServiceImpl implements ArrangeOrderService {
                 ? Athlete.CompetitionType.quyen 
                 : Athlete.CompetitionType.music;
         
-        List<Athlete> athletes = athleteRepository.findByCompetitionTypeAndCompetitionId(
-                competitionType, competitionId);
+        List<Athlete> athletes = athleteRepository.findByCompetitionIdAndCompetitionType(
+                competitionId, competitionType);
         
         // Get assigned athlete IDs
         Set<String> assignedIds = sections.stream()

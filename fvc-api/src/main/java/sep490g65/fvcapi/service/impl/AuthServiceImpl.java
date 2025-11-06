@@ -32,6 +32,23 @@ public class AuthServiceImpl implements AuthService {
         log.info("Attempting login for email: {}", request.getEmail());
         
         try {
+            // Reject empty credentials with a generic message
+            if (request.getEmail() == null || request.getEmail().trim().isEmpty()
+                    || request.getPassword() == null || request.getPassword().isEmpty()) {
+                throw new BadCredentialsException("Invalid email or password");
+            }
+
+            // Enforce password length policy (8-20 characters)
+            final int MIN_PASSWORD_LENGTH = 6;
+            final int MAX_PASSWORD_LENGTH = 20;
+            int passwordLength = request.getPassword().length();
+            if (passwordLength < MIN_PASSWORD_LENGTH) {
+                throw new BadCredentialsException("Password too short");
+            }
+            if (passwordLength > MAX_PASSWORD_LENGTH) {
+                throw new BadCredentialsException("Password too long");
+            }
+
             // Find user by personal email only
             log.info("Step 1: Finding user by email: {}", request.getEmail());
             List<User> users = userRepository.findAllByPersonalMailIgnoreCase(request.getEmail().trim());
@@ -48,6 +65,11 @@ public class AuthServiceImpl implements AuthService {
             
             User user = users.get(0);
             log.info("User found: {}", user.getPersonalMail());
+
+            // Block inactive users before password check
+            if (Boolean.FALSE.equals(user.getStatus())) {
+                throw new BadCredentialsException("Account is inactive");
+            }
 
             // Log hash visibility and compare with BCrypt
             log.info("Step 2: Comparing password for email={}, hash_present={}", request.getEmail().trim(), user.getHashPassword() != null);

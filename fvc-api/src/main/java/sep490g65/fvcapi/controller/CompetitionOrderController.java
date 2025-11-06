@@ -58,19 +58,15 @@ public class CompetitionOrderController {
             @Valid @RequestBody CreateCompetitionOrderRequest request) {
         
         CompetitionOrder created = competitionOrderService.create(request);
-        // Convert entity to response DTO
+        // Convert entity to response DTO (athlete list removed in entity)
         CompetitionOrderResponse response = CompetitionOrderResponse.builder()
                 .id(created.getId())
                 .competitionId(created.getCompetition() != null ? created.getCompetition().getId() : null)
                 .competitionName(created.getCompetition() != null ? created.getCompetition().getName() : null)
                 .orderIndex(created.getOrderIndex())
                 .contentSelectionId(created.getContentSelection() != null ? created.getContentSelection().getId() : null)
-                .athleteCount(created.getAthletes() != null ? created.getAthletes().size() : 0)
-                .athleteIds(created.getAthletes() != null 
-                        ? created.getAthletes().stream()
-                                .map(athlete -> athlete.getId().toString())
-                                .collect(java.util.stream.Collectors.toList())
-                        : java.util.List.of())
+                .athleteCount(0)
+                .athleteIds(java.util.List.of())
                 .createdAt(created.getCreatedAt())
                 .updatedAt(created.getUpdatedAt())
                 .build();
@@ -82,7 +78,7 @@ public class CompetitionOrderController {
             @Valid @RequestBody List<CreateCompetitionOrderRequest> requests) {
         
         List<CompetitionOrder> created = competitionOrderService.createBulk(requests);
-        // Convert entities to response DTOs
+        // Convert entities to response DTOs (athlete list removed in entity)
         List<CompetitionOrderResponse> responses = created.stream()
                 .map(order -> CompetitionOrderResponse.builder()
                         .id(order.getId())
@@ -90,12 +86,8 @@ public class CompetitionOrderController {
                         .competitionName(order.getCompetition() != null ? order.getCompetition().getName() : null)
                         .orderIndex(order.getOrderIndex())
                         .contentSelectionId(order.getContentSelection() != null ? order.getContentSelection().getId() : null)
-                        .athleteCount(order.getAthletes() != null ? order.getAthletes().size() : 0)
-                        .athleteIds(order.getAthletes() != null 
-                                ? order.getAthletes().stream()
-                                        .map(athlete -> athlete.getId().toString())
-                                        .collect(java.util.stream.Collectors.toList())
-                                : java.util.List.of())
+                        .athleteCount(0)
+                        .athleteIds(java.util.List.of())
                         .createdAt(order.getCreatedAt())
                         .updatedAt(order.getUpdatedAt())
                         .build())

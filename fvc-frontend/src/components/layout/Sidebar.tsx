@@ -34,6 +34,7 @@ export default function TournamentSidebar({
   // Map menu keys to routes
   const keyToPath: Record<string, string> = {
     tournaments: "/manage/tournaments",
+    arrange: "/manage/performance",
     tournamentForm: "/manage/tournament-forms",
     weightClassPage: "/manage/weight-class",
     fieldManagement: "/manage/field-management",

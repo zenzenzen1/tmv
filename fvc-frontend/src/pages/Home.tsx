@@ -9,6 +9,8 @@ type FormRow = {
   formTitle: string;
   description?: string;
   status: "draft" | "publish" | "archived" | "postpone";
+  endDate?: string | null;
+  expired?: boolean;
 };
 
 export default function Home() {
@@ -31,7 +33,7 @@ export default function Home() {
         size: 50,
         _ts: Date.now(),
       });
-      const list = res.data.content
+      const baseList = res.data.content
         .map((i) => ({
           id: i.id,
           formTitle: i.formTitle,
@@ -39,7 +41,27 @@ export default function Home() {
           status: (i.status as FormRow["status"]) || "draft",
         }))
         .filter((i) => i.status === "publish");
-      setRows(list);
+
+      // Load details to get endDate and compute expiration
+      const detailed = await Promise.all(
+        baseList.map(async (b) => {
+          try {
+            const detail = await api.get<any>(
+              API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(b.id)
+            );
+            const endDate: string | undefined = (detail.data as any)?.endDate;
+            let expired = false;
+            if (endDate) {
+              const endTs = Date.parse(endDate);
+              if (!Number.isNaN(endTs)) expired = Date.now() > endTs;
+            }
+            return { ...b, endDate: endDate || null, expired } as FormRow;
+          } catch {
+            return { ...b } as FormRow;
+          }
+        })
+      );
+      setRows(detailed);
     } catch (e) {
       console.error(e);
     } finally {
@@ -102,15 +124,30 @@ export default function Home() {
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
-                    ĐANG MỞ
-                  </span>
-                  <button
-                    onClick={() => navigate(`/published-form/${f.id}`)}
-                    className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-sm hover:bg-[#2e6de0]"
-                  >
-                    Điền form
-                  </button>
+                  {f.expired ? (
+                    <span className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                      HẾT HẠN
+                    </span>
+                  ) : (
+                    <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                      ĐANG MỞ
+                    </span>
+                  )}
+                  {f.expired ? (
+                    <button
+                      disabled
+                      className="rounded-md bg-gray-300 px-3 py-1.5 text-white text-sm cursor-not-allowed"
+                    >
+                      Đã hết hạn
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => navigate(`/published-form/${f.id}`)}
+                      className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-sm hover:bg-[#2e6de0]"
+                    >
+                      Điền form
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

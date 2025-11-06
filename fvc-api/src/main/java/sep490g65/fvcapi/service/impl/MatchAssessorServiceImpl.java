@@ -8,8 +8,11 @@ import sep490g65.fvcapi.dto.request.AssignMatchAssessorsRequest;
 import sep490g65.fvcapi.dto.request.CreateMatchAssessorRequest;
 import sep490g65.fvcapi.dto.request.UpdateMatchAssessorRequest;
 import sep490g65.fvcapi.dto.response.MatchAssessorResponse;
+import sep490g65.fvcapi.dto.response.MyAssignedMatchResponse;
 import sep490g65.fvcapi.entity.Match;
 import sep490g65.fvcapi.entity.MatchAssessor;
+import sep490g65.fvcapi.entity.PerformanceMatch;
+import sep490g65.fvcapi.entity.Performance;
 import sep490g65.fvcapi.entity.User;
 import sep490g65.fvcapi.enums.AssessorRole;
 import sep490g65.fvcapi.exception.custom.BusinessException;
@@ -133,10 +136,10 @@ public class MatchAssessorServiceImpl implements MatchAssessorService {
 
         // Validate position and role consistency
         // Position 1-5 should be ASSESSOR, Position 6 should be JUDGER (recommendation)
-        if (request.getPosition() <= 5 && request.getRole() == sep490g65.fvcapi.enums.AssessorRole.JUDGER) {
+        if (request.getPosition() <= 5 && request.getRole() == AssessorRole.JUDGER) {
             log.warn("Warning: Position {} assigned as JUDGER, typically positions 1-5 are ASSESSORs", request.getPosition());
         }
-        if (request.getPosition() == 6 && request.getRole() == sep490g65.fvcapi.enums.AssessorRole.ASSESSOR) {
+        if (request.getPosition() == 6 && request.getRole() == AssessorRole.ASSESSOR) {
             log.warn("Warning: Position 6 assigned as ASSESSOR, typically position 6 is JUDGER");
         }
 
@@ -162,21 +165,25 @@ public class MatchAssessorServiceImpl implements MatchAssessorService {
         MatchAssessor assessor = matchAssessorRepository.findById(assessorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Assessor not found with ID: " + assessorId));
 
-        // If updating position, check if new position is available
+        // If updating position, check if new position is available (only for fighting matches)
         if (request.getPosition() != null && !request.getPosition().equals(assessor.getPosition())) {
-            if (matchAssessorRepository.existsByMatchIdAndPosition(assessor.getMatch().getId(), request.getPosition())) {
-                throw new BusinessException(
-                        String.format("Position %d is already assigned in this match", request.getPosition()),
-                        "POSITION_ALREADY_ASSIGNED"
-                );
+            if (assessor.getMatch() != null) {
+                if (matchAssessorRepository.existsByMatchIdAndPosition(assessor.getMatch().getId(), request.getPosition())) {
+                    throw new BusinessException(
+                            String.format("Position %d is already assigned in this match", request.getPosition()),
+                            "POSITION_ALREADY_ASSIGNED"
+                    );
+                }
             }
             assessor.setPosition(request.getPosition());
         }
 
         // If updating user, check if new user is not already assigned
         if (request.getUserId() != null && !request.getUserId().equals(assessor.getUser().getId())) {
-            if (matchAssessorRepository.existsByMatchIdAndUserId(assessor.getMatch().getId(), request.getUserId())) {
-                throw new BusinessException("User is already assigned to this match", "USER_ALREADY_ASSIGNED");
+            if (assessor.getMatch() != null) {
+                if (matchAssessorRepository.existsByMatchIdAndUserId(assessor.getMatch().getId(), request.getUserId())) {
+                    throw new BusinessException("User is already assigned to this match", "USER_ALREADY_ASSIGNED");
+                }
             }
             User newUser = userRepository.findById(request.getUserId())
                     .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + request.getUserId()));
@@ -247,19 +254,95 @@ public class MatchAssessorServiceImpl implements MatchAssessorService {
     @Transactional(readOnly = true)
     public List<MatchAssessorResponse> getAssessorsByUserId(String userId) {
         log.debug("Fetching assessors for user {}", userId);
-
+        
         List<MatchAssessor> assessors = matchAssessorRepository.findByUserId(userId);
-
+        
         return assessors.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MyAssignedMatchResponse> getMyAssignedMatches(String userId) {
+        log.debug("Fetching assigned matches for user {}", userId);
+
+        List<MatchAssessor> assessors = matchAssessorRepository.findByUserIdWithRelations(userId);
+
+        return assessors.stream()
+                .map(this::toMyAssignedMatchResponse)
+                .collect(Collectors.toList());
+    }
+
+    private MyAssignedMatchResponse toMyAssignedMatchResponse(MatchAssessor assessor) {
+        MyAssignedMatchResponse.MyAssignedMatchResponseBuilder builder = MyAssignedMatchResponse.builder()
+                .assessorId(assessor.getId())
+                .role(assessor.getRole())
+                .position(assessor.getPosition())
+                .notes(assessor.getNotes())
+                .createdAt(assessor.getCreatedAt())
+                .updatedAt(assessor.getUpdatedAt());
+
+        // Handle fighting match (Match entity)
+        if (assessor.getMatch() != null) {
+            Match match = assessor.getMatch();
+            builder.matchId(match.getId())
+                    .match(MyAssignedMatchResponse.MatchInfo.builder()
+                            .id(match.getId())
+                            .competitionId(match.getCompetitionId())
+                            .redAthleteName(match.getRedAthleteName())
+                            .blueAthleteName(match.getBlueAthleteName())
+                            .status(match.getStatus() != null ? match.getStatus().name() : "PENDING")
+                            .build());
+        }
+
+        // Handle performance match (quyền/võ nhạc)
+        if (assessor.getPerformanceMatch() != null) {
+            PerformanceMatch perfMatch = assessor.getPerformanceMatch();
+            Performance performance = perfMatch.getPerformance();
+            
+            // Build participants string from performance athletes
+            String participants = "";
+            String contentName = "";
+            if (performance != null) {
+                if (performance.getAthletes() != null && !performance.getAthletes().isEmpty()) {
+                    participants = performance.getAthletes().stream()
+                            .map(pa -> pa.getAthlete() != null ? pa.getAthlete().getFullName() : "")
+                            .filter(name -> !name.isEmpty())
+                            .collect(Collectors.joining(", "));
+                }
+                
+                // Set content name from performance
+                if (performance.getContentType() == Performance.ContentType.QUYEN) {
+                    contentName = "Quyền"; // Default, can be enhanced with fist item/config name
+                } else if (performance.getContentType() == Performance.ContentType.MUSIC) {
+                    contentName = "Võ nhạc"; // Default, can be enhanced with music content name
+                }
+            }
+            
+            builder.performanceMatchId(perfMatch.getId())
+                    .performanceId(performance != null ? performance.getId() : null)
+                    .performanceMatch(MyAssignedMatchResponse.PerformanceMatchInfo.builder()
+                            .id(perfMatch.getId())
+                            .competitionId(perfMatch.getCompetition() != null ? perfMatch.getCompetition().getId() : null)
+                            .competitionName(perfMatch.getCompetition() != null ? perfMatch.getCompetition().getName() : null)
+                            .performanceId(performance != null ? performance.getId() : null)
+                            .contentName(contentName)
+                            .contentType(perfMatch.getContentType() != null ? perfMatch.getContentType().name() : null)
+                            .matchOrder(perfMatch.getMatchOrder())
+                            .status(perfMatch.getStatus() != null ? perfMatch.getStatus().name() : "PENDING")
+                            .participants(participants)
+                            .build());
+        }
+
+        return builder.build();
     }
 
     private MatchAssessorResponse toResponse(MatchAssessor assessor) {
         User user = assessor.getUser();
         return MatchAssessorResponse.builder()
                 .id(assessor.getId())
-                .matchId(assessor.getMatch().getId())
+                .matchId(assessor.getMatch() != null ? assessor.getMatch().getId() : null)
                 .userId(user.getId())
                 .userFullName(user.getFullName())
                 .userEmail(user.getEduMail() != null ? user.getEduMail() : user.getPersonalMail())

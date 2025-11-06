@@ -12,10 +12,7 @@ export default function ArrangeOrderWrapper() {
 
   return (
     <div className="m-6">
-      <ArrangeOrderPage
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-      />
+      <ArrangeOrderPage activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );
 }

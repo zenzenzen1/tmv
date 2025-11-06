@@ -29,19 +29,24 @@ import { ToastProvider } from "./components/common/ToastProvider";
 import WeightClassListPage from "./pages/weight-class/ListPage";
 import FistContentListPage from "./pages/fist-content/ListPage";
 import MusicContentListPage from "./pages/music-content/ListPage";
-import BracketBuilder from "./pages/brackets/BracketBuilder";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
+import BracketBuilder from "./pages/brackets/BracketBuilder";
 import MatchScoringPage from "./pages/scoring/MatchScoringPage";
 import SelectMatchPage from "./pages/scoring/SelectMatchPage";
 import AssessorPage from "./pages/scoring/AssessorPage";
 import AssignAssessorsPage from "./pages/scoring/AssignAssessorsPage";
+import ProjectionScreen from "./pages/performance/ProjectionScreen";
+import JudgeScoringScreen from "./pages/performance/JudgeScoringScreen";
+import PerformanceResultScreen from "./pages/performance/PerformanceResultScreen";
+import JudgeDashboard from "./pages/judge/JudgeDashboard";
+import AssessorLayout from "./components/layout/AssessorLayout";
+import { useIsAssessor } from "./stores/authStore";
 import MatchManagementPage from "./pages/scoring/MatchManagementPage";
 import UserManagementPage from "./pages/user-management/UserManagementPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import FieldManagementPage from "./pages/field-management/FieldManagementPage";
 import RequireRole from "./components/common/RequireRole";
-import type { SystemRole } from "./types/user";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -56,6 +61,17 @@ export default function App() {
 
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
+    }
+    return children;
+  }
+
+  function AssessorProtected({ children }: { children: React.ReactElement }) {
+    const isAssessor = useIsAssessor();
+    if (!isAuthenticated) {
+      return <Navigate to="/login" replace />;
+    }
+    if (!isAssessor) {
+      return <Navigate to="/manage/tournaments" replace />;
     }
     return children;
   }
@@ -110,6 +126,10 @@ export default function App() {
       <Route path="/home" element={<Home />} />
       <Route path="dashboard" element={<DashboardPage />} />
 
+      {/* PERFORMANCE PUBLIC */}
+      <Route path="/performance/projection" element={<ProjectionScreen />} />
+      <Route path="/performance/judge" element={<JudgeScoringScreen />} />
+      <Route path="/performance/result" element={<PerformanceResultScreen />} />
       {/* Public Form Registration - Guest access */}
       <Route path="/public/forms/:slug" element={<FormRegistrationPage />} />
 
@@ -374,6 +394,11 @@ export default function App() {
         />
 
         {/* Arrange */}
+        <Route path="performance" element={<ArrangeOrderWrapper />} />
+        <Route
+          path="performance/fist-order"
+          element={<ArrangeOrderWrapper />}
+        />
         <Route path="arrange" element={<ArrangeOrderWrapper />} />
         <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
 
@@ -393,6 +418,21 @@ export default function App() {
         />
       </Route>
 
+      {/* Assessor Dashboard - Separate route without MainLayout */}
+      <Route
+        path="/assessor"
+        element={
+          <AssessorProtected>
+            <ToastProvider>
+              <AssessorLayout />
+            </ToastProvider>
+          </AssessorProtected>
+        }
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<JudgeDashboard />} />
+      </Route>
+
       {/* Legacy redirects to /manage */}
       <Route
         path="/tournaments/*"
@@ -404,7 +444,7 @@ export default function App() {
       />
       <Route
         path="/arrange/*"
-        element={<Navigate to="/manage/arrange" replace />}
+        element={<Navigate to="/manage/performance" replace />}
       />
       <Route
         path="/form-list"
@@ -417,6 +457,14 @@ export default function App() {
       <Route
         path="/forms/*"
         element={<Navigate to="/manage/forms" replace />}
+      />
+      <Route
+        path="/manage/judge/*"
+        element={<Navigate to="/assessor/dashboard" replace />}
+      />
+      <Route
+        path="/assessor/dashboard"
+        element={<Navigate to="/assessor/dashboard" replace />}
       />
       <Route path="/results/:id" element={<FormResults />} />
       <Route path="/published-form/:id" element={<PublishedForm />} />
