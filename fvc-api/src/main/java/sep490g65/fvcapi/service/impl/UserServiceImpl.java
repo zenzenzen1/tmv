@@ -9,9 +9,11 @@ import sep490g65.fvcapi.dto.request.ChangePasswordRequest;
 import sep490g65.fvcapi.dto.request.UpdateProfileRequest;
 import sep490g65.fvcapi.dto.response.ProfileResponse;
 import sep490g65.fvcapi.entity.User;
+import sep490g65.fvcapi.entity.PasswordHistory;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.exception.custom.ValidationException;
 import sep490g65.fvcapi.repository.UserRepository;
+import sep490g65.fvcapi.repository.PasswordHistoryRepository;
 import sep490g65.fvcapi.service.UserService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +34,7 @@ import java.util.Optional;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final PasswordHistoryRepository passwordHistoryRepository;
     private final PasswordEncoder passwordEncoder;
     private final ClubMemberRepository clubMemberRepository;
 
@@ -60,9 +63,13 @@ public class UserServiceImpl implements UserService {
         }
         User user = users.get(); 
         
-        // Update fullName
+        // Update fullName - normalize to remove special whitespace characters
         if (request.getFullName() != null && !request.getFullName().trim().isEmpty()) {
-            user.setFullName(request.getFullName().trim());
+            // Normalize: replace all Unicode whitespace with regular space, then trim and collapse multiple spaces
+            String normalizedName = request.getFullName()
+                    .replaceAll("\\s+", " ")  // Replace all whitespace with single space
+                    .trim();
+            user.setFullName(normalizedName);
         }
         
         // Update personalMail with validation
@@ -127,7 +134,9 @@ public class UserServiceImpl implements UserService {
     public void changePassword(String email, ChangePasswordRequest request) {
         log.info("Changing password for email: {}", email);
         
-        List<User> users = userRepository.findAllByPersonalMailIgnoreCase(email);
+        // Normalize email (trim and lowercase) to ensure consistency
+        String normalizedEmail = email != null ? email.trim().toLowerCase() : email;
+        List<User> users = userRepository.findAllByPersonalMailIgnoreCase(normalizedEmail);
         if (users.isEmpty()) {
             throw new ResourceNotFoundException("User not found");
         }
@@ -147,13 +156,38 @@ public class UserServiceImpl implements UserService {
         if (passwordEncoder.matches(request.getNewPassword(), user.getHashPassword())) {
             throw new ValidationException("newPassword", "New password must be different from current password");
         }
+
+        // Check password history - do not allow reuse of the last 3 passwords
+        List<PasswordHistory> recentHistories = passwordHistoryRepository.findTop3ByUserOrderByChangedAtDesc(user);
+        for (PasswordHistory history : recentHistories) {
+            if (passwordEncoder.matches(request.getNewPassword(), history.getHashPassword())) {
+                throw new ValidationException("newPassword", "New password must not match any of the last 3 passwords");
+            }
+        }
         
         // Hash and set new password
         String hashedPassword = passwordEncoder.encode(request.getNewPassword());
+        log.debug("Hashed new password for user: {}", normalizedEmail);
         user.setHashPassword(hashedPassword);
         
-        userRepository.save(user);
-        log.info("Password changed successfully for user ID: {}", user.getId());
+        // Save user and flush to ensure password is persisted immediately
+        User savedUser = userRepository.save(user);
+        userRepository.flush(); // Force immediate database write
+        
+        log.debug("User password saved. Verifying password can be matched...");
+        // Verify the saved password can be matched (for debugging)
+        boolean verifyMatch = passwordEncoder.matches(request.getNewPassword(), savedUser.getHashPassword());
+        log.debug("Password verification after save: {}", verifyMatch);
+        if (!verifyMatch) {
+            log.error("CRITICAL: Saved password cannot be verified! User ID: {}", savedUser.getId());
+        }
+
+        // Save password history record
+        PasswordHistory history = new PasswordHistory();
+        history.setUser(savedUser);
+        history.setHashPassword(hashedPassword);
+        passwordHistoryRepository.save(history);
+        log.info("Password changed successfully for user ID: {}, email: {}", savedUser.getId(), normalizedEmail);
     }
 
     private ProfileResponse mapToProfileResponse(User user) {
