@@ -45,6 +45,7 @@ import AssessorLayout from "./components/layout/AssessorLayout";
 import MatchManagementPage from "./pages/scoring/MatchManagementPage";
 import UserManagementPage from "./pages/user-management/UserManagementPage";
 import RegisterPage from "./pages/auth/RegisterPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import FieldManagementPage from "./pages/field-management/FieldManagementPage";
 import RequireRole from "./components/common/RequireRole";
 import CycleList from "./pages/cycles/CycleList";
@@ -95,6 +96,7 @@ export default function App() {
           )
         }
       />
+      <Route path="/forgot" element={<ForgotPasswordPage />} />
 
       {/* Profile page with its own layout */}
       <Route
@@ -238,7 +240,9 @@ export default function App() {
         <Route
           path="forms"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormListPage />
             </RequireRole>
           }
@@ -246,7 +250,9 @@ export default function App() {
         <Route
           path="forms/new"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormBuilderPage />
             </RequireRole>
           }
@@ -254,7 +260,9 @@ export default function App() {
         <Route
           path="forms/:id/edit"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormEditPage />
             </RequireRole>
           }
@@ -262,7 +270,9 @@ export default function App() {
         <Route
           path="forms/:id/view"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormRegistrationPage />
             </RequireRole>
           }
@@ -270,7 +280,9 @@ export default function App() {
         <Route
           path="forms/:id/fill"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <PublishedForm />
             </RequireRole>
           }

@@ -5,6 +5,7 @@ import type {
   InternalAxiosRequestConfig,
 } from "axios";
 import type { BaseResponse, ErrorResponse } from "../types/api";
+import { API_ENDPOINTS } from "../config/endpoints";
 import { useAuthStore } from "../stores/authStore";
 
 // Extend AxiosRequestConfig to include metadata
@@ -131,6 +132,18 @@ apiClient.interceptors.response.use(
         timestamp: new Date().toISOString(),
         path: error.config?.url,
       };
+      // Special-case: invalid credentials on login
+      const isLoginEndpoint = (error.config?.url || "").includes(
+        API_ENDPOINTS?.AUTH?.LOGIN || "/v1/auth/login"
+      );
+      if (isLoginEndpoint && error.response.status === 401) {
+        errorResponse.message = "Invalid email or password";
+        errorResponse.error = "AUTH_ERROR" as any;
+      }
+      if (isLoginEndpoint && error.response.status === 404) {
+        errorResponse.message = "User not found";
+        errorResponse.error = "NOT_FOUND_ERROR" as any;
+      }
     } else if (error.request) {
       // Request was made but no response received
       errorResponse = {
@@ -152,7 +165,13 @@ apiClient.interceptors.response.use(
     }
 
     // Handle specific status codes for authentication errors
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    const isLoginEndpoint = (error.config?.url || "").includes(
+      API_ENDPOINTS?.AUTH?.LOGIN || "/v1/auth/login"
+    );
+    if (
+      (error.response?.status === 401 || error.response?.status === 403) &&
+      !isLoginEndpoint
+    ) {
       // Unauthorized/Forbidden - token expired or invalid
       console.warn("🔒 Authentication failed - redirecting to login");
 

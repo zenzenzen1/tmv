@@ -1,3 +1,5 @@
+
+
 package sep490g65.fvcapi.exception;
 
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +12,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.exception.BusinessException;
@@ -49,6 +52,14 @@ public class GlobalExceptionHandler {
         log.error("Bad credentials exception: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(BaseResponse.error("Invalid email or password", "AUTH_ERROR"));
+    }
+
+    @ExceptionHandler(UsernameNotFoundException.class)
+    public ResponseEntity<BaseResponse<Void>> handleUsernameNotFoundException(
+            UsernameNotFoundException ex, WebRequest request) {
+        log.error("Username not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(BaseResponse.error("User not found", "NOT_FOUND_ERROR"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
