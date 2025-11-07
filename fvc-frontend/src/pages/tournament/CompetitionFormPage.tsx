@@ -43,7 +43,7 @@ import {
 } from "../../utils/validation";
 
 // Helper functions for date formatting
-const formatDateToDisplay = (dateString: string): string => {
+const formatDateToDisplay = (dateString: string | undefined): string => {
   if (!dateString) return "";
   // Convert from yyyy-mm-dd to dd/mm/yyyy
   const [year, month, day] = dateString.split("-");
@@ -220,6 +220,8 @@ const CompetitionFormPage: React.FC = () => {
     handleFieldChange("vovinamFistConfigIds", selectedFistConfigs);
     handleFieldChange("fistConfigItemSelections", selectedFistItems);
   };
+
+  // (removed date helper; using native date input with picker)
 
   // Name validation
   const nameValidation = useMemo(() => {
@@ -486,7 +488,7 @@ const CompetitionFormPage: React.FC = () => {
         const result = await updateCompetition(id, updateData);
         console.log("Update result:", result);
         if (result) {
-          navigate("/tournaments");
+          navigate("/manage/tournaments");
           success("Đã cập nhật giải đấu");
         } else {
           console.error("Update failed - result is null");
@@ -516,7 +518,7 @@ const CompetitionFormPage: React.FC = () => {
 
   // Handle cancel
   const handleCancel = () => {
-    navigate("/tournaments");
+    navigate("/manage/tournaments");
   };
 
   // Loading state
@@ -649,9 +651,13 @@ const CompetitionFormPage: React.FC = () => {
                           }
                           disabled={isView}
                           fullWidth
+                          inputProps={{ lang: "en-GB" }}
                           InputLabelProps={{ shrink: true }}
                           error={!!formErrors.registrationStartDate}
-                          helperText={formErrors.registrationStartDate || " "}
+                          helperText={
+                            formErrors.registrationStartDate ||
+                            "Định dạng: day/month/year"
+                          }
                         />
                       </Box>
                       <Box>
@@ -667,9 +673,13 @@ const CompetitionFormPage: React.FC = () => {
                           }
                           disabled={isView}
                           fullWidth
+                          inputProps={{ lang: "en-GB" }}
                           InputLabelProps={{ shrink: true }}
                           error={!!formErrors.registrationEndDate}
-                          helperText={formErrors.registrationEndDate || " "}
+                          helperText={
+                            formErrors.registrationEndDate ||
+                            "Định dạng: day/month/year"
+                          }
                         />
                       </Box>
                       <Box>
@@ -682,9 +692,13 @@ const CompetitionFormPage: React.FC = () => {
                           }
                           disabled={isView}
                           fullWidth
+                          inputProps={{ lang: "en-GB" }}
                           InputLabelProps={{ shrink: true }}
                           error={!!formErrors.weighInDate}
-                          helperText={formErrors.weighInDate || " "}
+                          helperText={
+                            formErrors.weighInDate ||
+                            "Định dạng: day/month/year"
+                          }
                         />
                       </Box>
                       <Box>
@@ -697,7 +711,9 @@ const CompetitionFormPage: React.FC = () => {
                           }
                           disabled={isView}
                           fullWidth
+                          inputProps={{ lang: "en-GB" }}
                           InputLabelProps={{ shrink: true }}
+                          helperText={"Định dạng: day/month/year"}
                         />
                       </Box>
                       <Box>
@@ -710,9 +726,12 @@ const CompetitionFormPage: React.FC = () => {
                           }
                           disabled={isView}
                           fullWidth
+                          inputProps={{ lang: "en-GB" }}
                           InputLabelProps={{ shrink: true }}
                           error={!!formErrors.startDate}
-                          helperText={formErrors.startDate || " "}
+                          helperText={
+                            formErrors.startDate || "Định dạng: day/month/year"
+                          }
                         />
                       </Box>
                       <Box>
@@ -725,9 +744,12 @@ const CompetitionFormPage: React.FC = () => {
                           }
                           disabled={isView}
                           fullWidth
+                          inputProps={{ lang: "en-GB" }}
                           InputLabelProps={{ shrink: true }}
                           error={!!formErrors.endDate}
-                          helperText={formErrors.endDate || " "}
+                          helperText={
+                            formErrors.endDate || "Định dạng: day/month/year"
+                          }
                         />
                       </Box>
                       <Box>
