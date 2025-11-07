@@ -1345,6 +1345,12 @@ export default function ArrangeOrderPage({
         qs.set("competitionType", activeTab);
         qs.set("competitionId", selectedTournament);
 
+        console.log("[ArrangeOrderPage] Loading athletes with params:", {
+          competitionId: selectedTournament,
+          competitionType: activeTab,
+          tournament: selectedTournament,
+        });
+
         // Add filter parameters
         if (debouncedName) {
           qs.set("name", debouncedName);
@@ -1380,9 +1386,11 @@ export default function ArrangeOrderPage({
         }
 
         setPendingLoads((n) => n + 1);
-        const res = await api.get<PaginationResponse<AthleteApi>>(
-          `${API_ENDPOINTS.ATHLETES.BASE}?${qs.toString()}`
-        );
+        const apiUrl = `${API_ENDPOINTS.ATHLETES.BASE}?${qs.toString()}`;
+        console.log("[ArrangeOrderPage] API URL:", apiUrl);
+        const res = await api.get<PaginationResponse<AthleteApi>>(apiUrl);
+
+        console.log("[ArrangeOrderPage] API Response:", res.data);
 
         const rootAny = res.data as unknown as Record<string, unknown>;
         const outer = (rootAny?.data as Record<string, unknown>) ?? rootAny;
@@ -1390,6 +1398,11 @@ export default function ArrangeOrderPage({
           (outer?.data as PaginationResponse<AthleteApi>) ||
           (outer as unknown as PaginationResponse<AthleteApi>);
         const content = inner?.content || [];
+
+        console.log(
+          "[ArrangeOrderPage] Parsed athletes count:",
+          content.length
+        );
 
         // Group by performanceId for team detail reconstruction
         const grouped: Record<string, AthleteApi[]> = {};
