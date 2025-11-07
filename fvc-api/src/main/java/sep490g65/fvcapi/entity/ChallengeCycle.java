@@ -30,6 +30,12 @@ public class ChallengeCycle extends BaseEntity {
 
     private LocalDate endDate;
 
+    @Column(name = "cycle_duration_months")
+    private Integer cycleDurationMonths; // Số tháng của cycle
+
+    @Column(name = "phase_duration_weeks")
+    private Integer phaseDurationWeeks; // Số tuần của mỗi phase
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ChallengeCycleStatus status;

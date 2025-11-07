@@ -8,6 +8,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import sep490g65.fvcapi.constants.ApiConstants;
 import sep490g65.fvcapi.constants.MessageConstants;
+import sep490g65.fvcapi.dto.request.BulkCreateMatchesRequest;
 import sep490g65.fvcapi.dto.request.ControlMatchRequest;
 import sep490g65.fvcapi.dto.request.CreateMatchRequest;
 import sep490g65.fvcapi.dto.request.RecordScoreEventRequest;
@@ -56,6 +57,28 @@ public class MatchController {
             log.error("Error creating match", e);
             return ResponseEntity.ok(ResponseUtils.error(
                     e.getMessage(), "MATCH_CREATE_ERROR"));
+        }
+    }
+
+    @PostMapping("/bulk-create")
+    public ResponseEntity<BaseResponse<List<MatchScoreboardDto>>> bulkCreateMatches(
+            @Valid @RequestBody BulkCreateMatchesRequest request,
+            Authentication authentication) {
+        log.info("🎯 [MatchController] Received bulk create matches request with {} matches", 
+                request.getMatches() != null ? request.getMatches().size() : 0);
+        try {
+            String userId = authentication.getName();
+            log.info("🎯 [MatchController] User ID: {}", userId);
+            List<MatchScoreboardDto> matches = matchService.bulkCreateMatches(request.getMatches(), userId);
+            log.info("✅ [MatchController] Successfully created {} matches", matches.size());
+            return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                    .body(ResponseUtils.success(
+                            String.format("Successfully created %d matches", matches.size()), 
+                            matches));
+        } catch (Exception e) {
+            log.error("❌ [MatchController] Error bulk creating matches", e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    e.getMessage(), "MATCH_BULK_CREATE_ERROR"));
         }
     }
 

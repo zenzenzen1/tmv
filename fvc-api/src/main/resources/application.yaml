@@ -7,11 +7,18 @@ spring:
       enabled: false
 
   datasource:
+<<<<<<< HEAD
+    url: jdbc:postgresql://localhost:5432/fvc-db
+    username: postgres
+    password: sa123
+    driver-class-name: org.postgresql.Driver
+=======
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fvc-db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:123}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
 
+>>>>>>> 2ce823be9540c12605b6c9a03bdcfdd8c07cd5a0
 
   jpa:
     hibernate:

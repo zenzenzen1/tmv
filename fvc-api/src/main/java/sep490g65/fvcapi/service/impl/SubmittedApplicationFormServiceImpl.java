@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import sep490g65.fvcapi.dto.FormDataDto;
 import sep490g65.fvcapi.dto.request.RequestParam;
 import sep490g65.fvcapi.dto.request.SubmitApplicationFormRequest;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
@@ -95,6 +96,29 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
     @Override
     @Transactional
     public SubmittedApplicationFormResponse submit(SubmitApplicationFormRequest request) throws com.fasterxml.jackson.core.JsonProcessingException {
+        // Duplicate check ONLY within submitted forms by email
+        try {
+            sep490g65.fvcapi.dto.FormDataDto formData = objectMapper.convertValue(request.getFormData(), sep490g65.fvcapi.dto.FormDataDto.class);
+            String email = formData.getEmail();
+            String formConfigId = request.getApplicationFormConfigId();
+
+            if (email != null && !email.trim().isEmpty()) {
+                boolean exists = false;
+                if (formConfigId != null && !formConfigId.trim().isEmpty()) {
+                    exists = repository.existsByApplicationFormConfig_IdAndEmailIgnoreCase(formConfigId, email);
+                } else {
+                    exists = repository.existsByEmailIgnoreCase(email);
+                }
+                if (exists) {
+                    throw new IllegalArgumentException("Email này đã nộp đơn trước đó");
+                }
+            }
+        } catch (IllegalArgumentException dupEx) {
+            throw dupEx;
+        } catch (Exception e) {
+            // ignore parse issues
+        }
+
         // Create entity. Persist structured DTO as JSON string
         SubmittedApplicationForm entity = SubmittedApplicationForm.builder()
                 .formType(request.getFormType())
@@ -102,6 +126,15 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
                 .reviewerNote(request.getReviewerNote())
                 .status(ApplicationFormStatus.PENDING)
                 .build();
+
+        // persist extracted email for fast duplicate checks later
+        try {
+            sep490g65.fvcapi.dto.FormDataDto formData = objectMapper.convertValue(request.getFormData(), sep490g65.fvcapi.dto.FormDataDto.class);
+            if (formData.getEmail() != null && !formData.getEmail().trim().isEmpty()) {
+                entity.setEmail(formData.getEmail());
+            }
+        } catch (Exception ignored) {
+        }
         
         // Set user if provided (optional - guest can submit forms)
         if (request.getUserId() != null && !request.getUserId().trim().isEmpty()) {
@@ -145,7 +178,7 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
         String formDataJson = form.getFormData();
         
         // Parse form data to DTO
-        sep490g65.fvcapi.dto.FormDataDto formData = objectMapper.readValue(formDataJson, sep490g65.fvcapi.dto.FormDataDto.class);
+        FormDataDto formData = objectMapper.readValue(formDataJson, FormDataDto.class);
         
         // Get email from form_data
         String email = formData.getEmail();
@@ -185,7 +218,7 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
         log.info("Created club member for user {} with email {}", user.getId(), email);
     }
     
-    private User createUserFromFormData(sep490g65.fvcapi.dto.FormDataDto formData, String email) {
+    private User createUserFromFormData(FormDataDto formData, String email) {
         // Generate random password
         String randomPassword = generateRandomPassword();
         String hashedPassword = passwordEncoder.encode(randomPassword);
@@ -208,7 +241,7 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
         newUser.setGender(formData.getGender());
         newUser.setSystemRole(SystemRole.MEMBER);
         newUser.setStatus(true);
-        newUser.setIsInChallenge(false);
+        newUser.setIsInChallenge(true);
         
         User savedUser = userRepository.save(newUser);
         
@@ -216,7 +249,7 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
         
         // Send email with temporary password to user
         try {
-            String loginUrl = "https://fvclub.fpt.edu.vn/login"; // TODO: Get from config
+            String loginUrl = "https://fvclub.fpt.edu.vn/login";
             emailService.sendNewAccountPassword(
                 email, 
                 formData.getFullName() != null ? formData.getFullName() : "Thành viên mới",

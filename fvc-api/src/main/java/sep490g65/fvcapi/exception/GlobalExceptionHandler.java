@@ -56,14 +56,34 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex, WebRequest request) {
         log.error("Method argument not valid: {}", ex.getMessage());
 
-        // Get the first validation error message (sequential error handling)
-        String errorMessage = ex.getBindingResult().getAllErrors().stream()
-                .map(error -> error.getDefaultMessage())
-                .findFirst()
-                .orElse("Validation failed");
+        // Get all validation errors and combine them into a detailed message
+        StringBuilder errorMessage = new StringBuilder();
+        ex.getBindingResult().getFieldErrors().forEach(error -> {
+            String fieldName = error.getField();
+            String message = error.getDefaultMessage();
+            if (errorMessage.length() > 0) {
+                errorMessage.append("; ");
+            }
+            errorMessage.append(fieldName).append(": ").append(message);
+        });
+
+        // If no field errors, get global errors
+        if (errorMessage.length() == 0) {
+            ex.getBindingResult().getAllErrors().forEach(error -> {
+                if (errorMessage.length() > 0) {
+                    errorMessage.append("; ");
+                }
+                errorMessage.append(error.getDefaultMessage());
+            });
+        }
+
+        // If still no message, use default
+        if (errorMessage.length() == 0) {
+            errorMessage.append("Validation failed");
+        }
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(BaseResponse.error(errorMessage, "VALIDATION_ERROR"));
+                .body(BaseResponse.error(errorMessage.toString(), "VALIDATION_ERROR"));
     }
 
     @ExceptionHandler(Exception.class)
