@@ -15,7 +15,6 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
-import sep490g65.fvcapi.exception.BusinessException;
 import sep490g65.fvcapi.exception.custom.ValidationException;
 
 @Slf4j
@@ -30,9 +29,9 @@ public class GlobalExceptionHandler {
                 .body(BaseResponse.error(ex.getMessage(), "RESOURCE_NOT_FOUND"));
     }
 
-    @ExceptionHandler(BusinessException.class)
+    @ExceptionHandler(sep490g65.fvcapi.exception.BusinessException.class)
     public ResponseEntity<BaseResponse<Void>> handleBusinessException(
-            BusinessException ex, WebRequest request) {
+            sep490g65.fvcapi.exception.BusinessException ex, WebRequest request) {
         log.error("Business exception: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(BaseResponse.error(ex.getMessage(), ex.getErrorCode()));
@@ -50,8 +49,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<BaseResponse<Void>> handleBadCredentialsException(
             BadCredentialsException ex, WebRequest request) {
         log.error("Bad credentials exception: {}", ex.getMessage());
+        String message = ex.getMessage();
+        String errorCode = "AUTH_ERROR";
+
+        if (message != null && message.trim().equalsIgnoreCase("Account is inactive")) {
+            message = "Account is inactive";
+            errorCode = "ACCOUNT_INACTIVE";
+        } else {
+            message = "Invalid email or password";
+        }
+
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(BaseResponse.error("Invalid email or password", "AUTH_ERROR"));
+                .body(BaseResponse.error(message, errorCode));
     }
 
     @ExceptionHandler(UsernameNotFoundException.class)

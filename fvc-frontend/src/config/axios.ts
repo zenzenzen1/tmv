@@ -52,26 +52,6 @@ apiClient.interceptors.request.use(
 // Response interceptor
 apiClient.interceptors.response.use(
   (response: AxiosResponse<BaseResponse>) => {
-    // Calculate request duration
-    const customConfig = response.config as CustomAxiosRequestConfig;
-    const duration = customConfig.metadata?.startTime
-      ? new Date().getTime() - customConfig.metadata.startTime.getTime()
-      : 0;
-
-    // Log response in development
-    if (import.meta.env.DEV) {
-      //   console.log(
-      //     `✅ API Response: ${response.config.method?.toUpperCase()} ${
-      //       response.config.url
-      //     }`,
-      //     {
-      //       status: response.status,
-      //       duration: `${duration}ms`,
-      //       data: response.data,
-      //     }
-      //   );
-    }
-
     // Handle API-level errors (only if response has success field)
     if (
       response.data &&
@@ -79,9 +59,10 @@ apiClient.interceptors.response.use(
       "success" in response.data &&
       !response.data.success
     ) {
+      const body = response.data as BaseResponse<unknown>;
       const error: ErrorResponse = {
         success: false,
-        message: (response.data as any).message || "An error occurred",
+        message: body.message || "An error occurred",
         error: "API_ERROR",
         timestamp: new Date().toISOString(),
         path: response.config.url,
@@ -94,9 +75,7 @@ apiClient.interceptors.response.use(
   (error: AxiosError) => {
     // Calculate request duration
     const customConfig = error.config as CustomAxiosRequestConfig;
-    const duration = customConfig?.metadata?.startTime
-      ? new Date().getTime() - customConfig.metadata.startTime.getTime()
-      : 0;
+    const startTime = customConfig?.metadata?.startTime;
 
     // Log error in development (skip 400/404 for submissions endpoints - expected behavior)
     const isSubmissionsEndpoint = error.config?.url?.includes("/submissions");
@@ -105,6 +84,7 @@ apiClient.interceptors.response.use(
       (error.response?.status === 400 || error.response?.status === 404);
 
     if (import.meta.env.DEV && !isExpectedError) {
+      const duration = startTime ? Date.now() - startTime.getTime() : 0;
       console.error(
         `❌ API Error: ${error.config?.method?.toUpperCase()} ${
           error.config?.url
@@ -120,15 +100,19 @@ apiClient.interceptors.response.use(
 
     // Handle different error types
     let errorResponse: ErrorResponse;
+    type ErrorPayload = Partial<ErrorResponse> & Record<string, unknown>;
 
     if (error.response) {
       // Server responded with error status
-      const responseData = error.response.data as any;
+      const responseData = (error.response.data ?? {}) as ErrorPayload;
       errorResponse = {
         success: false,
         message:
           responseData?.message || `Server error: ${error.response.status}`,
-        error: responseData?.error || "SERVER_ERROR",
+        error:
+          typeof responseData?.error === "string"
+            ? responseData.error
+            : "SERVER_ERROR",
         timestamp: new Date().toISOString(),
         path: error.config?.url,
       };
@@ -137,12 +121,18 @@ apiClient.interceptors.response.use(
         API_ENDPOINTS?.AUTH?.LOGIN || "/v1/auth/login"
       );
       if (isLoginEndpoint && error.response.status === 401) {
-        errorResponse.message = "Invalid email or password";
-        errorResponse.error = "AUTH_ERROR" as any;
+        if (responseData?.error === "ACCOUNT_INACTIVE") {
+          errorResponse.message =
+            responseData?.message || "Account is inactive";
+          errorResponse.error = "ACCOUNT_INACTIVE";
+        } else {
+          errorResponse.message = "Invalid email or password";
+          errorResponse.error = "AUTH_ERROR";
+        }
       }
       if (isLoginEndpoint && error.response.status === 404) {
         errorResponse.message = "User not found";
-        errorResponse.error = "NOT_FOUND_ERROR" as any;
+        errorResponse.error = "NOT_FOUND_ERROR";
       }
     } else if (error.request) {
       // Request was made but no response received

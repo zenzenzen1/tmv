@@ -6,9 +6,10 @@ import Background from "../../assets/background.png";
 import { Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
-import { useAuthActions, useAuth } from "../../stores/authStore";
+import { useAuthActions, useAuth, useAuthStore } from "../../stores/authStore";
 import type { LoginRequest } from "../../types";
 import { validateEmail, validateRequired } from "../../utils/validation";
+import { getRoleLandingRoute } from "@/utils/roleRouting";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -54,7 +55,10 @@ export default function LoginPage() {
 
     try {
       await login(formData);
-      navigate("/dashboard");
+      const landingRoute = getRoleLandingRoute(
+        useAuthStore.getState().user?.systemRole
+      );
+      navigate(landingRoute);
     } catch (error) {
       // Error is handled by the store
       console.error("Login failed:", error);

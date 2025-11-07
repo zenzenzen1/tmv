@@ -1,6 +1,8 @@
 import { Route, Routes, Navigate } from "react-router-dom";
 import "./App.css";
 import { useIsAuthenticated, useAuthStore } from "./stores/authStore";
+import { getRoleLandingRoute, getManageIndexRoute } from "./utils/roleRouting";
+import type { SystemRole } from "@/types/user";
 
 // Pages
 import LoginPage from "./pages/auth/LoginPage";
@@ -54,6 +56,9 @@ import CycleCreate from "./pages/cycles/CycleCreate";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
+  const userRole = useAuthStore(
+    (state) => (state.user?.systemRole as SystemRole | null) ?? null
+  );
 
   function Protected({ children }: { children: React.ReactElement }) {
     // Wait for hydration to complete
@@ -81,6 +86,12 @@ export default function App() {
     return children;
   }
 
+  function ManageIndexRedirect({ role }: { role: SystemRole | null }) {
+    const target = getManageIndexRoute(role);
+    const to = target.startsWith("/") ? target : `/manage/${target}`;
+    return <Navigate to={to} replace />;
+  }
+
   // Nếu đã login → hiển thị layout chính
   return (
     <Routes>
@@ -90,7 +101,7 @@ export default function App() {
         path="/login"
         element={
           isAuthenticated ? (
-            <Navigate to="/manage/tournaments" replace />
+            <Navigate to={getRoleLandingRoute(userRole)} replace />
           ) : (
             <LoginPage />
           )
@@ -115,7 +126,7 @@ export default function App() {
         path="/"
         element={
           isAuthenticated ? (
-            <Navigate to="/manage/tournaments" replace />
+            <Navigate to={getRoleLandingRoute(userRole)} replace />
           ) : (
             <LandingPage />
           )
@@ -152,7 +163,7 @@ export default function App() {
         }
       >
         {/* default */}
-        <Route index element={<Navigate to="tournaments" replace />} />
+        <Route index element={<ManageIndexRedirect role={userRole} />} />
 
         {/* Dashboard/Home (optional) */}
         <Route path="dashboard" element={<DashboardPage />} />
