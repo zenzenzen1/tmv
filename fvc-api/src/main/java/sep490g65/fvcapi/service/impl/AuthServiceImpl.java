@@ -3,6 +3,7 @@ package sep490g65.fvcapi.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import sep490g65.fvcapi.dto.request.LoginRequest;
@@ -58,7 +59,8 @@ public class AuthServiceImpl implements AuthService {
             
             if (users.isEmpty()) {
                 log.error("User not found for email: {} (normalized: {})", request.getEmail(), normalizedEmail);
-                throw new BadCredentialsException("Invalid email or password");
+                // Throw specific exception to allow 404 mapping at controller advice
+                throw new UsernameNotFoundException("User not found");
             }
             
             // If there are duplicates, log a warning and use the first one
@@ -112,6 +114,10 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (BadCredentialsException e) {
             log.error("=== LOGIN FAILED - BadCredentials ===");
+            log.error("Login failed for email: {} - {}", request.getEmail(), e.getMessage());
+            throw e;
+        } catch (UsernameNotFoundException e) {
+            log.error("=== LOGIN FAILED - User Not Found ===");
             log.error("Login failed for email: {} - {}", request.getEmail(), e.getMessage());
             throw e;
         } catch (Exception e) {
