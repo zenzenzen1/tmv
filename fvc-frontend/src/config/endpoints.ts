@@ -188,6 +188,7 @@ export const API_ENDPOINTS = {
 
   // Performances (fallback/basic info)
   PERFORMANCES: {
+    CREATE: "/v1/performances",
     BY_ID: "/v1/performances/{id}",
     BY_MATCH_ID: "/v1/performances/by-match/{matchId}",
     START: (id: string) => `/v1/performances/${id}/start`,

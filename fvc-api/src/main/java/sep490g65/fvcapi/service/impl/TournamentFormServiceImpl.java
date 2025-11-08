@@ -41,6 +41,7 @@ import sep490g65.fvcapi.repository.WeightClassRepository;
 import sep490g65.fvcapi.repository.VovinamFistConfigRepository;
 import sep490g65.fvcapi.repository.VovinamFistItemRepository;
 import sep490g65.fvcapi.repository.MusicIntegratedPerformanceRepository;
+import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -308,23 +309,33 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     @Override
     @Transactional(readOnly = false)
     public void updateSubmissionStatus(Long submissionId, ApplicationFormStatus status) {
-        sep490g65.fvcapi.entity.SubmittedApplicationForm s = submittedRepository.findById(submissionId).orElseThrow();
+        sep490g65.fvcapi.entity.SubmittedApplicationForm s = submittedRepository.findById(submissionId)
+                .orElseThrow(() -> new ResourceNotFoundException("SubmittedApplicationForm", "id", submissionId));
         s.setStatus(status);
         submittedRepository.save(s);
 
         // On approval, upsert an athlete based on submission data
+        // Run all approval side-effects in a separate transaction to ensure status update succeeds even if athlete creation fails
         if (status == ApplicationFormStatus.APPROVED) {
-            try {
-                String formJson = s.getFormData();
-                JsonNode root = formJson != null ? objectMapper.readTree(formJson) : objectMapper.createObjectNode();
+            TransactionTemplate approvalTpl = new TransactionTemplate(transactionManager);
+            approvalTpl.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            approvalTpl.executeWithoutResult((txStatus) -> {
+                try {
+                    String formJson = s.getFormData();
+                    JsonNode root = formJson != null ? objectMapper.readTree(formJson) : objectMapper.createObjectNode();
 
-                // Chạy side-effects trong transaction REQUIRES_NEW thông qua TransactionTemplate để tránh self-invocation issue
-                TransactionTemplate tpl = new TransactionTemplate(transactionManager);
-                tpl.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-                tpl.execute(statusIgnored -> {
-                    try { upsertAthleteAndRole(root, s); } catch (Exception ignoredInner) { }
-                    return null;
-                });
+                    // Chạy side-effects trong transaction REQUIRES_NEW thông qua TransactionTemplate để tránh self-invocation issue
+                    TransactionTemplate tpl = new TransactionTemplate(transactionManager);
+                    tpl.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+                    tpl.execute(innerTxStatus -> {
+                        try { 
+                            upsertAthleteAndRole(root, s); 
+                        } catch (Exception innerEx) { 
+                            log.warn("Failed to upsert athlete and role in separate transaction for submission {}: {}", 
+                                    submissionId, innerEx.getMessage(), innerEx);
+                        }
+                        return null;
+                    });
                 String fullName = textOrNull(root, "fullName");
                 String email = textOrNull(root, "email");
                 String club = textOrNull(root, "club");
@@ -388,13 +399,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                     }
                 } catch (Exception ignoredResolveCfg) { }
 
-                    // First, delete existing athlete with same email and competition_id to avoid duplicates
-                    try {
-                        athleteService.deleteByEmailAndCompetitionId(email, competitionId);
-                    } catch (Exception ignoredDelete) {
-                        // Ignore if athlete doesn't exist
-                    }
-
+                    // Use upsert to avoid duplicate key constraint violations
                     Athlete.AthleteBuilder builder = Athlete.builder()
                         .competitionId(competitionId)
                         .fullName(fullName)
@@ -407,14 +412,14 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                         .status(Athlete.AthleteStatus.NOT_STARTED);
 
                     // Prefer IDs from submission formData for FK columns
-
                     if (weightClassId != null && !weightClassId.isBlank()) builder.weightClassId(weightClassId);
                     if (fistConfigId  != null && !fistConfigId.isBlank())  builder.fistConfigId(fistConfigId);
                     // Persist both config and item to support list/filters
                     if (musicContentId!= null && !musicContentId.isBlank()) builder.musicContentId(musicContentId);
                     if (fistItemId != null && !fistItemId.isBlank()) builder.fistItemId(fistItemId);
 
-                    Athlete athlete = athleteService.create(builder.build());
+                    // Use upsert instead of delete + create to avoid race conditions and constraint violations
+                    Athlete athlete = athleteService.upsert(builder.build());
                     
                     // Create CompetitionRole for the athlete (always create)
                     Competition competition = competitionRepository.findById(competitionId).orElse(null);
@@ -552,11 +557,19 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                                 } catch (Exception ignoredUpsert) {}
                             }
                         } catch (Exception ignoredPerf) {}
-                    } catch (Exception ignoredPropagate) { }
+                    } catch (Exception propagateEx) {
+                        log.warn("Failed to propagate team performance updates for submission {}: {}", 
+                                submissionId, propagateEx.getMessage(), propagateEx);
+                    }
                 }
-            } catch (Exception ignored) {
-                // Không để lỗi phụ làm hỏng quá trình cập nhật trạng thái
-            }
+                } catch (Exception ex) {
+                    // Log error but don't fail the status update transaction
+                    log.error("Error processing approval side-effects for submission {}: {}", 
+                            submissionId, ex.getMessage(), ex);
+                    // Don't re-throw - this is in a separate transaction, so status update already succeeded
+                    // The exception will be logged but won't affect the main transaction
+                }
+            });
         }
     }
 
