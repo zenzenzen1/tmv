@@ -126,6 +126,7 @@ export default function App() {
         path="/"
         element={
           isAuthenticated ? (
+            // <Navigate to="/manage/tournaments" replace />
             <Navigate to={getRoleLandingRoute(userRole)} replace />
           ) : (
             <LandingPage />

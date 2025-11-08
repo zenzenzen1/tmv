@@ -18,6 +18,9 @@ public interface SubmittedApplicationFormService {
     
     @Transactional
     void updateStatus(Long id, ApplicationFormStatus status);
+    
+    // Bulk update with async processing
+    void bulkUpdateStatus(java.util.List<Long> ids, ApplicationFormStatus status);
 }
 
 
