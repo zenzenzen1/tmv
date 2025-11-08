@@ -45,10 +45,6 @@ public class MatchAssessor extends BaseEntity {
     @JoinColumn(name = "performance_id")
     private Performance performance;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private Specialization specialization;
-
     // Cho đối kháng: role (JUDGER hoặc ASSESSOR), nullable cho quyền/võ nhạc
     @Enumerated(EnumType.STRING)
     @Column(name = "role", length = 20)
@@ -69,11 +65,5 @@ public class MatchAssessor extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_by")
     private User assignedBy;
-
-    public enum Specialization {
-        QUYEN,    // Quyền
-        MUSIC,    // Võ nhạc
-        FIGHTING  // Đối kháng
-    }
 }
 

@@ -49,6 +49,29 @@ public class UserController {
         }
     }
 
+    @GetMapping("/{userId}")
+    public ResponseEntity<BaseResponse<UserResponse>> getUserById(@PathVariable String userId) {
+        
+        try {
+            log.info("Fetching user by id: {}", userId);
+            
+            UserResponse user = userService.getUserById(userId);
+            
+            log.info("Successfully fetched user with id: {}", userId);
+            
+            return ResponseEntity.ok(ResponseUtils.success("User fetched successfully", user));
+            
+        } catch (BusinessException e) {
+            log.error("Business error fetching user: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseUtils.error(e.getMessage(), e.getErrorCode()));
+        } catch (Exception e) {
+            log.error("Unexpected error fetching user: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseUtils.error("Failed to fetch user", "USER_FETCH_FAILED"));
+        }
+    }
+
     @GetMapping
     public ResponseEntity<BaseResponse<Page<UserResponse>>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
@@ -72,6 +95,33 @@ public class UserController {
             log.error("Unexpected error fetching users: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ResponseUtils.error("Failed to fetch users", "USER_FETCH_FAILED"));
+        }
+    }
+
+    @GetMapping("/challenge/search")
+    public ResponseEntity<BaseResponse<Page<UserResponse>>> searchChallengeUsers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String query) {
+        
+        try {
+            log.info("Searching challenge users - page: {}, size: {}, query: {}", page, size, query);
+            
+            Pageable pageable = PageRequest.of(page, size);
+            Page<UserResponse> users = userService.searchChallengeUsers(pageable, query);
+            
+            log.info("Successfully found {} challenge users", users.getTotalElements());
+            
+            return ResponseEntity.ok(ResponseUtils.success("Challenge users search completed", users));
+            
+        } catch (BusinessException e) {
+            log.error("Business error searching challenge users: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ResponseUtils.error(e.getMessage(), e.getErrorCode()));
+        } catch (Exception e) {
+            log.error("Unexpected error searching challenge users: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseUtils.error("Failed to search challenge users", "CHALLENGE_USER_SEARCH_FAILED"));
         }
     }
 

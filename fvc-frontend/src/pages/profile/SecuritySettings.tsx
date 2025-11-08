@@ -6,13 +6,21 @@ import {
   Paper,
   Alert,
   Divider,
-  IconButton,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Security,
   Lock,
   Visibility,
   VisibilityOff,
+  Shield,
+  Notifications,
+  Key,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import profileService from '@/services/profileService';
@@ -31,6 +39,20 @@ export default function SecuritySettings() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  type NotificationsState = {
+    emailNotifications: boolean;
+    securityAlerts: boolean;
+    loginAlerts: boolean;
+  };
+  const [notifications, setNotifications] = useState<NotificationsState>({
+    emailNotifications: false,
+    securityAlerts: false,
+    loginAlerts: false,
+  });
+  const handleNotificationChange = (field: keyof NotificationsState) => (_event: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
+    setNotifications(prev => ({ ...prev, [field]: checked }));
+  };
+
   const handlePasswordChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setPasswordData(prev => ({
       ...prev,
@@ -47,9 +69,37 @@ export default function SecuritySettings() {
       setError(null);
       setSuccess(false);
 
+      // Basic validations
+      if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+        setError('Vui lòng nhập đầy đủ thông tin mật khẩu');
+        setIsChanging(false);
+        return;
+      }
+
+      if (passwordData.newPassword.length < 8) {
+        setError('Mật khẩu mới phải có ít nhất 8 ký tự');
+        setIsChanging(false);
+        return;
+      }
+
+      if (passwordData.newPassword.length > 64) {
+        setError('Mật khẩu mới không được vượt quá 64 ký tự');
+        setIsChanging(false);
+        return;
+      }
+
+      // Validate password pattern: must have upper, lower, digit, special and no spaces
+      const passwordPattern = /^(?=\S+$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,64}$/;
+      if (!passwordPattern.test(passwordData.newPassword)) {
+        setError('Mật khẩu phải có chữ hoa, chữ thường, số, ký tự đặc biệt và không có khoảng trắng');
+        setIsChanging(false);
+        return;
+      }
+
       // Validate passwords match
       if (passwordData.newPassword !== passwordData.confirmPassword) {
-        setError('New password and confirm password do not match');
+        setError('Mật khẩu mới và xác nhận mật khẩu không khớp');
+        setIsChanging(false);
         return;
       }
 
@@ -70,7 +120,14 @@ export default function SecuritySettings() {
       // Hide success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to change password');
+      console.error('Password change error:', err);
+      // Try to extract the error message from various possible locations
+      // The axios interceptor transforms errors, so check both structures
+      const apiMessage = err?.message ||  // Transformed error from interceptor
+                        err?.response?.data?.message ||  // Original axios error
+                        err?.response?.data?.error?.message ||
+                        'Không thể thay đổi mật khẩu. Vui lòng thử lại.';
+      setError(apiMessage);
     } finally {
       setIsChanging(false);
     }
@@ -158,18 +215,39 @@ export default function SecuritySettings() {
               </Box>
             </Box>
 
+            {/* Error and Success Messages */}
+            {error && (
+              <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }} onClose={() => setError(null)}>
+                {error}
+              </Alert>
+            )}
+            {success && (
+              <Alert severity="success" sx={{ mt: 2, borderRadius: 2 }} onClose={() => setSuccess(false)}>
+                Mật khẩu đã được thay đổi thành công!
+              </Alert>
+            )}
+
             <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
               <Button
                 variant="contained"
                 onClick={handleChangePassword}
-                disabled={!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
+                disabled={
+                  isChanging ||
+                  !passwordData.currentPassword ||
+                  !passwordData.newPassword ||
+                  !passwordData.confirmPassword
+                }
                 sx={{ borderRadius: 2 }}
               >
-                Thay đổi mật khẩu
+                {isChanging ? 'Đang xử lý...' : 'Thay đổi mật khẩu'}
               </Button>
               <Button
                 variant="outlined"
-                onClick={() => setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })}
+                onClick={() => {
+                  setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                  setError(null);
+                  setSuccess(false);
+                }}
                 sx={{ borderRadius: 2 }}
               >
                 Hủy

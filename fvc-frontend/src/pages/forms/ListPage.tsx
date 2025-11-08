@@ -28,7 +28,8 @@ export default function FormListPage() {
   const [rows, setRows] = useState<FormRow[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
-  const [searchText, setSearchText] = useState<string>("");
+  const [searchInput, setSearchInput] = useState<string>(""); // Input value (immediate)
+  const [searchText, setSearchText] = useState<string>(""); // Actual search value (debounced)
   const [statusFilter, setStatusFilter] = useState<
     "ALL" | "DRAFT" | "PUBLISH" | "ARCHIVED" | "POSTPONE"
   >("ALL");
@@ -239,6 +240,16 @@ export default function FormListPage() {
     [toast, handleEditForm, handleViewForm]
   );
 
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchText(searchInput);
+      setPage(1); // Reset to first page when search changes
+    }, 300); // 300ms delay
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   useEffect(() => {
     loadForms();
   }, [page, pageSize, searchText, statusFilter, loadForms]);
@@ -269,10 +280,9 @@ export default function FormListPage() {
         <>
           <div className="mb-4 flex items-center gap-2">
             <input
-              value={searchText}
+              value={searchInput}
               onChange={(e) => {
-                setPage(1);
-                setSearchText(e.target.value);
+                setSearchInput(e.target.value);
               }}
               placeholder="Tìm tên form / mô tả..."
               className="w-80 rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"

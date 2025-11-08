@@ -211,7 +211,7 @@ export default function FormPreviewPage() {
         <div className="text-center">
           <ErrorMessage error={error} />
           <button
-            onClick={() => navigate('/manage/forms')}
+            onClick={() => navigate(-1)}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             Quay lại
@@ -227,7 +227,7 @@ export default function FormPreviewPage() {
         <div className="text-center">
           <p className="text-gray-500">Không tìm thấy form</p>
           <button
-            onClick={() => navigate('/manage/forms')}
+            onClick={() => navigate(-1)}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             Quay lại
@@ -248,7 +248,7 @@ export default function FormPreviewPage() {
               <p className="mt-2 text-lg text-gray-600">{formConfig.description}</p>
             </div>
             <button
-              onClick={() => navigate('/manage/forms')}
+              onClick={() => navigate(-1)}
               className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
             >
               Quay lại

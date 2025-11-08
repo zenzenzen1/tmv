@@ -254,8 +254,8 @@ export default function SubmittedFormsPage() {
   const [dateTo, setDateTo] = useState<string>("");
 
   // Search
-
-  const [query, setQuery] = useState<string>("");
+  const [searchInput, setSearchInput] = useState<string>(""); // Input value (immediate)
+  const [query, setQuery] = useState<string>(""); // Actual search value (debounced)
 
   
 
@@ -330,6 +330,16 @@ export default function SubmittedFormsPage() {
       setLoading(false);
     }
   }, [page, pageSize, status, dateFrom, dateTo, query]);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(searchInput);
+      setPage(1); // Reset to first page when search changes
+    }, 300); // 300ms delay
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
     fetchData();
@@ -763,10 +773,9 @@ export default function SubmittedFormsPage() {
             </label>
             <input
               placeholder="Tên, email, MSSV..."
-              value={query}
+              value={searchInput}
               onChange={(e) => {
-                setPage(1);
-                setQuery(e.target.value);
+                setSearchInput(e.target.value);
               }}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
             />

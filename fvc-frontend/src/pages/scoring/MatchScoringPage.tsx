@@ -9,8 +9,8 @@ import matchScoringService, {
   type Corner,
 } from "../../services/matchScoringService";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
-import ErrorMessage from "../../components/common/ErrorMessage";
 import { useToast } from "../../components/common/ToastContext";
+import { useAuthStore } from "../../stores/authStore";
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -56,12 +56,12 @@ export default function MatchScoringPage() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const toast = useToast();
+  const user = useAuthStore((state) => state.user);
 
   const [scoreboard, setScoreboard] = useState<MatchScoreboard | null>(null);
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [assessors, setAssessors] = useState<MatchAssessor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedAssessor, setSelectedAssessor] = useState<number | null>(null);
   const [localTimeRemaining, setLocalTimeRemaining] = useState<number | null>(
@@ -70,6 +70,7 @@ export default function MatchScoringPage() {
   const [connectedAssessors, setConnectedAssessors] = useState<string[]>([]);
   const [connectedAssessorsCount, setConnectedAssessorsCount] = useState(0);
   const [selectedRound, setSelectedRound] = useState<number | "all">("all");
+  const [isReferee, setIsReferee] = useState<boolean>(false);
   const stompClientRef = useRef<Client | null>(null);
 
   // Check if match has ended
@@ -84,13 +85,12 @@ export default function MatchScoringPage() {
 
   const fetchScoreboard = useCallback(async () => {
     if (!matchId) {
-      setError("Match ID không hợp lệ");
+      toast.error("Match ID không hợp lệ");
       setLoading(false);
       return;
     }
 
     try {
-      setError(null);
       const [data, eventData, assessorData] = await Promise.all([
         matchScoringService.getScoreboard(matchId),
         matchScoringService.getEventHistory(matchId),
@@ -99,19 +99,53 @@ export default function MatchScoringPage() {
 
       setScoreboard(data);
       setEvents(eventData);
-      setAssessors(assessorData.sort((a, b) => a.position - b.position));
+      const sortedAssessors = assessorData.sort((a, b) => a.position - b.position);
+      setAssessors(sortedAssessors);
+
+      // Check if current user has permission to access this page
+      // Allow: 1) Referee (JUDGER at position 6), 2) Organization Committee members
+      if (sortedAssessors.length > 0 && user?.id) {
+        // Check if user is organization committee member
+        const isOrgCommittee = user.systemRole === "ORGANIZATION_COMMITTEE";
+        
+        // Check if user is the referee (JUDGER at position 6)
+        const refereeAssessor = sortedAssessors.find(
+          (a) => (a.role === "JUDGER" || a.position === 6) && a.userId === user.id
+        );
+        
+        if (!isOrgCommittee && !refereeAssessor) {
+          toast.error("Chỉ trọng tài (vị trí 6) hoặc ban tổ chức mới được phép vào màn hình này");
+          setTimeout(() => navigate(-1), 2000);
+          return;
+        }
+        
+        if (refereeAssessor) {
+          setIsReferee(true);
+        }
+      } else if (!user?.id) {
+        toast.error("Bạn cần đăng nhập để truy cập màn hình này");
+        setTimeout(() => navigate(-1), 2000);
+        return;
+      }
 
       // Initialize timer from roundDurationSeconds when match starts or round changes
       if (data.status === "ĐANG ĐẤU") {
         setLocalTimeRemaining((prev) => {
-          // Always reset timer when round changes
-          if (prev === null || scoreboard?.currentRound !== data.currentRound) {
+          // Only reset timer when round actually changes (not on first load when scoreboard is null)
+          if (scoreboard && scoreboard.currentRound !== data.currentRound) {
             console.log(
-              `Round changed: ${scoreboard?.currentRound} -> ${data.currentRound}, resetting timer to ${data.roundDurationSeconds}s`
+              `Round changed: ${scoreboard.currentRound} -> ${data.currentRound}, resetting timer to ${data.roundDurationSeconds}s`
             );
             return data.roundDurationSeconds;
           }
-          // Keep current local time if same round
+          // If prev is null (first load or timer not initialized), initialize with full duration
+          if (prev === null) {
+            console.log(
+              `Initializing timer for round ${data.currentRound} with ${data.roundDurationSeconds}s`
+            );
+            return data.roundDurationSeconds;
+          }
+          // Keep current local time if same round and timer is already running
           return prev;
         });
       } else {
@@ -119,12 +153,13 @@ export default function MatchScoringPage() {
         setLocalTimeRemaining(null);
       }
     } catch (err: any) {
-      setError(err?.message || "Không thể tải dữ liệu trận đấu");
+      const errorMessage = err?.message || "Không thể tải dữ liệu trận đấu";
+      toast.error(errorMessage);
       console.error("Error fetching scoreboard:", err);
     } finally {
       setLoading(false);
     }
-  }, [matchId]);
+  }, [matchId, toast, user]);
 
   const handleRoundEnd = useCallback(async () => {
     if (!matchId || !scoreboard || actionLoading) return;
@@ -188,7 +223,8 @@ export default function MatchScoringPage() {
       // Refresh data to ensure everything is in sync
       await fetchScoreboard();
     } catch (err: any) {
-      setError(err?.message || "Không thể chuyển vòng");
+      const errorMessage = err?.message || "Không thể chuyển vòng";
+      toast.error(errorMessage);
       console.error("Error ending round:", err);
     } finally {
       setActionLoading(false);
@@ -345,7 +381,8 @@ export default function MatchScoringPage() {
       setSelectedAssessor(null);
       await fetchScoreboard();
     } catch (err: any) {
-      setError(err?.message || "Không thể ghi nhận sự kiện");
+      const errorMessage = err?.message || "Không thể ghi nhận sự kiện";
+      toast.error(errorMessage);
       console.error("Error recording score event:", err);
     } finally {
       setActionLoading(false);
@@ -356,6 +393,40 @@ export default function MatchScoringPage() {
     action: "START" | "PAUSE" | "RESUME" | "END"
   ) => {
     if (!matchId || !scoreboard || actionLoading) return;
+
+    // For START action, check if all 6 assessors (5 ASSESSOR + 1 JUDGER) are connected
+    if (action === "START") {
+      // Check if we have exactly 6 assessors
+      if (assessors.length !== 6) {
+        toast.error(
+          `Trận đấu cần đúng 6 người (5 giám định + 1 trọng tài) trước khi bắt đầu. Hiện tại có ${assessors.length} người.`,
+          5000
+        );
+        return;
+      }
+
+      // Check if we have exactly 1 JUDGER (position 6)
+      const judgerCount = assessors.filter(
+        (a) => a.role === "JUDGER" || a.position === 6
+      ).length;
+      if (judgerCount !== 1) {
+        toast.error(
+          `Trận đấu cần đúng 1 trọng tài (vị trí 6). Hiện tại có ${judgerCount} trọng tài.`,
+          5000
+        );
+        return;
+      }
+
+      // Check if all 6 assessors are connected
+      if (connectedAssessorsCount < 6) {
+        const missingCount = 6 - connectedAssessorsCount;
+        toast.error(
+          `Tất cả 6 người (5 giám định + 1 trọng tài) phải kết nối trước khi bắt đầu trận đấu. Hiện tại có ${connectedAssessorsCount}/6 người đã kết nối. Thiếu ${missingCount} người.`,
+          5000
+        );
+        return;
+      }
+    }
 
     // Cannot end match if it hasn't started
     if (
@@ -403,7 +474,8 @@ export default function MatchScoringPage() {
 
       await fetchScoreboard();
     } catch (err: any) {
-      setError(err?.message || "Không thể điều khiển trận đấu");
+      const errorMessage = err?.message || "Không thể điều khiển trận đấu";
+      toast.error(errorMessage);
       console.error("Error controlling match:", err);
     } finally {
       setActionLoading(false);
@@ -419,10 +491,11 @@ export default function MatchScoringPage() {
         action: "END",
       });
 
-      alert(`Vận động viên ${corner === "RED" ? "Đỏ" : "Xanh"} thắng!`);
+      toast.success(`Vận động viên ${corner === "RED" ? "Đỏ" : "Xanh"} thắng!`);
       navigate(-1);
     } catch (err: any) {
-      setError(err?.message || "Không thể kết thúc trận đấu");
+      const errorMessage = err?.message || "Không thể kết thúc trận đấu";
+      toast.error(errorMessage);
       console.error("Error ending match:", err);
     } finally {
       setActionLoading(false);
@@ -437,7 +510,8 @@ export default function MatchScoringPage() {
       await matchScoringService.undoLastEvent(matchId);
       await fetchScoreboard();
     } catch (err: any) {
-      setError(err?.message || "Không thể hoàn tác");
+      const errorMessage = err?.message || "Không thể hoàn tác";
+      toast.error(errorMessage);
       console.error("Error undoing:", err);
     } finally {
       setActionLoading(false);
@@ -481,16 +555,10 @@ export default function MatchScoringPage() {
     );
   }
 
-  if (error && !scoreboard) {
+  if (loading && !scoreboard) {
     return (
       <div className="p-6">
-        <ErrorMessage error={error} onRetry={fetchScoreboard} />
-        <button
-          onClick={() => navigate(-1)}
-          className="mt-4 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-        >
-          Quay lại
-        </button>
+        <LoadingSpinner />
       </div>
     );
   }
@@ -505,6 +573,29 @@ export default function MatchScoringPage() {
         >
           Quay lại
         </button>
+      </div>
+    );
+  }
+
+  // Check if user has permission - allow referee or organization committee
+  const isOrgCommittee = user?.systemRole === "ORGANIZATION_COMMITTEE";
+  const hasPermission = isReferee || isOrgCommittee;
+  
+  if (assessors.length > 0 && user?.id && !hasPermission) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <h2 className="text-xl font-bold text-red-800 mb-2">Không có quyền truy cập</h2>
+          <p className="text-red-600 mb-4">
+            Chỉ trọng tài (vị trí 6) hoặc ban tổ chức mới được phép vào màn hình này.
+          </p>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+          >
+            Quay lại
+          </button>
+        </div>
       </div>
     );
   }
@@ -543,9 +634,9 @@ export default function MatchScoringPage() {
           </span>
           <span
             className={`px-3 py-1 rounded-md text-sm font-medium ${
-              connectedAssessorsCount >= 3
+              connectedAssessorsCount === 6
                 ? "bg-green-100 text-green-800"
-                : connectedAssessorsCount > 0
+                : connectedAssessorsCount >= 3
                 ? "bg-yellow-100 text-yellow-800"
                 : "bg-red-100 text-red-800"
             }`}
@@ -553,8 +644,7 @@ export default function MatchScoringPage() {
               connectedAssessors.join(", ") || "none"
             }`}
           >
-            Giám định đã kết nối: {connectedAssessorsCount}/
-            {assessors.length || 0}
+            Đã kết nối: {connectedAssessorsCount}/6 (5 giám định + 1 trọng tài)
           </span>
           <button
             onClick={() =>
@@ -572,12 +662,6 @@ export default function MatchScoringPage() {
           </button>
         </div>
       </div>
-
-      {error && (
-        <div className="mb-4">
-          <ErrorMessage error={error} />
-        </div>
-      )}
 
       {/* Competitor Information Row */}
       <div className="grid grid-cols-3 gap-6 mb-6">
@@ -844,10 +928,11 @@ export default function MatchScoringPage() {
           {scoreboard.status === "CHỜ BẮT ĐẦU" && (
             <button
               onClick={() => handleMatchControl("START")}
-              disabled={actionLoading || isMatchEnded}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
+              disabled={actionLoading || isMatchEnded || connectedAssessorsCount < 6}
+              className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={connectedAssessorsCount < 6 ? "Cần tất cả 6 người (5 giám định + 1 trọng tài) kết nối để bắt đầu" : ""}
             >
-              Bắt đầu
+              Bắt đầu {connectedAssessorsCount < 6 && `(${connectedAssessorsCount}/6)`}
             </button>
           )}
           {scoreboard.status === "ĐANG ĐẤU" && (

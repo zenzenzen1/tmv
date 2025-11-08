@@ -13,7 +13,9 @@ public interface UserService {
     ProfileResponse updateProfile(String email, UpdateProfileRequest request);
     void changePassword(String email, ChangePasswordRequest request);
     UserResponse createUser(CreateUserRequest request);
+    UserResponse getUserById(String userId);
     Page<UserResponse> getAllUsers(Pageable pageable);
     Page<UserResponse> searchUsers(Pageable pageable, String query, String role, Boolean status);
+    Page<UserResponse> searchChallengeUsers(Pageable pageable, String query);
     void deleteUser(String userId);
 }
