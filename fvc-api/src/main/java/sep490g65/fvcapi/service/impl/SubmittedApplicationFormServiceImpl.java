@@ -31,6 +31,9 @@ import sep490g65.fvcapi.enums.SystemRole;
 
 import java.time.LocalDate;
 import java.security.SecureRandom;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -48,6 +51,9 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
     
     private static final String RANDOM_PASSWORD_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
     private static final int RANDOM_PASSWORD_LENGTH = 12;
+    
+    // Thread pool for async processing
+    private final ExecutorService executorService = Executors.newFixedThreadPool(10);
     
 
     private SubmittedApplicationFormResponse toDto(SubmittedApplicationForm s) {
@@ -174,6 +180,50 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
         }
     }
     
+    @Override
+    public void bulkUpdateStatus(List<Long> ids, ApplicationFormStatus status) {
+        if (ids == null || ids.isEmpty()) {
+            log.warn("Bulk update called with empty ids list");
+            return;
+        }
+        
+        log.info("Starting bulk update for {} forms with status {}", ids.size(), status);
+        
+        // Create CompletableFuture for each form update
+        List<CompletableFuture<Void>> futures = ids.stream()
+                .map(id -> CompletableFuture.runAsync(() -> {
+                    try {
+                        updateStatus(id, status);
+                        log.debug("Successfully updated form {}", id);
+                    } catch (Exception e) {
+                        log.error("Failed to update form {}: {}", id, e.getMessage(), e);
+                        // Continue processing other forms even if one fails
+                    }
+                }, executorService))
+                .collect(Collectors.toList());
+        
+        // Wait for all futures to complete
+        CompletableFuture<Void> allOf = CompletableFuture.allOf(
+                futures.toArray(new CompletableFuture[0])
+        );
+        
+        try {
+            // Wait with timeout (e.g., 5 minutes for large batches)
+            allOf.get(5, TimeUnit.MINUTES);
+            log.info("Bulk update completed successfully for {} forms", ids.size());
+        } catch (TimeoutException e) {
+            log.error("Bulk update timed out after 5 minutes", e);
+            throw new RuntimeException("Bulk update operation timed out");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Bulk update was interrupted", e);
+            throw new RuntimeException("Bulk update was interrupted");
+        } catch (ExecutionException e) {
+            log.error("Error during bulk update execution", e);
+            throw new RuntimeException("Error during bulk update: " + e.getMessage());
+        }
+    }
+    
     private void processApprovedForm(SubmittedApplicationForm form) throws Exception {
         String formDataJson = form.getFormData();
         
@@ -248,19 +298,21 @@ public class SubmittedApplicationFormServiceImpl implements SubmittedApplication
         log.info("Created new user {} with email {} and random password", savedUser.getId(), email);
         
         // Send email with temporary password to user
-        try {
-            String loginUrl = "https://fvclub.fpt.edu.vn/login";
+        String loginUrl = "https://fvclub.fpt.edu.vn/login";
+        CompletableFuture.runAsync(() -> 
             emailService.sendNewAccountPassword(
-                email, 
+                email,
                 formData.getFullName() != null ? formData.getFullName() : "Thành viên mới",
                 randomPassword,
                 loginUrl
-            );
-            log.info("Sent password email to {}", email);
-        } catch (Exception e) {
-            log.error("Failed to send password email to {}: {}", email, e.getMessage());
-            // Don't throw exception - user creation should succeed even if email fails
-        }
+            )
+        ).thenRun(() -> 
+            log.info("Sent password email to {}", email)
+        ).exceptionally(ex -> {
+            log.error("Failed to send password email to {}: {}", email, ex.getMessage());
+            // Return null because exceptionally must return something
+            return null;
+        });
         
         return savedUser;
     }

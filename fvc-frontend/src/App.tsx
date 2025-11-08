@@ -1,6 +1,8 @@
 import { Route, Routes, Navigate } from "react-router-dom";
 import "./App.css";
 import { useIsAuthenticated, useAuthStore } from "./stores/authStore";
+import { getRoleLandingRoute, getManageIndexRoute } from "./utils/roleRouting";
+import type { SystemRole } from "@/types/user";
 
 // Pages
 import LoginPage from "./pages/auth/LoginPage";
@@ -45,6 +47,7 @@ import AssessorLayout from "./components/layout/AssessorLayout";
 import MatchManagementPage from "./pages/scoring/MatchManagementPage";
 import UserManagementPage from "./pages/user-management/UserManagementPage";
 import RegisterPage from "./pages/auth/RegisterPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import FieldManagementPage from "./pages/field-management/FieldManagementPage";
 import RequireRole from "./components/common/RequireRole";
 import CycleList from "./pages/cycles/CycleList";
@@ -53,6 +56,9 @@ import CycleCreate from "./pages/cycles/CycleCreate";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
+  const userRole = useAuthStore(
+    (state) => (state.user?.systemRole as SystemRole | null) ?? null
+  );
 
   function Protected({ children }: { children: React.ReactElement }) {
     // Wait for hydration to complete
@@ -80,6 +86,12 @@ export default function App() {
     return children;
   }
 
+  function ManageIndexRedirect({ role }: { role: SystemRole | null }) {
+    const target = getManageIndexRoute(role);
+    const to = target.startsWith("/") ? target : `/manage/${target}`;
+    return <Navigate to={to} replace />;
+  }
+
   // Nếu đã login → hiển thị layout chính
   return (
     <Routes>
@@ -89,12 +101,13 @@ export default function App() {
         path="/login"
         element={
           isAuthenticated ? (
-            <Navigate to="/manage/tournaments" replace />
+            <Navigate to={getRoleLandingRoute(userRole)} replace />
           ) : (
             <LoginPage />
           )
         }
       />
+      <Route path="/forgot" element={<ForgotPasswordPage />} />
 
       {/* Profile page with its own layout */}
       <Route
@@ -113,7 +126,8 @@ export default function App() {
         path="/"
         element={
           isAuthenticated ? (
-            <Navigate to="/manage/tournaments" replace />
+            // <Navigate to="/manage/tournaments" replace />
+            <Navigate to={getRoleLandingRoute(userRole)} replace />
           ) : (
             <LandingPage />
           )
@@ -150,7 +164,7 @@ export default function App() {
         }
       >
         {/* default */}
-        <Route index element={<Navigate to="tournaments" replace />} />
+        <Route index element={<ManageIndexRedirect role={userRole} />} />
 
         {/* Dashboard/Home (optional) */}
         <Route path="dashboard" element={<DashboardPage />} />
@@ -238,7 +252,9 @@ export default function App() {
         <Route
           path="forms"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormListPage />
             </RequireRole>
           }
@@ -246,7 +262,9 @@ export default function App() {
         <Route
           path="forms/new"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormBuilderPage />
             </RequireRole>
           }
@@ -254,7 +272,9 @@ export default function App() {
         <Route
           path="forms/:id/edit"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormEditPage />
             </RequireRole>
           }
@@ -262,7 +282,9 @@ export default function App() {
         <Route
           path="forms/:id/view"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormRegistrationPage />
             </RequireRole>
           }
@@ -270,7 +292,9 @@ export default function App() {
         <Route
           path="forms/:id/fill"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <PublishedForm />
             </RequireRole>
           }

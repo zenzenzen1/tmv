@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import sep490g65.fvcapi.constants.ApiConstants;
 import sep490g65.fvcapi.constants.MessageConstants;
+import sep490g65.fvcapi.dto.request.BulkUpdateStatusRequest;
 // use fully qualified name in method signature to avoid naming conflict
 import sep490g65.fvcapi.dto.request.SubmitApplicationFormRequest;
 import sep490g65.fvcapi.dto.request.UpdateSubmissionStatusRequest;
@@ -54,6 +55,15 @@ public class SubmittedApplicationFormController {
         service.updateStatus(id, request.getStatus());
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS));
     }
+    
+    @PatchMapping("/bulk-status")
+    public ResponseEntity<BaseResponse<Void>> bulkUpdateStatus(
+            @Valid @RequestBody BulkUpdateStatusRequest request
+    ) {
+        service.bulkUpdateStatus(request.getIds(), request.getStatus());
+        return ResponseEntity.ok(ResponseUtils.success("Bulk update completed successfully"));
+    }
+    
 }
 
 

@@ -388,25 +388,24 @@ export default function SubmittedFormsPage() {
   
 
   
-
   const filtered = useReactMemo(() => {
     if (!query.trim()) return rows;
     const q = query.toLowerCase();
+    // Lấy tất cả các giá trị từ row để search
     return rows.filter((r) => {
-      // Lấy tất cả các giá trị từ row để search
       const searchableValues = [
         r.fullName,
         r.email,
         r.studentCode,
         r.note,
-        ...Object.values(r).filter((v) => typeof v === "string" && (v as string).trim()),
+        ...Object.values(r).filter(v => typeof v === 'string' && v.trim())
       ];
-
       return searchableValues
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
   }, [rows, query]);
+
 
   const allFilteredIds = useMemo(() => filtered.map((r) => r.id), [filtered]);
   const isAllSelected =
@@ -663,8 +662,6 @@ export default function SubmittedFormsPage() {
       },
     ];
   }, [rows, selectedIds, isAllSelected]);
-
-  
 
   return (
     <div className="space-y-4">

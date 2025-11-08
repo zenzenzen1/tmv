@@ -12,7 +12,6 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:thanh2003}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
 
-
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
@@ -43,7 +42,6 @@ spring:
 # Cấu hình logging
 logging:
   level:
-
     org.springframework.web.socket: WARN
     org.springframework.messaging: WARN
     org.apache.tomcat.websocket: WARN
