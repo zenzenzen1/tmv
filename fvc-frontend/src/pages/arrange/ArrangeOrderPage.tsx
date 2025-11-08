@@ -2267,11 +2267,115 @@ export default function ArrangeOrderPage({
         (specialization === "QUYEN" || specialization === "MUSIC") &&
         !derivedPerformanceId
       ) {
-        derivedPerformanceId =
-          selected.find((s) => !!s.performanceId)?.performanceId || undefined;
+        // Use selectedPid if available (non-empty string), otherwise try to find from selected array
+        // Check if selectedPid exists and is not empty (handle both undefined and empty string)
+        const validSelectedPid =
+          selectedPid !== undefined &&
+          selectedPid !== null &&
+          typeof selectedPid === "string" &&
+          selectedPid.trim() !== ""
+            ? selectedPid.trim()
+            : undefined;
+
+        // Try to get from selected array if selectedPid is not valid
+        const fromSelected =
+          selected.length > 0
+            ? selected
+                .find(
+                  (s) =>
+                    s.performanceId &&
+                    typeof s.performanceId === "string" &&
+                    s.performanceId.trim() !== ""
+                )
+                ?.performanceId?.trim()
+            : undefined;
+
+        derivedPerformanceId = validSelectedPid || fromSelected || undefined;
+
+        // If no performanceId found, create a new Performance for individual athlete
+        if (!derivedPerformanceId && selected.length === 1) {
+          const athlete = selected[0];
+          try {
+            // Determine content IDs from athlete or filters
+            const fistConfigId =
+              athlete.fistConfigId || subCompetitionFilter || undefined;
+            const fistItemId =
+              athlete.fistItemId || detailCompetitionFilter || undefined;
+            const musicContentId =
+              athlete.musicContentId || subCompetitionFilter || undefined;
+
+            const createPerformanceRequest: any = {
+              competitionId: selectedTournament,
+              isTeam: false,
+              performanceType: "INDIVIDUAL",
+              contentType: specialization,
+              athleteIds: [athlete.id],
+            };
+
+            // Add content IDs based on specialization
+            if (specialization === "QUYEN") {
+              if (fistConfigId)
+                createPerformanceRequest.fistConfigId = fistConfigId;
+              if (fistItemId) createPerformanceRequest.fistItemId = fistItemId;
+            } else if (specialization === "MUSIC") {
+              if (musicContentId)
+                createPerformanceRequest.musicContentId = musicContentId;
+            }
+
+            const perfResponse = await api.post(
+              API_ENDPOINTS.PERFORMANCES.CREATE,
+              createPerformanceRequest
+            );
+            derivedPerformanceId =
+              (perfResponse as any)?.data?.id || (perfResponse as any)?.id;
+
+            if (!derivedPerformanceId) {
+              throw new Error("Failed to create performance: no ID returned");
+            }
+
+            console.log("Created new Performance for individual athlete:", {
+              athleteId: athlete.id,
+              performanceId: derivedPerformanceId,
+              specialization,
+            });
+
+            // Note: athleteIdToPerformanceId will be updated automatically when athletes state is reloaded
+          } catch (error) {
+            console.error(
+              "Failed to create Performance for individual athlete:",
+              error
+            );
+            alert(
+              "Không thể tạo Performance cho VĐV cá nhân. Vui lòng thử lại hoặc chọn một đội."
+            );
+            return;
+          }
+        }
+
         if (!derivedPerformanceId) {
           console.error(
-            "Missing performanceId: select exactly 1 team or 1 athlete to proceed"
+            "Missing performanceId: select exactly 1 team or 1 athlete to proceed",
+            {
+              selectedId,
+              selectedPid,
+              selectedPidType: typeof selectedPid,
+              selectedCount: selected.length,
+              selectedAthletes: selected.map((s) => ({
+                id: s.id,
+                name: s.name,
+                performanceId: s.performanceId,
+                performanceIdType: typeof s.performanceId,
+              })),
+              athleteIdToPerformanceIdMap: Object.keys(athleteIdToPerformanceId)
+                .slice(0, 5)
+                .reduce((acc, key) => {
+                  acc[key] = athleteIdToPerformanceId[key];
+                  return acc;
+                }, {} as Record<string, string>),
+            }
+          );
+          alert(
+            "Không thể xác định performanceId. Vui lòng chọn một VĐV hoặc đội hợp lệ."
           );
           return;
         }
