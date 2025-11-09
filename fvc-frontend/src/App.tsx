@@ -23,6 +23,7 @@ import FormResults from "./features/tournament/FormResults";
 import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
 import TournamentFormList from "./features/tournament/TournamentFormList";
+import ResultsListPage from "./features/tournament/ResultsListPage";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
 
 import MemberManagementListPage from "./pages/member-management/ListPage";
@@ -304,6 +305,14 @@ export default function App() {
           element={
             <RequireRole roles={["EXECUTIVE_BOARD"]}>
               <SubmittedFormsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="results"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD"]}>
+              <ResultsListPage />
             </RequireRole>
           }
         />

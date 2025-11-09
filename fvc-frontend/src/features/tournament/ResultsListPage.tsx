@@ -1,14 +1,24 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import {
-  CommonTable,
-  type TableColumn,
-} from "../../components/common/CommonTable";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import { useToast } from "../../components/common/ToastContext";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import ErrorMessage from "../../components/common/ErrorMessage";
+import {
+  CommonTable,
+  type TableColumn,
+} from "../../components/common/CommonTable";
+
+type FormConfig = {
+  id: string;
+  formTitle: string;
+  tournament?: string;
+  description?: string;
+  status: string;
+  formType?: string;
+  numberOfParticipants?: number;
+};
 
 type ResultRow = {
   id: string;
@@ -23,14 +33,14 @@ type ResultRow = {
   coach: string;
   phone: string;
   status: "ĐÃ DUYỆT" | "CHỜ DUYỆT" | "TỪ CHỐI";
-  formData?: string; // Add formData to store raw submission data
-  teamName?: string; // Team name for team submissions
+  formData?: string;
+  teamName?: string;
   teamMembers?: Array<{
     fullName: string;
     studentId: string;
     email?: string;
     gender?: string;
-  }>; // Team members
+  }>;
 };
 
 const STATUS_MAP: Record<string, ResultRow["status"]> = {
@@ -39,16 +49,30 @@ const STATUS_MAP: Record<string, ResultRow["status"]> = {
   REJECTED: "TỪ CHỐI",
 };
 
-export default function FormResults() {
+export default function ResultsListPage() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [page, setPage] = useState<number>(1);
+  const [availableForms, setAvailableForms] = useState<FormConfig[]>([]);
+  const [selectedFormId, setSelectedFormId] = useState<string>("");
   const [rows, setRows] = useState<ResultRow[]>([]);
-  const [total, setTotal] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
-  const [reloadKey, setReloadKey] = useState<number>(0);
-  const { id } = useParams<{ id: string }>();
+  const [loading, setLoading] = useState(true);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [searchInput, setSearchInput] = useState("");
+  const [query, setQuery] = useState("");
+  const [participantMode, setParticipantMode] = useState<"INDIVIDUAL" | "TEAM">(
+    "INDIVIDUAL"
+  );
+  const [typeFilter, setTypeFilter] = useState<
+    "ALL" | "Đối kháng" | "Quyền" | "Võ nhạc"
+  >("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | ResultRow["status"]>(
+    "CHỜ DUYỆT"
+  );
+
+  // Selection state for bulk actions
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -57,13 +81,24 @@ export default function FormResults() {
     count: number;
   }>({ isOpen: false, action: null, count: 0 });
 
-  // New filter states
-  // Participant mode controls which competition types are available in the next dropdown
-  const [participantMode, setParticipantMode] = useState<"INDIVIDUAL" | "TEAM">(
-    "INDIVIDUAL"
+  // Modal state for team details
+  const [showTeamModal, setShowTeamModal] = useState<boolean>(false);
+  const [selectedTeam, setSelectedTeam] = useState<ResultRow | null>(null);
+  // Modal state for individual details
+  const [showIndividualModal, setShowIndividualModal] =
+    useState<boolean>(false);
+  const [selectedIndividual, setSelectedIndividual] =
+    useState<ResultRow | null>(null);
+
+  // Form fields mapping (name/id -> label) from published form
+  const [formFieldsMap, setFormFieldsMap] = useState<Record<string, string>>(
+    {}
   );
 
-  // tournamentName not displayed in simplified layout
+  // Performance data cache for team submissions
+  const [performanceCache, setPerformanceCache] = useState<
+    Record<string, Record<string, unknown>>
+  >({});
 
   // Caches for resolving IDs -> display labels
   const [weightClassMap, setWeightClassMap] = useState<Record<string, string>>(
@@ -76,57 +111,6 @@ export default function FormResults() {
   const [musicContentMap, setMusicContentMap] = useState<
     Record<string, string>
   >({});
-
-  // Performance data cache for team submissions
-  const [performanceCache, setPerformanceCache] = useState<
-    Record<string, Record<string, unknown>>
-  >({});
-
-  // Fist content data for mapping
-  const [fistConfigs, setFistConfigs] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
-  const [fistItems, setFistItems] = useState<
-    Array<{ id: string; name: string; configId?: string }>
-  >([]);
-
-  // Form fields mapping (name/id -> label) from published form
-  const [formFieldsMap, setFormFieldsMap] = useState<Record<string, string>>(
-    {}
-  );
-
-  // Removed: loading list of forms; results are tied to the URL form id
-
-  // Load form definition to get field labels
-  useEffect(() => {
-    const loadFormDefinition = async () => {
-      if (!id) return;
-      try {
-        const res = await api.get<{
-          fields?: Array<{ id?: string; name?: string; label?: string }>;
-        }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(id));
-        const fields = res.data?.fields || [];
-        const map: Record<string, string> = {};
-        for (const field of fields) {
-          // Map by both id and name to handle different cases
-          // Also map by lowercase name for case-insensitive matching
-          if (field.id && field.label) {
-            map[field.id] = field.label;
-          }
-          if (field.name && field.label) {
-            map[field.name] = field.label;
-            // Also map lowercase version
-            map[field.name.toLowerCase()] = field.label;
-          }
-        }
-        console.log("Form fields map:", map);
-        setFormFieldsMap(map);
-      } catch {
-        // Ignore failures; fallback mapping will handle
-      }
-    };
-    loadFormDefinition();
-  }, [id]);
 
   // Load weight classes once to resolve weightClassId -> readable label
   useEffect(() => {
@@ -189,30 +173,39 @@ export default function FormResults() {
         const mcMap: Record<string, string> = {};
         for (const m of musicList) if (m.id) mcMap[m.id] = m.name || "";
         setMusicContentMap(mcMap);
-
-        // Also store raw data for direct lookup
-        setFistConfigs(cfgList);
-        setFistItems(
-          itemList.map(
-            (item: {
-              id: string;
-              name: string;
-              configId?: string;
-              parentId?: string;
-              fistConfigId?: string;
-            }) => ({
-              id: item.id,
-              name: item.name,
-              configId: item.configId || item.parentId || item.fistConfigId,
-            })
-          )
-        );
       } catch {
         // Ignore failures; mapping code has fallbacks
       }
     };
     loadContentCatalogs();
   }, []);
+
+  // Load form definition to get field labels
+  useEffect(() => {
+    const loadFormDefinition = async () => {
+      if (!selectedFormId) return;
+      try {
+        const res = await api.get<{
+          fields?: Array<{ id?: string; name?: string; label?: string }>;
+        }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(selectedFormId));
+        const fields = res.data?.fields || [];
+        const map: Record<string, string> = {};
+        for (const field of fields) {
+          if (field.id && field.label) {
+            map[field.id] = field.label;
+          }
+          if (field.name && field.label) {
+            map[field.name] = field.label;
+            map[field.name.toLowerCase()] = field.label;
+          }
+        }
+        setFormFieldsMap(map);
+      } catch {
+        // Ignore failures; fallback mapping will handle
+      }
+    };
+    loadFormDefinition();
+  }, [selectedFormId]);
 
   // Load performance data for team submissions
   useEffect(() => {
@@ -245,7 +238,7 @@ export default function FormResults() {
                 [perfId]: response.data as Record<string, unknown>,
               }));
             }
-          } catch (error) {
+          } catch {
             // Silently fail - performance data might not exist for all submissions
             // This is expected for some team submissions that haven't been processed yet
             console.debug(`Performance ${perfId} not available`);
@@ -260,277 +253,51 @@ export default function FormResults() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows]);
 
-  const handleBulkUpdateStatus = async (newStatus: "APPROVED" | "REJECTED") => {
-    const ids = Array.from(selectedIds);
-    if (!ids.length) return;
-
+  // Load available forms for dropdown
+  const loadAvailableForms = useCallback(async () => {
     try {
-      setActionLoading(true);
+      setLoading(true);
+      setError(null);
 
-      const statusMap: Record<"APPROVED" | "REJECTED", string> = {
-        APPROVED: "APPROVED",
-        REJECTED: "REJECTED",
-      };
+      const response = await api.get<{
+        content: FormConfig[];
+        totalElements: number;
+      }>(API_ENDPOINTS.TOURNAMENT_FORMS.BASE, {
+        page: 0,
+        size: 100,
+      });
 
-      // Update each submission
-      await Promise.all(
-        ids.map((id) =>
-          api.patch(`/v1/tournament-forms/submissions/${id}/status`, {
-            status: statusMap[newStatus],
-          })
-        )
-      );
+      if (response.success && response.data) {
+        const allForms = response.data.content || [];
+        const competitionForms = allForms.filter(
+          (f) => f.formType === "COMPETITION_REGISTRATION"
+        );
+        setAvailableForms(competitionForms);
 
-      toast.success(
-        `${newStatus === "APPROVED" ? "Đã duyệt" : "Đã từ chối"} ${
-          ids.length
-        } đăng ký`
-      );
-      setSelectedIds(new Set());
-      setConfirmDialog({ isOpen: false, action: null, count: 0 });
-      await fetchData();
-    } catch (e: any) {
-      toast.error(e?.message || "Không thể cập nhật hàng loạt");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const openConfirmDialog = (action: "APPROVED" | "REJECTED") => {
-    setConfirmDialog({
-      isOpen: true,
-      action,
-      count: selectedIds.size,
-    });
-  };
-
-  const filtered = useMemo(() => {
-    if (!query.trim()) return rows;
-    const q = query.toLowerCase();
-    return rows.filter((r) => {
-      const searchableValues = [
-        r.fullName,
-        r.email,
-        r.studentId,
-        r.teamName,
-        r.competitionType,
-        r.category,
-      ];
-      return searchableValues
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
-    });
-  }, [rows, query]);
-
-  const allFilteredIds = useMemo(() => filtered.map((r) => r.id), [filtered]);
-  const isAllSelected =
-    allFilteredIds.length > 0 &&
-    allFilteredIds.every((id) => selectedIds.has(id));
-  const toggleSelectAll = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (isAllSelected) {
-        allFilteredIds.forEach((id) => next.delete(id));
-      } else {
-        allFilteredIds.forEach((id) => next.add(id));
+        // Auto-select first form if available
+        setSelectedFormId((prev) => {
+          if (!prev && competitionForms.length > 0) {
+            return competitionForms[0].id;
+          }
+          return prev;
+        });
       }
-      return next;
-    });
-  };
-  const toggleSelectOne = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const columns: Array<TableColumn<ResultRow>> = useMemo(() => {
-    const isTeamMode = participantMode === "TEAM";
-    const cols: Array<TableColumn<ResultRow>> = [
-      {
-        key: "_select",
-        title: (
-          <input
-            type="checkbox"
-            aria-label="Chọn tất cả"
-            checked={isAllSelected}
-            onChange={toggleSelectAll}
-          />
-        ) as unknown as string,
-        sortable: false,
-        className: "w-10",
-        render: (row: ResultRow) => (
-          <input
-            type="checkbox"
-            aria-label={`Chọn đăng ký #${row.id}`}
-            checked={selectedIds.has(row.id)}
-            onChange={() => toggleSelectOne(row.id)}
-          />
-        ),
-      },
-      {
-        key: "index",
-        title: "STT",
-        className: "w-16 text-center",
-        sortable: false,
-        render: (r: ResultRow) => {
-          const rowIndex = (r as unknown as { index?: number }).index;
-          return rowIndex ?? "";
-        },
-      },
-      {
-        key: "submittedAt",
-        title: "Thời gian nộp",
-        className: "whitespace-nowrap",
-        render: (r: ResultRow) => r.submittedAt || "",
-      },
-      {
-        key: "fullName",
-        title: isTeamMode ? "Tên đội" : "Họ và tên",
-        className: "whitespace-nowrap",
-        render: (r: ResultRow) =>
-          isTeamMode && r.teamName ? r.teamName : r.fullName,
-      },
-      {
-        key: "email",
-        title: isTeamMode ? "Email người đăng ký" : "Email",
-        className: "break-words",
-      },
-    ];
-
-    // Show competition type and category for both modes
-    cols.push({
-      key: "competitionType",
-      title: "Thể thức thi đấu",
-      className: "whitespace-nowrap",
-      render: (r: ResultRow) => r.competitionType || "-",
-    });
-    cols.push({
-      key: "category",
-      title: "Nội dung",
-      className: "whitespace-nowrap",
-      render: (r: ResultRow) => r.category || "-",
-    });
-
-    // For individual mode: show "Xem chi tiết" button
-    if (!isTeamMode) {
-      cols.push({
-        key: "actions",
-        title: "Thao tác",
-        className: "whitespace-nowrap",
-        render: (r: ResultRow) => (
-          <button
-            onClick={() => {
-              setSelectedIndividual(r);
-              setShowIndividualModal(true);
-            }}
-            className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-xs hover:bg-[#2e6de0]"
-          >
-            Xem chi tiết
-          </button>
-        ),
-        sortable: false,
-      });
+    } catch (err: unknown) {
+      const errorMessage =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message?: string }).message)
+          : "Không tải được danh sách form";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
     }
+  }, [toast]);
 
-    // Add "Chi tiết" button for team mode
-    if (isTeamMode) {
-      cols.push({
-        key: "actions",
-        title: "Thao tác",
-        className: "whitespace-nowrap",
-        render: (r: ResultRow) => (
-          <button
-            onClick={() => {
-              setSelectedTeam(r);
-              setShowTeamModal(true);
-            }}
-            className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-xs hover:bg-[#2e6de0]"
-          >
-            Chi tiết
-          </button>
-        ),
-        sortable: false,
-      });
-    }
-
-    // Status column - always at the end for both modes
-    cols.push({
-      key: "status",
-      title: "Trạng thái",
-      render: (r: ResultRow) => (
-        <div className="flex items-center gap-2">
-          <select
-            className={`rounded-md px-2 py-1 text-xs border ${
-              r.status === "ĐÃ DUYỆT"
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : r.status === "TỪ CHỐI"
-                ? "bg-rose-50 text-rose-600 border-rose-200"
-                : "bg-amber-50 text-amber-700 border-amber-200"
-            }`}
-            value={r.status}
-            onChange={async (e) => {
-              const next = e.target.value as ResultRow["status"];
-              const map: Record<ResultRow["status"], string> = {
-                "ĐÃ DUYỆT": "APPROVED",
-                "CHỜ DUYỆT": "PENDING",
-                "TỪ CHỐI": "REJECTED",
-              };
-              try {
-                // optimistic
-                setRows((prev) =>
-                  prev.map((row) =>
-                    row.id === r.id ? { ...row, status: next } : row
-                  )
-                );
-                await api.patch(
-                  `/v1/tournament-forms/submissions/${r.id}/status`,
-                  { status: map[next] }
-                );
-                // Notify athlete list to refetch after approval
-                if (next === "ĐÃ DUYỆT") {
-                  window.dispatchEvent(new Event("athletes:refetch"));
-                }
-                toast.success("Cập nhật trạng thái thành công");
-              } catch (err) {
-                console.error("Update submission status failed", err);
-                toast.error("Cập nhật trạng thái thất bại");
-              }
-            }}
-          >
-            <option>ĐÃ DUYỆT</option>
-            <option>CHỜ DUYỆT</option>
-            <option>TỪ CHỐI</option>
-          </select>
-        </div>
-      ),
-      sortable: false,
-    });
-
-    return cols;
-  }, [toast, participantMode, isAllSelected, selectedIds, page, pageSize]);
-
-  const [pageSize] = useState<number>(10);
-  const [searchInput, setSearchInput] = useState<string>("");
-  const [query, setQuery] = useState<string>("");
-  const [typeFilter, setTypeFilter] = useState<
-    "ALL" | "Đối kháng" | "Quyền" | "Võ nhạc"
-  >("ALL");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | ResultRow["status"]>(
-    "ALL"
-  );
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
-  // Modal state for team details
-  const [showTeamModal, setShowTeamModal] = useState<boolean>(false);
-  const [selectedTeam, setSelectedTeam] = useState<ResultRow | null>(null);
-  // Modal state for individual details
-  const [showIndividualModal, setShowIndividualModal] =
-    useState<boolean>(false);
-  const [selectedIndividual, setSelectedIndividual] =
-    useState<ResultRow | null>(null);
+  useEffect(() => {
+    loadAvailableForms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounce search input
   useEffect(() => {
@@ -541,21 +308,25 @@ export default function FormResults() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  const fetchData = useCallback(async () => {
-    const formId = id;
-    if (!formId) return;
+  // Load submissions when form is selected
+  const loadSubmissions = useCallback(async () => {
+    if (!selectedFormId) {
+      setRows([]);
+      return;
+    }
 
     try {
-      setLoading(true);
-      setError("");
-      // Always request all records; backend will ignore pagination when all=true
+      setLoadingSubmissions(true);
+      setError(null);
+
       const resp = await api.get(
-        `/v1/tournament-forms/${formId}/submissions?all=true`
+        `/v1/tournament-forms/${selectedFormId}/submissions?all=true`
       );
       const root = resp.data as Record<string, unknown>;
       const pageData = (root["data"] as Record<string, unknown>) ?? root;
       const responseTimestamp = (root["timestamp"] as string) || "";
       const content = (pageData["content"] as Array<unknown>) ?? [];
+
       const mapped: ResultRow[] = await Promise.all(
         content.map(async (raw) => {
           const item = raw as {
@@ -588,6 +359,8 @@ export default function FormResults() {
               : compRaw === "music"
               ? "Võ nhạc"
               : "";
+
+          // Helper function to get first string value from various formats
           const getFirstString = (v: unknown): string => {
             if (Array.isArray(v)) {
               if (v.length === 0) return "";
@@ -609,6 +382,22 @@ export default function FormResults() {
             return "";
           };
 
+          // Helper function to remove UUID/ID from string
+          const removeIdFromString = (str: string): string => {
+            if (!str) return "";
+            const trimmed = str.trim();
+            const fullUuidPattern =
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (fullUuidPattern.test(trimmed)) return "";
+            const uuidWithSeparatorPattern =
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*-\s*/i;
+            let cleaned = trimmed.replace(uuidWithSeparatorPattern, "").trim();
+            const uuidAnywherePattern =
+              /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*-\s*/gi;
+            cleaned = cleaned.replace(uuidAnywherePattern, "").trim();
+            return cleaned || "";
+          };
+
           // Use performance data if available, otherwise fallback to form data
           // For Quyen, we need both config name and item name
           let quyenCategory = "";
@@ -617,31 +406,13 @@ export default function FormResults() {
           if (performanceData?.contentType === "QUYEN") {
             // Priority 1: Use fistItemId and fistConfigId from performanceData if available
             if (performanceData.fistItemId) {
-              const foundItem = fistItems.find(
-                (item: { id: string; name: string; configId?: string }) =>
-                  item.id === performanceData.fistItemId
-              );
-              if (foundItem) {
-                quyenContent = foundItem.name || "";
-              } else {
-                // Fallback to map if not found in array
-                const itemId = String(performanceData.fistItemId);
-                quyenContent = fistItemMap[itemId] || "";
-              }
+              const itemId = String(performanceData.fistItemId);
+              quyenContent = fistItemMap[itemId] || "";
             }
 
             if (performanceData.fistConfigId) {
-              const foundConfig = fistConfigs.find(
-                (config: { id: string; name: string }) =>
-                  config.id === performanceData.fistConfigId
-              );
-              if (foundConfig) {
-                quyenCategory = foundConfig.name || "";
-              } else {
-                // Fallback to map if not found in array
-                const configId = String(performanceData.fistConfigId);
-                quyenCategory = fistConfigMap[configId] || "";
-              }
+              const configId = String(performanceData.fistConfigId);
+              quyenCategory = fistConfigMap[configId] || "";
             }
 
             // Priority 2: If not found, try to get from contentId
@@ -649,38 +420,14 @@ export default function FormResults() {
               (!quyenCategory || !quyenContent) &&
               performanceData.contentId
             ) {
-              // Try to find fistItem first (most common case)
-              const foundItem = fistItems.find(
-                (item: { id: string; name: string; configId?: string }) =>
-                  item.id === performanceData.contentId
-              );
-
-              if (foundItem) {
-                // Found as item, get item name
-                if (!quyenContent) {
-                  quyenContent = foundItem.name || "";
-                }
-                // Get config name from item's configId
-                if (!quyenCategory && foundItem.configId) {
-                  const itemConfig = fistConfigs.find(
-                    (config: { id: string; name: string }) =>
-                      config.id === foundItem.configId
-                  );
-                  if (itemConfig) {
-                    quyenCategory = itemConfig.name || "";
-                  }
-                }
-              } else {
-                // Not found as item, try as config
-                if (!quyenCategory) {
-                  const foundConfig = fistConfigs.find(
-                    (config: { id: string; name: string }) =>
-                      config.id === performanceData.contentId
-                  );
-                  if (foundConfig) {
-                    quyenCategory = foundConfig.name || "";
-                  }
-                }
+              const contentId = String(performanceData.contentId);
+              // Try as item first
+              if (!quyenContent) {
+                quyenContent = fistItemMap[contentId] || "";
+              }
+              // Try as config
+              if (!quyenCategory) {
+                quyenCategory = fistConfigMap[contentId] || "";
               }
             }
           } else {
@@ -733,18 +480,29 @@ export default function FormResults() {
                 "";
             }
           }
-          // For fighting, try to get weight class name from formData or fallback to "Đối kháng"
-          let fightingCategory = "";
-          if (compRaw === "fighting") {
-            fightingCategory = (parsed.weightClass as string) || "";
-            // If weightClass is empty but we have weightClassId, try to extract from formData
+          // Clean quyenCategory and quyenContent to ensure no IDs
+          quyenCategory = removeIdFromString(quyenCategory);
+          quyenContent = removeIdFromString(quyenContent);
+
+          // Map category based on competition type
+          let categoryVi = "";
+          if (compRaw === "quyen") {
+            categoryVi =
+              quyenCategory && quyenContent
+                ? `${removeIdFromString(quyenCategory)} - ${removeIdFromString(
+                    quyenContent
+                  )}`
+                : quyenCategory || quyenContent
+                ? removeIdFromString(quyenCategory || quyenContent)
+                : "";
+          } else if (compRaw === "fighting") {
+            // For Fighting, try to get weight class
+            let fightingCategory = (parsed.weightClass as string) || "";
             if (!fightingCategory && parsed.weightClassId) {
-              // First try: resolve via preloaded map
               const labelFromMap = weightClassMap[String(parsed.weightClassId)];
               if (labelFromMap) {
                 fightingCategory = labelFromMap;
               } else {
-                // Look for weight class info in the formData
                 const weightClassInfo =
                   (parsed as Record<string, unknown>).weightClassInfo ||
                   (parsed as Record<string, unknown>).weightClassName ||
@@ -752,74 +510,14 @@ export default function FormResults() {
                 fightingCategory = (weightClassInfo as string) || "Đối kháng";
               }
             }
-            // If still empty, try to create a readable name from weightClassId
-            if (!fightingCategory && parsed.weightClassId) {
-              // Extract readable info from the ID or create a generic name
-              const weightClassId = parsed.weightClassId as string;
-              if (weightClassId.includes("-")) {
-                // If ID contains weight range info, use it
-                fightingCategory = weightClassId;
-              } else {
-                // Otherwise, use a generic name
-                fightingCategory = "Đối kháng";
-              }
-            }
             if (!fightingCategory) {
               fightingCategory = "Đối kháng";
             }
-          }
-
-          // Helper function to remove UUID/ID from string (format: "uuid - name" -> "name")
-          const removeIdFromString = (str: string): string => {
-            if (!str) return "";
-            const trimmed = str.trim();
-
-            // Check if entire string is a UUID
-            const fullUuidPattern =
-              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (fullUuidPattern.test(trimmed)) {
-              // If entire string is UUID, return empty (don't show ID)
-              return "";
-            }
-
-            // Pattern to match UUID followed by " - " and then text
-            // Match: UUID at start, followed by optional whitespace, " - ", and optional whitespace
-            const uuidWithSeparatorPattern =
-              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*-\s*/i;
-            let cleaned = trimmed.replace(uuidWithSeparatorPattern, "").trim();
-
-            // Also try to match UUID anywhere in the string if it's followed by " - "
-            const uuidAnywherePattern =
-              /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*-\s*/gi;
-            cleaned = cleaned.replace(uuidAnywherePattern, "").trim();
-
-            // If after removing UUID pattern, string is empty, return empty
-            if (!cleaned || cleaned.length === 0) {
-              return "";
-            }
-
-            return cleaned;
-          };
-
-          // Clean quyenCategory and quyenContent to ensure no IDs
-          quyenCategory = removeIdFromString(quyenCategory);
-          quyenContent = removeIdFromString(quyenContent);
-
-          const categoryVi =
-            compRaw === "quyen"
-              ? // Format: "configidname - itemidname"
-                quyenCategory && quyenContent
-                ? `${removeIdFromString(quyenCategory)} - ${removeIdFromString(
-                    quyenContent
-                  )}`
-                : quyenCategory || quyenContent
-                ? removeIdFromString(quyenCategory || quyenContent)
-                : ""
-              : compRaw === "fighting"
-              ? removeIdFromString(fightingCategory)
-              : compRaw === "music"
-              ? performanceData?.contentType === "MUSIC" &&
-                performanceData?.contentId
+            categoryVi = removeIdFromString(fightingCategory);
+          } else if (compRaw === "music") {
+            categoryVi =
+              performanceData?.contentType === "MUSIC" &&
+              performanceData?.contentId
                 ? removeIdFromString(
                     musicContentMap[performanceData.contentId as string] || ""
                   )
@@ -833,38 +531,16 @@ export default function FormResults() {
                           ? musicContentMap[id] || ""
                           : "";
                       })()
-                  )
-              : removeIdFromString((parsed.category as string) || "");
-
-          console.log("FormResults category mapping:", {
-            compRaw,
-            weightClass: parsed.weightClass,
-            quyenCategory,
-            quyenContent,
-            musicCategory: parsed.musicCategory,
-            categoryVi,
-            parsed: parsed,
-            performanceId,
-            performanceData,
-            fistConfigMap: Object.keys(fistConfigMap).length,
-            fistItemMap: Object.keys(fistItemMap).length,
-            musicContentMap: Object.keys(musicContentMap).length,
-            fistConfigs: fistConfigs.length,
-            fistItems: fistItems.length,
-          });
-          if (compRaw === "quyen") {
-            console.log("FormResults parsed quyen:", {
-              raw: parsed,
-              quyenCategory,
-              quyenContent,
-              categoryVi,
-            });
+                  );
+          } else {
+            categoryVi = removeIdFromString(
+              getFirstString(parsed.category) || ""
+            );
           }
-          // Extract submitted time if available, else fallback empty
-          const it = item as unknown as Record<string, unknown>;
+
           const pickDate = (...keys: string[]): string | undefined => {
             for (const k of keys) {
-              const v = it[k];
+              const v = (item as Record<string, unknown>)[k];
               if (v === undefined || v === null) continue;
               if (typeof v === "number") {
                 // epoch seconds or ms
@@ -923,7 +599,12 @@ export default function FormResults() {
               Array.isArray(performanceData.athletes)
             ) {
               // Helper function to fetch athlete details
-              const fetchAthleteDetails = async (athlete: any) => {
+              const fetchAthleteDetails = async (athlete: {
+                id?: string;
+                approved?: boolean;
+                fullName?: string;
+                email?: string;
+              }) => {
                 let studentId = "";
                 let gender = "";
 
@@ -975,31 +656,41 @@ export default function FormResults() {
             parsed.teamMembers &&
             Array.isArray(parsed.teamMembers)
           ) {
-            teamMembers = parsed.teamMembers.map((member: any) => ({
-              fullName: member.fullName || member.name || "",
-              studentId: member.studentId || member.mssv || "",
-              email: member.email || "",
-              gender:
-                member.gender === "FEMALE" || member.gender === "Nữ"
-                  ? "Nữ"
-                  : member.gender === "MALE" || member.gender === "Nam"
-                  ? "Nam"
-                  : "",
-            }));
+            teamMembers = parsed.teamMembers.map(
+              (member: {
+                fullName?: string;
+                name?: string;
+                studentId?: string;
+                mssv?: string;
+                email?: string;
+                gender?: string;
+              }) => ({
+                fullName: member.fullName || member.name || "",
+                studentId: member.studentId || member.mssv || "",
+                email: member.email || "",
+                gender:
+                  member.gender === "FEMALE" || member.gender === "Nữ"
+                    ? "Nữ"
+                    : member.gender === "MALE" || member.gender === "Nam"
+                    ? "Nam"
+                    : "",
+              })
+            );
           }
 
           return {
             id: String(item.id),
             submittedAt,
-            fullName: parsed.fullName || "",
-            email: parsed.email || "",
+            fullName: (parsed.fullName as string) || "",
+            email: (parsed.email as string) || "",
             gender: parsed.gender === "FEMALE" ? "Nữ" : "Nam",
             competitionType: compVi,
             category: categoryVi,
-            studentId: parsed.studentId || "",
-            club: parsed.club || "",
-            coach: parsed.coach || "",
-            phone: parsed.phone || parsed.phoneNumber || "",
+            studentId: (parsed.studentId as string) || "",
+            club: (parsed.club as string) || "",
+            coach: (parsed.coach as string) || "",
+            phone:
+              (parsed.phone as string) || (parsed.phoneNumber as string) || "",
             status,
             formData: item.formData, // Store raw form data for Performance lookup
             teamName,
@@ -1007,15 +698,15 @@ export default function FormResults() {
           } as ResultRow;
         })
       );
-      // Client-side filter by name, type, and status when applied
+
+      // Client-side filtering
       const filtered = mapped.filter((r) => {
         const matchesName = query
-          ? participantMode === "TEAM" && r.teamName
-            ? r.teamName.toLowerCase().includes(query.toLowerCase())
-            : r.fullName.toLowerCase().includes(query.toLowerCase())
+          ? r.fullName.toLowerCase().includes(query.toLowerCase()) ||
+            r.email.toLowerCase().includes(query.toLowerCase()) ||
+            r.studentId.toLowerCase().includes(query.toLowerCase())
           : true;
 
-        // Determine if row is team (has performanceId) or individual
         let isTeamSubmission = false;
         try {
           const parsed = r.formData ? JSON.parse(r.formData) : {};
@@ -1030,7 +721,6 @@ export default function FormResults() {
           // Ignore parsing errors
         }
 
-        // Participant mode filter: match actual team/individual status
         const matchesMode =
           participantMode === "TEAM"
             ? isTeamSubmission
@@ -1042,38 +732,41 @@ export default function FormResults() {
           typeFilter === "ALL" ? true : r.competitionType === typeFilter;
         const matchesStatus =
           statusFilter === "ALL" ? true : r.status === statusFilter;
+
         return matchesName && matchesMode && matchesType && matchesStatus;
       });
 
-      // Client-side pagination: 10 per page
-      const finalRows = filtered;
-      const start = (page - 1) * 10;
-      const end = start + 10;
-      setRows(finalRows.slice(start, end));
-      setTotal(finalRows.length);
-      setPageSize(10);
-    } catch (e: unknown) {
-      console.error("Load submissions failed", e);
-      if (typeof e === "object" && e && "message" in e) {
-        const msg = (e as { message?: string }).message;
-        if (msg) console.error("API message:", msg);
-      }
+      // Client-side pagination
+      const startIndex = (page - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const paginatedRows = filtered.slice(startIndex, endIndex);
+      // Add index property to each row for STT display
+      setRows(
+        paginatedRows.map((r, idx) => ({
+          ...r,
+          index: startIndex + idx + 1,
+        }))
+      );
+    } catch (err: unknown) {
+      const errorMessage =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message?: string }).message)
+          : "Không tải được kết quả đăng ký";
+      setError(errorMessage);
+      toast.error(errorMessage);
       setRows([]);
-      setTotal(0);
-      setError("Không tải được dữ liệu");
     } finally {
-      setLoading(false);
+      setLoadingSubmissions(false);
     }
   }, [
-    id,
+    selectedFormId,
     page,
-    reloadKey,
+    pageSize,
     query,
+    participantMode,
     typeFilter,
     statusFilter,
-    participantMode,
-    dateFrom,
-    dateTo,
+    toast,
     weightClassMap,
     fistConfigMap,
     fistItemMap,
@@ -1082,15 +775,206 @@ export default function FormResults() {
   ]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    loadSubmissions();
+  }, [loadSubmissions]);
 
-  // Listen for form submissions elsewhere to refresh results
-  useEffect(() => {
-    const handler = () => setReloadKey((k) => k + 1);
-    window.addEventListener("forms:changed", handler);
-    return () => window.removeEventListener("forms:changed", handler);
+  const filtered = useMemo(() => {
+    if (!query.trim()) return rows;
+    const q = query.toLowerCase();
+    return rows.filter((r) => {
+      const searchableValues = [
+        r.fullName,
+        r.email,
+        r.studentId,
+        r.teamName,
+        r.competitionType,
+        r.category,
+      ];
+      return searchableValues
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+  }, [rows, query]);
+
+  const allFilteredIds = useMemo(() => filtered.map((r) => r.id), [filtered]);
+  const isAllSelected =
+    allFilteredIds.length > 0 &&
+    allFilteredIds.every((id) => selectedIds.has(id));
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (isAllSelected) {
+        allFilteredIds.forEach((id) => next.delete(id));
+      } else {
+        allFilteredIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }, [isAllSelected, allFilteredIds]);
+  const toggleSelectOne = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }, []);
+
+  const handleBulkUpdateStatus = async (newStatus: "APPROVED" | "REJECTED") => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+
+    try {
+      setActionLoading(true);
+
+      const statusMap: Record<"APPROVED" | "REJECTED", string> = {
+        APPROVED: "APPROVED",
+        REJECTED: "REJECTED",
+      };
+
+      // Update each submission
+      await Promise.all(
+        ids.map((id) =>
+          api.patch(`/v1/tournament-forms/submissions/${id}/status`, {
+            status: statusMap[newStatus],
+          })
+        )
+      );
+
+      toast.success(
+        `${newStatus === "APPROVED" ? "Đã duyệt" : "Đã từ chối"} ${
+          ids.length
+        } đăng ký`
+      );
+      setSelectedIds(new Set());
+      setConfirmDialog({ isOpen: false, action: null, count: 0 });
+      // Notify athlete list to refetch after approval
+      if (newStatus === "APPROVED") {
+        window.dispatchEvent(new Event("athletes:refetch"));
+      }
+      await loadSubmissions();
+    } catch (e: unknown) {
+      const errorMessage =
+        e && typeof e === "object" && "message" in e
+          ? String((e as { message?: string }).message)
+          : "Không thể cập nhật hàng loạt";
+      toast.error(errorMessage);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const openConfirmDialog = (action: "APPROVED" | "REJECTED") => {
+    setConfirmDialog({
+      isOpen: true,
+      action,
+      count: selectedIds.size,
+    });
+  };
+
+  const columns: TableColumn<ResultRow>[] = useMemo(() => {
+    const isTeamMode = participantMode === "TEAM";
+    const showCheckbox = statusFilter === "CHỜ DUYỆT";
+    const cols: TableColumn<ResultRow>[] = [];
+
+    // Add checkbox column only when status is "CHỜ DUYỆT"
+    if (showCheckbox) {
+      cols.push({
+        key: "_select",
+        title: (
+          <input
+            type="checkbox"
+            aria-label="Chọn tất cả"
+            checked={isAllSelected}
+            onChange={toggleSelectAll}
+          />
+        ) as unknown as string,
+        sortable: false,
+        className: "w-10",
+        render: (row: ResultRow) => (
+          <input
+            type="checkbox"
+            aria-label={`Chọn đăng ký #${row.id}`}
+            checked={selectedIds.has(row.id)}
+            onChange={() => toggleSelectOne(row.id)}
+          />
+        ),
+      });
+    }
+
+    cols.push({
+      key: "index",
+      title: "STT",
+      className: "w-16 text-center",
+      sortable: false,
+      render: (r: ResultRow) => {
+        const rowIndex = (r as unknown as { index?: number }).index;
+        return rowIndex ?? "";
+      },
+    });
+    cols.push({
+      key: "submittedAt",
+      title: "Thời gian nộp",
+      className: "whitespace-nowrap",
+      render: (r: ResultRow) => r.submittedAt || "",
+    });
+    cols.push({
+      key: "fullName",
+      title: isTeamMode ? "Tên đội" : "Họ và tên",
+      className: "whitespace-nowrap",
+      render: (r: ResultRow) =>
+        isTeamMode && r.teamName ? r.teamName : r.fullName,
+    });
+    cols.push({
+      key: "email",
+      title: isTeamMode ? "Email người đăng ký" : "Email",
+      className: "break-words",
+    });
+    cols.push({
+      key: "competitionType",
+      title: "Thể thức thi đấu",
+      className: "whitespace-nowrap",
+      render: (r: ResultRow) => r.competitionType || "-",
+    });
+    cols.push({
+      key: "category",
+      title: "Nội dung",
+      className: "whitespace-nowrap",
+      render: (r: ResultRow) => r.category || "-",
+    });
+    // Add "Xem chi tiết" button for both modes
+    cols.push({
+      key: "actions",
+      title: "Thao tác",
+      className: "whitespace-nowrap",
+      render: (r: ResultRow) => (
+        <button
+          onClick={() => {
+            if (isTeamMode) {
+              setSelectedTeam(r);
+              setShowTeamModal(true);
+            } else {
+              setSelectedIndividual(r);
+              setShowIndividualModal(true);
+            }
+          }}
+          className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-xs hover:bg-[#2e6de0]"
+        >
+          {isTeamMode ? "Chi tiết" : "Xem chi tiết"}
+        </button>
+      ),
+      sortable: false,
+    });
+
+    return cols;
+  }, [
+    participantMode,
+    statusFilter,
+    isAllSelected,
+    selectedIds,
+    toggleSelectAll,
+    toggleSelectOne,
+  ]);
 
   // Extract all fields from formData excluding category-related fields
   const extractFormFields = (
@@ -1166,7 +1050,6 @@ export default function FormResults() {
         }
       });
 
-      console.log("Extracted form fields:", fields);
       return fields;
     } catch (error) {
       console.error("Error extracting form fields:", error);
@@ -1177,7 +1060,6 @@ export default function FormResults() {
   // Format field key to readable label
   const formatFieldLabel = (key: string): string => {
     // First, check if we have label from form definition (published form)
-    // Check exact match first
     if (formFieldsMap[key]) {
       return formFieldsMap[key];
     }
@@ -1212,9 +1094,7 @@ export default function FormResults() {
     if (fieldMap[key.toLowerCase()]) return fieldMap[key.toLowerCase()];
 
     // Check if key is purely numeric (like "1762098545347")
-    // Try to find in formFieldsMap first, if not found, return generic label
     if (/^\d+$/.test(key)) {
-      // This should have been caught above, but just in case
       return formFieldsMap[key] || "Trường tùy chỉnh";
     }
 
@@ -1265,75 +1145,6 @@ export default function FormResults() {
     return extractFormFields(selectedIndividual.formData);
   }, [selectedIndividual]);
 
-  const exportCsv = useCallback(
-    (rows: ResultRow[]) => {
-      if (!rows || rows.length === 0) {
-        console.warn("Không có dữ liệu để xuất");
-        return;
-      }
-
-      const headers = [
-        "STT",
-        "Thời gian nộp",
-        participantMode === "TEAM" ? "Tên đội" : "Họ và tên",
-        "Email",
-        "MSSV",
-        "Thể thức thi đấu",
-        "Nội dung",
-        "Trạng thái",
-      ];
-
-      const formatDate = (v?: string) => {
-        if (!v) return "";
-        try {
-          const d = new Date(v);
-          if (Number.isNaN(d.getTime())) return v;
-          return d.toLocaleDateString("vi-VN");
-        } catch {
-          return v;
-        }
-      };
-
-      const csvRows = rows.map((r, i) => [
-        String(i + 1),
-        formatDate(r.submittedAt),
-        participantMode === "TEAM" && r.teamName ? r.teamName : r.fullName,
-        r.email || "",
-        r.studentId || "",
-        r.competitionType || "",
-        r.category || "",
-        r.status || "",
-      ]);
-
-      const csv = [
-        headers.join(","),
-        ...csvRows.map((line) => line.join(",")),
-      ].join("\r\n");
-      const blob = new Blob(["\uFEFF" + csv], {
-        type: "text/csv;charset=utf-8;",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `tournament-results-${new Date()
-        .toISOString()
-        .slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    },
-    [participantMode]
-  );
-
-  function escapeCsv(value?: string) {
-    const s = value ?? "";
-    if (/[",\n]/.test(s)) {
-      return '"' + s.replace(/"/g, '""') + '"';
-    }
-    return s;
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1350,9 +1161,7 @@ export default function FormResults() {
         <h2 className="text-2xl font-bold text-gray-900">
           Kết quả đăng ký giải đấu
         </h2>
-        <p className="text-gray-600">
-          Quản lý và xem kết quả đăng ký tham gia giải đấu
-        </p>
+        <p className="text-gray-600">Chọn form để xem kết quả đăng ký</p>
       </div>
 
       {/* Filters */}
@@ -1396,16 +1205,30 @@ export default function FormResults() {
                 ? "Đang xử lý..."
                 : `Từ chối (${selectedIds.size})`}
             </button>
-            <button
-              onClick={() => exportCsv(filtered)}
-              className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
-            >
-              Xuất Excel
-            </button>
           </div>
         </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Chọn form
+            </label>
+            <select
+              value={selectedFormId}
+              onChange={(e) => {
+                setSelectedFormId(e.target.value);
+                setPage(1);
+              }}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+            >
+              <option value="">-- Chọn form --</option>
+              {availableForms.map((form) => (
+                <option key={form.id} value={form.id}>
+                  {form.formTitle}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Loại thí sinh
@@ -1413,15 +1236,7 @@ export default function FormResults() {
             <select
               value={participantMode}
               onChange={(e) => {
-                const v = e.target.value as "INDIVIDUAL" | "TEAM";
-                setParticipantMode(v);
-                if (v === "TEAM") {
-                  if (typeFilter === "Đối kháng" || typeFilter === "ALL") {
-                    setTypeFilter("Quyền");
-                  }
-                } else {
-                  setTypeFilter("ALL");
-                }
+                setParticipantMode(e.target.value as "INDIVIDUAL" | "TEAM");
                 setPage(1);
               }}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
@@ -1438,26 +1253,17 @@ export default function FormResults() {
             <select
               value={typeFilter}
               onChange={(e) => {
-                setPage(1);
                 setTypeFilter(
                   e.target.value as "ALL" | "Đối kháng" | "Quyền" | "Võ nhạc"
                 );
+                setPage(1);
               }}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
             >
-              {participantMode === "INDIVIDUAL" ? (
-                <>
-                  <option value="ALL">Tất cả thể thức</option>
-                  <option value="Đối kháng">Đối kháng</option>
-                  <option value="Quyền">Quyền</option>
-                  <option value="Võ nhạc">Võ nhạc</option>
-                </>
-              ) : (
-                <>
-                  <option value="Quyền">Quyền</option>
-                  <option value="Võ nhạc">Võ nhạc</option>
-                </>
-              )}
+              <option value="ALL">Tất cả thể thức</option>
+              <option value="Đối kháng">Đối kháng</option>
+              <option value="Quyền">Quyền</option>
+              <option value="Võ nhạc">Võ nhạc</option>
             </select>
           </div>
 
@@ -1468,8 +1274,9 @@ export default function FormResults() {
             <select
               value={statusFilter}
               onChange={(e) => {
-                setPage(1);
                 setStatusFilter(e.target.value as "ALL" | ResultRow["status"]);
+                setSelectedIds(new Set()); // Reset selection when filter changes
+                setPage(1);
               }}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
             >
@@ -1487,39 +1294,7 @@ export default function FormResults() {
             <input
               placeholder="Tên, email, MSSV..."
               value={searchInput}
-              onChange={(e) => {
-                setSearchInput(e.target.value);
-              }}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Từ ngày
-            </label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => {
-                setPage(1);
-                setDateFrom(e.target.value);
-              }}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Đến ngày
-            </label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => {
-                setPage(1);
-                setDateTo(e.target.value);
-              }}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
             />
           </div>
@@ -1528,6 +1303,14 @@ export default function FormResults() {
         {error && <ErrorMessage error={error} />}
 
         {loading ? (
+          <div className="flex justify-center py-8">
+            <LoadingSpinner />
+          </div>
+        ) : !selectedFormId ? (
+          <div className="flex justify-center py-8 text-gray-500">
+            Vui lòng chọn form để xem kết quả
+          </div>
+        ) : loadingSubmissions ? (
           <div className="flex justify-center py-8">
             <LoadingSpinner />
           </div>
@@ -1541,7 +1324,7 @@ export default function FormResults() {
             keyField="id"
             page={page}
             pageSize={pageSize}
-            total={total}
+            total={filtered.length}
             onPageChange={setPage}
           />
         )}
@@ -1549,7 +1332,10 @@ export default function FormResults() {
 
       {/* Confirm Dialog */}
       {confirmDialog.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          style={{ left: "256px" }}
+        >
           <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
             <div className="flex items-center justify-between border-b px-6 py-4">
               <h3 className="text-lg font-semibold text-gray-900">
@@ -1668,7 +1454,10 @@ export default function FormResults() {
 
       {/* Team Details Modal */}
       {showTeamModal && selectedTeam && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          style={{ left: "256px" }}
+        >
           <div className="w-full max-w-4xl rounded-lg bg-white shadow-xl">
             <div className="flex items-center justify-between border-b px-6 py-4">
               <h3 className="text-lg font-semibold text-gray-900">
@@ -1770,7 +1559,10 @@ export default function FormResults() {
 
       {/* Individual Details Modal */}
       {showIndividualModal && selectedIndividual && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          style={{ left: "256px" }}
+        >
           <div className="w-full max-w-4xl rounded-lg bg-white shadow-xl">
             <div className="flex items-center justify-between border-b px-6 py-4">
               <h3 className="text-lg font-semibold text-gray-900">
