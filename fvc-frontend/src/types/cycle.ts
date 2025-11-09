@@ -9,6 +9,8 @@ export interface ChallengeCycleDto {
   cycleDurationMonths?: number;
   phaseDurationWeeks?: number;
   status: ChallengeCycleStatus;
+  trainSessionsRequired?: number;
+  eventsRequired?: number;
 }
 
 export interface ChallengeCycleCreateRequest {
@@ -19,6 +21,8 @@ export interface ChallengeCycleCreateRequest {
   cycleDurationMonths: number;
   phaseDurationWeeks: number;
   status: ChallengeCycleStatus;
+  trainSessionsRequired: number;
+  eventsRequired: number;
 }
 
 export interface ChallengeCycleUpdateRequest extends ChallengeCycleCreateRequest {}

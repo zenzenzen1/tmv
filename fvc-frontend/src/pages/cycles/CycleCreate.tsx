@@ -80,6 +80,8 @@ export default function CycleCreate() {
     cycleDurationMonths: 3,
     phaseDurationWeeks: 2,
     status: "DRAFT" as const,
+    trainSessionsRequired: 0,
+    eventsRequired: 0,
   });
   const [phases, setPhases] = useState<PhaseFormData[]>([]);
   const [teams, setTeams] = useState<TeamFormData[]>([
@@ -329,6 +331,14 @@ export default function CycleCreate() {
       alert("Vui lòng điền đầy đủ thông tin: tên cycle, ngày bắt đầu, thời lượng cycle và thời lượng phase");
       return;
     }
+    if (cycleForm.trainSessionsRequired === undefined || cycleForm.trainSessionsRequired < 0) {
+      alert("Vui lòng nhập số buổi tập bắt buộc (>= 0)");
+      return;
+    }
+    if (cycleForm.eventsRequired === undefined || cycleForm.eventsRequired < 0) {
+      alert("Vui lòng nhập số event tham gia bắt buộc (>= 0)");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -473,6 +483,42 @@ export default function CycleCreate() {
             </Typography>
           </Alert>
         )}
+      </Paper>
+
+      {/* Tiêu Chí Đánh Giá */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Tiêu Chí Đánh Giá
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Các tiêu chí đánh giá mặc định sẽ được áp dụng cho tất cả các phase trong chu kỳ này
+        </Typography>
+        <Stack spacing={3} sx={{ mt: 1 }}>
+          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+            <TextField
+              required
+              type="number"
+              label="Số Buổi Tập Bắt Buộc"
+              placeholder="VD: 10"
+              value={cycleForm.trainSessionsRequired}
+              onChange={(e) => setCycleForm({ ...cycleForm, trainSessionsRequired: parseInt(e.target.value) || 0 })}
+              helperText="Số buổi tập bắt buộc mỗi phase"
+              inputProps={{ min: 0 }}
+              sx={{ flex: { xs: "1 1 100%", md: "1 1 calc(50% - 8px)" } }}
+            />
+            <TextField
+              required
+              type="number"
+              label="Số Event Tham Gia Bắt Buộc"
+              placeholder="VD: 3"
+              value={cycleForm.eventsRequired}
+              onChange={(e) => setCycleForm({ ...cycleForm, eventsRequired: parseInt(e.target.value) || 0 })}
+              helperText="Số event tham gia bắt buộc mỗi phase"
+              inputProps={{ min: 0 }}
+              sx={{ flex: { xs: "1 1 100%", md: "1 1 calc(50% - 8px)" } }}
+            />
+          </Box>
+        </Stack>
       </Paper>
 
       {/* Phases */}

@@ -39,6 +39,14 @@ public class ChallengeCycle extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ChallengeCycleStatus status;
+
+    // Tiêu chí đánh giá mặc định cho cycle (sẽ được dùng cho các phase)
+    @Column(name = "train_sessions_required")
+    private Integer trainSessionsRequired; // Số buổi tập bắt buộc mỗi phase
+
+    @Column(name = "events_required")
+    private Integer eventsRequired; // Số event tham gia bắt buộc mỗi phase
+
 }
 
 
