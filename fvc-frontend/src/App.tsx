@@ -19,10 +19,11 @@ import Home from "./pages/Home";
 import LandingPage from "./pages/LandingPage";
 import TournamentListPage from "./pages/tournament/ListPage";
 import CompetitionFormPage from "./pages/tournament/CompetitionFormPage";
-import FormResults from "./features/tournament/FormResults";
 import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
 import TournamentFormList from "./features/tournament/TournamentFormList";
+import TournamentFormViewPage from "./features/tournament/TournamentFormViewPage";
+import ResultsListPage from "./features/tournament/ResultsListPage";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
 
 import MemberManagementListPage from "./pages/member-management/ListPage";
@@ -308,13 +309,14 @@ export default function App() {
           }
         />
         <Route
-          path="results/:id"
+          path="results"
           element={
             <RequireRole roles={["EXECUTIVE_BOARD"]}>
-              <FormResults />
+              <ResultsListPage />
             </RequireRole>
           }
         />
+
         <Route
           path="tournament-forms"
           element={
@@ -471,6 +473,10 @@ export default function App() {
         <Route path="tournament-forms" element={<TournamentFormList />} />
         <Route path="tournament-forms/new" element={<FormBuilder />} />
         <Route path="tournament-forms/:id/edit" element={<FormBuilder />} />
+        <Route
+          path="tournament-forms/:id/view"
+          element={<TournamentFormViewPage />}
+        />
 
         {/* User Management - Merge: Route from master branch */}
         <Route
@@ -531,7 +537,7 @@ export default function App() {
         path="/assessor/dashboard"
         element={<Navigate to="/assessor/dashboard" replace />}
       />
-      <Route path="/results/:id" element={<FormResults />} />
+
       <Route path="/published-form/:id" element={<PublishedForm />} />
       <Route path="/scoring" element={<SelectMatchPage />} />
       <Route path="/scoring/:matchId" element={<MatchScoringPage />} />

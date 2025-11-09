@@ -16,6 +16,7 @@ public class TournamentFormResponse {
     private String competitionId;
     private String tournamentName;
     private String formTitle;
+    private String description;
     private String formType;
     private Integer numberOfParticipants;
     private LocalDateTime createdAt;
