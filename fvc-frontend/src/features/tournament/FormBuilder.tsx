@@ -146,14 +146,146 @@ const FormBuilder: React.FC = () => {
         const competitionsRes = await api.get<
           PaginationResponse<{ id: string; name: string }>
         >(API_ENDPOINTS.COMPETITIONS.BASE);
-        setCompetitions(competitionsRes.data.content || []);
-        if (
-          competitionsRes.data.content &&
-          competitionsRes.data.content.length > 0
-        ) {
-          setCompetitionId(competitionsRes.data.content[0].id.toString());
+        const allCompetitions = competitionsRes.data.content || [];
+
+        // If creating new form (no editingId), filter out competitions that already have forms
+        if (!editingId) {
+          try {
+            console.log(
+              "🔍 Filtering competitions: Loading forms to check which competitions already have forms..."
+            );
+
+            // Load all tournament forms to get competitionIds that already have forms
+            const formsRes = await api.get<{
+              content?: Array<{ competitionId?: string; formType?: string }>;
+            }>(API_ENDPOINTS.TOURNAMENT_FORMS.BASE, {
+              all: true,
+            });
+
+            type RawFormData = {
+              competitionId?: string;
+              formType?: string;
+              [key: string]: unknown;
+            };
+            let rawFormsData: RawFormData[] = [];
+            if (formsRes.success && formsRes.data) {
+              if (Array.isArray(formsRes.data)) {
+                rawFormsData = formsRes.data as RawFormData[];
+              } else if (
+                formsRes.data.content &&
+                Array.isArray(formsRes.data.content)
+              ) {
+                rawFormsData = formsRes.data.content as RawFormData[];
+              }
+            }
+
+            console.log(`📋 Found ${rawFormsData.length} total forms`);
+
+            // Filter only COMPETITION_REGISTRATION forms
+            const competitionForms = rawFormsData.filter(
+              (form: RawFormData) => {
+                const formType = String(form.formType || "").toUpperCase();
+                return formType === "COMPETITION_REGISTRATION";
+              }
+            );
+
+            console.log(
+              `🎯 Found ${competitionForms.length} COMPETITION_REGISTRATION forms`
+            );
+
+            // Normalize competition IDs for consistent comparison
+            const normalizeId = (id: unknown): string | null => {
+              if (id === null || id === undefined) return null;
+              const str = String(id).trim();
+              return str.length > 0 ? str : null;
+            };
+
+            // Extract competition IDs that already have forms
+            const competitionIdsWithForms = new Set(
+              competitionForms
+                .map((form: RawFormData) => normalizeId(form.competitionId))
+                .filter(
+                  (id): id is string =>
+                    id !== null && id !== undefined && id.length > 0
+                )
+            );
+
+            console.log(
+              `🚫 Competitions with forms (${competitionIdsWithForms.size}):`,
+              Array.from(competitionIdsWithForms)
+            );
+            console.log(`📊 Total competitions: ${allCompetitions.length}`);
+
+            // Filter out competitions that already have forms
+            const availableCompetitions = allCompetitions.filter((comp) => {
+              const compIdNormalized = normalizeId(comp.id);
+              if (!compIdNormalized) {
+                console.warn(`⚠️ Competition has invalid ID:`, comp);
+                return false;
+              }
+              const hasForm = competitionIdsWithForms.has(compIdNormalized);
+              if (hasForm) {
+                console.log(
+                  `❌ Filtering out: "${comp.name}" (ID: ${compIdNormalized}) - already has form`
+                );
+              }
+              return !hasForm;
+            });
+
+            console.log(
+              `✅ Available competitions (${availableCompetitions.length}):`,
+              availableCompetitions.map((c) => ({ id: c.id, name: c.name }))
+            );
+
+            // Set filtered competitions to state
+            setCompetitions(availableCompetitions);
+
+            // Only set competitionId if there are available competitions and competitionId is not already set
+            if (availableCompetitions.length > 0) {
+              // Only set if competitionId is empty (creating new form)
+              const currentCompId = competitionId;
+              if (!currentCompId || currentCompId.trim() === "") {
+                const firstAvailableId = availableCompetitions[0].id.toString();
+                console.log(
+                  `🎯 Setting default competitionId to: ${firstAvailableId} (${availableCompetitions[0].name})`
+                );
+                setCompetitionId(firstAvailableId);
+              } else {
+                // Check if current competitionId is still available
+                const currentCompIdNormalized = normalizeId(currentCompId);
+                const isCurrentAvailable = availableCompetitions.some(
+                  (c) => normalizeId(c.id) === currentCompIdNormalized
+                );
+                if (!isCurrentAvailable) {
+                  // Current competition now has a form, switch to first available
+                  const firstAvailableId =
+                    availableCompetitions[0].id.toString();
+                  console.log(
+                    `🔄 Current competition now has form, switching to: ${firstAvailableId}`
+                  );
+                  setCompetitionId(firstAvailableId);
+                }
+              }
+            } else {
+              console.warn(
+                "⚠️ No available competitions found - all competitions already have forms"
+              );
+              setCompetitionId(""); // Clear competitionId if no available competitions
+            }
+          } catch (formsError) {
+            console.error("❌ Error loading forms for filtering:", formsError);
+            // If error loading forms, show all competitions as fallback
+            console.warn(
+              "⚠️ Falling back to showing all competitions due to error"
+            );
+            setCompetitions(allCompetitions);
+          }
+        } else {
+          // When editing, show all competitions (user can't change competition anyway)
+          console.log("✏️ Editing mode: Showing all competitions");
+          setCompetitions(allCompetitions);
+          // CompetitionId will be set from the form data in the edit useEffect
         }
-        // The rest will be loaded per selected competition
       } catch (error) {
         console.error("Error loading data:", error);
         toast.error("Không thể tải dữ liệu");
@@ -161,7 +293,8 @@ const FormBuilder: React.FC = () => {
     };
 
     loadData();
-  }, [toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast, editingId]); // editingId is needed to determine if we should filter competitions
 
   // Load competition-specific contents when a competition is picked
   useEffect(() => {
@@ -421,6 +554,7 @@ const FormBuilder: React.FC = () => {
             }>;
             status?: string; // Added status to response
             publicSlug?: string; // Added publicSlug to response
+            publicLink?: string; // Added publicLink to response
           }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(editingId));
 
           if (response.data) {
@@ -438,7 +572,13 @@ const FormBuilder: React.FC = () => {
               setFormStatus(response.data.status);
             }
             // Load publicLink if available
-            if (response.data.publicSlug) {
+            // For tournament forms, use /published-form/{id}
+            if (response.data.publicLink) {
+              setPublicLink(response.data.publicLink);
+            } else if (response.data.id) {
+              setPublicLink(`/published-form/${response.data.id}`);
+            } else if (response.data.publicSlug) {
+              // Fallback to slug-based link
               setPublicLink(`/public/forms/${response.data.publicSlug}`);
             }
             // Nếu backend có trả endDate, bind vào state (không có cũng không sao)
@@ -1365,15 +1505,21 @@ const FormBuilder: React.FC = () => {
           const formResponse = await api.get<{
             publicLink?: string;
             publicSlug?: string;
+            id?: string;
             [key: string]: unknown;
           }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(editingId));
           const formData = formResponse.data as {
             publicLink?: string;
             publicSlug?: string;
+            id?: string;
           };
           if (formData?.publicLink) {
             setPublicLink(formData.publicLink);
+          } else if (formData?.id) {
+            // For tournament forms, use /published-form/{id}
+            setPublicLink(`/published-form/${formData.id}`);
           } else if (formData?.publicSlug) {
+            // Fallback to slug-based link
             setPublicLink(`/public/forms/${formData.publicSlug}`);
           }
         } catch {
@@ -1392,28 +1538,12 @@ const FormBuilder: React.FC = () => {
         // api.post returns data directly, not wrapped in BaseResponse
         if (response?.publicLink) {
           setPublicLink(response.publicLink);
-        } else if (response?.publicSlug) {
-          setPublicLink(`/public/forms/${response.publicSlug}`);
         } else if (response?.id) {
-          // If no publicLink in response, fetch form again to get it
-          try {
-            const formResponse = await api.get<{
-              publicLink?: string;
-              publicSlug?: string;
-              [key: string]: unknown;
-            }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(response.id));
-            const formData = formResponse.data as {
-              publicLink?: string;
-              publicSlug?: string;
-            };
-            if (formData?.publicLink) {
-              setPublicLink(formData.publicLink);
-            } else if (formData?.publicSlug) {
-              setPublicLink(`/public/forms/${formData.publicSlug}`);
-            }
-          } catch {
-            // Ignore if fetch fails
-          }
+          // For tournament forms, use /published-form/{id}
+          setPublicLink(`/published-form/${response.id}`);
+        } else if (response?.publicSlug) {
+          // Fallback to slug-based link if id is not available
+          setPublicLink(`/public/forms/${response.publicSlug}`);
         }
       }
       // Don't navigate immediately if we need to show the public link

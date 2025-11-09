@@ -9,6 +9,7 @@ type FormConfig = {
   id: string;
   name: string;
   formTitle: string;
+  tournamentName?: string; // Tên giải đấu
   description: string;
   formType: string;
   createdAt: string;
@@ -73,11 +74,15 @@ export default function TournamentFormList() {
           (
             formLike: Partial<FormConfig> & {
               formTitle?: string;
+              tournamentName?: string;
               numberOfParticipants?: number;
             }
           ) => {
             const id = String(formLike.id || "");
-            const name = formLike.formTitle || formLike.name || "Không có tên";
+            const formTitle =
+              formLike.formTitle || formLike.name || "Không có tên";
+            const tournamentName =
+              formLike.tournamentName || formLike.name || "Không có tên";
             const description = formLike.description || "Không có mô tả";
             const formType = String(formLike.formType || "");
             const createdAt = String(formLike.createdAt || "");
@@ -89,8 +94,9 @@ export default function TournamentFormList() {
                 : 0;
             return {
               id,
-              name,
-              formTitle: name,
+              name: tournamentName, // name dùng để hiển thị tên giải đấu
+              formTitle: formTitle, // formTitle là tên form
+              tournamentName: tournamentName,
               description,
               formType,
               createdAt,
@@ -250,10 +256,12 @@ export default function TournamentFormList() {
                     {forms.map((form) => (
                       <tr key={form.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-gray-900 whitespace-nowrap">
-                          {form.name}
+                          {form.tournamentName ||
+                            form.name ||
+                            "Không có tên giải đấu"}
                         </td>
                         <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                          {form.formTitle || form.name}
+                          {form.formTitle || "Không có tiêu đề"}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           {form.numberOfParticipants ?? 0}
