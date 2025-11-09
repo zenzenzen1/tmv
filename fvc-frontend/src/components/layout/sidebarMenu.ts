@@ -21,8 +21,16 @@ export const defaultMenuItems: MenuItem[] = [
   { section: "Quản lí nội dung", key: "forms", label: "Quyền" },
   { section: "Quản lí nội dung", key: "music", label: "Võ nhạc" },
   { section: "Quản lí form", key: "formList", label: "Form đăng ký CLB" },
-  { section: "Quản lí form", key: "submittedForms", label: "Kết quả đăng ký" },
-  { section: "Quản trị hệ thống", key: "memberManagement", label: "Quản lý thành viên" },
+  {
+    section: "Quản lí form",
+    key: "submittedForms",
+    label: "Kết quả đăng ký CLB",
+  },
+  {
+    section: "Quản trị hệ thống",
+    key: "memberManagement",
+    label: "Quản lý thành viên",
+  },
   { section: "Quản trị hệ thống", key: "users", label: "Quản lý người dùng" },
 ];
 
