@@ -421,6 +421,7 @@ const FormBuilder: React.FC = () => {
             }>;
             status?: string; // Added status to response
             publicSlug?: string; // Added publicSlug to response
+            publicLink?: string; // Added publicLink to response
           }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(editingId));
 
           if (response.data) {
@@ -438,7 +439,13 @@ const FormBuilder: React.FC = () => {
               setFormStatus(response.data.status);
             }
             // Load publicLink if available
-            if (response.data.publicSlug) {
+            // For tournament forms, use /published-form/{id}
+            if (response.data.publicLink) {
+              setPublicLink(response.data.publicLink);
+            } else if (response.data.id) {
+              setPublicLink(`/published-form/${response.data.id}`);
+            } else if (response.data.publicSlug) {
+              // Fallback to slug-based link
               setPublicLink(`/public/forms/${response.data.publicSlug}`);
             }
             // Nếu backend có trả endDate, bind vào state (không có cũng không sao)
@@ -1365,15 +1372,21 @@ const FormBuilder: React.FC = () => {
           const formResponse = await api.get<{
             publicLink?: string;
             publicSlug?: string;
+            id?: string;
             [key: string]: unknown;
           }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(editingId));
           const formData = formResponse.data as {
             publicLink?: string;
             publicSlug?: string;
+            id?: string;
           };
           if (formData?.publicLink) {
             setPublicLink(formData.publicLink);
+          } else if (formData?.id) {
+            // For tournament forms, use /published-form/{id}
+            setPublicLink(`/published-form/${formData.id}`);
           } else if (formData?.publicSlug) {
+            // Fallback to slug-based link
             setPublicLink(`/public/forms/${formData.publicSlug}`);
           }
         } catch {
@@ -1392,28 +1405,12 @@ const FormBuilder: React.FC = () => {
         // api.post returns data directly, not wrapped in BaseResponse
         if (response?.publicLink) {
           setPublicLink(response.publicLink);
-        } else if (response?.publicSlug) {
-          setPublicLink(`/public/forms/${response.publicSlug}`);
         } else if (response?.id) {
-          // If no publicLink in response, fetch form again to get it
-          try {
-            const formResponse = await api.get<{
-              publicLink?: string;
-              publicSlug?: string;
-              [key: string]: unknown;
-            }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(response.id));
-            const formData = formResponse.data as {
-              publicLink?: string;
-              publicSlug?: string;
-            };
-            if (formData?.publicLink) {
-              setPublicLink(formData.publicLink);
-            } else if (formData?.publicSlug) {
-              setPublicLink(`/public/forms/${formData.publicSlug}`);
-            }
-          } catch {
-            // Ignore if fetch fails
-          }
+          // For tournament forms, use /published-form/{id}
+          setPublicLink(`/published-form/${response.id}`);
+        } else if (response?.publicSlug) {
+          // Fallback to slug-based link if id is not available
+          setPublicLink(`/public/forms/${response.publicSlug}`);
         }
       }
       // Don't navigate immediately if we need to show the public link

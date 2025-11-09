@@ -1069,6 +1069,8 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 .numberOfParticipants((int) participants)
                 .createdAt(f.getCreatedAt())
                 .status(status)
+                .publicSlug(f.getPublicSlug())
+                .publicLink(f.getId() != null ? "/published-form/" + f.getId() : null)
                 .build();
     }
 

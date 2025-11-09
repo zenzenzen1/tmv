@@ -22,6 +22,8 @@ public class TournamentFormResponse {
     private LocalDateTime createdAt;
     private String status;
     private String message;
+    private String publicLink;
+    private String publicSlug;
 }
 
 
