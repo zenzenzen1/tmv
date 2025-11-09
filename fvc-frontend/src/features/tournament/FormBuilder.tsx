@@ -151,6 +151,10 @@ const FormBuilder: React.FC = () => {
         // If creating new form (no editingId), filter out competitions that already have forms
         if (!editingId) {
           try {
+            console.log(
+              "🔍 Filtering competitions: Loading forms to check which competitions already have forms..."
+            );
+
             // Load all tournament forms to get competitionIds that already have forms
             const formsRes = await api.get<{
               content?: Array<{ competitionId?: string; formType?: string }>;
@@ -175,6 +179,8 @@ const FormBuilder: React.FC = () => {
               }
             }
 
+            console.log(`📋 Found ${rawFormsData.length} total forms`);
+
             // Filter only COMPETITION_REGISTRATION forms
             const competitionForms = rawFormsData.filter(
               (form: RawFormData) => {
@@ -183,13 +189,18 @@ const FormBuilder: React.FC = () => {
               }
             );
 
-            // Normalize competition IDs
+            console.log(
+              `🎯 Found ${competitionForms.length} COMPETITION_REGISTRATION forms`
+            );
+
+            // Normalize competition IDs for consistent comparison
             const normalizeId = (id: unknown): string | null => {
               if (id === null || id === undefined) return null;
               const str = String(id).trim();
               return str.length > 0 ? str : null;
             };
 
+            // Extract competition IDs that already have forms
             const competitionIdsWithForms = new Set(
               competitionForms
                 .map((form: RawFormData) => normalizeId(form.competitionId))
@@ -199,31 +210,81 @@ const FormBuilder: React.FC = () => {
                 )
             );
 
+            console.log(
+              `🚫 Competitions with forms (${competitionIdsWithForms.size}):`,
+              Array.from(competitionIdsWithForms)
+            );
+            console.log(`📊 Total competitions: ${allCompetitions.length}`);
+
             // Filter out competitions that already have forms
             const availableCompetitions = allCompetitions.filter((comp) => {
               const compIdNormalized = normalizeId(comp.id);
-              if (!compIdNormalized) return false;
-              return !competitionIdsWithForms.has(compIdNormalized);
+              if (!compIdNormalized) {
+                console.warn(`⚠️ Competition has invalid ID:`, comp);
+                return false;
+              }
+              const hasForm = competitionIdsWithForms.has(compIdNormalized);
+              if (hasForm) {
+                console.log(
+                  `❌ Filtering out: "${comp.name}" (ID: ${compIdNormalized}) - already has form`
+                );
+              }
+              return !hasForm;
             });
 
+            console.log(
+              `✅ Available competitions (${availableCompetitions.length}):`,
+              availableCompetitions.map((c) => ({ id: c.id, name: c.name }))
+            );
+
+            // Set filtered competitions to state
             setCompetitions(availableCompetitions);
+
             // Only set competitionId if there are available competitions and competitionId is not already set
             if (availableCompetitions.length > 0) {
               // Only set if competitionId is empty (creating new form)
               const currentCompId = competitionId;
               if (!currentCompId || currentCompId.trim() === "") {
-                setCompetitionId(availableCompetitions[0].id.toString());
+                const firstAvailableId = availableCompetitions[0].id.toString();
+                console.log(
+                  `🎯 Setting default competitionId to: ${firstAvailableId} (${availableCompetitions[0].name})`
+                );
+                setCompetitionId(firstAvailableId);
+              } else {
+                // Check if current competitionId is still available
+                const currentCompIdNormalized = normalizeId(currentCompId);
+                const isCurrentAvailable = availableCompetitions.some(
+                  (c) => normalizeId(c.id) === currentCompIdNormalized
+                );
+                if (!isCurrentAvailable) {
+                  // Current competition now has a form, switch to first available
+                  const firstAvailableId =
+                    availableCompetitions[0].id.toString();
+                  console.log(
+                    `🔄 Current competition now has form, switching to: ${firstAvailableId}`
+                  );
+                  setCompetitionId(firstAvailableId);
+                }
               }
+            } else {
+              console.warn(
+                "⚠️ No available competitions found - all competitions already have forms"
+              );
+              setCompetitionId(""); // Clear competitionId if no available competitions
             }
           } catch (formsError) {
-            console.error("Error loading forms:", formsError);
-            // If error loading forms, show all competitions
+            console.error("❌ Error loading forms for filtering:", formsError);
+            // If error loading forms, show all competitions as fallback
+            console.warn(
+              "⚠️ Falling back to showing all competitions due to error"
+            );
             setCompetitions(allCompetitions);
           }
         } else {
-          // When editing, show all competitions
+          // When editing, show all competitions (user can't change competition anyway)
+          console.log("✏️ Editing mode: Showing all competitions");
           setCompetitions(allCompetitions);
-          // CompetitionId will be set from the form data
+          // CompetitionId will be set from the form data in the edit useEffect
         }
       } catch (error) {
         console.error("Error loading data:", error);
