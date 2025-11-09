@@ -75,11 +75,11 @@ const FormBuilder: React.FC = () => {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [competitionId, setCompetitionId] = useState<string>("");
   const [formStatus, setFormStatus] = useState<string | undefined>(undefined);
+  const [publicLink, setPublicLink] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string>("");
   const [competitions, setCompetitions] = useState<
     Array<{ id: string; name: string }>
   >([]);
-  const [blocked, setBlocked] = useState(false);
 
   const [weightClasses, setWeightClasses] = useState<
     Array<{
@@ -104,6 +104,10 @@ const FormBuilder: React.FC = () => {
   >([]);
 
   const [submitting, setSubmitting] = useState(false);
+  const [pendingPostpone, setPendingPostpone] = useState(false);
+  const [confirmPostponeOpen, setConfirmPostponeOpen] = useState(false);
+  const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
+  const [pendingPublish, setPendingPublish] = useState(false);
 
   // Helpers for custom questions validation
   const cleanOptions = (opts?: string[]): string[] =>
@@ -416,18 +420,10 @@ const FormBuilder: React.FC = () => {
               required?: boolean;
             }>;
             status?: string; // Added status to response
+            publicSlug?: string; // Added publicSlug to response
           }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(editingId));
 
           if (response.data) {
-            if (response.data.status && response.data.status !== "DRAFT") {
-              setBlocked(true);
-              toast.error(
-                "Form đã Publish/không ở trạng thái Draft, không thể chỉnh sửa"
-              );
-              // Navigate back shortly after showing toast, avoid rendering edit UI
-              setTimeout(() => navigate(-1), 200);
-              return;
-            }
             setFormData((prev) => ({
               ...prev,
               title: response.data.name || "",
@@ -440,6 +436,10 @@ const FormBuilder: React.FC = () => {
 
             if (response.data.status) {
               setFormStatus(response.data.status);
+            }
+            // Load publicLink if available
+            if (response.data.publicSlug) {
+              setPublicLink(`/public/forms/${response.data.publicSlug}`);
             }
             // Nếu backend có trả endDate, bind vào state (không có cũng không sao)
             try {
@@ -612,10 +612,10 @@ const FormBuilder: React.FC = () => {
   const handleSaveDraft = async () => {
     setSubmitting(true);
     try {
-      if (editingId && formStatus && formStatus !== "DRAFT") {
-        toast.error(
-          "Form đã Publish, chỉ form ở trạng thái Draft mới chỉnh sửa được"
-        );
+      // Allow saving for DRAFT, PUBLISH, and POSTPONE status
+      // Only block if status is ARCHIVED or other invalid states
+      if (editingId && formStatus && formStatus === "ARCHIVED") {
+        toast.error("Form đã lưu trữ, không thể chỉnh sửa");
         return;
       }
       // Validate custom questions before proceeding
@@ -936,12 +936,20 @@ const FormBuilder: React.FC = () => {
         ];
       }
 
+      // Keep current status if form is already published or postponed, otherwise set to DRAFT
+      const saveStatus =
+        editingId &&
+        formStatus &&
+        (formStatus === "PUBLISH" || formStatus === "POSTPONE")
+          ? undefined // Don't change status, just save
+          : "DRAFT";
+
       const payload = {
         name: formData.title,
         description: formData.description,
         formType: "COMPETITION_REGISTRATION",
         competitionId: competitionId,
-        status: "DRAFT",
+        ...(saveStatus ? { status: saveStatus } : {}), // Only include status if we want to change it
         fields: fields,
         endDate: endDate ? new Date(endDate).toISOString() : undefined,
       };
@@ -979,13 +987,31 @@ const FormBuilder: React.FC = () => {
     }
   };
 
+  const requestPublish = () => {
+    setConfirmPublishOpen(true);
+  };
+
+  const confirmPublish = async () => {
+    try {
+      setPendingPublish(true);
+      await handleSaveAndPublish();
+    } finally {
+      setPendingPublish(false);
+      setConfirmPublishOpen(false);
+    }
+  };
+
   const handleSaveAndPublish = async () => {
     setSubmitting(true);
     try {
-      if (editingId && formStatus && formStatus !== "DRAFT") {
-        toast.error(
-          "Form đã Publish, chỉ form ở trạng thái Draft mới chỉnh sửa được"
-        );
+      // Allow publishing if status is DRAFT or POSTPONE
+      if (
+        editingId &&
+        formStatus &&
+        formStatus !== "DRAFT" &&
+        formStatus !== "POSTPONE"
+      ) {
+        toast.error("Chỉ form ở trạng thái Nháp hoặc Hoãn mới có thể publish");
         return;
       }
       // Validate custom questions before proceeding
@@ -1317,6 +1343,8 @@ const FormBuilder: React.FC = () => {
       };
 
       console.log("Questions state:", questions);
+
+      const isRepublishing = formStatus === "POSTPONE";
       console.log("Questions length:", questions.length);
       console.log(
         "Custom questions in payload:",
@@ -1327,13 +1355,72 @@ const FormBuilder: React.FC = () => {
       if (editingId) {
         // Update existing form
         await api.put(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(editingId), payload);
-        toast.success("Đã cập nhật và xuất bản thành công");
+        const message = isRepublishing
+          ? "Đã công khai lại thành công!"
+          : "Đã cập nhật và xuất bản thành công";
+        toast.success(message);
+        setFormStatus("PUBLISH");
+        // Fetch form again to get publicLink/publicSlug
+        try {
+          const formResponse = await api.get<{
+            publicLink?: string;
+            publicSlug?: string;
+            [key: string]: unknown;
+          }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(editingId));
+          const formData = formResponse.data as {
+            publicLink?: string;
+            publicSlug?: string;
+          };
+          if (formData?.publicLink) {
+            setPublicLink(formData.publicLink);
+          } else if (formData?.publicSlug) {
+            setPublicLink(`/public/forms/${formData.publicSlug}`);
+          }
+        } catch {
+          // Ignore if fetch fails
+        }
       } else {
         // Create new form
-        await api.post(API_ENDPOINTS.TOURNAMENT_FORMS.BASE, payload);
+        const response = await api.post<{
+          id?: string;
+          publicLink?: string;
+          publicSlug?: string;
+          [key: string]: unknown;
+        }>(API_ENDPOINTS.TOURNAMENT_FORMS.BASE, payload);
         toast.success("Đã lưu và xuất bản thành công");
+        // Update publicLink if available
+        // api.post returns data directly, not wrapped in BaseResponse
+        if (response?.publicLink) {
+          setPublicLink(response.publicLink);
+        } else if (response?.publicSlug) {
+          setPublicLink(`/public/forms/${response.publicSlug}`);
+        } else if (response?.id) {
+          // If no publicLink in response, fetch form again to get it
+          try {
+            const formResponse = await api.get<{
+              publicLink?: string;
+              publicSlug?: string;
+              [key: string]: unknown;
+            }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(response.id));
+            const formData = formResponse.data as {
+              publicLink?: string;
+              publicSlug?: string;
+            };
+            if (formData?.publicLink) {
+              setPublicLink(formData.publicLink);
+            } else if (formData?.publicSlug) {
+              setPublicLink(`/public/forms/${formData.publicSlug}`);
+            }
+          } catch {
+            // Ignore if fetch fails
+          }
+        }
       }
-      navigate(-1);
+      // Don't navigate immediately if we need to show the public link
+      // Only navigate if form is new (no editingId)
+      if (!editingId) {
+        navigate(-1);
+      }
     } catch (error) {
       console.error("Error saving and publishing:", error);
       toast.error("Không thể lưu và xuất bản");
@@ -1342,867 +1429,1050 @@ const FormBuilder: React.FC = () => {
     }
   };
 
+  const requestPostpone = () => {
+    setConfirmPostponeOpen(true);
+  };
+
+  const confirmPostpone = async () => {
+    try {
+      setPendingPostpone(true);
+      if (!editingId) {
+        toast.error("Không thể hoãn form chưa được lưu");
+        return;
+      }
+      await api.patch(API_ENDPOINTS.TOURNAMENT_FORMS.STATUS(editingId), {
+        status: "POSTPONE",
+      });
+      setFormStatus("POSTPONE");
+      setPublicLink(null); // Clear public link when postponed
+      toast.success("Form đã được hoãn thành công");
+    } catch (err: unknown) {
+      console.error("Error postponing form:", err);
+      const errorMessage =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message?: string }).message)
+          : "Network error";
+      toast.error("Lỗi khi hoãn form: " + errorMessage);
+    } finally {
+      setPendingPostpone(false);
+      setConfirmPostponeOpen(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {blocked && (
-        <div className="text-center text-sm text-gray-600">
-          Đang chuyển hướng...
+      <>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              ← Quay lại
+            </button>
+            <h1 className="text-xl font-semibold text-gray-900">
+              Tạo Form{" "}
+              <span className="text-sm text-gray-500">đăng ký giải đấu</span>
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowPreview(true)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Xem trước
+            </button>
+            <button
+              onClick={handleSaveDraft}
+              disabled={submitting || pendingPostpone}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {submitting ? "Đang lưu..." : "Lưu"}
+            </button>
+            <button
+              onClick={requestPublish}
+              disabled={
+                submitting ||
+                pendingPostpone ||
+                pendingPublish ||
+                formStatus === "PUBLISH"
+              }
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {pendingPublish
+                ? "Đang publish..."
+                : formStatus === "POSTPONE"
+                ? "Công khai lại"
+                : "Publish"}
+            </button>
+            {formStatus === "PUBLISH" && (
+              <button
+                onClick={requestPostpone}
+                disabled={submitting || pendingPostpone}
+                className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+              >
+                {pendingPostpone ? "Đang hoãn..." : "Hoãn"}
+              </button>
+            )}
+          </div>
         </div>
-      )}
-      {!blocked && (
-        <>
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate(-1)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                ← Quay lại
-              </button>
-              <h1 className="text-xl font-semibold text-gray-900">
-                Tạo Form <span className="text-sm text-gray-500">CLB</span>
-              </h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowPreview(true)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Xem trước
-              </button>
-              {/* Merge: Keep HEAD implementation - uses handleSaveDraft method which has comprehensive validation and field building logic */}
-              <button
-                onClick={handleSaveDraft}
-                disabled={submitting}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                {submitting ? "Đang lưu..." : "Lưu nháp"}
-              </button>
-              {/* Merge: Keep HEAD implementation - uses handleSaveAndPublish method which has comprehensive validation and field building logic */}
-              <button
-                onClick={handleSaveAndPublish}
-                disabled={submitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {submitting ? "Đang lưu..." : "Lưu & Publish"}
-              </button>
+
+        {/* Public Link Display */}
+        {formStatus && formStatus.toUpperCase() === "PUBLISH" && publicLink && (
+          <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="mb-2 flex items-center gap-2">
+                  <svg
+                    className="h-5 w-5 text-green-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                    />
+                  </svg>
+                  <h3 className="text-sm font-semibold text-green-800">
+                    Form đã được công khai
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}${publicLink}`}
+                    className="flex-1 rounded-md border border-green-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(
+                          `${window.location.origin}${publicLink}`
+                        );
+                        toast.success("Đã copy link công khai!");
+                      } catch {
+                        toast.error("Không thể copy link");
+                      }
+                    }}
+                    className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    Copy link
+                  </button>
+                  <a
+                    href={publicLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md border border-green-600 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    Mở link
+                  </a>
+                </div>
+                <p className="mt-2 text-xs text-green-600">
+                  Link này có thể được chia sẻ với bất kỳ ai để họ đăng ký.
+                  Không cần đăng nhập.
+                </p>
+              </div>
             </div>
           </div>
+        )}
 
-          {/* Merge: Keep HEAD implementation - more complete form builder with proper variable references */}
-          {/* Form Builder */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="space-y-6">
-              {/* Competition Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Chọn Giải
-                </label>
-                <select
-                  value={competitionId}
-                  onChange={(e) => setCompetitionId(e.target.value)}
-                  disabled={editingId ? true : false}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="">Chọn giải đấu</option>
-                  {competitions.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        {/* Merge: Keep HEAD implementation - more complete form builder with proper variable references */}
+        {/* Form Builder */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="space-y-6">
+            {/* Competition Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Chọn Giải
+              </label>
+              <select
+                value={competitionId}
+                onChange={(e) => setCompetitionId(e.target.value)}
+                disabled={editingId ? true : false}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="">Chọn giải đấu</option>
+                {competitions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              {/* Form Title */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tiêu đề *
-                </label>
+            {/* Form Title */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tiêu đề *
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => handleInputChange("title", e.target.value)}
+                placeholder="Nhập tiêu đề form"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              {!titleValidation.isValid && (
+                <p className="mt-1 text-sm text-red-600">
+                  {titleValidation.errorMessage}
+                </p>
+              )}
+            </div>
+
+            {/* Form Description */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Mô tả *
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) =>
+                  handleInputChange("description", e.target.value)
+                }
+                placeholder="Nhập mô tả form"
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              />
+              {!descriptionValidation.isValid && (
+                <p className="mt-1 text-sm text-red-600">
+                  {descriptionValidation.errorMessage}
+                </p>
+              )}
+            </div>
+
+            {/* End Date (ngày kết thúc hiển thị form) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Ngày kết thúc (tự ẩn form sau thời điểm này)
+              </label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tomorrow = new Date();
+                      tomorrow.setDate(tomorrow.getDate() + 1);
+                      tomorrow.setHours(23, 59, 0, 0);
+                      setEndDate(tomorrow.toISOString().slice(0, 16));
+                    }}
+                    className="px-3 py-1 text-xs bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors"
+                  >
+                    Ngày mai 23:59
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextWeek = new Date();
+                      nextWeek.setDate(nextWeek.getDate() + 7);
+                      nextWeek.setHours(23, 59, 0, 0);
+                      setEndDate(nextWeek.toISOString().slice(0, 16));
+                    }}
+                    className="px-3 py-1 text-xs bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors"
+                  >
+                    Tuần sau
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextMonth = new Date();
+                      nextMonth.setMonth(nextMonth.getMonth() + 1);
+                      nextMonth.setHours(23, 59, 0, 0);
+                      setEndDate(nextMonth.toISOString().slice(0, 16));
+                    }}
+                    className="px-3 py-1 text-xs bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 transition-colors"
+                  >
+                    Tháng sau
+                  </button>
+                </div>
                 <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => handleInputChange("title", e.target.value)}
-                  placeholder="Nhập tiêu đề form"
+                  type="datetime-local"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  min={new Date().toISOString().slice(0, 16)}
                 />
-                {!titleValidation.isValid && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {titleValidation.errorMessage}
+                {endDate && (
+                  <p className="text-xs text-gray-500">
+                    Hết hạn: {new Date(endDate).toLocaleString("vi-VN")}
                   </p>
                 )}
               </div>
+            </div>
 
-              {/* Form Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Mô tả *
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) =>
-                    handleInputChange("description", e.target.value)
-                  }
-                  placeholder="Nhập mô tả form"
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                />
-                {!descriptionValidation.isValid && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {descriptionValidation.errorMessage}
-                  </p>
-                )}
-              </div>
-
-              {/* End Date (ngày kết thúc hiển thị form) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ngày kết thúc (tự ẩn form sau thời điểm này)
-                </label>
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const tomorrow = new Date();
-                        tomorrow.setDate(tomorrow.getDate() + 1);
-                        tomorrow.setHours(23, 59, 0, 0);
-                        setEndDate(tomorrow.toISOString().slice(0, 16));
-                      }}
-                      className="px-3 py-1 text-xs bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors"
-                    >
-                      Ngày mai 23:59
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextWeek = new Date();
-                        nextWeek.setDate(nextWeek.getDate() + 7);
-                        nextWeek.setHours(23, 59, 0, 0);
-                        setEndDate(nextWeek.toISOString().slice(0, 16));
-                      }}
-                      className="px-3 py-1 text-xs bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors"
-                    >
-                      Tuần sau
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextMonth = new Date();
-                        nextMonth.setMonth(nextMonth.getMonth() + 1);
-                        nextMonth.setHours(23, 59, 0, 0);
-                        setEndDate(nextMonth.toISOString().slice(0, 16));
-                      }}
-                      className="px-3 py-1 text-xs bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 transition-colors"
-                    >
-                      Tháng sau
-                    </button>
-                  </div>
-                  <input
-                    type="datetime-local"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    min={new Date().toISOString().slice(0, 16)}
-                  />
-                  {endDate && (
-                    <p className="text-xs text-gray-500">
-                      Hết hạn: {new Date(endDate).toLocaleString("vi-VN")}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Standard Fields */}
-              <div className="mt-4 space-y-2">
-                {/* Full Name */}
-                <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-400 cursor-not-allowed">✖</div>
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-xs text-gray-600">
-                          <input
-                            type="checkbox"
-                            checked={true}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            disabled
-                          />
-                          Required
-                        </label>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Nhãn câu hỏi
-                        </div>
-                        <input
-                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
-                          value="Họ và tên"
-                          disabled
-                        />
-                      </div>
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Ghi chú
-                        </div>
-                        <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
-                          <input
-                            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-                            placeholder="Nhập câu trả lời"
-                            disabled
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Email */}
-                <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-400 cursor-not-allowed">✖</div>
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-xs text-gray-600">
-                          <input
-                            type="checkbox"
-                            checked={true}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            disabled
-                          />
-                          Required
-                        </label>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Nhãn câu hỏi
-                        </div>
-                        <input
-                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
-                          value="Email"
-                          disabled
-                        />
-                      </div>
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Ghi chú
-                        </div>
-                        <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
-                          <input
-                            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-                            placeholder="Nhập câu trả lời"
-                            disabled
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Student ID */}
-                <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-400 cursor-not-allowed">✖</div>
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-xs text-gray-600">
-                          <input
-                            type="checkbox"
-                            checked={true}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            disabled
-                          />
-                          Required
-                        </label>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Nhãn câu hỏi
-                        </div>
-                        <input
-                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
-                          value="MSSV"
-                          disabled
-                        />
-                      </div>
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Ghi chú
-                        </div>
-                        <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
-                          <input
-                            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-                            placeholder="Nhập câu trả lời"
-                            disabled
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Phone Number */}
-                <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-400 cursor-not-allowed">✖</div>
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-xs text-gray-600">
-                          <input
-                            type="checkbox"
-                            checked={true}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            disabled
-                          />
-                          Required
-                        </label>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Nhãn câu hỏi
-                        </div>
-                        <input
-                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
-                          value="Số điện thoại"
-                          disabled
-                        />
-                      </div>
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Ghi chú
-                        </div>
-                        <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
-                          <input
-                            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-                            placeholder="Nhập câu trả lời"
-                            disabled
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Gender */}
-                <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-400 cursor-not-allowed">✖</div>
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-xs text-gray-600">
-                          <input
-                            type="checkbox"
-                            checked={true}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            disabled
-                          />
-                          Required
-                        </label>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Nhãn câu hỏi
-                        </div>
-                        <input
-                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
-                          value="Giới tính"
-                          disabled
-                        />
-                      </div>
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Ghi chú
-                        </div>
-                        <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
-                          <select
-                            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-                            disabled
-                          >
-                            <option>Chọn giới tính</option>
-                            <option>Nam</option>
-                            <option>Nữ</option>
-                            <option>Khác</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Club */}
-                <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-400 cursor-not-allowed">✖</div>
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-xs text-gray-600">
-                          <input
-                            type="checkbox"
-                            checked={false}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            disabled
-                          />
-                          Required
-                        </label>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Nhãn câu hỏi
-                        </div>
-                        <input
-                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
-                          value="Câu lạc bộ"
-                          disabled
-                        />
-                      </div>
-                      <div>
-                        <div className="mb-1 text-xs font-medium text-gray-700">
-                          Ghi chú
-                        </div>
-                        <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
-                          <input
-                            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-                            placeholder="Nhập câu trả lời"
-                            disabled
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Competition Type Selection */}
-              <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
-                <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Nội dung thi đấu *
-                </label>
+            {/* Standard Fields */}
+            <div className="mt-4 space-y-2">
+              {/* Full Name */}
+              <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
                 <div className="space-y-3">
-                  {/* Fighting Option */}
-                  <div>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="competitionType"
-                        value="fighting"
-                        checked={formData.competitionType === "fighting"}
-                        onChange={(e) =>
-                          handleInputChange("competitionType", e.target.value)
-                        }
-                        className="mr-3"
-                      />
-                      <span className="text-sm font-medium">Đối kháng</span>
-                    </label>
-                    <div className="ml-6 mt-2">
-                      <label className="block text-sm text-gray-600 mb-1">
-                        Hạng cân
+                  <div className="flex items-center justify-between">
+                    <div className="text-gray-400 cursor-not-allowed">✖</div>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={true}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          disabled
+                        />
+                        Required
                       </label>
-                      <select
-                        value={formData.weightClass || ""}
-                        onChange={(e) =>
-                          handleInputChange("weightClass", e.target.value)
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="">Chọn hạng cân</option>
-                        {weightClasses.map((wc) => (
-                          <option key={wc.id} value={wc.id}>
-                            {wc.weightClass} ({wc.gender}) - {wc.minWeight}-
-                            {wc.maxWeight}kg
-                          </option>
-                        ))}
-                      </select>
                     </div>
                   </div>
-
-                  {/* Quyen Option */}
-                  <div>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="competitionType"
-                        value="quyen"
-                        checked={formData.competitionType === "quyen"}
-                        onChange={(e) =>
-                          handleInputChange("competitionType", e.target.value)
-                        }
-                        className="mr-3"
-                      />
-                      <span className="text-sm font-medium">Quyền</span>
-                    </label>
-                    <div className="ml-6 mt-2">
-                      <div className="flex items-center flex-wrap gap-2 mb-2">
-                        {fistConfigs.map((cfg) => (
-                          <button
-                            key={cfg.id}
-                            type="button"
-                            onClick={() =>
-                              handleInputChange("quyenCategory", cfg.id)
-                            }
-                            className={`rounded-full border px-3 py-1.5 text-xs ${
-                              formData.quyenCategory === cfg.id
-                                ? "border-blue-500 text-blue-600 bg-blue-50"
-                                : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
-                            }`}
-                          >
-                            {cfg.name}
-                          </button>
-                        ))}
+                  <div className="space-y-3">
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Nhãn câu hỏi
                       </div>
-                      <div className="mt-2">
-                        <label className="block text-sm text-gray-600 mb-1">
-                          Nội dung thi đấu
-                        </label>
-                        <select
-                          value={formData.quyenContent || ""}
-                          onChange={(e) =>
-                            handleInputChange("quyenContent", e.target.value)
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="">Chọn nội dung thi đấu</option>
-                          {(() => {
-                            // If no category selected, show nothing
-                            if (!formData.quyenCategory) {
-                              return null;
-                            }
+                      <input
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                        value="Họ và tên"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Ghi chú
+                      </div>
+                      <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
+                        <input
+                          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                          placeholder="Nhập câu trả lời"
+                          disabled
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                            const filteredItems = fistItems.filter(
-                              (it) => it.configId === formData.quyenCategory
-                            );
-                            return (
-                              filteredItems &&
-                              filteredItems.length > 0 &&
-                              filteredItems.map((it) => (
-                                <option key={it.id} value={it.id}>
-                                  {it.name}
-                                </option>
-                              ))
-                            );
-                          })()}
+              {/* Email */}
+              <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-gray-400 cursor-not-allowed">✖</div>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={true}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          disabled
+                        />
+                        Required
+                      </label>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Nhãn câu hỏi
+                      </div>
+                      <input
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                        value="Email"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Ghi chú
+                      </div>
+                      <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
+                        <input
+                          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                          placeholder="Nhập câu trả lời"
+                          disabled
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Student ID */}
+              <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-gray-400 cursor-not-allowed">✖</div>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={true}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          disabled
+                        />
+                        Required
+                      </label>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Nhãn câu hỏi
+                      </div>
+                      <input
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                        value="MSSV"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Ghi chú
+                      </div>
+                      <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
+                        <input
+                          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                          placeholder="Nhập câu trả lời"
+                          disabled
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Phone Number */}
+              <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-gray-400 cursor-not-allowed">✖</div>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={true}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          disabled
+                        />
+                        Required
+                      </label>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Nhãn câu hỏi
+                      </div>
+                      <input
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                        value="Số điện thoại"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Ghi chú
+                      </div>
+                      <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
+                        <input
+                          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                          placeholder="Nhập câu trả lời"
+                          disabled
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gender */}
+              <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-gray-400 cursor-not-allowed">✖</div>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={true}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          disabled
+                        />
+                        Required
+                      </label>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Nhãn câu hỏi
+                      </div>
+                      <input
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                        value="Giới tính"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Ghi chú
+                      </div>
+                      <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
+                        <select
+                          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                          disabled
+                        >
+                          <option>Chọn giới tính</option>
+                          <option>Nam</option>
+                          <option>Nữ</option>
+                          <option>Khác</option>
                         </select>
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
 
-                  {/* Music Option */}
-                  <div>
-                    <label className="flex items-center">
+              {/* Club */}
+              <div className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-gray-400 cursor-not-allowed">✖</div>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={false}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          disabled
+                        />
+                        Required
+                      </label>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Nhãn câu hỏi
+                      </div>
                       <input
-                        type="radio"
-                        name="competitionType"
-                        value="music"
-                        checked={formData.competitionType === "music"}
-                        onChange={(e) =>
-                          handleInputChange("competitionType", e.target.value)
-                        }
-                        className="mr-3"
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                        value="Câu lạc bộ"
+                        disabled
                       />
-                      <span className="text-sm font-medium">Võ nhạc</span>
+                    </div>
+                    <div>
+                      <div className="mb-1 text-xs font-medium text-gray-700">
+                        Ghi chú
+                      </div>
+                      <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
+                        <input
+                          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                          placeholder="Nhập câu trả lời"
+                          disabled
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Competition Type Selection */}
+            <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
+              <label className="block text-sm font-medium text-gray-700 mb-4">
+                Nội dung thi đấu *
+              </label>
+              <div className="space-y-3">
+                {/* Fighting Option */}
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="competitionType"
+                      value="fighting"
+                      checked={formData.competitionType === "fighting"}
+                      onChange={(e) =>
+                        handleInputChange("competitionType", e.target.value)
+                      }
+                      className="mr-3"
+                    />
+                    <span className="text-sm font-medium">Đối kháng</span>
+                  </label>
+                  <div className="ml-6 mt-2">
+                    <label className="block text-sm text-gray-600 mb-1">
+                      Hạng cân
                     </label>
-                    <div className="ml-6 mt-2">
+                    <select
+                      value={formData.weightClass || ""}
+                      onChange={(e) =>
+                        handleInputChange("weightClass", e.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Chọn hạng cân</option>
+                      {weightClasses.map((wc) => (
+                        <option key={wc.id} value={wc.id}>
+                          {wc.weightClass} ({wc.gender}) - {wc.minWeight}-
+                          {wc.maxWeight}kg
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Quyen Option */}
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="competitionType"
+                      value="quyen"
+                      checked={formData.competitionType === "quyen"}
+                      onChange={(e) =>
+                        handleInputChange("competitionType", e.target.value)
+                      }
+                      className="mr-3"
+                    />
+                    <span className="text-sm font-medium">Quyền</span>
+                  </label>
+                  <div className="ml-6 mt-2">
+                    <div className="flex items-center flex-wrap gap-2 mb-2">
+                      {fistConfigs.map((cfg) => (
+                        <button
+                          key={cfg.id}
+                          type="button"
+                          onClick={() =>
+                            handleInputChange("quyenCategory", cfg.id)
+                          }
+                          className={`rounded-full border px-3 py-1.5 text-xs ${
+                            formData.quyenCategory === cfg.id
+                              ? "border-blue-500 text-blue-600 bg-blue-50"
+                              : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                          }`}
+                        >
+                          {cfg.name}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-2">
                       <label className="block text-sm text-gray-600 mb-1">
                         Nội dung thi đấu
                       </label>
                       <select
-                        value={formData.musicCategory || ""}
+                        value={formData.quyenContent || ""}
                         onChange={(e) =>
-                          handleInputChange("musicCategory", e.target.value)
+                          handleInputChange("quyenContent", e.target.value)
                         }
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
                         <option value="">Chọn nội dung thi đấu</option>
-                        {musicContents.map((content) => (
-                          <option key={content.id} value={content.id}>
-                            {content.name}
-                          </option>
-                        ))}
+                        {(() => {
+                          // If no category selected, show nothing
+                          if (!formData.quyenCategory) {
+                            return null;
+                          }
+
+                          const filteredItems = fistItems.filter(
+                            (it) => it.configId === formData.quyenCategory
+                          );
+                          return (
+                            filteredItems &&
+                            filteredItems.length > 0 &&
+                            filteredItems.map((it) => (
+                              <option key={it.id} value={it.id}>
+                                {it.name}
+                              </option>
+                            ))
+                          );
+                        })()}
                       </select>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Questions */}
-              <div className="mt-6 space-y-2">
-                {questions.map((question) => (
-                  <div
-                    key={question.id}
-                    className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50"
-                  >
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="text-gray-400 cursor-move">⋮⋮</div>
-                        <div className="flex items-center gap-3">
-                          <label className="flex items-center gap-2 text-xs text-gray-600">
-                            <input
-                              type="checkbox"
-                              checked={question.required || false}
-                              onChange={(e) =>
-                                handleQuestionChange(
-                                  question.id,
-                                  "required",
-                                  e.target.checked
-                                )
-                              }
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            Required
-                          </label>
-                          <button
-                            onClick={() => removeQuestion(question.id)}
-                            className="text-red-500 hover:text-red-700 text-sm"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <div>
-                          <div className="mb-1 text-xs font-medium text-gray-700">
-                            Nhãn câu hỏi
-                          </div>
-                          <input
-                            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
-                            value={question.label}
-                            onChange={(e) =>
-                              handleQuestionChange(
-                                question.id,
-                                "label",
-                                e.target.value
-                              )
-                            }
-                            placeholder="Nhập câu hỏi"
-                          />
-                        </div>
-                        <div>
-                          <div className="mb-1 text-xs font-medium text-gray-700">
-                            Ghi chú
-                          </div>
-                          <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
-                            {question.type === "short-answer" && (
-                              <input
-                                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-                                placeholder="Nhập câu trả lời"
-                              />
-                            )}
-                            {question.type === "date" && (
-                              <input
-                                type="date"
-                                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-                              />
-                            )}
-                            {question.type === "multiple-choice" && (
-                              <select className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm">
-                                <option>Chọn một tùy chọn</option>
-                                {question.options?.map((option, idx) => (
-                                  <option key={idx} value={option}>
-                                    {option}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                            {question.type === "checkbox" && (
-                              <div className="space-y-3">
-                                {question.options?.map((option, idx) => (
-                                  <div key={idx} className="block">
-                                    <label className="flex items-center gap-2 text-sm">
-                                      <input
-                                        type="checkbox"
-                                        className="rounded border-gray-300"
-                                      />
-                                      <span className="text-gray-700">
-                                        {option}
-                                      </span>
-                                    </label>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {question.type === "file-upload" && (
-                              <div className="space-y-2">
-                                <input
-                                  type="file"
-                                  className="w-full text-sm text-gray-500"
-                                />
-                                <span className="text-sm text-gray-500">
-                                  Chọn file để tải lên
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Options Editor for Multiple Choice and Checkbox */}
-                        {(question.type === "multiple-choice" ||
-                          question.type === "checkbox") && (
-                          <div>
-                            <div className="mb-1 text-xs font-medium text-gray-700">
-                              Tùy chọn
-                            </div>
-                            <div className="space-y-2">
-                              {question.options?.map((option, idx) => (
-                                <div
-                                  key={idx}
-                                  className="flex items-center gap-2"
-                                >
-                                  <input
-                                    type="text"
-                                    value={option}
-                                    onChange={(e) => {
-                                      const newOptions = [
-                                        ...(question.options || []),
-                                      ];
-                                      newOptions[idx] = e.target.value;
-                                      handleQuestionChange(
-                                        question.id,
-                                        "options",
-                                        newOptions
-                                      );
-                                    }}
-                                    className="flex-1 rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
-                                    placeholder={`Tùy chọn ${idx + 1}`}
-                                  />
-                                  <button
-                                    onClick={() => {
-                                      const newOptions =
-                                        question.options?.filter(
-                                          (_, i) => i !== idx
-                                        ) || [];
-                                      handleQuestionChange(
-                                        question.id,
-                                        "options",
-                                        newOptions
-                                      );
-                                    }}
-                                    className="text-red-500 hover:text-red-700 text-sm"
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                              ))}
-                              <button
-                                onClick={() => {
-                                  const newOptions = [
-                                    ...(question.options || []),
-                                    "",
-                                  ];
-                                  handleQuestionChange(
-                                    question.id,
-                                    "options",
-                                    newOptions
-                                  );
-                                }}
-                                className="text-blue-500 hover:text-blue-700 text-sm"
-                              >
-                                + Thêm tùy chọn
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                {/* Music Option */}
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="competitionType"
+                      value="music"
+                      checked={formData.competitionType === "music"}
+                      onChange={(e) =>
+                        handleInputChange("competitionType", e.target.value)
+                      }
+                      className="mr-3"
+                    />
+                    <span className="text-sm font-medium">Võ nhạc</span>
+                  </label>
+                  <div className="ml-6 mt-2">
+                    <label className="block text-sm text-gray-600 mb-1">
+                      Nội dung thi đấu
+                    </label>
+                    <select
+                      value={formData.musicCategory || ""}
+                      onChange={(e) =>
+                        handleInputChange("musicCategory", e.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Chọn nội dung thi đấu</option>
+                      {musicContents.map((content) => (
+                        <option key={content.id} value={content.id}>
+                          {content.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                ))}
-
-                {/* Add Question Button */}
-                <div className="mt-4 relative">
-                  <button
-                    className="rounded-md border border-dashed border-gray-300 bg-white px-3 py-2 text-[13px] font-medium text-[#2563eb] hover:bg-blue-50"
-                    onClick={() => setShowAddQuestion(!showAddQuestion)}
-                  >
-                    + Thêm câu hỏi
-                  </button>
-
-                  {showAddQuestion && (
-                    <div className="absolute top-full left-0 mt-2 w-48 rounded-md border border-gray-200 bg-white shadow-lg z-10">
-                      <div className="p-2">
-                        <div className="text-xs font-semibold text-gray-600 mb-2">
-                          LOẠI CÂU HỎI
-                        </div>
-                        <div className="space-y-1">
-                          <button
-                            className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
-                            onClick={() => addQuestion("short-answer")}
-                          >
-                            <span>≡</span>
-                            <span>Short answer</span>
-                          </button>
-                          <button
-                            className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
-                            onClick={() => addQuestion("date")}
-                          >
-                            <span>📅</span>
-                            <span>Date</span>
-                          </button>
-                          <button
-                            className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
-                            onClick={() => addQuestion("multiple-choice")}
-                          >
-                            <span>☰</span>
-                            <span>Multiple choice</span>
-                          </button>
-                          <button
-                            className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
-                            onClick={() => addQuestion("checkbox")}
-                          >
-                            <span>☑</span>
-                            <span>Checkboxes</span>
-                          </button>
-                          <button
-                            className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
-                            onClick={() => addQuestion("file-upload")}
-                          >
-                            <span>📄</span>
-                            <span>File upload</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Preview Modal */}
-          {showPreview && (
-            <FormPreviewModal
-              open={showPreview}
-              onClose={() => setShowPreview(false)}
-              data={{
-                title: formData.title,
-                description: formData.description,
-                fullName: formData.fullName,
-                email: formData.email,
-                studentId: formData.studentId,
-                club: formData.club,
-                gender: formData.gender,
-                competitionType: formData.competitionType,
-                weightClass: formData.weightClass,
-                quyenCategory: formData.quyenCategory,
-                musicCategory: formData.musicCategory,
-                coachName: formData.coachName,
-                phoneNumber: formData.phoneNumber,
-                phoneRequired: formData.phoneRequired,
-                questions: questions,
-              }}
-            />
-          )}
-        </>
-      )}
+            {/* Questions */}
+            <div className="mt-6 space-y-2">
+              {questions.map((question) => (
+                <div
+                  key={question.id}
+                  className="rounded-lg border border-gray-200 bg-white p-3 hover:bg-gray-50"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-gray-400 cursor-move">⋮⋮</div>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 text-xs text-gray-600">
+                          <input
+                            type="checkbox"
+                            checked={question.required || false}
+                            onChange={(e) =>
+                              handleQuestionChange(
+                                question.id,
+                                "required",
+                                e.target.checked
+                              )
+                            }
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          Required
+                        </label>
+                        <button
+                          onClick={() => removeQuestion(question.id)}
+                          className="text-red-500 hover:text-red-700 text-sm"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="mb-1 text-xs font-medium text-gray-700">
+                          Nhãn câu hỏi
+                        </div>
+                        <input
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                          value={question.label}
+                          onChange={(e) =>
+                            handleQuestionChange(
+                              question.id,
+                              "label",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Nhập câu hỏi"
+                        />
+                      </div>
+                      <div>
+                        <div className="mb-1 text-xs font-medium text-gray-700">
+                          Ghi chú
+                        </div>
+                        <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
+                          {question.type === "short-answer" && (
+                            <input
+                              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                              placeholder="Nhập câu trả lời"
+                            />
+                          )}
+                          {question.type === "date" && (
+                            <input
+                              type="date"
+                              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                            />
+                          )}
+                          {question.type === "multiple-choice" && (
+                            <select className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm">
+                              <option>Chọn một tùy chọn</option>
+                              {question.options?.map((option, idx) => (
+                                <option key={idx} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {question.type === "checkbox" && (
+                            <div className="space-y-3">
+                              {question.options?.map((option, idx) => (
+                                <div key={idx} className="block">
+                                  <label className="flex items-center gap-2 text-sm">
+                                    <input
+                                      type="checkbox"
+                                      className="rounded border-gray-300"
+                                    />
+                                    <span className="text-gray-700">
+                                      {option}
+                                    </span>
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {question.type === "file-upload" && (
+                            <div className="space-y-2">
+                              <input
+                                type="file"
+                                className="w-full text-sm text-gray-500"
+                              />
+                              <span className="text-sm text-gray-500">
+                                Chọn file để tải lên
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Options Editor for Multiple Choice and Checkbox */}
+                      {(question.type === "multiple-choice" ||
+                        question.type === "checkbox") && (
+                        <div>
+                          <div className="mb-1 text-xs font-medium text-gray-700">
+                            Tùy chọn
+                          </div>
+                          <div className="space-y-2">
+                            {question.options?.map((option, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-2"
+                              >
+                                <input
+                                  type="text"
+                                  value={option}
+                                  onChange={(e) => {
+                                    const newOptions = [
+                                      ...(question.options || []),
+                                    ];
+                                    newOptions[idx] = e.target.value;
+                                    handleQuestionChange(
+                                      question.id,
+                                      "options",
+                                      newOptions
+                                    );
+                                  }}
+                                  className="flex-1 rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none"
+                                  placeholder={`Tùy chọn ${idx + 1}`}
+                                />
+                                <button
+                                  onClick={() => {
+                                    const newOptions =
+                                      question.options?.filter(
+                                        (_, i) => i !== idx
+                                      ) || [];
+                                    handleQuestionChange(
+                                      question.id,
+                                      "options",
+                                      newOptions
+                                    );
+                                  }}
+                                  className="text-red-500 hover:text-red-700 text-sm"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                const newOptions = [
+                                  ...(question.options || []),
+                                  "",
+                                ];
+                                handleQuestionChange(
+                                  question.id,
+                                  "options",
+                                  newOptions
+                                );
+                              }}
+                              className="text-blue-500 hover:text-blue-700 text-sm"
+                            >
+                              + Thêm tùy chọn
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Add Question Button */}
+              <div className="mt-4 relative">
+                <button
+                  className="rounded-md border border-dashed border-gray-300 bg-white px-3 py-2 text-[13px] font-medium text-[#2563eb] hover:bg-blue-50"
+                  onClick={() => setShowAddQuestion(!showAddQuestion)}
+                >
+                  + Thêm câu hỏi
+                </button>
+
+                {showAddQuestion && (
+                  <div className="absolute top-full left-0 mt-2 w-48 rounded-md border border-gray-200 bg-white shadow-lg z-10">
+                    <div className="p-2">
+                      <div className="text-xs font-semibold text-gray-600 mb-2">
+                        LOẠI CÂU HỎI
+                      </div>
+                      <div className="space-y-1">
+                        <button
+                          className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
+                          onClick={() => addQuestion("short-answer")}
+                        >
+                          <span>≡</span>
+                          <span>Short answer</span>
+                        </button>
+                        <button
+                          className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
+                          onClick={() => addQuestion("date")}
+                        >
+                          <span>📅</span>
+                          <span>Date</span>
+                        </button>
+                        <button
+                          className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
+                          onClick={() => addQuestion("multiple-choice")}
+                        >
+                          <span>☰</span>
+                          <span>Multiple choice</span>
+                        </button>
+                        <button
+                          className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
+                          onClick={() => addQuestion("checkbox")}
+                        >
+                          <span>☑</span>
+                          <span>Checkboxes</span>
+                        </button>
+                        <button
+                          className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
+                          onClick={() => addQuestion("file-upload")}
+                        >
+                          <span>📄</span>
+                          <span>File upload</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Confirm Postpone Dialog */}
+        {confirmPostponeOpen && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999]">
+            <div className="flex items-center gap-3 rounded-lg border border-orange-300 bg-orange-50 px-4 py-3 shadow-lg">
+              <div className="text-orange-600">
+                <svg
+                  className="w-5 h-5"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="text-[13px] text-orange-800">
+                Bạn có muốn hoãn form?
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setConfirmPostponeOpen(false)}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={confirmPostpone}
+                  disabled={pendingPostpone}
+                  className="rounded-md bg-orange-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {pendingPostpone ? "Đang xử lý..." : "Xác nhận hoãn"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirm Publish Dialog */}
+        {confirmPublishOpen && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999]">
+            <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 shadow-lg">
+              <div className="text-amber-600">
+                <svg
+                  className="w-5 h-5"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="text-[13px] text-amber-800">
+                {formStatus === "POSTPONE"
+                  ? "Bạn chắc chắn muốn công khai lại form này chứ?"
+                  : "Bạn chắc chắn muốn công khai form này chứ?"}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setConfirmPublishOpen(false)}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={confirmPublish}
+                  disabled={pendingPublish}
+                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {pendingPublish ? "Đang publish..." : "Đồng ý"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Preview Modal */}
+        {showPreview && (
+          <FormPreviewModal
+            open={showPreview}
+            onClose={() => setShowPreview(false)}
+            data={{
+              title: formData.title,
+              description: formData.description,
+              fullName: formData.fullName,
+              email: formData.email,
+              studentId: formData.studentId,
+              club: formData.club,
+              gender: formData.gender,
+              competitionType: formData.competitionType,
+              weightClass: formData.weightClass,
+              quyenCategory: formData.quyenCategory,
+              musicCategory: formData.musicCategory,
+              coachName: formData.coachName,
+              phoneNumber: formData.phoneNumber,
+              phoneRequired: formData.phoneRequired,
+              questions: questions,
+            }}
+          />
+        )}
+      </>
     </div>
   );
 };

@@ -23,6 +23,8 @@ public class FormDetailResponse {
     private LocalDateTime endDate;
     private LocalDateTime createdAt;
     private java.util.List<FormFieldDto> fields;
+    private String publicSlug;
+    private String publicLink;
 }
 
 

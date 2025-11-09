@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
@@ -19,7 +19,7 @@ type FormConfig = {
 
 export default function TournamentFormList() {
   const navigate = useNavigate();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { error: toastError } = useToast();
   const [forms, setForms] = useState<FormConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -189,121 +189,6 @@ export default function TournamentFormList() {
     }
   }, [currentPage, pageSize, toastError, statusFilter, search]);
 
-  // Merge: Keep HEAD's loadForms function, add master's columns definition
-  const columns: Array<TableColumn<FormRow>> = useMemo(
-    () => [
-      {
-        key: "tournament",
-        title: "Giải đấu",
-        className: "text-[15px] w-64",
-      },
-      {
-        key: "formTitle",
-        title: "Tiêu đề Form",
-        className: "text-[15px] w-96",
-      },
-      {
-        key: "participants",
-        title: "Số người tham gia",
-        className: "text-[15px] w-24 text-center",
-      },
-      {
-        key: "createdAt",
-        title: "Ngày tạo",
-        className: "text-[15px] w-36",
-      },
-      {
-        key: "status",
-        title: "Trạng thái",
-        className: "text-[15px] w-40",
-        render: (r: FormRow) => (
-          <div className="flex items-center gap-2">
-            <select
-              className={`rounded-md px-2 py-1 text-xs border ${
-                r.status === "publish"
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : r.status === "archived"
-                  ? "bg-rose-50 text-rose-600 border-rose-200"
-                  : r.status === "postpone"
-                  ? "bg-gray-100 text-gray-700 border-gray-300"
-                  : "bg-amber-50 text-amber-700 border-amber-200"
-              }`}
-              value={r.status}
-              onChange={async (e) => {
-                const val = e.target.value as FormRow["status"];
-                const map: Record<FormRow["status"], string> = {
-                  draft: "DRAFT",
-                  publish: "PUBLISH",
-                  archived: "ARCHIVED",
-                  postpone: "POSTPONE",
-                };
-                try {
-                  // optimistic update
-                  setRows((prev) =>
-                    prev.map((row) =>
-                      row.id === r.id ? { ...row, status: val } : row
-                    )
-                  );
-                  await api.patch<void>(
-                    `${API_ENDPOINTS.TOURNAMENT_FORMS.BASE}/${r.id}/status`,
-                    { status: map[val] }
-                  );
-                  // Notify Home to refresh published list
-                  window.dispatchEvent(new Event("forms:changed"));
-                  // hard refresh to reflect backend truth
-                  setPage((p) => p);
-                  toast.success("Cập nhật trạng thái thành công");
-                } catch (err) {
-                  console.error("Failed to update status", err);
-                  // rollback optimistic update on failure
-                  setRows((prev) =>
-                    prev.map((row) =>
-                      row.id === r.id ? { ...row, status: r.status } : row
-                    )
-                  );
-                  toast.error("Cập nhật trạng thái thất bại");
-                }
-              }}
-            >
-              <option value="draft">Draff</option>
-              <option value="publish">Đã công khai</option>
-              <option value="archived">Lưu trữ</option>
-              <option value="postpone">Hoãn</option>
-            </select>
-          </div>
-        ),
-        sortable: false,
-      },
-      {
-        key: "actions",
-        title: "Thao tác",
-        className: "text-[15px] whitespace-nowrap w-40",
-        render: (r: FormRow) => (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() =>
-                navigate(`/results/${r.id}`, {
-                  state: { tournamentName: r.tournament },
-                })
-              }
-              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
-            >
-              Xem kết quả
-            </button>
-            <button
-              onClick={() => navigate(`/form-builder/${r.id}`)}
-              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
-            >
-              Sửa
-            </button>
-          </div>
-        ),
-        sortable: false,
-      },
-    ],
-    [navigate]
-  );
-
   useEffect(() => {
     (async () => {
       await loadForms();
@@ -336,10 +221,6 @@ export default function TournamentFormList() {
   }, [currentPage, allForms, pageSize, totalForms]);
 
   const handleEditForm = (form: FormConfig) => {
-    if ((form.status || "DRAFT").toUpperCase() !== "DRAFT") {
-      toastError("Chỉ form ở trạng thái Draft mới được chỉnh sửa");
-      return;
-    }
     navigate(`/manage/tournament-forms/${form.id}/edit`);
   };
 
@@ -349,36 +230,6 @@ export default function TournamentFormList() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("vi-VN");
-  };
-
-  const handleStatusChange = async (formId: string, newStatus: string) => {
-    try {
-      // Optimistic update
-      setForms((prevForms) =>
-        prevForms.map((form) =>
-          form.id === formId ? { ...form, status: newStatus } : form
-        )
-      );
-
-      // API call to update status
-      await api.patch(`/v1/tournament-forms/${formId}/status`, {
-        status: newStatus,
-      });
-
-      toastSuccess(`Đã chuyển form sang trạng thái ${newStatus}`);
-    } catch (error) {
-      console.error("Error updating form status:", error);
-      toastError("Không thể cập nhật trạng thái form");
-
-      // Revert optimistic update
-      setForms((prevForms) =>
-        prevForms.map((form) =>
-          form.id === formId
-            ? { ...form, status: form.status } // Keep original status
-            : form
-        )
-      );
-    }
   };
 
   return (
@@ -478,37 +329,29 @@ export default function TournamentFormList() {
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span
-                            className={`inline-flex items-center rounded-md border text-xs font-semibold px-0 ${
+                            className={`rounded-md px-2 py-1 text-xs border ${
                               (form.status || "DRAFT").toUpperCase() ===
                               "PUBLISH"
-                                ? ""
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                 : (form.status || "DRAFT").toUpperCase() ===
-                                  "DRAFT"
-                                ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                                : "bg-orange-50 text-orange-700 border-orange-200"
+                                  "ARCHIVED"
+                                ? "bg-rose-50 text-rose-600 border-rose-200"
+                                : (form.status || "DRAFT").toUpperCase() ===
+                                  "POSTPONE"
+                                ? "bg-gray-100 text-gray-700 border-gray-300"
+                                : "bg-amber-50 text-amber-700 border-amber-200"
                             }`}
-                            style={
-                              (form.status || "DRAFT").toUpperCase() ===
-                              "PUBLISH"
-                                ? {
-                                    backgroundColor: "#E6FFED",
-                                    color: "#0FA958",
-                                    borderColor: "#0FA958",
-                                  }
-                                : undefined
-                            }
                           >
-                            <select
-                              value={(form.status || "DRAFT").toUpperCase()}
-                              onChange={(e) =>
-                                handleStatusChange(form.id, e.target.value)
-                              }
-                              className="appearance-none bg-transparent pl-2 pr-6 py-1 rounded-md text-current outline-none border-none cursor-pointer"
-                            >
-                              <option value="PUBLISH">ĐÃ XUẤT BẢN</option>
-                              <option value="DRAFT">NHÁP</option>
-                              <option value="ARCHIVED">ĐÃ ĐÓNG</option>
-                            </select>
+                            {(form.status || "DRAFT").toUpperCase() ===
+                            "PUBLISH"
+                              ? "Đã công khai"
+                              : (form.status || "DRAFT").toUpperCase() ===
+                                "ARCHIVED"
+                              ? "Lưu trữ"
+                              : (form.status || "DRAFT").toUpperCase() ===
+                                "POSTPONE"
+                              ? "Hoãn"
+                              : "Nháp"}
                           </span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">

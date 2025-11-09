@@ -40,22 +40,32 @@ export default function Home() {
           description: (i as { description?: string }).description,
           status: (i.status as FormRow["status"]) || "draft",
         }))
-        .filter((i) => i.status === "publish");
+        .filter((i) => {
+          const status = i.status?.toLowerCase();
+          return status === "publish" || status === "PUBLISH";
+        });
 
       // Load details to get endDate and compute expiration
       const detailed = await Promise.all(
         baseList.map(async (b) => {
           try {
-            const detail = await api.get<any>(
-              API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(b.id)
-            );
-            const endDate: string | undefined = (detail.data as any)?.endDate;
+            const detail = await api.get<{
+              description?: string;
+              endDate?: string;
+            }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(b.id));
+            const endDate: string | undefined = detail.data?.endDate;
+            const description: string | undefined = detail.data?.description;
             let expired = false;
             if (endDate) {
               const endTs = Date.parse(endDate);
               if (!Number.isNaN(endTs)) expired = Date.now() > endTs;
             }
-            return { ...b, endDate: endDate || null, expired } as FormRow;
+            return {
+              ...b,
+              description: description || b.description,
+              endDate: endDate || null,
+              expired,
+            } as FormRow;
           } catch {
             return { ...b } as FormRow;
           }

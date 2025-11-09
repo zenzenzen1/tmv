@@ -71,6 +71,8 @@ export default function ResultsListPage() {
   const [statusFilter, setStatusFilter] = useState<"ALL" | ResultRow["status"]>(
     "CHỜ DUYỆT"
   );
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
 
   // Selection state for bulk actions
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -733,7 +735,42 @@ export default function ResultsListPage() {
         const matchesStatus =
           statusFilter === "ALL" ? true : r.status === statusFilter;
 
-        return matchesName && matchesMode && matchesType && matchesStatus;
+        // Date filter
+        let matchesDate = true;
+        if (dateFrom || dateTo) {
+          try {
+            const submittedDate = new Date(r.submittedAt);
+            if (!isNaN(submittedDate.getTime())) {
+              if (dateFrom) {
+                const fromDate = new Date(dateFrom);
+                fromDate.setHours(0, 0, 0, 0);
+                if (submittedDate < fromDate) {
+                  matchesDate = false;
+                }
+              }
+              if (dateTo) {
+                const toDate = new Date(dateTo);
+                toDate.setHours(23, 59, 59, 999);
+                if (submittedDate > toDate) {
+                  matchesDate = false;
+                }
+              }
+            } else {
+              // If submittedAt is invalid, exclude if date filter is set
+              matchesDate = false;
+            }
+          } catch {
+            matchesDate = false;
+          }
+        }
+
+        return (
+          matchesName &&
+          matchesMode &&
+          matchesType &&
+          matchesStatus &&
+          matchesDate
+        );
       });
 
       // Client-side pagination
@@ -766,6 +803,8 @@ export default function ResultsListPage() {
     participantMode,
     typeFilter,
     statusFilter,
+    dateFrom,
+    dateTo,
     toast,
     weightClassMap,
     fistConfigMap,
@@ -777,6 +816,16 @@ export default function ResultsListPage() {
   useEffect(() => {
     loadSubmissions();
   }, [loadSubmissions]);
+
+  // Reset typeFilter when switching to TEAM mode if current value is not valid
+  useEffect(() => {
+    if (
+      participantMode === "TEAM" &&
+      (typeFilter === "ALL" || typeFilter === "Đối kháng")
+    ) {
+      setTypeFilter("Quyền");
+    }
+  }, [participantMode, typeFilter]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return rows;
@@ -992,6 +1041,8 @@ export default function ResultsListPage() {
         "noidung",
         "quyenCategory",
         "quyenContent",
+        "quyenContentId",
+        "quyenContentName",
         "fistConfigId",
         "fistItemId",
         "musicContentId",
@@ -1019,7 +1070,9 @@ export default function ResultsListPage() {
           lowerKey.includes("musiccontent") ||
           lowerKey.includes("weightclass") ||
           lowerKey.includes("competitiontype") ||
-          lowerKey.includes("performanceid")
+          lowerKey.includes("performanceid") ||
+          lowerKey.includes("quyencontent") ||
+          lowerKey.includes("contentid")
         ) {
           return;
         }
@@ -1236,7 +1289,15 @@ export default function ResultsListPage() {
             <select
               value={participantMode}
               onChange={(e) => {
-                setParticipantMode(e.target.value as "INDIVIDUAL" | "TEAM");
+                const newMode = e.target.value as "INDIVIDUAL" | "TEAM";
+                setParticipantMode(newMode);
+                // Reset typeFilter when switching to TEAM if current value is not valid for TEAM
+                if (
+                  newMode === "TEAM" &&
+                  (typeFilter === "ALL" || typeFilter === "Đối kháng")
+                ) {
+                  setTypeFilter("Quyền");
+                }
                 setPage(1);
               }}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
@@ -1260,10 +1321,19 @@ export default function ResultsListPage() {
               }}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
             >
-              <option value="ALL">Tất cả thể thức</option>
-              <option value="Đối kháng">Đối kháng</option>
-              <option value="Quyền">Quyền</option>
-              <option value="Võ nhạc">Võ nhạc</option>
+              {participantMode === "TEAM" ? (
+                <>
+                  <option value="Quyền">Quyền</option>
+                  <option value="Võ nhạc">Võ nhạc</option>
+                </>
+              ) : (
+                <>
+                  <option value="ALL">Tất cả thể thức</option>
+                  <option value="Đối kháng">Đối kháng</option>
+                  <option value="Quyền">Quyền</option>
+                  <option value="Võ nhạc">Võ nhạc</option>
+                </>
+              )}
             </select>
           </div>
 
@@ -1285,6 +1355,36 @@ export default function ResultsListPage() {
               <option value="CHỜ DUYỆT">Chờ duyệt</option>
               <option value="TỪ CHỐI">Từ chối</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Từ ngày
+            </label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setPage(1);
+                setDateFrom(e.target.value);
+              }}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Đến ngày
+            </label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setPage(1);
+                setDateTo(e.target.value);
+              }}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#2563eb] focus:outline-none"
+            />
           </div>
 
           <div>

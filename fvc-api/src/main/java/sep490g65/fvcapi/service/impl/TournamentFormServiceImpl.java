@@ -181,6 +181,11 @@ public class TournamentFormServiceImpl implements TournamentFormService {
             form.setFields(fieldEntities);
         }
 
+        // Ensure slug exists when publishing
+        if (form.getStatus() == sep490g65.fvcapi.enums.FormStatus.PUBLISH && form.getPublicSlug() == null) {
+            form.setPublicSlug(generateUniqueSlug(form.getName()));
+        }
+        
         ApplicationFormConfig saved = formConfigRepository.save(form);
         TournamentFormResponse resp = toDtoFromForm(saved);
         resp.setMessage("Tạo form thành công");
@@ -227,6 +232,8 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 .endDate(f.getEndDate())
                 .createdAt(f.getCreatedAt())
                 .fields(fields)
+                .publicSlug(f.getPublicSlug())
+                .publicLink(f.getId() != null ? "/published-form/" + f.getId() : null)
                 .build();
     }
 
@@ -243,6 +250,12 @@ public class TournamentFormServiceImpl implements TournamentFormService {
         }
         if (request.getStatus() != null) f.setStatus(request.getStatus());
         if (request.getEndDate() != null) f.setEndDate(request.getEndDate());
+        
+        // Ensure slug exists when publishing
+        if (f.getStatus() == sep490g65.fvcapi.enums.FormStatus.PUBLISH && f.getPublicSlug() == null) {
+            f.setPublicSlug(generateUniqueSlug(f.getName()));
+        }
+        
         // upsert fields
         if (request.getFields() != null) {
             java.util.Map<String, sep490g65.fvcapi.entity.ApplicationFormField> existing = new java.util.HashMap<>();
@@ -1051,6 +1064,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                 .competitionId(c != null ? c.getId() : null)
                 .tournamentName(c != null ? c.getName() : null)
                 .formTitle(f.getName())
+                .description(f.getDescription())
                 .formType(f.getFormType() != null ? f.getFormType().toString() : null)
                 .numberOfParticipants((int) participants)
                 .createdAt(f.getCreatedAt())
@@ -1203,6 +1217,44 @@ public class TournamentFormServiceImpl implements TournamentFormService {
             }
         }
         return null;
+    }
+
+    private String generateUniqueSlug(String base) {
+        // Generate a secure, encrypted slug using Base64 URL-safe encoding
+        // Combines two UUIDs (32 bytes = 256 bits entropy) for maximum security
+        // The link will be hard to guess and appears encrypted
+        java.util.Base64.Encoder encoder = java.util.Base64.getUrlEncoder().withoutPadding();
+        String candidate;
+        int attempts = 0;
+        
+        do {
+            java.util.UUID uuid1 = java.util.UUID.randomUUID();
+            java.util.UUID uuid2 = java.util.UUID.randomUUID();
+            
+            // Convert UUIDs to byte arrays
+            java.nio.ByteBuffer buffer = java.nio.ByteBuffer.allocate(32);
+            buffer.putLong(uuid1.getMostSignificantBits());
+            buffer.putLong(uuid1.getLeastSignificantBits());
+            buffer.putLong(uuid2.getMostSignificantBits());
+            buffer.putLong(uuid2.getLeastSignificantBits());
+            
+            // Encode to Base64 URL-safe string
+            byte[] combinedBytes = buffer.array();
+            String encodedSlug = encoder.encodeToString(combinedBytes);
+            
+            // Prefix with 'f' to indicate form (optional, can be removed)
+            candidate = "f" + encodedSlug;
+            attempts++;
+            
+            if (attempts >= 10) {
+                log.warn("Failed to generate unique slug after 10 attempts, using UUID fallback");
+                // Fallback: use simple UUID if too many collisions (extremely rare)
+                candidate = "f" + java.util.UUID.randomUUID().toString().replace("-", "");
+                break;
+            }
+        } while (formConfigRepository.existsByPublicSlug(candidate));
+        
+        return candidate;
     }
 
     private String firstStringFromObject(JsonNode node) {
