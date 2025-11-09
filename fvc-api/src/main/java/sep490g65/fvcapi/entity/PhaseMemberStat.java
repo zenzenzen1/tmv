@@ -33,7 +33,6 @@ public class PhaseMemberStat extends BaseEntity {
     @JoinColumn(name = "team_id", nullable = false)
     private Team team;
 
-    // Số buổi tập đã tham gia
     @Column(nullable = false)
     private Integer trainSessionsAttended = 0;
 
@@ -41,20 +40,6 @@ public class PhaseMemberStat extends BaseEntity {
     @Column(nullable = false)
     private Integer eventsAttended = 0;
 
-    // Số buổi đánh giá thể lực đã tham gia
-    @Column(nullable = false)
-    private Integer fitnessEvalsAttended = 0;
-
-    // Số buổi tập bắt buộc (lấy từ PhaseTeamStat)
-    private Integer trainSessionsRequired;
-
-    // Số event bắt buộc (lấy từ PhaseTeamStat)
-    private Integer eventsRequired;
-
-    // Số buổi đánh giá thể lực bắt buộc (lấy từ PhaseTeamStat)
-    private Integer fitnessEvalsRequired;
-
-    // Trạng thái: ON_TRACK (đang đạt yêu cầu), AT_RISK (có nguy cơ), FAILED (không đạt)
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private MemberPhaseStatus status = MemberPhaseStatus.ON_TRACK;
