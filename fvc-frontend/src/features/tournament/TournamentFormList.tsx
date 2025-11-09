@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import { useToast } from "../../components/common/ToastContext";
+import Pagination from "../../components/common/Pagination";
 
 type FormConfig = {
   id: string;
@@ -19,7 +20,7 @@ type FormConfig = {
 
 export default function TournamentFormList() {
   const navigate = useNavigate();
-  const { error: toastError } = useToast();
+  const toast = useToast();
   const [forms, setForms] = useState<FormConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,31 +32,30 @@ export default function TournamentFormList() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
   const [totalForms, setTotalForms] = useState(0);
-  const [allForms, setAllForms] = useState<FormConfig[]>([]);
 
   const loadForms = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
+      // Request all data using all=true to bypass pagination limit, then filter client-side
       const response = await api.get<{
         content: FormConfig[];
         totalElements: number;
+        totalPages: number;
       }>(API_ENDPOINTS.TOURNAMENT_FORMS.BASE, {
-        page: 0,
-        size: 100, // Request more records
+        all: true, // Request all data without pagination limit
+        search: search.trim() || undefined,
       });
 
-      console.log("TournamentFormList API response:", response);
-
       if (response.success && response.data) {
-        // Handle different response structures
+        // Handle pagination response
         let dataArray: FormConfig[] = [];
 
         if (Array.isArray(response.data)) {
-          // Direct array response
+          // Direct array response (fallback)
           dataArray = response.data;
         } else if (
           response.data.content &&
@@ -68,23 +68,7 @@ export default function TournamentFormList() {
           dataArray = [];
         }
 
-        console.log("Data array:", dataArray);
-
-        // First, let's see all forms without filtering
-        console.log("All forms before filtering:", dataArray);
-
-        // Log each form's formType to understand the structure
-        dataArray.forEach((form: FormConfig, index: number) => {
-          console.log(`Form ${index}:`, {
-            id: form.id,
-            name: form.name,
-            formType: form.formType,
-            formTypeFromDB: form.formType,
-            allProperties: Object.keys(form),
-            fullForm: form, // Show full form structure
-          });
-        });
-
+        // Map to FormConfig
         const formsData: FormConfig[] = dataArray.map(
           (
             formLike: Partial<FormConfig> & {
@@ -118,45 +102,19 @@ export default function TournamentFormList() {
           }
         );
 
-        console.log("All mapped forms:", formsData);
-
-        // Show all formTypes to understand what we have
-        const allFormTypes = formsData.map((f) => f.formType);
-        console.log("All formTypes found:", allFormTypes);
-
         // Filter to show only COMPETITION_REGISTRATION forms
-        let filteredForms = formsData.filter((form: FormConfig) => {
-          console.log(`Form "${form.name}": formType="${form.formType}"`);
+        let filteredForms = formsData.filter(
+          (form: FormConfig) => form.formType === "COMPETITION_REGISTRATION"
+        );
 
-          // Only show COMPETITION_REGISTRATION forms
-          if (form.formType === "COMPETITION_REGISTRATION") {
-            console.log(
-              `Form "${form.name}": INCLUDED - formType is COMPETITION_REGISTRATION`
-            );
-            return true;
-          }
-
-          // Exclude CLUB_REGISTRATION forms
-          if (form.formType === "CLUB_REGISTRATION") {
-            console.log(
-              `Form "${form.name}": EXCLUDED - formType is CLUB_REGISTRATION`
-            );
-            return false;
-          }
-
-          // Exclude all other forms (including undefined/null)
-          console.log(
-            `Form "${form.name}": EXCLUDED - formType is not COMPETITION_REGISTRATION`
-          );
-          return false;
-        });
-
-        // Apply UI filters
+        // Apply status filter client-side
         if (statusFilter) {
           filteredForms = filteredForms.filter(
             (f) => (f.status || "DRAFT").toUpperCase() === statusFilter
           );
         }
+
+        // Apply search filter client-side (if not already done by API)
         if (search.trim().length > 0) {
           const q = search.trim().toLowerCase();
           filteredForms = filteredForms.filter(
@@ -166,62 +124,41 @@ export default function TournamentFormList() {
           );
         }
 
-        console.log("Filtered tournament forms:", filteredForms);
-
-        setAllForms(filteredForms);
+        // Set total after all filters
         setTotalForms(filteredForms.length);
-        console.log("Set totalForms to:", filteredForms.length);
 
-        // Also set initial forms for first page
+        // Client-side pagination
         const startIndex = (currentPage - 1) * pageSize;
         const endIndex = startIndex + pageSize;
         const paginatedForms = filteredForms.slice(startIndex, endIndex);
         setForms(paginatedForms);
       } else {
         setError(response.message || "Failed to fetch forms");
-        toastError(response.message || "Tải danh sách form thất bại");
+        toast.error(response.message || "Tải danh sách form thất bại");
       }
     } catch (err: unknown) {
       setError((err as Error)?.message || "Lỗi khi tải danh sách form");
-      toastError((err as Error)?.message || "Tải danh sách form thất bại");
+      toast.error((err as Error)?.message || "Tải danh sách form thất bại");
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, toastError, statusFilter, search]);
+  }, [currentPage, pageSize, toast, statusFilter, search]);
 
   useEffect(() => {
-    (async () => {
-      await loadForms();
-    })();
+    loadForms();
   }, [loadForms]);
 
-  // Update pagination when currentPage changes
+  // Reset to page 1 when filters change
   useEffect(() => {
-    console.log("Pagination useEffect triggered:", {
-      allFormsLength: allForms.length,
-      currentPage,
-      pageSize,
-      totalForms,
-    });
-    if (allForms.length > 0) {
-      const startIndex = (currentPage - 1) * pageSize;
-      const endIndex = startIndex + pageSize;
-      const paginatedForms = allForms.slice(startIndex, endIndex);
-      console.log("Pagination debug:", {
-        currentPage,
-        pageSize,
-        totalForms: allForms.length,
-        startIndex,
-        endIndex,
-        paginatedFormsLength: paginatedForms.length,
-        allFormsLength: allForms.length,
-      });
-      setForms(paginatedForms);
-    }
-  }, [currentPage, allForms, pageSize, totalForms]);
+    setCurrentPage(1);
+  }, [statusFilter, search, pageSize]);
 
   const handleEditForm = (form: FormConfig) => {
     navigate(`/manage/tournament-forms/${form.id}/edit`);
+  };
+
+  const handleViewForm = (form: FormConfig) => {
+    navigate(`/manage/tournament-forms/${form.id}/view`);
   };
 
   const handleCreateNew = () => {
@@ -241,9 +178,6 @@ export default function TournamentFormList() {
             Quản lí Form đăng ký giải đấu
           </h1>
           <div className="flex items-center gap-2">
-            <button className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50">
-              Xuất Excel
-            </button>
             <button
               onClick={handleCreateNew}
               className="rounded-md bg-[#377CFB] px-4 py-2 text-white text-sm hover:bg-[#2e6de0]"
@@ -356,19 +290,57 @@ export default function TournamentFormList() {
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-2">
+                            {form.status === "PUBLISH" && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const response = await api.get<{
+                                      publicLink?: string;
+                                      publicSlug?: string;
+                                    }>(
+                                      API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(
+                                        form.id
+                                      )
+                                    );
+                                    if (
+                                      response.success &&
+                                      response.data?.publicLink
+                                    ) {
+                                      const fullUrl = `${window.location.origin}${response.data.publicLink}`;
+                                      await navigator.clipboard.writeText(
+                                        fullUrl
+                                      );
+                                      toast.success("Đã copy link công khai!");
+                                    } else {
+                                      toast.error(
+                                        "Form chưa có link công khai"
+                                      );
+                                    }
+                                  } catch (e) {
+                                    console.error(
+                                      "Failed to get public link",
+                                      e
+                                    );
+                                    toast.error("Không thể lấy link công khai");
+                                  }
+                                }}
+                                className="rounded-md bg-emerald-500 px-3 py-1 text-xs text-white hover:bg-emerald-600"
+                                title="Copy link công khai"
+                              >
+                                📋 Link
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleEditForm(form)}
-                              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                              onClick={() => handleViewForm(form)}
+                              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
                             >
-                              Chỉnh sửa
+                              Xem
                             </button>
                             <button
-                              onClick={() =>
-                                navigate(`/manage/results/${form.id}`)
-                              }
-                              className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-xs hover:bg-[#2e6de0]"
+                              onClick={() => handleEditForm(form)}
+                              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
                             >
-                              Xem kết quả
+                              Sửa
                             </button>
                           </div>
                         </td>
@@ -379,52 +351,22 @@ export default function TournamentFormList() {
               </div>
 
               {/* Pagination */}
-              {totalForms > pageSize && (
-                <div className="px-4 py-3 flex items-center justify-between border-t bg-white">
-                  <div className="text-sm text-gray-600">
-                    Hiển thị {(currentPage - 1) * pageSize + 1} -{" "}
-                    {Math.min(currentPage * pageSize, totalForms)} trong{" "}
-                    {totalForms}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                      disabled={currentPage === 1}
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      « Trước
-                    </button>
-                    {Array.from(
-                      { length: Math.ceil(totalForms / pageSize) },
-                      (_, i) => i + 1
-                    ).map((pageNum) => (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`rounded-md px-3 py-1.5 text-sm ${
-                          currentPage === pageNum
-                            ? "bg-[#377CFB] text-white"
-                            : "border border-gray-300 bg-white hover:bg-gray-50"
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() =>
-                        setCurrentPage((p) =>
-                          Math.min(p + 1, Math.ceil(totalForms / pageSize))
-                        )
-                      }
-                      disabled={
-                        currentPage === Math.ceil(totalForms / pageSize)
-                      }
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Sau »
-                    </button>
-                  </div>
-                </div>
+              {totalForms > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(totalForms / pageSize)}
+                  totalElements={totalForms}
+                  pageSize={pageSize}
+                  onPageChange={(page) => {
+                    setCurrentPage(page);
+                  }}
+                  onPageSizeChange={(size) => {
+                    setPageSize(size);
+                    setCurrentPage(1);
+                  }}
+                  showPageSizeSelector={true}
+                  pageSizeOptions={[5, 10, 15, 20]}
+                />
               )}
             </>
           )}

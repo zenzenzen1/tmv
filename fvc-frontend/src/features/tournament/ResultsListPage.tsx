@@ -849,6 +849,65 @@ export default function ResultsListPage() {
   const isAllSelected =
     allFilteredIds.length > 0 &&
     allFilteredIds.every((id) => selectedIds.has(id));
+
+  const exportCsv = useCallback(() => {
+    if (!filtered || filtered.length === 0) {
+      toast.error("Không có dữ liệu để xuất");
+      return;
+    }
+
+    const headers = [
+      "STT",
+      "Thời gian nộp",
+      participantMode === "TEAM" ? "Tên đội" : "Họ và tên",
+      "Email",
+      "MSSV",
+      "Thể thức thi đấu",
+      "Nội dung",
+      "Trạng thái",
+    ];
+
+    const formatDate = (v?: string) => {
+      if (!v) return "";
+      try {
+        const d = new Date(v);
+        if (Number.isNaN(d.getTime())) return v;
+        return d.toLocaleDateString("vi-VN");
+      } catch {
+        return v;
+      }
+    };
+
+    const csvRows = filtered.map((r, i) => [
+      String(i + 1),
+      formatDate(r.submittedAt),
+      participantMode === "TEAM" && r.teamName ? r.teamName : r.fullName,
+      r.email || "",
+      r.studentId || "",
+      r.competitionType || "",
+      r.category || "",
+      r.status || "",
+    ]);
+
+    const csv = [
+      headers.join(","),
+      ...csvRows.map((line) => line.join(",")),
+    ].join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ket-qua-dang-ky-giai-dau-${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Đã xuất Excel thành công!");
+  }, [filtered, participantMode, toast]);
   const toggleSelectAll = useCallback(() => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -1257,6 +1316,13 @@ export default function ResultsListPage() {
               {actionLoading
                 ? "Đang xử lý..."
                 : `Từ chối (${selectedIds.size})`}
+            </button>
+            <button
+              onClick={exportCsv}
+              disabled={!filtered || filtered.length === 0}
+              className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Xuất Excel
             </button>
           </div>
         </div>

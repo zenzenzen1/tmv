@@ -23,6 +23,7 @@ import FormResults from "./features/tournament/FormResults";
 import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
 import TournamentFormList from "./features/tournament/TournamentFormList";
+import TournamentFormViewPage from "./features/tournament/TournamentFormViewPage";
 import ResultsListPage from "./features/tournament/ResultsListPage";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
 
@@ -480,6 +481,10 @@ export default function App() {
         <Route path="tournament-forms" element={<TournamentFormList />} />
         <Route path="tournament-forms/new" element={<FormBuilder />} />
         <Route path="tournament-forms/:id/edit" element={<FormBuilder />} />
+        <Route
+          path="tournament-forms/:id/view"
+          element={<TournamentFormViewPage />}
+        />
 
         {/* User Management - Merge: Route from master branch */}
         <Route
