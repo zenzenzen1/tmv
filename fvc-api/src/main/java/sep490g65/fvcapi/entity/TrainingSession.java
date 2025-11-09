@@ -38,6 +38,9 @@ public class TrainingSession extends BaseEntity {
     @Column(nullable = false, length = 150)
     private String title;
 
+    @Column(length = 500)
+    private String description;
+
     @Column(name = "start_time", nullable = false)
     private LocalDateTime startTime;
 
@@ -53,6 +56,14 @@ public class TrainingSession extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private TrainingSessionStatus status = TrainingSessionStatus.PLANNED;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "created_by", nullable = false)
+    private User createdBy;
+
+    @ManyToOne
+    @JoinColumn(name = "updated_by")
+    private User updatedBy;
 }
 
 
