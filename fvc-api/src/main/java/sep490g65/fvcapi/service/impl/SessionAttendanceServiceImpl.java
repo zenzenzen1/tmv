@@ -10,6 +10,8 @@ import sep490g65.fvcapi.dto.attendance.BulkAttendanceRequest;
 import sep490g65.fvcapi.dto.attendance.SessionAttendanceCreateRequest;
 import sep490g65.fvcapi.dto.attendance.SessionAttendanceDto;
 import sep490g65.fvcapi.dto.attendance.SessionAttendanceUpdateRequest;
+import sep490g65.fvcapi.dto.training.TrainingSessionDto;
+import sep490g65.fvcapi.dto.user.UserDto;
 import sep490g65.fvcapi.entity.SessionAttendance;
 import sep490g65.fvcapi.entity.TrainingSession;
 import sep490g65.fvcapi.entity.User;
@@ -183,8 +185,8 @@ public class SessionAttendanceServiceImpl implements SessionAttendanceService {
                 .build();
     }
 
-    private sep490g65.fvcapi.dto.training.TrainingSessionDto toSessionDto(TrainingSession session) {
-        return sep490g65.fvcapi.dto.training.TrainingSessionDto.builder()
+    private TrainingSessionDto toSessionDto(TrainingSession session) {
+        return TrainingSessionDto.builder()
                 .id(session.getId())
                 .title(session.getTitle())
                 .description(session.getDescription())
@@ -195,13 +197,12 @@ public class SessionAttendanceServiceImpl implements SessionAttendanceService {
                 .build();
     }
 
-    private sep490g65.fvcapi.dto.user.UserDto toUserDto(User user) {
+    private UserDto toUserDto(User user) {
         if (user == null) return null;
-        return sep490g65.fvcapi.dto.user.UserDto.builder()
+        return UserDto.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
                 .personalMail(user.getPersonalMail())
-                .phoneNumber(user.getPhoneNumber())
                 .build();
     }
 }

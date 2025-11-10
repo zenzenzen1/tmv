@@ -7,9 +7,13 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import sep490g65.fvcapi.dto.cycle.ChallengeCycleDto;
+import sep490g65.fvcapi.dto.location.LocationDto;
+import sep490g65.fvcapi.dto.phase.ChallengePhaseDto;
 import sep490g65.fvcapi.dto.training.TrainingSessionCreateRequest;
 import sep490g65.fvcapi.dto.training.TrainingSessionDto;
 import sep490g65.fvcapi.dto.training.TrainingSessionUpdateRequest;
+import sep490g65.fvcapi.dto.user.UserDto;
 import sep490g65.fvcapi.entity.*;
 import sep490g65.fvcapi.enums.ChallengeCycleStatus;
 import sep490g65.fvcapi.enums.TrainingSessionStatus;
@@ -134,7 +138,7 @@ public class TrainingSessionServiceImpl implements TrainingSessionService {
 
         // Get current user
         String currentUserId = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userRepository.findById(currentUserId)
+        User currentUser = userRepository.findByPersonalMail(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", currentUserId));
 
         TrainingSession session = new TrainingSession();
@@ -298,8 +302,8 @@ public class TrainingSessionServiceImpl implements TrainingSessionService {
                 .build();
     }
 
-    private sep490g65.fvcapi.dto.cycle.ChallengeCycleDto toCycleDto(ChallengeCycle cycle) {
-        return sep490g65.fvcapi.dto.cycle.ChallengeCycleDto.builder()
+    private ChallengeCycleDto toCycleDto(ChallengeCycle cycle) {
+        return ChallengeCycleDto.builder()
                 .id(cycle.getId())
                 .name(cycle.getName())
                 .description(cycle.getDescription())
@@ -323,8 +327,8 @@ public class TrainingSessionServiceImpl implements TrainingSessionService {
                 .build();
     }
 
-    private sep490g65.fvcapi.dto.phase.ChallengePhaseDto toPhaseDto(ChallengePhase phase) {
-        return sep490g65.fvcapi.dto.phase.ChallengePhaseDto.builder()
+    private ChallengePhaseDto toPhaseDto(ChallengePhase phase) {
+        return ChallengePhaseDto.builder()
                 .id(phase.getId())
                 .cycleId(phase.getCycle().getId())
                 .name(phase.getName())
@@ -332,12 +336,11 @@ public class TrainingSessionServiceImpl implements TrainingSessionService {
                 .startDate(phase.getStartDate())
                 .endDate(phase.getEndDate())
                 .status(phase.getStatus())
-                .order(phase.getOrder())
                 .build();
     }
 
-    private sep490g65.fvcapi.dto.location.LocationDto toLocationDto(Location location) {
-        return sep490g65.fvcapi.dto.location.LocationDto.builder()
+    private LocationDto toLocationDto(Location location) {
+        return LocationDto.builder()
                 .id(location.getId())
                 .name(location.getName())
                 .address(location.getAddress())
@@ -349,13 +352,12 @@ public class TrainingSessionServiceImpl implements TrainingSessionService {
                 .build();
     }
 
-    private sep490g65.fvcapi.dto.user.UserDto toUserDto(User user) {
+    private UserDto toUserDto(User user) {
         if (user == null) return null;
-        return sep490g65.fvcapi.dto.user.UserDto.builder()
+        return UserDto.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
                 .personalMail(user.getPersonalMail())
-                .phoneNumber(user.getPhoneNumber())
                 .build();
     }
 }

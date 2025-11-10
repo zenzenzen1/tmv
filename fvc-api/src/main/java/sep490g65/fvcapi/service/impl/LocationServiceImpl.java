@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.location.LocationCreateRequest;
 import sep490g65.fvcapi.dto.location.LocationDto;
 import sep490g65.fvcapi.dto.location.LocationUpdateRequest;
+import sep490g65.fvcapi.dto.user.UserDto;
 import sep490g65.fvcapi.entity.Location;
 import sep490g65.fvcapi.entity.User;
 import sep490g65.fvcapi.exception.custom.BusinessException;
@@ -71,9 +72,9 @@ public class LocationServiceImpl implements LocationService {
         }
 
         // Get current user
-        String currentUserId = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", currentUserId));
+        String currentEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByPersonalMail(currentEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", currentEmail));
 
         Location location = new Location();
         location.setName(request.getName());
@@ -176,13 +177,12 @@ public class LocationServiceImpl implements LocationService {
                 .build();
     }
 
-    private sep490g65.fvcapi.dto.user.UserDto toUserDto(User user) {
+    private UserDto toUserDto(User user) {
         if (user == null) return null;
-        return sep490g65.fvcapi.dto.user.UserDto.builder()
+        return UserDto.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
                 .personalMail(user.getPersonalMail())
-                .phoneNumber(user.getPhoneNumber())
                 .build();
     }
 }
