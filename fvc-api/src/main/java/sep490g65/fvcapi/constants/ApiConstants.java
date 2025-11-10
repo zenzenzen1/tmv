@@ -52,4 +52,9 @@ public final class ApiConstants {
 	public static final String PHASES_PATH = "/phases";
 	public static final String TEAMS_PATH = "/teams";
 	public static final String TEAM_MEMBERS_SUBPATH = "/members";
+
+	// Resource Paths - Epic B
+	public static final String LOCATIONS_PATH = "/locations";
+	public static final String TRAINING_SESSIONS_PATH = "/training-sessions";
+	public static final String ATTENDANCE_SUBPATH = "/attendance";
 }
