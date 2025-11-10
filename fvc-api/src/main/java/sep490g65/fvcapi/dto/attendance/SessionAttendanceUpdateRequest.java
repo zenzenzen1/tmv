@@ -7,10 +7,10 @@ import sep490g65.fvcapi.enums.AttendanceStatus;
 
 @Data
 public class SessionAttendanceUpdateRequest {
-    @NotNull
+    @NotNull(message = "status is required")
     private AttendanceStatus status;
 
-    @Size(max = 500)
+    @Size(max = 500, message = "note must not exceed 500 characters")
     private String note;
 }
 

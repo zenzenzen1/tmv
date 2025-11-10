@@ -12,14 +12,14 @@ import java.time.LocalDateTime;
 
 @Data
 public class TrainingSessionCreateRequest {
-    @NotBlank
-    @Size(min = 1, max = 150)
+    @NotBlank(message = "title is required")
+    @Size(min = 1, max = 150, message = "title must be between 1 and 150 characters")
     private String title;
 
-    @Size(max = 500)
+    @Size(max = 500, message = "description must not exceed 500 characters")
     private String description;
 
-    @NotNull
+    @NotNull(message = "cycleId is required")
     private String cycleId;
 
     private String teamId; // Optional
@@ -28,10 +28,10 @@ public class TrainingSessionCreateRequest {
 
     private String locationId; // Optional
 
-    @NotNull
+    @NotNull(message = "startTime is required")
     private LocalDateTime startTime;
 
-    @NotNull
+    @NotNull(message = "endTime is required")
     private LocalDateTime endTime;
 
     @Min(value = 0, message = "Capacity must be >= 0")

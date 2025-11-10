@@ -10,10 +10,10 @@ import java.time.LocalDateTime;
 
 @Data
 public class TrainingSessionUpdateRequest {
-    @Size(min = 1, max = 150)
+    @Size(min = 1, max = 150, message = "title must be between 1 and 150 characters")
     private String title;
 
-    @Size(max = 500)
+    @Size(max = 500, message = "description must not exceed 500 characters")
     private String description;
 
     private String teamId;

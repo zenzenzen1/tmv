@@ -9,17 +9,17 @@ import java.math.BigDecimal;
 
 @Data
 public class LocationCreateRequest {
-    @NotBlank
-    @Size(min = 1, max = 150)
+    @NotBlank(message = "name is required")
+    @Size(min = 1, max = 150, message = "name must be between 1 and 150 characters")
     private String name;
 
-    @Size(max = 255)
+    @Size(max = 255, message = "address must not exceed 255 characters")
     private String address;
 
     @Min(value = 0, message = "Capacity default must be >= 0")
     private Integer capacityDefault;
 
-    @Size(max = 500)
+    @Size(max = 500, message = "description must not exceed 500 characters")
     private String description;
 
     private BigDecimal lat;

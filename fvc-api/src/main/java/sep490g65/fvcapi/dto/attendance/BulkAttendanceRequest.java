@@ -8,7 +8,7 @@ import java.util.List;
 
 @Data
 public class BulkAttendanceRequest {
-    @NotEmpty
+    @NotEmpty(message = "attendances must not be empty")
     @Valid
     private List<SessionAttendanceCreateRequest> attendances;
 }
