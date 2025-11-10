@@ -22,8 +22,8 @@ export const trainingSessionService = {
     return apiService.get<PaginationResponse<TrainingSessionListDto>>(API_ENDPOINTS.TRAINING_SESSIONS.BASE, params);
   },
 
-  async calendar(params: TrainingSessionCalendarParams): Promise<BaseResponse<TrainingSessionListDto[]>> {
-    return apiService.get<TrainingSessionListDto[]>(API_ENDPOINTS.TRAINING_SESSIONS.CALENDAR, params);
+  async calendar(params: TrainingSessionCalendarParams): Promise<BaseResponse<PaginationResponse<TrainingSessionListDto>>> {
+    return apiService.get<PaginationResponse<TrainingSessionListDto>>(API_ENDPOINTS.TRAINING_SESSIONS.CALENDAR, params);
   },
 
   async getById(id: string): Promise<BaseResponse<TrainingSessionDto>> {

@@ -32,4 +32,11 @@ export interface LocationUpdateRequest {
   isActive?: boolean;
 }
 
+export interface LocationFilters {
+  page?: number;
+  size?: number;
+  search?: string;
+  isActive?: boolean;
+}
+
 

@@ -54,6 +54,10 @@ import RequireRole from "./components/common/RequireRole";
 import CycleList from "./pages/cycles/CycleList";
 import CycleDetail from "./pages/cycles/CycleDetail";
 import CycleCreate from "./pages/cycles/CycleCreate";
+import LocationListPage from "./pages/locations/ListPage";
+import TrainingSessionListPage from "./pages/training-sessions/ListPage";
+import TrainingSessionCalendarPage from "./pages/training-sessions/CalendarPage";
+import TrainingSessionCreatePage from "./pages/training-sessions/CreatePage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -374,6 +378,38 @@ export default function App() {
           element={
             <RequireRole roles={["EXECUTIVE_BOARD"]}>
               <FieldManagementPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="locations"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <LocationListPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="training-sessions"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <TrainingSessionListPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="training-sessions/new"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <TrainingSessionCreatePage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="training-sessions/calendar"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <TrainingSessionCalendarPage />
             </RequireRole>
           }
         />
