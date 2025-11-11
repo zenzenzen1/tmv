@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng ký tham gia giải đấu đã được duyệt</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .greeting {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .message {
+            font-size: 16px;
+            color: #555;
+            margin-bottom: 25px;
+            line-height: 1.8;
+        }
+        .info-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 5px;
+        }
+        .info-box h3 {
+            margin-top: 0;
+            color: #667eea;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        .info-row {
+            display: flex;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #555;
+            min-width: 180px;
+        }
+        .info-value {
+            color: #333;
+            flex: 1;
+        }
+        .success-badge {
+            display: inline-block;
+            background-color: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin: 20px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            margin: 25px 0;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 13px;
+            color: #777;
+            border-top: 1px solid #e9ecef;
+        }
+        .divider {
+            height: 1px;
+            background: linear-gradient(to right, transparent, #ddd, transparent);
+            margin: 25px 0;
+        }
+        .highlight {
+            color: #667eea;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 Đăng ký đã được duyệt!</h1>
+        </div>
+        
+        <div class="content">
+            <p class="greeting">Xin chào <strong th:text="${fullName}">Người dùng</strong>,</p>
+            
+            <div class="success-badge">✓ ĐÃ DUYỆT</div>
+            
+            <p class="message">
+                Chúc mừng! Đăng ký tham gia giải đấu của bạn đã được ban tổ chức phê duyệt. 
+                Dưới đây là thông tin chi tiết về đăng ký của bạn:
+            </p>
+
+            <div class="info-box">
+                <h3>📋 Thông tin người đăng ký</h3>
+                <div class="info-row">
+                    <span class="info-label">Họ và tên:</span>
+                    <span class="info-value" th:text="${fullName}">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Email:</span>
+                    <span class="info-value" th:text="${email}">-</span>
+                </div>
+                <div class="info-row" th:if="${studentId}">
+                    <span class="info-label">Mã số sinh viên:</span>
+                    <span class="info-value" th:text="${studentId}">-</span>
+                </div>
+                <div class="info-row" th:if="${club}">
+                    <span class="info-label">Câu lạc bộ:</span>
+                    <span class="info-value" th:text="${club}">-</span>
+                </div>
+                <div class="info-row" th:if="${gender}">
+                    <span class="info-label">Giới tính:</span>
+                    <span class="info-value" th:text="${gender}">-</span>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <h3>🏆 Thông tin giải đấu</h3>
+                <div class="info-row">
+                    <span class="info-label">Tên giải:</span>
+                    <span class="info-value highlight" th:text="${tournamentName}">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Thể thức thi đấu:</span>
+                    <span class="info-value" th:text="${competitionType}">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Nội dung thi đấu:</span>
+                    <span class="info-value" th:text="${category}">-</span>
+                </div>
+                <div class="info-row" th:if="${isTeam}">
+                    <span class="info-label">Hình thức:</span>
+                    <span class="info-value">Đội nhóm</span>
+                </div>
+                <div class="info-row" th:if="${teamName}">
+                    <span class="info-label">Tên đội:</span>
+                    <span class="info-value" th:text="${teamName}">-</span>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <p class="message">
+                <strong>Lưu ý quan trọng:</strong><br>
+                • Vui lòng theo dõi email và thông báo tiếp theo từ ban tổ chức về lịch thi đấu<br>
+                • Chuẩn bị đầy đủ trang phục và dụng cụ thi đấu<br>
+                • Đến đúng giờ theo lịch được thông báo<br>
+                • Liên hệ ban tổ chức nếu có thắc mắc hoặc cần hỗ trợ
+            </p>
+
+            <!-- <div style="text-align: center;">
+                <a href="#" class="cta-button">Xem thông tin giải đấu</a>
+            </div> -->
+        </div>
+
+        <div class="footer">
+            <p style="margin: 0 0 10px 0;">
+                <strong>FPTU Vovinam Club</strong>
+            </p>
+            <p style="margin: 0;">
+                Email này được gửi tự động. Vui lòng không trả lời email này.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

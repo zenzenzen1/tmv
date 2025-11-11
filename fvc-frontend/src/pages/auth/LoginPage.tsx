@@ -6,9 +6,10 @@ import Background from "../../assets/background.png";
 import { Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
-import { useAuthActions, useAuth } from "../../stores/authStore";
+import { useAuthActions, useAuth, useAuthStore } from "../../stores/authStore";
 import type { LoginRequest } from "../../types";
 import { validateEmail, validateRequired } from "../../utils/validation";
+import { getRoleLandingRoute } from "@/utils/roleRouting";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -46,15 +47,18 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate form before submission
     if (!isFormValid) {
       return;
     }
-    
+
     try {
       await login(formData);
-      navigate("/dashboard");
+      const landingRoute = getRoleLandingRoute(
+        useAuthStore.getState().user?.systemRole
+      );
+      navigate(landingRoute);
     } catch (error) {
       // Error is handled by the store
       console.error("Login failed:", error);
@@ -195,30 +199,8 @@ export default function LoginPage() {
                 {isLoading ? "LOGGING IN..." : "CONTINUE"}
               </button>
 
-              {/* Divider */}
-              <div className="flex items-center gap-2">
-                <hr className="flex-1 border-gray-300" />
-                <span className="text-xs text-black">Or</span>
-                <hr className="flex-1 border-gray-300" />
-              </div>
-
-              {/* Google Button */}
-              <button
-                type="button"
-                className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 bg-white/80 hover:bg-gray-50 font-light"
-              >
-                <FcGoogle size={20} />
-                Log In with Google
-              </button>
+              {/* Removed social login and sign up to simplify the login UI */}
             </form>
-
-            {/* Signup */}
-            <p className="text-sm text-gray-600 mt-4 text-center">
-              New User?{" "}
-              <a href="/register" className="font-semibold hover:underline">
-                SIGN UP HERE
-              </a>
-            </p>
           </div>
         </div>
       </div>

@@ -22,7 +22,7 @@ import sep490g65.fvcapi.enums.FormStatus;
 import java.time.LocalDate;
 import java.util.List;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @RequiredArgsConstructor
 public class DataSeeder {
 

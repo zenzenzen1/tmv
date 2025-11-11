@@ -246,6 +246,11 @@ export default function SubmittedFormsPage() {
   const [viewingRow, setViewingRow] = useState<SubmittedRow | null>(null);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    action: "APPROVED" | "REJECTED" | null;
+    count: number;
+  }>({ isOpen: false, action: null, count: 0 });
   
   // Filters - Default to PENDING status
   const [status, setStatus] = useState<string>("PENDING");
@@ -257,22 +262,7 @@ export default function SubmittedFormsPage() {
   const [searchInput, setSearchInput] = useState<string>(""); // Input value (immediate)
   const [query, setQuery] = useState<string>(""); // Actual search value (debounced)
 
-  const filtered = useReactMemo(() => {
-    if (!query.trim()) return rows;
-    const q = query.toLowerCase();
-    return rows.filter((r) => {
-      const searchableValues = [
-        r.fullName,
-        r.email,
-        r.studentCode,
-        r.note,
-        ...Object.values(r).filter(v => typeof v === 'string' && v.trim())
-      ];
-      return searchableValues
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
-    });
-  }, [rows, query]);
+  
 
   const fetchData = useCallback(async () => {
     try {
@@ -360,8 +350,6 @@ export default function SubmittedFormsPage() {
     fetchData();
   }, [fetchData]);
 
-  console.log(rows);
-
   const handleUpdateStatus = async (
     id: string,
     newStatus: "APPROVED" | "REJECTED"
@@ -386,13 +374,22 @@ export default function SubmittedFormsPage() {
     }
   };
 
-  const handleBulkUpdateStatus = async (ids: string[], newStatus: "APPROVED" | "REJECTED") => {
+  const handleBulkUpdateStatus = async (newStatus: "APPROVED" | "REJECTED") => {
+    const ids = Array.from(selectedIds);
     if (!ids.length) return;
+    
     try {
       setActionLoading(true);
-      await Promise.all(ids.map((sid) => api.patch(`/v1/submitted-forms/${sid}/status`, { status: newStatus })));
+      
+      // Use new bulk API endpoint
+      await api.patch("/v1/submitted-forms/bulk-status", {
+        ids: ids.map(id => parseInt(id)),
+        status: newStatus
+      });
+      
       toast.success(`${newStatus === "APPROVED" ? "Đã duyệt" : "Đã từ chối"} ${ids.length} form`);
       setSelectedIds(new Set());
+      setConfirmDialog({ isOpen: false, action: null, count: 0 });
       await fetchData();
     } catch (e: any) {
       toast.error(e?.message || "Không thể cập nhật hàng loạt");
@@ -401,23 +398,54 @@ export default function SubmittedFormsPage() {
     }
   };
 
-  const allFilteredIds = useMemo(() => filtered.map(r => r.id), [filtered]);
-  const isAllSelected = allFilteredIds.length > 0 && allFilteredIds.every(id => selectedIds.has(id));
+  const openConfirmDialog = (action: "APPROVED" | "REJECTED") => {
+    setConfirmDialog({
+      isOpen: true,
+      action,
+      count: selectedIds.size
+    });
+  };
+  
+
+  
+  const filtered = useReactMemo(() => {
+    if (!query.trim()) return rows;
+    const q = query.toLowerCase();
+    // Lấy tất cả các giá trị từ row để search
+    return rows.filter((r) => {
+      const searchableValues = [
+        r.fullName,
+        r.email,
+        r.studentCode,
+        r.note,
+        ...Object.values(r).filter(v => typeof v === 'string' && v.trim())
+      ];
+      return searchableValues
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+  }, [rows, query]);
+
+
+  const allFilteredIds = useMemo(() => filtered.map((r) => r.id), [filtered]);
+  const isAllSelected =
+    allFilteredIds.length > 0 && allFilteredIds.every((id) => selectedIds.has(id));
   const toggleSelectAll = () => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
       if (isAllSelected) {
-        allFilteredIds.forEach(id => next.delete(id));
+        allFilteredIds.forEach((id) => next.delete(id));
       } else {
-        allFilteredIds.forEach(id => next.add(id));
+        allFilteredIds.forEach((id) => next.add(id));
       }
       return next;
     });
   };
   const toggleSelectOne = (id: string) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -657,20 +685,14 @@ export default function SubmittedFormsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => navigate(-1)}
-          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-        >
-          ⟵ Quay lại
-        </button>
-        <button
-          onClick={() => exportCsv(filtered)}
-          className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
-        >
-          Xuất Excel
-        </button>
-      </div>
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate(-1)}
+            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            ⟵ Quay lại
+          </button>
+        </div>
 
       {/* Header */}
       <div className="mb-6">
@@ -686,43 +708,32 @@ export default function SubmittedFormsPage() {
       <div className="mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">Bộ lọc</h3>
-          <button
-            onClick={() => {
-              setStatus("PENDING");
-              setDateFrom("");
-              setDateTo("");
-              setQuery("");
-              setPage(1);
-            }}
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
-            ⟵ Quay lại
-          </button>
-          <div className="flex items-center gap-2">
-            {selectedIds.size > 0 && (
-              <>
-                <button
-                  onClick={() => handleBulkUpdateStatus(Array.from(selectedIds), "APPROVED")}
-                  disabled={actionLoading}
-                  className="rounded-md bg-green-600 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-green-700 disabled:opacity-50"
-                >
-                  Duyệt đã chọn ({selectedIds.size})
-                </button>
-                <button
-                  onClick={() => handleBulkUpdateStatus(Array.from(selectedIds), "REJECTED")}
-                  disabled={actionLoading}
-                  className="rounded-md bg-red-600 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-red-700 disabled:opacity-50"
-                >
-                  Từ chối đã chọn ({selectedIds.size})
-                </button>
-                <div className="mx-1 w-px self-stretch bg-gray-300" />
-              </>
-            )}
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => exportCsv(selectedIds.size > 0 ? filtered.filter(r => selectedIds.has(r.id)) : filtered)}
+              onClick={() => openConfirmDialog("APPROVED")}
+              disabled={selectedIds.size === 0 || actionLoading}
+              className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-[13px] font-medium text-white shadow hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+              </svg>
+              {actionLoading ? "Đang xử lý..." : `Duyệt (${selectedIds.size})`}
+            </button>
+            <button
+              onClick={() => openConfirmDialog("REJECTED")}
+              disabled={selectedIds.size === 0 || actionLoading}
+              className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-[13px] font-medium text-white shadow hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+              {actionLoading ? "Đang xử lý..." : `Từ chối (${selectedIds.size})`}
+            </button>
+            <button
+              onClick={() => exportCsv(filtered)}
               className="rounded-md bg-emerald-500 px-3 py-2 text-[13px] font-medium text-white shadow hover:bg-emerald-600"
             >
-              {selectedIds.size > 0 ? `Xuất Excel (${selectedIds.size})` : "Xuất Excel"}
+              Xuất Excel
             </button>
           </div>
         </div>
@@ -946,6 +957,84 @@ export default function SubmittedFormsPage() {
                 className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Dialog */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Xác nhận {confirmDialog.action === "APPROVED" ? "duyệt" : "từ chối"}
+              </h3>
+              <button
+                onClick={() => setConfirmDialog({ isOpen: false, action: null, count: 0 })}
+                disabled={actionLoading}
+                className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className={`flex-shrink-0 rounded-full p-3 ${
+                  confirmDialog.action === "APPROVED" ? "bg-green-100" : "bg-red-100"
+                }`}>
+                  {confirmDialog.action === "APPROVED" ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-6 w-6 text-green-600">
+                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-6 w-6 text-red-600">
+                      <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-700">
+                    Bạn có chắc chắn muốn <strong className={confirmDialog.action === "APPROVED" ? "text-green-600" : "text-red-600"}>
+                      {confirmDialog.action === "APPROVED" ? "duyệt" : "từ chối"}
+                    </strong> <strong>{confirmDialog.count}</strong> form đã chọn?
+                  </p>
+                  {confirmDialog.action === "APPROVED" && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Sau khi duyệt, hệ thống sẽ tự động tạo tài khoản và gửi email thông báo cho các thành viên mới.
+                    </p>
+                  )}
+                  {confirmDialog.action === "REJECTED" && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Hành động này không thể hoàn tác.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t px-6 py-4">
+              <button
+                onClick={() => setConfirmDialog({ isOpen: false, action: null, count: 0 })}
+                disabled={actionLoading}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => confirmDialog.action && handleBulkUpdateStatus(confirmDialog.action)}
+                disabled={actionLoading}
+                className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  confirmDialog.action === "APPROVED"
+                    ? "bg-green-600 hover:bg-green-700 focus:ring-green-500"
+                    : "bg-red-600 hover:bg-red-700 focus:ring-red-500"
+                }`}
+              >
+                {actionLoading ? "Đang xử lý..." : "Xác nhận"}
               </button>
             </div>
           </div>

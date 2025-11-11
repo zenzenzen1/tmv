@@ -188,6 +188,7 @@ export const API_ENDPOINTS = {
 
   // Performances (fallback/basic info)
   PERFORMANCES: {
+    CREATE: "/v1/performances",
     BY_ID: "/v1/performances/{id}",
     BY_MATCH_ID: "/v1/performances/by-match/{matchId}",
     START: (id: string) => `/v1/performances/${id}/start`,
@@ -197,6 +198,31 @@ export const API_ENDPOINTS = {
   // Common endpoints
   HEALTH: "/health",
   VERSION: "/version",
+
+  // Epic B: Training Sessions
+  TRAINING_SESSIONS: {
+    BASE: "/v1/training-sessions",
+    BY_ID: (id: string) => `/v1/training-sessions/${id}`,
+    STATUS: (id: string) => `/v1/training-sessions/${id}/status`,
+    CALENDAR: "/v1/training-sessions/calendar",
+  },
+
+  // Epic B: Locations
+  LOCATIONS: {
+    BASE: "/v1/locations",
+    BY_ID: (id: string) => `/v1/locations/${id}`,
+    DEACTIVATE: (id: string) => `/v1/locations/${id}/deactivate`,
+  },
+
+  // Epic B: Session Attendance
+  ATTENDANCE: {
+    BY_SESSION: (sessionId: string) => `/v1/training-sessions/${sessionId}/attendance`,
+    BY_ATTENDANCE_ID: (sessionId: string, id: string) =>
+      `/v1/training-sessions/${sessionId}/attendance/${id}`,
+    BULK: (sessionId: string) => `/v1/training-sessions/${sessionId}/attendance/bulk`,
+    STATISTICS: (sessionId: string) =>
+      `/v1/training-sessions/${sessionId}/attendance/statistics`,
+  },
 } as const;
 
 // Helper function to build endpoint URLs

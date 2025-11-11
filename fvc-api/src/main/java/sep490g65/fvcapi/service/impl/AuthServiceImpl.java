@@ -3,6 +3,7 @@ package sep490g65.fvcapi.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import sep490g65.fvcapi.dto.request.LoginRequest;
@@ -32,6 +33,9 @@ public class AuthServiceImpl implements AuthService {
         log.info("Attempting login for email: {}", request.getEmail());
         
         try {
+            // Find user by personal email only - normalize email for consistency
+            String normalizedEmail = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : request.getEmail();
+            log.info("Step 1: Finding user by email: {} (normalized: {})", request.getEmail(), normalizedEmail);
             // Reject empty credentials with a generic message
             if (request.getEmail() == null || request.getEmail().trim().isEmpty()
                     || request.getPassword() == null || request.getPassword().isEmpty()) {
@@ -54,17 +58,18 @@ public class AuthServiceImpl implements AuthService {
             List<User> users = userRepository.findAllByPersonalMailIgnoreCase(request.getEmail().trim());
             
             if (users.isEmpty()) {
-                log.error("User not found for email: {}", request.getEmail());
-                throw new BadCredentialsException("Invalid email or password");
+                log.error("User not found for email: {} (normalized: {})", request.getEmail(), normalizedEmail);
+                // Throw specific exception to allow 404 mapping at controller advice
+                throw new UsernameNotFoundException("User not found");
             }
             
             // If there are duplicates, log a warning and use the first one
             if (users.size() > 1) {
-                log.warn("Multiple users found with email: {}. Using the first one. Total found: {}", request.getEmail(), users.size());
+                log.warn("Multiple users found with email: {} (normalized: {}). Using the first one. Total found: {}", request.getEmail(), normalizedEmail, users.size());
             }
             
             User user = users.get(0);
-            log.info("User found: {}", user.getPersonalMail());
+            log.info("User found: {} (ID: {})", user.getPersonalMail(), user.getId());
 
             // Block inactive users before password check
             if (Boolean.FALSE.equals(user.getStatus())) {
@@ -72,7 +77,7 @@ public class AuthServiceImpl implements AuthService {
             }
 
             // Log hash visibility and compare with BCrypt
-            log.info("Step 2: Comparing password for email={}, hash_present={}", request.getEmail().trim(), user.getHashPassword() != null);
+            log.info("Step 2: Comparing password for email={} (normalized: {}), hash_present={}", request.getEmail(), normalizedEmail, user.getHashPassword() != null);
             boolean passwordMatches = passwordEncoder.matches(request.getPassword(), user.getHashPassword());
             log.info("Password match result: {}", passwordMatches);
             
@@ -109,6 +114,10 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (BadCredentialsException e) {
             log.error("=== LOGIN FAILED - BadCredentials ===");
+            log.error("Login failed for email: {} - {}", request.getEmail(), e.getMessage());
+            throw e;
+        } catch (UsernameNotFoundException e) {
+            log.error("=== LOGIN FAILED - User Not Found ===");
             log.error("Login failed for email: {} - {}", request.getEmail(), e.getMessage());
             throw e;
         } catch (Exception e) {

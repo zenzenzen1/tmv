@@ -1,6 +1,8 @@
 import { Route, Routes, Navigate } from "react-router-dom";
 import "./App.css";
 import { useIsAuthenticated, useAuthStore } from "./stores/authStore";
+import { getRoleLandingRoute, getManageIndexRoute } from "./utils/roleRouting";
+import type { SystemRole } from "@/types/user";
 
 // Pages
 import LoginPage from "./pages/auth/LoginPage";
@@ -14,12 +16,14 @@ import FormEditPage from "./pages/forms/EditPage";
 import FormRegistrationPage from "./pages/forms/RegistrationPage";
 
 import Home from "./pages/Home";
+import LandingPage from "./pages/LandingPage";
 import TournamentListPage from "./pages/tournament/ListPage";
 import CompetitionFormPage from "./pages/tournament/CompetitionFormPage";
-import FormResults from "./features/tournament/FormResults";
 import FormBuilder from "./features/tournament/FormBuilder";
 import PublishedForm from "./features/tournament/PublishedForm";
 import TournamentFormList from "./features/tournament/TournamentFormList";
+import TournamentFormViewPage from "./features/tournament/TournamentFormViewPage";
+import ResultsListPage from "./features/tournament/ResultsListPage";
 import AthleteManagementWrapper from "./pages/athletes/AthleteManagementWrapper";
 
 import MemberManagementListPage from "./pages/member-management/ListPage";
@@ -42,15 +46,25 @@ import JudgeScoringScreen from "./pages/performance/JudgeScoringScreen";
 import PerformanceResultScreen from "./pages/performance/PerformanceResultScreen";
 import JudgeDashboard from "./pages/judge/JudgeDashboard";
 import AssessorLayout from "./components/layout/AssessorLayout";
-import { useIsAssessor } from "./stores/authStore";
 import MatchManagementPage from "./pages/scoring/MatchManagementPage";
 import UserManagementPage from "./pages/user-management/UserManagementPage";
 import RegisterPage from "./pages/auth/RegisterPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import FieldManagementPage from "./pages/field-management/FieldManagementPage";
 import RequireRole from "./components/common/RequireRole";
+import CycleList from "./pages/cycles/CycleList";
+import CycleDetail from "./pages/cycles/CycleDetail";
+import CycleCreate from "./pages/cycles/CycleCreate";
+import LocationListPage from "./pages/locations/ListPage";
+import TrainingSessionListPage from "./pages/training-sessions/ListPage";
+import TrainingSessionCalendarPage from "./pages/training-sessions/CalendarPage";
+import TrainingSessionCreatePage from "./pages/training-sessions/CreatePage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
+  const userRole = useAuthStore(
+    (state) => (state.user?.systemRole as SystemRole | null) ?? null
+  );
 
   function Protected({ children }: { children: React.ReactElement }) {
     // Wait for hydration to complete
@@ -67,7 +81,8 @@ export default function App() {
   }
 
   function AssessorProtected({ children }: { children: React.ReactElement }) {
-    const isAssessor = useIsAssessor();
+    const user = useAuthStore((state) => state.user);
+    const isAssessor = user?.systemRole === "TEACHER";
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
     }
@@ -75,6 +90,12 @@ export default function App() {
       return <Navigate to="/manage/tournaments" replace />;
     }
     return children;
+  }
+
+  function ManageIndexRedirect({ role }: { role: SystemRole | null }) {
+    const target = getManageIndexRoute(role);
+    const to = target.startsWith("/") ? target : `/manage/${target}`;
+    return <Navigate to={to} replace />;
   }
 
   // Nếu đã login → hiển thị layout chính
@@ -86,12 +107,13 @@ export default function App() {
         path="/login"
         element={
           isAuthenticated ? (
-            <Navigate to="/manage/tournaments" replace />
+            <Navigate to={getRoleLandingRoute(userRole)} replace />
           ) : (
             <LoginPage />
           )
         }
       />
+      <Route path="/forgot" element={<ForgotPasswordPage />} />
 
       {/* Profile page with its own layout */}
       <Route
@@ -105,14 +127,16 @@ export default function App() {
         <Route index element={<ProfilePage />} />
       </Route>
 
-      {/* Landing redirect */}
+      {/* Landing page */}
       <Route
         path="/"
         element={
-          <Navigate
-            to={isAuthenticated ? "/manage/tournaments" : "/login"}
-            replace
-          />
+          isAuthenticated ? (
+            // <Navigate to="/manage/tournaments" replace />
+            <Navigate to={getRoleLandingRoute(userRole)} replace />
+          ) : (
+            <LandingPage />
+          )
         }
       />
       {/* Member Management */}
@@ -146,7 +170,7 @@ export default function App() {
         }
       >
         {/* default */}
-        <Route index element={<Navigate to="tournaments" replace />} />
+        <Route index element={<ManageIndexRedirect role={userRole} />} />
 
         {/* Dashboard/Home (optional) */}
         <Route path="dashboard" element={<DashboardPage />} />
@@ -158,6 +182,42 @@ export default function App() {
           element={
             <RequireRole roles={["EXECUTIVE_BOARD"]}>
               <TournamentListPage />
+            </RequireRole>
+          }
+        />
+
+        {/* Member Management */}
+        <Route
+          path="member-management"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD"]}>
+              <MemberManagementListPage />
+            </RequireRole>
+          }
+        />
+
+        {/* Challenge Cycles */}
+        <Route
+          path="cycles"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <CycleList />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="cycles/new"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <CycleCreate />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="cycles/:id"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <CycleDetail />
             </RequireRole>
           }
         />
@@ -198,7 +258,9 @@ export default function App() {
         <Route
           path="forms"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormListPage />
             </RequireRole>
           }
@@ -206,7 +268,9 @@ export default function App() {
         <Route
           path="forms/new"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormBuilderPage />
             </RequireRole>
           }
@@ -214,7 +278,9 @@ export default function App() {
         <Route
           path="forms/:id/edit"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormEditPage />
             </RequireRole>
           }
@@ -222,7 +288,9 @@ export default function App() {
         <Route
           path="forms/:id/view"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <FormRegistrationPage />
             </RequireRole>
           }
@@ -230,7 +298,9 @@ export default function App() {
         <Route
           path="forms/:id/fill"
           element={
-            <RequireRole roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+            <RequireRole
+              roles={["ADMIN", "EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}
+            >
               <PublishedForm />
             </RequireRole>
           }
@@ -244,13 +314,14 @@ export default function App() {
           }
         />
         <Route
-          path="results/:id"
+          path="results"
           element={
             <RequireRole roles={["EXECUTIVE_BOARD"]}>
-              <FormResults />
+              <ResultsListPage />
             </RequireRole>
           }
         />
+
         <Route
           path="tournament-forms"
           element={
@@ -308,6 +379,38 @@ export default function App() {
           element={
             <RequireRole roles={["EXECUTIVE_BOARD"]}>
               <FieldManagementPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="locations"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <LocationListPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="training-sessions"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <TrainingSessionListPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="training-sessions/new"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <TrainingSessionCreatePage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="training-sessions/calendar"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <TrainingSessionCalendarPage />
             </RequireRole>
           }
         />
@@ -415,6 +518,10 @@ export default function App() {
         <Route path="tournament-forms" element={<TournamentFormList />} />
         <Route path="tournament-forms/new" element={<FormBuilder />} />
         <Route path="tournament-forms/:id/edit" element={<FormBuilder />} />
+        <Route
+          path="tournament-forms/:id/view"
+          element={<TournamentFormViewPage />}
+        />
 
         {/* User Management - Merge: Route from master branch */}
         <Route
@@ -475,7 +582,7 @@ export default function App() {
         path="/assessor/dashboard"
         element={<Navigate to="/assessor/dashboard" replace />}
       />
-      <Route path="/results/:id" element={<FormResults />} />
+
       <Route path="/published-form/:id" element={<PublishedForm />} />
       <Route path="/scoring" element={<SelectMatchPage />} />
       <Route path="/scoring/:matchId" element={<MatchScoringPage />} />

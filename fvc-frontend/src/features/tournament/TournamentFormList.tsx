@@ -1,13 +1,15 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import { useToast } from "../../components/common/ToastContext";
+import Pagination from "../../components/common/Pagination";
 
 type FormConfig = {
   id: string;
   name: string;
   formTitle: string;
+  tournamentName?: string; // Tên giải đấu
   description: string;
   formType: string;
   createdAt: string;
@@ -19,7 +21,7 @@ type FormConfig = {
 
 export default function TournamentFormList() {
   const navigate = useNavigate();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const toast = useToast();
   const [forms, setForms] = useState<FormConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,31 +33,30 @@ export default function TournamentFormList() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
   const [totalForms, setTotalForms] = useState(0);
-  const [allForms, setAllForms] = useState<FormConfig[]>([]);
 
   const loadForms = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
+      // Request all data using all=true to bypass pagination limit, then filter client-side
       const response = await api.get<{
         content: FormConfig[];
         totalElements: number;
+        totalPages: number;
       }>(API_ENDPOINTS.TOURNAMENT_FORMS.BASE, {
-        page: 0,
-        size: 100, // Request more records
+        all: true, // Request all data without pagination limit
+        search: search.trim() || undefined,
       });
 
-      console.log("TournamentFormList API response:", response);
-
       if (response.success && response.data) {
-        // Handle different response structures
+        // Handle pagination response
         let dataArray: FormConfig[] = [];
 
         if (Array.isArray(response.data)) {
-          // Direct array response
+          // Direct array response (fallback)
           dataArray = response.data;
         } else if (
           response.data.content &&
@@ -68,32 +69,20 @@ export default function TournamentFormList() {
           dataArray = [];
         }
 
-        console.log("Data array:", dataArray);
-
-        // First, let's see all forms without filtering
-        console.log("All forms before filtering:", dataArray);
-
-        // Log each form's formType to understand the structure
-        dataArray.forEach((form: FormConfig, index: number) => {
-          console.log(`Form ${index}:`, {
-            id: form.id,
-            name: form.name,
-            formType: form.formType,
-            formTypeFromDB: form.formType,
-            allProperties: Object.keys(form),
-            fullForm: form, // Show full form structure
-          });
-        });
-
+        // Map to FormConfig
         const formsData: FormConfig[] = dataArray.map(
           (
             formLike: Partial<FormConfig> & {
               formTitle?: string;
+              tournamentName?: string;
               numberOfParticipants?: number;
             }
           ) => {
             const id = String(formLike.id || "");
-            const name = formLike.formTitle || formLike.name || "Không có tên";
+            const formTitle =
+              formLike.formTitle || formLike.name || "Không có tên";
+            const tournamentName =
+              formLike.tournamentName || formLike.name || "Không có tên";
             const description = formLike.description || "Không có mô tả";
             const formType = String(formLike.formType || "");
             const createdAt = String(formLike.createdAt || "");
@@ -105,8 +94,9 @@ export default function TournamentFormList() {
                 : 0;
             return {
               id,
-              name,
-              formTitle: name,
+              name: tournamentName, // name dùng để hiển thị tên giải đấu
+              formTitle: formTitle, // formTitle là tên form
+              tournamentName: tournamentName,
               description,
               formType,
               createdAt,
@@ -118,45 +108,19 @@ export default function TournamentFormList() {
           }
         );
 
-        console.log("All mapped forms:", formsData);
-
-        // Show all formTypes to understand what we have
-        const allFormTypes = formsData.map((f) => f.formType);
-        console.log("All formTypes found:", allFormTypes);
-
         // Filter to show only COMPETITION_REGISTRATION forms
-        let filteredForms = formsData.filter((form: FormConfig) => {
-          console.log(`Form "${form.name}": formType="${form.formType}"`);
+        let filteredForms = formsData.filter(
+          (form: FormConfig) => form.formType === "COMPETITION_REGISTRATION"
+        );
 
-          // Only show COMPETITION_REGISTRATION forms
-          if (form.formType === "COMPETITION_REGISTRATION") {
-            console.log(
-              `Form "${form.name}": INCLUDED - formType is COMPETITION_REGISTRATION`
-            );
-            return true;
-          }
-
-          // Exclude CLUB_REGISTRATION forms
-          if (form.formType === "CLUB_REGISTRATION") {
-            console.log(
-              `Form "${form.name}": EXCLUDED - formType is CLUB_REGISTRATION`
-            );
-            return false;
-          }
-
-          // Exclude all other forms (including undefined/null)
-          console.log(
-            `Form "${form.name}": EXCLUDED - formType is not COMPETITION_REGISTRATION`
-          );
-          return false;
-        });
-
-        // Apply UI filters
+        // Apply status filter client-side
         if (statusFilter) {
           filteredForms = filteredForms.filter(
             (f) => (f.status || "DRAFT").toUpperCase() === statusFilter
           );
         }
+
+        // Apply search filter client-side (if not already done by API)
         if (search.trim().length > 0) {
           const q = search.trim().toLowerCase();
           filteredForms = filteredForms.filter(
@@ -166,181 +130,41 @@ export default function TournamentFormList() {
           );
         }
 
-        console.log("Filtered tournament forms:", filteredForms);
-
-        setAllForms(filteredForms);
+        // Set total after all filters
         setTotalForms(filteredForms.length);
-        console.log("Set totalForms to:", filteredForms.length);
 
-        // Also set initial forms for first page
+        // Client-side pagination
         const startIndex = (currentPage - 1) * pageSize;
         const endIndex = startIndex + pageSize;
         const paginatedForms = filteredForms.slice(startIndex, endIndex);
         setForms(paginatedForms);
       } else {
         setError(response.message || "Failed to fetch forms");
-        toastError(response.message || "Tải danh sách form thất bại");
+        toast.error(response.message || "Tải danh sách form thất bại");
       }
     } catch (err: unknown) {
       setError((err as Error)?.message || "Lỗi khi tải danh sách form");
-      toastError((err as Error)?.message || "Tải danh sách form thất bại");
+      toast.error((err as Error)?.message || "Tải danh sách form thất bại");
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, toastError, statusFilter, search]);
-
-  // Merge: Keep HEAD's loadForms function, add master's columns definition
-  const columns: Array<TableColumn<FormRow>> = useMemo(
-    () => [
-      {
-        key: "tournament",
-        title: "Giải đấu",
-        className: "text-[15px] w-64",
-      },
-      {
-        key: "formTitle",
-        title: "Tiêu đề Form",
-        className: "text-[15px] w-96",
-      },
-      {
-        key: "participants",
-        title: "Số người tham gia",
-        className: "text-[15px] w-24 text-center",
-      },
-      {
-        key: "createdAt",
-        title: "Ngày tạo",
-        className: "text-[15px] w-36",
-      },
-      {
-        key: "status",
-        title: "Trạng thái",
-        className: "text-[15px] w-40",
-        render: (r: FormRow) => (
-          <div className="flex items-center gap-2">
-            <select
-              className={`rounded-md px-2 py-1 text-xs border ${
-                r.status === "publish"
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : r.status === "archived"
-                  ? "bg-rose-50 text-rose-600 border-rose-200"
-                  : r.status === "postpone"
-                  ? "bg-gray-100 text-gray-700 border-gray-300"
-                  : "bg-amber-50 text-amber-700 border-amber-200"
-              }`}
-              value={r.status}
-              onChange={async (e) => {
-                const val = e.target.value as FormRow["status"];
-                const map: Record<FormRow["status"], string> = {
-                  draft: "DRAFT",
-                  publish: "PUBLISH",
-                  archived: "ARCHIVED",
-                  postpone: "POSTPONE",
-                };
-                try {
-                  // optimistic update
-                  setRows((prev) =>
-                    prev.map((row) =>
-                      row.id === r.id ? { ...row, status: val } : row
-                    )
-                  );
-                  await api.patch<void>(
-                    `${API_ENDPOINTS.TOURNAMENT_FORMS.BASE}/${r.id}/status`,
-                    { status: map[val] }
-                  );
-                  // Notify Home to refresh published list
-                  window.dispatchEvent(new Event("forms:changed"));
-                  // hard refresh to reflect backend truth
-                  setPage((p) => p);
-                  toast.success("Cập nhật trạng thái thành công");
-                } catch (err) {
-                  console.error("Failed to update status", err);
-                  // rollback optimistic update on failure
-                  setRows((prev) =>
-                    prev.map((row) =>
-                      row.id === r.id ? { ...row, status: r.status } : row
-                    )
-                  );
-                  toast.error("Cập nhật trạng thái thất bại");
-                }
-              }}
-            >
-              <option value="draft">Draff</option>
-              <option value="publish">Đã công khai</option>
-              <option value="archived">Lưu trữ</option>
-              <option value="postpone">Hoãn</option>
-            </select>
-          </div>
-        ),
-        sortable: false,
-      },
-      {
-        key: "actions",
-        title: "Thao tác",
-        className: "text-[15px] whitespace-nowrap w-40",
-        render: (r: FormRow) => (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() =>
-                navigate(`/results/${r.id}`, {
-                  state: { tournamentName: r.tournament },
-                })
-              }
-              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
-            >
-              Xem kết quả
-            </button>
-            <button
-              onClick={() => navigate(`/form-builder/${r.id}`)}
-              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
-            >
-              Sửa
-            </button>
-          </div>
-        ),
-        sortable: false,
-      },
-    ],
-    [navigate]
-  );
+  }, [currentPage, pageSize, toast, statusFilter, search]);
 
   useEffect(() => {
-    (async () => {
-      await loadForms();
-    })();
+    loadForms();
   }, [loadForms]);
 
-  // Update pagination when currentPage changes
+  // Reset to page 1 when filters change
   useEffect(() => {
-    console.log("Pagination useEffect triggered:", {
-      allFormsLength: allForms.length,
-      currentPage,
-      pageSize,
-      totalForms,
-    });
-    if (allForms.length > 0) {
-      const startIndex = (currentPage - 1) * pageSize;
-      const endIndex = startIndex + pageSize;
-      const paginatedForms = allForms.slice(startIndex, endIndex);
-      console.log("Pagination debug:", {
-        currentPage,
-        pageSize,
-        totalForms: allForms.length,
-        startIndex,
-        endIndex,
-        paginatedFormsLength: paginatedForms.length,
-        allFormsLength: allForms.length,
-      });
-      setForms(paginatedForms);
-    }
-  }, [currentPage, allForms, pageSize, totalForms]);
+    setCurrentPage(1);
+  }, [statusFilter, search, pageSize]);
 
   const handleEditForm = (form: FormConfig) => {
-    if ((form.status || "DRAFT").toUpperCase() !== "DRAFT") {
-      toastError("Chỉ form ở trạng thái Draft mới được chỉnh sửa");
-      return;
-    }
     navigate(`/manage/tournament-forms/${form.id}/edit`);
+  };
+
+  const handleViewForm = (form: FormConfig) => {
+    navigate(`/manage/tournament-forms/${form.id}/view`);
   };
 
   const handleCreateNew = () => {
@@ -349,36 +173,6 @@ export default function TournamentFormList() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("vi-VN");
-  };
-
-  const handleStatusChange = async (formId: string, newStatus: string) => {
-    try {
-      // Optimistic update
-      setForms((prevForms) =>
-        prevForms.map((form) =>
-          form.id === formId ? { ...form, status: newStatus } : form
-        )
-      );
-
-      // API call to update status
-      await api.patch(`/v1/tournament-forms/${formId}/status`, {
-        status: newStatus,
-      });
-
-      toastSuccess(`Đã chuyển form sang trạng thái ${newStatus}`);
-    } catch (error) {
-      console.error("Error updating form status:", error);
-      toastError("Không thể cập nhật trạng thái form");
-
-      // Revert optimistic update
-      setForms((prevForms) =>
-        prevForms.map((form) =>
-          form.id === formId
-            ? { ...form, status: form.status } // Keep original status
-            : form
-        )
-      );
-    }
   };
 
   return (
@@ -390,9 +184,6 @@ export default function TournamentFormList() {
             Quản lí Form đăng ký giải đấu
           </h1>
           <div className="flex items-center gap-2">
-            <button className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50">
-              Xuất Excel
-            </button>
             <button
               onClick={handleCreateNew}
               className="rounded-md bg-[#377CFB] px-4 py-2 text-white text-sm hover:bg-[#2e6de0]"
@@ -465,10 +256,12 @@ export default function TournamentFormList() {
                     {forms.map((form) => (
                       <tr key={form.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-gray-900 whitespace-nowrap">
-                          {form.name}
+                          {form.tournamentName ||
+                            form.name ||
+                            "Không có tên giải đấu"}
                         </td>
                         <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                          {form.formTitle || form.name}
+                          {form.formTitle || "Không có tiêu đề"}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           {form.numberOfParticipants ?? 0}
@@ -478,54 +271,84 @@ export default function TournamentFormList() {
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span
-                            className={`inline-flex items-center rounded-md border text-xs font-semibold px-0 ${
+                            className={`rounded-md px-2 py-1 text-xs border ${
                               (form.status || "DRAFT").toUpperCase() ===
                               "PUBLISH"
-                                ? ""
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                 : (form.status || "DRAFT").toUpperCase() ===
-                                  "DRAFT"
-                                ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                                : "bg-orange-50 text-orange-700 border-orange-200"
+                                  "ARCHIVED"
+                                ? "bg-rose-50 text-rose-600 border-rose-200"
+                                : (form.status || "DRAFT").toUpperCase() ===
+                                  "POSTPONE"
+                                ? "bg-gray-100 text-gray-700 border-gray-300"
+                                : "bg-amber-50 text-amber-700 border-amber-200"
                             }`}
-                            style={
-                              (form.status || "DRAFT").toUpperCase() ===
-                              "PUBLISH"
-                                ? {
-                                    backgroundColor: "#E6FFED",
-                                    color: "#0FA958",
-                                    borderColor: "#0FA958",
-                                  }
-                                : undefined
-                            }
                           >
-                            <select
-                              value={(form.status || "DRAFT").toUpperCase()}
-                              onChange={(e) =>
-                                handleStatusChange(form.id, e.target.value)
-                              }
-                              className="appearance-none bg-transparent pl-2 pr-6 py-1 rounded-md text-current outline-none border-none cursor-pointer"
-                            >
-                              <option value="PUBLISH">ĐÃ XUẤT BẢN</option>
-                              <option value="DRAFT">NHÁP</option>
-                              <option value="ARCHIVED">ĐÃ ĐÓNG</option>
-                            </select>
+                            {(form.status || "DRAFT").toUpperCase() ===
+                            "PUBLISH"
+                              ? "Đã công khai"
+                              : (form.status || "DRAFT").toUpperCase() ===
+                                "ARCHIVED"
+                              ? "Lưu trữ"
+                              : (form.status || "DRAFT").toUpperCase() ===
+                                "POSTPONE"
+                              ? "Hoãn"
+                              : "Nháp"}
                           </span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-2">
+                            {form.status === "PUBLISH" && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const response = await api.get<{
+                                      publicLink?: string;
+                                      publicSlug?: string;
+                                    }>(
+                                      API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(
+                                        form.id
+                                      )
+                                    );
+                                    if (
+                                      response.success &&
+                                      response.data?.publicLink
+                                    ) {
+                                      const fullUrl = `${window.location.origin}${response.data.publicLink}`;
+                                      await navigator.clipboard.writeText(
+                                        fullUrl
+                                      );
+                                      toast.success("Đã copy link công khai!");
+                                    } else {
+                                      toast.error(
+                                        "Form chưa có link công khai"
+                                      );
+                                    }
+                                  } catch (e) {
+                                    console.error(
+                                      "Failed to get public link",
+                                      e
+                                    );
+                                    toast.error("Không thể lấy link công khai");
+                                  }
+                                }}
+                                className="rounded-md bg-emerald-500 px-3 py-1 text-xs text-white hover:bg-emerald-600"
+                                title="Copy link công khai"
+                              >
+                                📋 Link
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleEditForm(form)}
-                              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                              onClick={() => handleViewForm(form)}
+                              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
                             >
-                              Chỉnh sửa
+                              Xem
                             </button>
                             <button
-                              onClick={() =>
-                                navigate(`/manage/results/${form.id}`)
-                              }
-                              className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-xs hover:bg-[#2e6de0]"
+                              onClick={() => handleEditForm(form)}
+                              className="rounded-md border border-gray-300 px-3 py-1 text-xs hover:bg-gray-50"
                             >
-                              Xem kết quả
+                              Sửa
                             </button>
                           </div>
                         </td>
@@ -536,52 +359,22 @@ export default function TournamentFormList() {
               </div>
 
               {/* Pagination */}
-              {totalForms > pageSize && (
-                <div className="px-4 py-3 flex items-center justify-between border-t bg-white">
-                  <div className="text-sm text-gray-600">
-                    Hiển thị {(currentPage - 1) * pageSize + 1} -{" "}
-                    {Math.min(currentPage * pageSize, totalForms)} trong{" "}
-                    {totalForms}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                      disabled={currentPage === 1}
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      « Trước
-                    </button>
-                    {Array.from(
-                      { length: Math.ceil(totalForms / pageSize) },
-                      (_, i) => i + 1
-                    ).map((pageNum) => (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`rounded-md px-3 py-1.5 text-sm ${
-                          currentPage === pageNum
-                            ? "bg-[#377CFB] text-white"
-                            : "border border-gray-300 bg-white hover:bg-gray-50"
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() =>
-                        setCurrentPage((p) =>
-                          Math.min(p + 1, Math.ceil(totalForms / pageSize))
-                        )
-                      }
-                      disabled={
-                        currentPage === Math.ceil(totalForms / pageSize)
-                      }
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Sau »
-                    </button>
-                  </div>
-                </div>
+              {totalForms > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(totalForms / pageSize)}
+                  totalElements={totalForms}
+                  pageSize={pageSize}
+                  onPageChange={(page) => {
+                    setCurrentPage(page);
+                  }}
+                  onPageSizeChange={(size) => {
+                    setPageSize(size);
+                    setCurrentPage(1);
+                  }}
+                  showPageSizeSelector={true}
+                  pageSizeOptions={[5, 10, 15, 20]}
+                />
               )}
             </>
           )}

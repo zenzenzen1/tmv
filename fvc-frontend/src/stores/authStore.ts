@@ -211,8 +211,8 @@ export const useIsAuthenticated = () =>
 export const useIsAdmin = () =>
   useAuthStore((state) => state.user?.systemRole === "ADMIN");
 
-export const useIsAssessor = () => {
+export const useIsAssessor = (): boolean => {
   const user = useAuthStore((state) => state.user);
   // Only TEACHER role can access assessor dashboard
-  return user && user.systemRole === "TEACHER";
+  return user?.systemRole === "TEACHER";
 };

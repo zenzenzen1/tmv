@@ -87,6 +87,10 @@ public class ProfileController {
         }
         
         String email = authentication.getName();
+        // Normalize email to ensure consistency with login
+        if (email != null) {
+            email = email.trim().toLowerCase();
+        }
         log.debug("Current authenticated user: {}", email);
         return email;
     }

@@ -72,6 +72,29 @@ class UserService {
   }
 
   /**
+   * Search challenge users (isInChallenge = true and has clubMember)
+   * @param page - Page number (0-indexed)
+   * @param size - Page size
+   * @param query - Search query (fullName, email, studentCode)
+   * @returns Promise<PaginationResponse<UserResponse>>
+   */
+  async searchChallengeUsers(
+    page: number = 0, 
+    size: number = 10, 
+    query?: string
+  ): Promise<PaginationResponse<UserResponse>> {
+    const params = new URLSearchParams();
+    params.append("page", page.toString());
+    params.append("size", size.toString());
+    if (query) params.append("query", query);
+    
+    const response = await apiService.get<BaseResponse<PaginationResponse<UserResponse>>>(
+      `${API_ENDPOINTS.USERS.BASE}/challenge/search?${params.toString()}`
+    );
+    return (response as any).data;
+  }
+
+  /**
    * Delete user
    * @param id - User ID
    * @returns Promise<void>
