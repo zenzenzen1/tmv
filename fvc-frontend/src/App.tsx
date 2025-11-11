@@ -32,6 +32,7 @@ import MusicContentListPage from "./pages/music-content/ListPage";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
 import BracketBuilder from "./pages/brackets/BracketBuilder";
+import BracketViewPage from "./pages/brackets/BracketViewPage";
 import MatchScoringPage from "./pages/scoring/MatchScoringPage";
 import SelectMatchPage from "./pages/scoring/SelectMatchPage";
 import AssessorPage from "./pages/scoring/AssessorPage";
@@ -339,6 +340,14 @@ export default function App() {
           element={
             <RequireRole roles={["EXECUTIVE_BOARD"]}>
               <BracketBuilder />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="brackets/view"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD"]}>
+              <BracketViewPage />
             </RequireRole>
           }
         />
