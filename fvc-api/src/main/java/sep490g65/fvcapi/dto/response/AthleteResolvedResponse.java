@@ -17,6 +17,7 @@ public class AthleteResolvedResponse {
     private String subCompetitionType;
     private String detailSubLabel;  // resolved label from FK
     private Athlete.AthleteStatus status;
+    private Integer drawSeedNumber; // Draw seed number for bracket
     // Content IDs for mapping
     private String fistConfigId;
     private String fistItemId;
@@ -39,6 +40,7 @@ public class AthleteResolvedResponse {
                 .subCompetitionType(a.getSubCompetitionType())
                 .detailSubLabel(null) // to be filled by controller/service layer if needed
                 .status(a.getStatus())
+                .drawSeedNumber(a.getDrawSeedNumber())
                 .fistConfigId(a.getFistConfigId())
                 .fistItemId(a.getFistItemId())
                 .musicContentId(a.getMusicContentId())

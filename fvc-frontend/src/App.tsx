@@ -36,6 +36,7 @@ import MusicContentListPage from "./pages/music-content/ListPage";
 import FistItemsPage from "./pages/fist-content/ItemsPage";
 import ArrangeOrderWrapper from "./pages/arrange/ArrangeOrderWrapper";
 import BracketBuilder from "./pages/brackets/BracketBuilder";
+import BracketViewPage from "./pages/brackets/BracketViewPage";
 import MatchScoringPage from "./pages/scoring/MatchScoringPage";
 import SelectMatchPage from "./pages/scoring/SelectMatchPage";
 import AssessorPage from "./pages/scoring/AssessorPage";
@@ -54,6 +55,10 @@ import RequireRole from "./components/common/RequireRole";
 import CycleList from "./pages/cycles/CycleList";
 import CycleDetail from "./pages/cycles/CycleDetail";
 import CycleCreate from "./pages/cycles/CycleCreate";
+import LocationListPage from "./pages/locations/ListPage";
+import TrainingSessionListPage from "./pages/training-sessions/ListPage";
+import TrainingSessionCalendarPage from "./pages/training-sessions/CalendarPage";
+import TrainingSessionCreatePage from "./pages/training-sessions/CreatePage";
 
 export default function App() {
   const isAuthenticated = useIsAuthenticated();
@@ -378,6 +383,38 @@ export default function App() {
           }
         />
         <Route
+          path="locations"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <LocationListPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="training-sessions"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <TrainingSessionListPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="training-sessions/new"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <TrainingSessionCreatePage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="training-sessions/calendar"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ADMIN"]}>
+              <TrainingSessionCalendarPage />
+            </RequireRole>
+          }
+        />
+        <Route
           path="fist-content"
           element={
             <RequireRole roles={["ORGANIZATION_COMMITTEE"]}>
@@ -406,6 +443,14 @@ export default function App() {
           element={
             <RequireRole roles={["EXECUTIVE_BOARD"]}>
               <BracketBuilder />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="brackets/view"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD"]}>
+              <BracketViewPage />
             </RequireRole>
           }
         />

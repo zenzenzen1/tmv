@@ -59,6 +59,7 @@ public class MatchServiceImpl implements MatchService {
     private final AthleteRepository athleteRepository;
     private final CompetitionRepository competitionRepository;
     private final WebSocketConnectionEventListener webSocketConnectionEventListener;
+    private final sep490g65.fvcapi.service.AthleteService athleteService;
 
     @Override
     @Transactional
@@ -122,16 +123,39 @@ public class MatchServiceImpl implements MatchService {
         log.info("Bulk creating {} matches", requests.size());
         
         List<MatchScoreboardDto> createdMatches = new java.util.ArrayList<>();
+        java.util.Set<String> athleteIds = new java.util.HashSet<>();
         
         for (CreateMatchRequest request : requests) {
             try {
                 MatchScoreboardDto match = createMatch(request, userId);
                 createdMatches.add(match);
                 log.debug("Created match: {}", match.getMatchId());
+                
+                // Collect athlete IDs for status update
+                if (request.getRedAthleteId() != null) {
+                    athleteIds.add(request.getRedAthleteId());
+                }
+                if (request.getBlueAthleteId() != null) {
+                    athleteIds.add(request.getBlueAthleteId());
+                }
             } catch (Exception e) {
                 log.error("Error creating match for red athlete: {}, blue athlete: {}", 
                         request.getRedAthleteId(), request.getBlueAthleteId(), e);
                 // Continue with other matches even if one fails
+            }
+        }
+        
+        // Update athlete status to DONE for all athletes who participated in matches
+        if (!athleteIds.isEmpty()) {
+            try {
+                athleteService.updateAthletesStatus(
+                    new java.util.ArrayList<>(athleteIds), 
+                    Athlete.AthleteStatus.DONE
+                );
+                log.info("Updated {} athletes status to DONE after creating matches", athleteIds.size());
+            } catch (Exception e) {
+                log.error("Error updating athlete statuses after bulk create matches", e);
+                // Don't fail the entire operation if status update fails
             }
         }
         
@@ -1033,4 +1057,3 @@ public class MatchServiceImpl implements MatchService {
                 .build();
     }
 }
-

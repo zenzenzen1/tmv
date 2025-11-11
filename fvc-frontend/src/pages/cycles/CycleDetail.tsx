@@ -161,6 +161,27 @@ export default function CycleDetail() {
             <p className="text-sm text-gray-700">{cycle.description}</p>
           </div>
         )}
+        {(cycle.trainSessionsRequired !== undefined || cycle.eventsRequired !== undefined) && (
+          <div className="mt-4">
+            <p className="text-xs uppercase text-gray-500 mb-2">Tiêu Chí Đánh Giá</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {cycle.trainSessionsRequired !== undefined && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Số Buổi Tập Bắt Buộc</p>
+                  <p className="text-lg font-semibold text-gray-900">{cycle.trainSessionsRequired}</p>
+                  <p className="text-xs text-gray-500 mt-1">buổi/phase</p>
+                </div>
+              )}
+              {cycle.eventsRequired !== undefined && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Số Event Tham Gia Bắt Buộc</p>
+                  <p className="text-lg font-semibold text-gray-900">{cycle.eventsRequired}</p>
+                  <p className="text-xs text-gray-500 mt-1">event/phase</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         <div className="mt-4 flex gap-2">
           {cycle.status === "DRAFT" && (
             <button className="btn-primary" onClick={handleActivate}>

@@ -21,6 +21,9 @@ public class ChallengeCycleDto {
     private Integer cycleDurationMonths;
     private Integer phaseDurationWeeks;
     private ChallengeCycleStatus status;
+    // Tiêu chí đánh giá mặc định
+    private Integer trainSessionsRequired;
+    private Integer eventsRequired;
 }
 
 

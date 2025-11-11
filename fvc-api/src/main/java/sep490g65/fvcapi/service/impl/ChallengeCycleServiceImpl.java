@@ -89,6 +89,9 @@ public class ChallengeCycleServiceImpl implements ChallengeCycleService {
         cycle.setCycleDurationMonths(request.getCycleDurationMonths());
         cycle.setPhaseDurationWeeks(request.getPhaseDurationWeeks());
         cycle.setStatus(request.getStatus());
+        // Lưu các tiêu chí đánh giá mặc định
+        cycle.setTrainSessionsRequired(request.getTrainSessionsRequired());
+        cycle.setEventsRequired(request.getEventsRequired());
         
         ChallengeCycle saved = challengeCycleRepository.save(cycle);
         
@@ -166,6 +169,9 @@ public class ChallengeCycleServiceImpl implements ChallengeCycleService {
         cycle.setCycleDurationMonths(request.getCycle().getCycleDurationMonths());
         cycle.setPhaseDurationWeeks(request.getCycle().getPhaseDurationWeeks());
         cycle.setStatus(request.getCycle().getStatus());
+        // Lưu các tiêu chí đánh giá mặc định
+        cycle.setTrainSessionsRequired(request.getCycle().getTrainSessionsRequired());
+        cycle.setEventsRequired(request.getCycle().getEventsRequired());
         
         ChallengeCycle saved = challengeCycleRepository.save(cycle);
 
@@ -271,6 +277,13 @@ public class ChallengeCycleServiceImpl implements ChallengeCycleService {
         }
         
         cycle.setStatus(request.getStatus());
+        // Cập nhật các tiêu chí đánh giá (chỉ cập nhật nếu có giá trị mới)
+        if (request.getTrainSessionsRequired() != null) {
+            cycle.setTrainSessionsRequired(request.getTrainSessionsRequired());
+        }
+        if (request.getEventsRequired() != null) {
+            cycle.setEventsRequired(request.getEventsRequired());
+        }
         return toDto(challengeCycleRepository.save(cycle));
     }
 
@@ -325,6 +338,8 @@ public class ChallengeCycleServiceImpl implements ChallengeCycleService {
                 .cycleDurationMonths(entity.getCycleDurationMonths())
                 .phaseDurationWeeks(entity.getPhaseDurationWeeks())
                 .status(entity.getStatus())
+                .trainSessionsRequired(entity.getTrainSessionsRequired())
+                .eventsRequired(entity.getEventsRequired())
                 .build();
     }
 }

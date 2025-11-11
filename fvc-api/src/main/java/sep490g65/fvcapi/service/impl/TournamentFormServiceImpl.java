@@ -47,6 +47,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -67,6 +68,7 @@ public class TournamentFormServiceImpl implements TournamentFormService {
     private final MusicIntegratedPerformanceRepository musicRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final PlatformTransactionManager transactionManager;
+    private final sep490g65.fvcapi.service.EmailService emailService;
 
     private TournamentFormResponse toDto(Competition c) {
         String status = resolveStatus(c);
@@ -575,6 +577,167 @@ public class TournamentFormServiceImpl implements TournamentFormService {
                                 submissionId, propagateEx.getMessage(), propagateEx);
                     }
                 }
+                
+                // Send approval email to the registrant asynchronously using CompletableFuture
+                String tournamentName = "";
+                if (s.getApplicationFormConfig() != null && s.getApplicationFormConfig().getCompetition() != null) {
+                    Competition comp = s.getApplicationFormConfig().getCompetition();
+                    tournamentName = comp.getName() != null ? comp.getName() : "";
+                }
+                
+                // Format competition type for email
+                String competitionTypeDisplay = "";
+                if (competitionTypeStr != null && !competitionTypeStr.isBlank()) {
+                    String compLower = competitionTypeStr.toLowerCase();
+                    if (compLower.equals("quyen")) competitionTypeDisplay = "Quyền";
+                    else if (compLower.equals("fighting")) competitionTypeDisplay = "Đối kháng";
+                    else if (compLower.equals("music")) competitionTypeDisplay = "Võ nhạc";
+                    else competitionTypeDisplay = competitionTypeStr;
+                }
+                
+                // Format gender for email
+                String genderDisplay = "";
+                if (genderStr != null) {
+                    if (genderStr.equalsIgnoreCase("MALE")) genderDisplay = "Nam";
+                    else if (genderStr.equalsIgnoreCase("FEMALE")) genderDisplay = "Nữ";
+                    else genderDisplay = genderStr;
+                }
+                
+                // Get detailed category display name based on competition type
+                String categoryDisplay = "";
+                if (competitionTypeStr != null && !competitionTypeStr.isBlank()) {
+                    String compLower = competitionTypeStr.toLowerCase();
+                    
+                    if (compLower.equals("quyen")) {
+                        // For Quyền: try to get both category and content
+                        String quyenCategory = removeIdFromString(textOrNull(root, "quyenCategory"));
+                        String quyenContent = removeIdFromString(textOrNull(root, "quyenContent"));
+                        String quyenContentName = removeIdFromString(textOrNull(root, "quyenContentName"));
+                        
+                        // Try to resolve from fistConfigId and fistItemId
+                        String fistConfigId = textOrNull(root, "fistConfigId");
+                        String fistItemId = textOrNull(root, "fistItemId");
+                        if (fistItemId == null || fistItemId.isBlank()) {
+                            fistItemId = textOrNull(root, "quyenContentId");
+                        }
+                        
+                        if (quyenCategory != null && !quyenCategory.isBlank()) {
+                            categoryDisplay = quyenCategory;
+                            if (quyenContent != null && !quyenContent.isBlank()) {
+                                categoryDisplay += " - " + quyenContent;
+                            } else if (quyenContentName != null && !quyenContentName.isBlank()) {
+                                categoryDisplay += " - " + quyenContentName;
+                            } else if (fistItemId != null && !fistItemId.isBlank()) {
+                                try {
+                                    var item = fistItemRepository.findById(fistItemId).orElse(null);
+                                    if (item != null && item.getName() != null) {
+                                        categoryDisplay += " - " + removeIdFromString(item.getName());
+                                    }
+                                } catch (Exception ignored) {}
+                            }
+                        } else if (fistConfigId != null && !fistConfigId.isBlank()) {
+                            try {
+                                var cfg = fistConfigRepository.findById(fistConfigId).orElse(null);
+                                if (cfg != null && cfg.getName() != null) {
+                                    categoryDisplay = removeIdFromString(cfg.getName());
+                                    if (fistItemId != null && !fistItemId.isBlank()) {
+                                        try {
+                                            var item = fistItemRepository.findById(fistItemId).orElse(null);
+                                            if (item != null && item.getName() != null) {
+                                                categoryDisplay += " - " + removeIdFromString(item.getName());
+                                            }
+                                        } catch (Exception ignored) {}
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                        
+                    } else if (compLower.equals("fighting")) {
+                        // For Fighting: show weight class with gender
+                        String weightClassId = textOrNull(root, "weightClassId");
+                        String weightClass = removeIdFromString(textOrNull(root, "weightClass"));
+                        
+                        if (weightClassId != null && !weightClassId.isBlank()) {
+                            try {
+                                var wc = weightClassRepository.findById(weightClassId).orElse(null);
+                                if (wc != null) {
+                                    if (wc.getWeightClass() != null && !wc.getWeightClass().isBlank()) {
+                                        categoryDisplay = removeIdFromString(wc.getWeightClass());
+                                    } else if (wc.getMinWeight() != null && wc.getMaxWeight() != null) {
+                                        categoryDisplay = wc.getMinWeight() + "-" + wc.getMaxWeight() + "kg";
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+                        } else if (weightClass != null && !weightClass.isBlank()) {
+                            categoryDisplay = weightClass;
+                        }
+                        
+                        // Add gender prefix if available
+                        if (!categoryDisplay.isBlank() && !genderDisplay.isBlank()) {
+                            categoryDisplay = genderDisplay + " " + categoryDisplay;
+                        }
+                        
+                    } else if (compLower.equals("music")) {
+                        // For Music: show music content name
+                        String musicContentId = textOrNull(root, "musicContentId");
+                        String musicCategory = removeIdFromString(textOrNull(root, "musicCategory"));
+                        
+                        if (musicContentId != null && !musicContentId.isBlank()) {
+                            try {
+                                var mc = musicRepository.findById(musicContentId).orElse(null);
+                                if (mc != null && mc.getName() != null) {
+                                    categoryDisplay = removeIdFromString(mc.getName());
+                                }
+                            } catch (Exception ignored) {}
+                        } else if (musicCategory != null && !musicCategory.isBlank()) {
+                            categoryDisplay = musicCategory;
+                        }
+                    }
+                }
+                
+                // Fallback to subCompetitionType if categoryDisplay is still empty
+                if (categoryDisplay.isBlank() && subCompetitionType != null && !subCompetitionType.isBlank()) {
+                    categoryDisplay = removeIdFromString(subCompetitionType);
+                }
+                
+                // Get team name if exists and clean ID from all display fields
+                String teamName = removeIdFromString(textOrNull(root, "teamName"));
+                
+                // Prepare final variables for async task - clean all display strings from IDs
+                final String finalEmail = email;
+                final String finalFullName = removeIdFromString(fullName);
+                final String finalStudentId = studentId;
+                final String finalClub = removeIdFromString(club);
+                final String finalGenderDisplay = genderDisplay;
+                final String finalTournamentName = removeIdFromString(tournamentName);
+                final String finalCompetitionTypeDisplay = competitionTypeDisplay;
+                final String finalCategoryDisplay = categoryDisplay;
+                final boolean finalIsTeamSubmission = isTeamSubmission;
+                final String finalTeamName = teamName;
+                final Long finalSubmissionId = submissionId;
+                
+                // Send email asynchronously - don't block the main transaction
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        emailService.sendRegistrationApproved(
+                            finalEmail,
+                            finalFullName,
+                            finalStudentId,
+                            finalClub,
+                            finalGenderDisplay,
+                            finalTournamentName,
+                            finalCompetitionTypeDisplay,
+                            finalCategoryDisplay,
+                            finalIsTeamSubmission,
+                            finalTeamName
+                        );
+                        log.info("Sent registration approval email to {} for submission {}", finalEmail, finalSubmissionId);
+                    } catch (Exception emailEx) {
+                        log.warn("Failed to send approval email to {} for submission {}: {}", 
+                                finalEmail, finalSubmissionId, emailEx.getMessage());
+                    }
+                });
+                
                 } catch (Exception ex) {
                     // Log error but don't fail the status update transaction
                     log.error("Error processing approval side-effects for submission {}: {}", 
@@ -1107,6 +1270,28 @@ public class TournamentFormServiceImpl implements TournamentFormService {
 
     private String textOrNull(JsonNode node, String field) {
         return (node != null && node.hasNonNull(field)) ? node.get(field).asText() : null;
+    }
+    
+    /**
+     * Remove UUID/ID suffix from string for display purposes
+     * Handles formats like: "Song luyện-abc123", "Võ nhạc 1-uuid", etc.
+     */
+    private String removeIdFromString(String str) {
+        if (str == null || str.isBlank()) return str;
+        
+        // Pattern 1: Remove UUID-like suffixes (8-4-4-4-12 format)
+        // Example: "Song luyện-550e8400-e29b-41d4-a716-446655440000" -> "Song luyện"
+        str = str.replaceAll("-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", "");
+        
+        // Pattern 2: Remove alphanumeric ID suffixes (separated by dash or underscore)
+        // Example: "Song luyện-abc123def456" -> "Song luyện"
+        str = str.replaceAll("[-_][a-zA-Z0-9]{10,}$", "");
+        
+        // Pattern 3: Remove numeric ID suffixes that are too long (likely IDs, not content numbers)
+        // Example: "Võ nhạc-1762345678901" -> "Võ nhạc" (but keep "Võ nhạc 1")
+        str = str.replaceAll("[-_]\\d{10,}$", "");
+        
+        return str.trim();
     }
 
 

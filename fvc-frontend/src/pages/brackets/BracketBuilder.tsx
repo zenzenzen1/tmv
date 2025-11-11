@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useCompetitionStore } from "@/stores/competition";
 import { useWeightClassStore } from "@/stores/weightClass";
 import { useToast } from "../../components/common/ToastContext";
@@ -40,6 +41,7 @@ interface BracketMatch {
 }
 
 export default function BracketBuilder() {
+  const navigate = useNavigate();
   const toast = useToast();
   const { competitions, fetchCompetitions } = useCompetitionStore();
   const { list: wcList, fetch: fetchWc } = useWeightClassStore();
@@ -124,12 +126,18 @@ export default function BracketBuilder() {
             (response.data as unknown as PaginationResponse<Athlete>);
           
           // Filter athletes by gender matching the selected weight class
+          // Also exclude athletes who have already participated (status = DONE)
           let filteredAthletes = pageData?.content || [];
           if (selectedWeightClass?.gender) {
             filteredAthletes = filteredAthletes.filter(
               (athlete) => athlete.gender === selectedWeightClass.gender
             );
           }
+          
+          // Filter out athletes who have already participated in a competition (status = DONE)
+          filteredAthletes = filteredAthletes.filter(
+            (athlete) => athlete.status !== "DONE"
+          );
           
           setAthletes(filteredAthletes);
         }
@@ -189,16 +197,23 @@ export default function BracketBuilder() {
     // Update status to IN_PROGRESS for newly added athletes
     if (newAthleteIds.length > 0) {
       try {
-        console.log(`🔄 Attempting to update status for ${newAthleteIds.length} athletes:`, newAthleteIds);
-        const response = await api.put(`${API_ENDPOINTS.ATHLETES.STATUS}`, {
+        console.log(`🔄 [BracketBuilder] Attempting to update status for ${newAthleteIds.length} athletes:`, newAthleteIds);
+        const requestBody = {
           athleteIds: newAthleteIds,
           status: "IN_PROGRESS",
-        });
-        console.log(`✅ Updated status to IN_PROGRESS for ${newAthleteIds.length} athletes`, response);
+        };
+        console.log(`🔄 [BracketBuilder] Request body:`, requestBody);
+        console.log(`🔄 [BracketBuilder] Endpoint:`, `${API_ENDPOINTS.ATHLETES.STATUS}`);
+        
+        const response = await api.put(`${API_ENDPOINTS.ATHLETES.STATUS}`, requestBody);
+        console.log(`✅ [BracketBuilder] Updated status to IN_PROGRESS for ${newAthleteIds.length} athletes`, response);
+        console.log(`✅ [BracketBuilder] Response data:`, response.data);
         toast.success(`Đã thêm ${newAthleteIds.length} vận động viên vào danh sách thi đấu!`);
       } catch (error: any) {
-        console.error("❌ Error updating athletes status:", error);
-        console.error("Error details:", error?.response?.data || error?.message);
+        console.error("❌ [BracketBuilder] Error updating athletes status:", error);
+        console.error("❌ [BracketBuilder] Error response:", error?.response);
+        console.error("❌ [BracketBuilder] Error response data:", error?.response?.data);
+        console.error("❌ [BracketBuilder] Error message:", error?.message);
         // Show error to user
         const errorMessage = error?.response?.data?.message || error?.message || "Unknown error";
         toast.error(`Có lỗi khi cập nhật trạng thái: ${errorMessage}`);
@@ -311,6 +326,14 @@ export default function BracketBuilder() {
 
       await api.put(`${API_ENDPOINTS.ATHLETES.SEED_NUMBERS}`, { updates });
       
+      // Update local state to reflect saved seed numbers
+      setCompetitionAthletes((prev) =>
+        prev.map((a) => ({
+          ...a,
+          drawSeedNumber: a.seedNumber || a.drawSeedNumber,
+        }))
+      );
+      
       toast.success("Đã lưu số bốc thăm thành công!");
     } catch (error: any) {
       console.error("Error saving seed numbers:", error);
@@ -360,6 +383,40 @@ export default function BracketBuilder() {
       });
 
       toast.success(`Đã tạo thành công ${matchesToCreate.length} trận đấu vòng đầu!`);
+      
+      // Clear competition athletes list and refresh athletes list
+      // (athletes with status DONE will be filtered out automatically)
+      setCompetitionAthletes([]);
+      
+      // Refresh athletes list to reflect updated statuses
+      if (competitionId && weightClassId) {
+        const params = new URLSearchParams({
+          competitionId,
+          competitionType: "fighting",
+          weightClassId,
+          page: "0",
+          size: "100",
+        });
+        const response = await api.get<PaginationResponse<Athlete>>(
+          `${API_ENDPOINTS.ATHLETES.BASE}?${params.toString()}`
+        );
+        const pageData =
+          ((response.data as unknown as { data?: PaginationResponse<Athlete> })
+            .data as PaginationResponse<Athlete>) ??
+          (response.data as unknown as PaginationResponse<Athlete>);
+        
+        // Filter athletes by gender and exclude DONE status
+        let filteredAthletes = pageData?.content || [];
+        if (selectedWeightClass?.gender) {
+          filteredAthletes = filteredAthletes.filter(
+            (athlete) => athlete.gender === selectedWeightClass.gender
+          );
+        }
+        filteredAthletes = filteredAthletes.filter(
+          (athlete) => athlete.status !== "DONE"
+        );
+        setAthletes(filteredAthletes);
+      }
     } catch (error: any) {
       console.error("Error creating matches:", error);
       const errorMessage = error?.response?.data?.message || error?.message || "Có lỗi xảy ra khi tạo trận đấu!";
@@ -383,25 +440,88 @@ export default function BracketBuilder() {
 
     const totalAthletes = sortedAthletes.length;
 
-    // Find nearest power of 2
-    let lowerPower = 1;
-    while (lowerPower * 2 <= totalAthletes) {
-      lowerPower *= 2;
+    // Check if totalAthletes is a power of 2
+    const isPowerOfTwo = (n: number) => n > 0 && (n & (n - 1)) === 0;
+    const isExactPowerOfTwo = isPowerOfTwo(totalAthletes);
+
+    let firstRoundMatches: number;
+    let byeCount: number;
+    let totalRounds: number;
+    let lowerPower: number;
+    let upperPower: number;
+
+    if (isExactPowerOfTwo) {
+      // If exact power of 2: no byes, everyone fights from round 1
+      firstRoundMatches = totalAthletes / 2;
+      byeCount = 0;
+      lowerPower = totalAthletes;
+      upperPower = totalAthletes;
+      // Total rounds = log2(totalAthletes) + 1 (including final)
+      totalRounds = Math.log2(totalAthletes) + 1;
+    } else {
+      // If not power of 2: find nearest power of 2
+      lowerPower = 1;
+      while (lowerPower * 2 <= totalAthletes) {
+        lowerPower *= 2;
+      }
+      upperPower = lowerPower * 2;
+
+      // Calculate bye positions
+      byeCount = upperPower - totalAthletes;
+      // Number of athletes playing in first round = total - byes
+      // Number of matches in first round = (athletes playing) / 2
+      const athletesPlayingRound1 = totalAthletes - byeCount;
+      firstRoundMatches = athletesPlayingRound1 / 2;
+      // Total rounds = log2(upperPower) + 1 (including final)
+      totalRounds = Math.log2(upperPower) + 1;
     }
-    const upperPower = lowerPower * 2;
 
-    // Calculate bye positions
-    const byeCount = upperPower - totalAthletes;
-    const firstRoundMatches = totalAthletes - lowerPower;
-
-    // Create first round matches
+    // Create first round matches using Vovinam bracket algorithm
+    // Logic: Higher seeds (1 to firstRoundMatches) vs Lower seeds (N-firstRoundMatches+1 to N)
+    // Middle seeds (firstRoundMatches+1 to N-firstRoundMatches) get byes
+    // Example for N=25: Seeds 1-9 vs Seeds 17-25 (9 matches), Seeds 10-16 get byes (7 byes)
     const firstRound: BracketMatch[] = [];
     let matchIdCounter = 1;
 
-    // First round: top seeds vs bottom seeds
+    // Step 1: Identify athletes by their role
+    const higherSeeds: SelectedAthlete[] = []; // Seeds 1 to firstRoundMatches
+    const lowerSeeds: SelectedAthlete[] = [];  // Seeds N-firstRoundMatches+1 to N
+    const byeAthletes: SelectedAthlete[] = []; // Seeds firstRoundMatches+1 to N-firstRoundMatches
+    
+    if (!isExactPowerOfTwo) {
+      // Higher seeds: 1 to firstRoundMatches
+      for (let i = 0; i < firstRoundMatches; i++) {
+        higherSeeds.push(sortedAthletes[i]);
+      }
+      
+      // Lower seeds: N-firstRoundMatches+1 to N (last firstRoundMatches seeds)
+      const lowerSeedStartIndex = totalAthletes - firstRoundMatches;
+      for (let i = lowerSeedStartIndex; i < totalAthletes; i++) {
+        lowerSeeds.push(sortedAthletes[i]);
+      }
+      
+      // Bye athletes: firstRoundMatches+1 to N-firstRoundMatches (middle seeds)
+      for (let i = firstRoundMatches; i < lowerSeedStartIndex; i++) {
+        byeAthletes.push(sortedAthletes[i]);
+      }
+    } else {
+      // If exact power of 2, no byes
+      // Pair seeds: 1 vs N, 2 vs N-1, etc.
+      for (let i = 0; i < firstRoundMatches; i++) {
+        higherSeeds.push(sortedAthletes[i]);
+        lowerSeeds.push(sortedAthletes[totalAthletes - 1 - i]);
+      }
+    }
+
+    // Step 2: Create round 1 matches: Higher seeds vs Lower seeds
+    // Match i: Seed (i+1) vs Seed (N-i)
     for (let i = 0; i < firstRoundMatches; i++) {
-      const topSeed = sortedAthletes[i];
-      const bottomSeed = sortedAthletes[totalAthletes - 1 - i];
+      const higherSeed = higherSeeds[i];
+      const lowerSeed = lowerSeeds[i];
+      
+      // Red athlete is lower seed number, blue athlete is higher seed number
+      const redAthlete = higherSeed; // Seed number is lower
+      const blueAthlete = lowerSeed; // Seed number is higher
 
       firstRound.push({
         id: `match-${matchIdCounter++}`,
@@ -412,37 +532,37 @@ export default function BracketBuilder() {
         state: "SCHEDULED",
         participants: [
           {
-            id: topSeed.id,
+            id: redAthlete.id,
             resultText: null,
             isWinner: false,
             status: null,
-            name: topSeed.fullName,
+            name: redAthlete.fullName,
           },
           {
-            id: bottomSeed.id,
+            id: blueAthlete.id,
             resultText: null,
             isWinner: false,
             status: null,
-            name: bottomSeed.fullName,
+            name: blueAthlete.fullName,
           },
         ],
       });
     }
 
-    // Create bye entries (athletes who advance directly to second round)
-    const byeAthletes = sortedAthletes.slice(
-      firstRoundMatches,
-      firstRoundMatches + byeCount
-    );
+    // Calculate total matches from round 1 to final
+    // Formula: Total matches = N - 1 (each match eliminates 1 athlete)
+    const totalMatches = totalAthletes - 1;
 
     return {
       firstRound,
       byeAthletes,
-      totalRounds: Math.log2(lowerPower) + 1,
+      totalRounds,
       lowerPower,
       upperPower,
       byeCount,
       firstRoundMatches,
+      totalMatches,
+      sortedAthletes,
     };
   }, [competitionAthletes]);
 
@@ -637,6 +757,45 @@ export default function BracketBuilder() {
               >
                 {savingSeedNumbers ? "Đang lưu..." : "Lưu số bốc thăm"}
               </button>
+              {competitionAthletes.length > 0 && 
+               competitionAthletes.every((a) => a.seedNumber != null) && (
+                <button
+                  onClick={async () => {
+                    if (!competitionId || !weightClassId) {
+                      toast.error("Vui lòng chọn giải đấu và hạng cân!");
+                      return;
+                    }
+                    
+                    // Check if seed numbers are saved to database
+                    const hasUnsavedChanges = competitionAthletes.some(
+                      (a) => a.seedNumber !== null && a.seedNumber !== a.drawSeedNumber
+                    );
+                    
+                    if (hasUnsavedChanges) {
+                      toast.error("Vui lòng lưu số bốc thăm trước khi xem sơ đồ!");
+                      return;
+                    }
+                    
+                    // Verify all athletes have seed numbers saved
+                    const athletesWithoutSeeds = competitionAthletes.filter(
+                      (a) => !a.drawSeedNumber || a.drawSeedNumber <= 0
+                    );
+                    
+                    if (athletesWithoutSeeds.length > 0) {
+                      toast.error(`Có ${athletesWithoutSeeds.length} vận động viên chưa có số bốc thăm. Vui lòng lưu lại!`);
+                      return;
+                    }
+                    
+                    // Small delay to ensure database is updated
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    navigate(`/manage/brackets/view?competitionId=${competitionId}&weightClassId=${weightClassId}&_t=${Date.now()}`);
+                  }}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+                >
+                  Đến sơ đồ trận đấu
+                </button>
+              )}
             </div>
           </div>
 
@@ -724,39 +883,52 @@ export default function BracketBuilder() {
 
       {/* Bracket Info and Create Matches */}
       {calculateBracket && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="mb-4">
-            <h2 className="text-xl font-semibold mb-2">Thông tin nhánh đấu</h2>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p>
-                Tổng số vận động viên: {competitionAthletes.length}
-              </p>
-              <p>
-                Số vận động viên được bye: {calculateBracket.byeCount} (từ số {calculateBracket.firstRoundMatches + 1} đến {calculateBracket.firstRoundMatches + calculateBracket.byeCount})
-              </p>
-              <p>
-                Số trận vòng đầu: {calculateBracket.firstRoundMatches}
-              </p>
-              <p>
-                Tổng số vòng đấu: {calculateBracket.totalRounds}
-              </p>
-                          </div>
-                        </div>
-          
-          <div className="mt-4">
+        <>
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold mb-2">Thông tin nhánh đấu</h2>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>
+                  Tổng số vận động viên: {competitionAthletes.length}
+                </p>
+                {calculateBracket.byeCount > 0 ? (
+                  <p>
+                    Số vận động viên được bye: {calculateBracket.byeCount} (từ số {calculateBracket.firstRoundMatches + 1} đến {calculateBracket.firstRoundMatches + calculateBracket.byeCount})
+                  </p>
+                ) : (
+                  <p>
+                    Số vận động viên được bye: 0 (không có bye - tất cả đánh từ vòng đầu)
+                  </p>
+                )}
+                <p>
+                  Số trận vòng đầu: {calculateBracket.firstRoundMatches}
+                </p>
+                <p>
+                  Tổng số vòng đấu: {calculateBracket.totalRounds}
+                </p>
+                <p className="font-semibold text-blue-600">
+                  Tổng số trận đấu (từ vòng đầu đến chung kết): {calculateBracket.totalMatches}
+                </p>
+              </div>
+            </div>
+            
+            <div className="mt-4">
               <button
-              onClick={handleCreateMatches}
-              disabled={creatingMatches}
-              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                onClick={handleCreateMatches}
+                disabled={creatingMatches}
+                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
               >
-              {creatingMatches ? "Đang tạo trận đấu..." : "Tạo trận đấu"}
+                {creatingMatches ? "Đang tạo trận đấu..." : "Tạo trận đấu"}
               </button>
+            </div>
           </div>
-        </div>
+
+        </>
       )}
     </div>
   );
 }
+
 
 
 
