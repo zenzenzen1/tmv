@@ -50,6 +50,8 @@ export default function AssessorPage() {
   const [selectedScore, setSelectedScore] = useState<1 | 2 | null>(null);
   const [voteStatus, setVoteStatus] = useState<VoteResponse | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [connectedCount, setConnectedCount] = useState<number>(0);
+  const requiredAssessors = 5;
   
   const stompClientRef = useRef<Client | null>(null);
 
@@ -245,6 +247,20 @@ export default function AssessorPage() {
             console.error('Error parsing match ended message', e);
           }
         });
+
+        // Subscribe to connection status to know how many assessors are online
+        stompClient.subscribe(`/topic/match/${matchId}/assessor-connections`, (message) => {
+          try {
+            const status = JSON.parse(message.body) as { connectedCount?: number; connectedAssessors?: string[] };
+            if (typeof status.connectedCount === 'number') {
+              setConnectedCount(status.connectedCount);
+            } else if (Array.isArray(status.connectedAssessors)) {
+              setConnectedCount(status.connectedAssessors.length);
+            }
+          } catch (e) {
+            console.error('Error parsing connection status', e);
+          }
+        });
       },
       onStompError: (frame) => {
         console.error('STOMP error:', frame);
@@ -322,6 +338,10 @@ export default function AssessorPage() {
       </div>
     );
   }
+
+  const matchStarted = assessorInfo?.matchInfo?.status === 'ĐANG ĐẤU';
+  const hasEnoughAssessors = connectedCount >= requiredAssessors;
+  const canScore = connected && matchStarted && hasEnoughAssessors;
 
   return (
     <div className="font-sans bg-gray-50 min-h-screen p-6">
@@ -426,6 +446,20 @@ export default function AssessorPage() {
       </div>
 
 
+      {/* Guard conditions information */}
+      <div className="mb-4">
+        {!hasEnoughAssessors && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-3 text-sm mb-2">
+            Cần tối thiểu {requiredAssessors} giám định kết nối. Hiện tại: <strong>{connectedCount}</strong>.
+          </div>
+        )}
+        {!matchStarted && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg p-3 text-sm">
+            Trận đấu chưa ở trạng thái <strong>ĐANG ĐẤU</strong>. Vui lòng chờ trọng tài bắt đầu trận đấu.
+          </div>
+        )}
+      </div>
+
       {/* Vote Status */}
       {voteStatus && (
         <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -443,7 +477,7 @@ export default function AssessorPage() {
         {/* +1 ĐỎ */}
         <button
           onClick={() => handleScoreSelect('RED', 1)}
-          disabled={isConfirming}
+          disabled={isConfirming || !canScore}
           className={`h-32 rounded-xl text-white font-bold text-3xl transition-all ${
             selectedCorner === 'RED' && selectedScore === 1
               ? 'bg-red-700 shadow-lg ring-4 ring-red-300'
@@ -457,7 +491,7 @@ export default function AssessorPage() {
         {/* +1 XANH */}
         <button
           onClick={() => handleScoreSelect('BLUE', 1)}
-          disabled={isConfirming}
+          disabled={isConfirming || !canScore}
           className={`h-32 rounded-xl text-white font-bold text-3xl transition-all ${
             selectedCorner === 'BLUE' && selectedScore === 1
               ? 'bg-blue-700 shadow-lg ring-4 ring-blue-300'
@@ -471,7 +505,7 @@ export default function AssessorPage() {
         {/* +2 ĐỎ */}
         <button
           onClick={() => handleScoreSelect('RED', 2)}
-          disabled={isConfirming}
+          disabled={isConfirming || !canScore}
           className={`h-32 rounded-xl text-white font-bold text-3xl transition-all ${
             selectedCorner === 'RED' && selectedScore === 2
               ? 'bg-red-700 shadow-lg ring-4 ring-red-300'
@@ -485,7 +519,7 @@ export default function AssessorPage() {
         {/* +2 XANH */}
         <button
           onClick={() => handleScoreSelect('BLUE', 2)}
-          disabled={isConfirming}
+          disabled={isConfirming || !canScore}
           className={`h-32 rounded-xl text-white font-bold text-3xl transition-all ${
             selectedCorner === 'BLUE' && selectedScore === 2
               ? 'bg-blue-700 shadow-lg ring-4 ring-blue-300'
@@ -501,9 +535,9 @@ export default function AssessorPage() {
       <div className="flex justify-center">
         <button
           onClick={handleConfirm}
-          disabled={!selectedCorner || !selectedScore || !connected || isConfirming}
+          disabled={!selectedCorner || !selectedScore || !connected || isConfirming || !canScore}
           className={`px-12 py-4 rounded-xl text-white font-bold text-xl transition-all ${
-            selectedCorner && selectedScore && connected && !isConfirming
+            selectedCorner && selectedScore && connected && !isConfirming && canScore
               ? 'bg-green-600 hover:bg-green-700 shadow-lg'
               : 'bg-gray-400 cursor-not-allowed'
           }`}
