@@ -72,6 +72,55 @@ const COMPETITION_TYPES: Record<CompetitionType, string> = {
   music: "Võ nhạc",
 };
 
+function formatDate(dateString: string | null | undefined): string {
+  if (!dateString) return "-";
+  try {
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+  } catch {
+    return dateString;
+  }
+}
+
+function getStatusColor(status: string | undefined): string {
+  switch (status) {
+    case "PENDING":
+    case "CHỜ BẮT ĐẦU":
+      return "bg-gray-100 text-gray-800";
+    case "IN_PROGRESS":
+    case "ĐANG ĐẤU":
+      return "bg-blue-100 text-blue-800";
+    case "COMPLETED":
+    case "KẾT THÚC":
+      return "bg-green-100 text-green-800";
+    case "CANCELLED":
+    case "HỦY":
+      return "bg-red-100 text-red-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+}
+
+function getStatusLabel(status: string | undefined): string {
+  switch (status) {
+    case "PENDING":
+      return "Chờ bắt đầu";
+    case "IN_PROGRESS":
+      return "Đang diễn ra";
+    case "COMPLETED":
+      return "Đã kết thúc";
+    case "CANCELLED":
+      return "Đã hủy";
+    default:
+      return status || "Chờ bắt đầu";
+  }
+}
+
 const ASSESSOR_ROLES: Array<{
   key: keyof Match["assessors"];
   label: string;
@@ -3329,7 +3378,7 @@ export default function ArrangeOrderPage({
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filteredMatches.length === 0 ? (
           <div className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 col-span-full">
             {!subCompetitionFilter ||
@@ -3351,100 +3400,147 @@ export default function ArrangeOrderPage({
             )}
           </div>
         ) : (
-          filteredMatches.map((match, idx) => (
-            <div
-              key={match.id}
-              className="border rounded-lg p-4 bg-white shadow-sm hover:shadow transition-shadow"
-            >
-              <div className="flex items-start justify-between">
-                <div className="pr-4">
-                  <div className="text-sm font-semibold text-gray-800">
-                    Trận {idx + 1}
-                  </div>
-                  {/* Content and participants info (kept under the left column) */}
-                  <div className="mt-3 text-sm space-y-1">
-                    {/* Nội dung: show name from config/music list */}
-                    <div className="text-gray-700">
-                      <span className="font-medium">Nội dung:</span>
-                      <span className="ml-1">
-                        {match.type === "quyen"
-                          ? fistConfigs.find((c) => c.id === match.fistConfigId)
-                              ?.name || "-"
-                          : musicContents.find(
-                              (m) => m.id === match.musicContentId
-                            )?.name || "-"}
-                      </span>
+          filteredMatches.map((match, idx) => {
+            const contentName =
+              match.type === "quyen"
+                ? (() => {
+                    const configName =
+                      fistConfigs.find((c) => c.id === match.fistConfigId)
+                        ?.name || "";
+                    const itemName = match.fistItemId
+                      ? fistItems.find((i) => i.id === match.fistItemId)
+                          ?.name || ""
+                      : "";
+                    if (configName && itemName) {
+                      return `${configName} - ${itemName}`;
+                    } else if (configName) {
+                      return configName;
+                    } else if (itemName) {
+                      return itemName;
+                    }
+                    return "-";
+                  })()
+                : musicContents.find((m) => m.id === match.musicContentId)
+                    ?.name || "-";
+
+            const participantDisplay =
+              teamFilter === "TEAM"
+                ? (() => {
+                    const pid = match.performanceId || "";
+                    const perf = pid
+                      ? (performanceCache as any)[pid]
+                      : undefined;
+                    const teamName =
+                      (perf && (perf["teamName"] as string)) || "";
+                    if (teamName && teamName.trim()) return teamName;
+                    return (
+                      (match.participants && match.participants[0]) ||
+                      "Chưa chọn"
+                    );
+                  })()
+                : Array.isArray(match.participants) &&
+                  match.participants.length > 0
+                ? match.participants.join(", ")
+                : "Chưa chọn";
+
+            return (
+              <div
+                key={match.id}
+                className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+              >
+                <div className="p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                        Trận {idx + 1}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        {COMPETITION_TYPES[match.type]}
+                      </p>
                     </div>
-                    {/* Người/Đội biểu diễn */}
-                    <div className="text-gray-700">
-                      <span className="font-medium">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                        match.status
+                      )}`}
+                    >
+                      {getStatusLabel(match.status)}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 mb-4">
+                    <div className="text-sm">
+                      <span className="font-medium text-gray-700">
+                        Nội dung:
+                      </span>
+                      <span className="ml-1 text-gray-900">{contentName}</span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="font-medium text-gray-700">
                         {teamFilter === "TEAM"
                           ? "Đội biểu diễn:"
                           : "VĐV biểu diễn:"}
                       </span>
-                      <span className="ml-1">
-                        {teamFilter === "TEAM"
-                          ? (() => {
-                              const pid = match.performanceId || "";
-                              const perf = pid
-                                ? (performanceCache as any)[pid]
-                                : undefined;
-                              const teamName =
-                                (perf && (perf["teamName"] as string)) || "";
-                              if (teamName && teamName.trim()) return teamName;
-                              return (
-                                (match.participants && match.participants[0]) ||
-                                "Chưa chọn"
-                              );
-                            })()
-                          : Array.isArray(match.participants) &&
-                            match.participants.length > 0
-                          ? match.participants.join(", ")
-                          : "Chưa chọn"}
+                      <span className="ml-1 text-gray-900">
+                        {participantDisplay}
                       </span>
                     </div>
                   </div>
-                </div>
-                <div className="flex flex-col items-end gap-1 w-28">
-                  <button
-                    onClick={() => openSetupModal(match.id)}
-                    className="w-full px-2.5 py-1 text-xs bg-white border border-blue-500 text-blue-600 rounded hover:bg-blue-50"
-                  >
-                    Thiết lập
-                  </button>
-                  {match.status === "IN_PROGRESS" ? (
-                    <button
-                      disabled
-                      className="w-full px-2.5 py-1 text-xs bg-blue-100 text-blue-700 rounded cursor-not-allowed"
-                    >
-                      Đang diễn ra
-                    </button>
-                  ) : match.status === "COMPLETED" ? (
-                    <button
-                      disabled
-                      className="w-full px-2.5 py-1 text-xs bg-gray-100 text-gray-600 rounded cursor-not-allowed"
-                    >
-                      Đã kết thúc
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => beginMatch(match.id)}
-                      className="w-full px-2.5 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                    >
-                      Bắt đầu trận
-                    </button>
-                  )}
-                  <button
-                    onClick={() => deleteMatch(match.id)}
-                    className="mt-1 h-7 w-7 text-xs bg-white border border-red-300 text-red-500 rounded hover:bg-red-50"
-                    title="Xóa trận"
-                  >
-                    ×
-                  </button>
+
+                  <div className="pt-4 border-t border-gray-200">
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                      <span>Thứ tự: {match.order || idx + 1}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openSetupModal(match.id);
+                        }}
+                        className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
+                      >
+                        Thiết lập
+                      </button>
+                      {match.status === "IN_PROGRESS" ? (
+                        <button
+                          disabled
+                          className="flex-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded text-xs font-medium cursor-not-allowed"
+                        >
+                          Đang diễn ra
+                        </button>
+                      ) : match.status === "COMPLETED" ? (
+                        <button
+                          disabled
+                          className="flex-1 px-3 py-1.5 bg-gray-100 text-gray-600 rounded text-xs font-medium cursor-not-allowed"
+                        >
+                          Đã kết thúc
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            beginMatch(match.id);
+                          }}
+                          className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
+                        >
+                          Bắt đầu
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteMatch(match.id);
+                        }}
+                        className="px-3 py-1.5 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700"
+                        title="Xóa trận"
+                      >
+                        Xóa
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
