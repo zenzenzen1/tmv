@@ -52,6 +52,7 @@ import RegisterPage from "./pages/auth/RegisterPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import FieldManagementPage from "./pages/field-management/FieldManagementPage";
 import RequireRole from "./components/common/RequireRole";
+import SelectPerformanceMatchPage from "./pages/performance/SelectPerformanceMatchPage";
 import CycleList from "./pages/cycles/CycleList";
 import CycleDetail from "./pages/cycles/CycleDetail";
 import CycleCreate from "./pages/cycles/CycleCreate";
@@ -501,6 +502,16 @@ export default function App() {
           element={
             <RequireRole roles={["ORGANIZATION_COMMITTEE"]}>
               <MatchManagementPage />
+            </RequireRole>
+          }
+        />
+
+        {/* Performance Matches */}
+        <Route
+          path="performance-matches"
+          element={
+            <RequireRole roles={["ORGANIZATION_COMMITTEE"]}>
+              <SelectPerformanceMatchPage />
             </RequireRole>
           }
         />

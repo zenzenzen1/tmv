@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, Fragment, useRef } from "react";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import type { PaginationResponse } from "../../types/api";
-import type { CompetitionType } from "./ArrangeOrderWrapper";
+import type { CompetitionType } from "../arrange/ArrangeOrderWrapper";
 import { fistContentService } from "../../services/fistContent";
 import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
@@ -87,6 +87,14 @@ function formatDate(dateString: string | null | undefined): string {
   }
 }
 
+export default function SelectPerformanceMatchPage() {
+  const [activeTab, setActiveTab] = useState<CompetitionType>("quyen");
+
+  return (
+    <ArrangeOrderPageContent activeTab={activeTab} onTabChange={setActiveTab} />
+  );
+}
+
 function getStatusColor(status: string | undefined): string {
   switch (status) {
     case "PENDING":
@@ -133,15 +141,15 @@ const ASSESSOR_ROLES: Array<{
   { key: "judgeD", label: "Giám định 5" },
 ];
 
-interface ArrangeOrderPageProps {
+interface ArrangeOrderPageContentProps {
   activeTab: CompetitionType;
   onTabChange: (tab: CompetitionType) => void;
 }
 
-export default function ArrangeOrderPage({
+function ArrangeOrderPageContent({
   activeTab,
   onTabChange,
-}: ArrangeOrderPageProps) {
+}: ArrangeOrderPageContentProps) {
   const [tournaments, setTournaments] = useState<
     Array<{ id: string; name: string }>
   >([]);
@@ -1626,47 +1634,6 @@ export default function ArrangeOrderPage({
   ]);
 
   // Note: mock generator removed from UI; keep for potential dev usage
-
-  const addManualMatch = () => {
-    setMatches((prev) => {
-      // Count matches within the SAME filter scope from current state to avoid stale closures
-      const currentCount = prev.filter((m) => {
-        if (m.type !== activeTab) return false;
-        if (m.gender && genderFilter && m.gender !== genderFilter) return false;
-        if (m.teamType && teamFilter && m.teamType !== teamFilter) return false;
-        if (activeTab === "quyen") {
-          return (
-            (m.fistConfigId || null) === (subCompetitionFilter || null) &&
-            (m.fistItemId || null) === (detailCompetitionFilter || null)
-          );
-        }
-        if (activeTab === "music") {
-          return (m.musicContentId || null) === (subCompetitionFilter || null);
-        }
-        return false;
-      }).length;
-      const newMatch: Match = {
-        id: `manual-${activeTab}-${Date.now()}`,
-        order: currentCount + 1,
-        type: activeTab,
-        contentName:
-          activeTab === "quyen" ? "Nội dung Quyền" : "Nội dung Võ nhạc",
-        participantIds: [],
-        participants: [],
-        assessors: {},
-        // Carry current content filter IDs so this match belongs to the selected content
-        fistConfigId:
-          activeTab === "quyen" ? subCompetitionFilter || null : null,
-        fistItemId:
-          activeTab === "quyen" ? detailCompetitionFilter || null : null,
-        musicContentId:
-          activeTab === "music" ? subCompetitionFilter || null : null,
-        gender: genderFilter === "FEMALE" ? "FEMALE" : "MALE",
-        teamType: teamFilter === "TEAM" ? "TEAM" : "PERSON",
-      };
-      return [...prev, newMatch];
-    });
-  };
 
   const deleteMatch = (matchId: string) => {
     setMatches((prev) => {
@@ -3374,30 +3341,6 @@ export default function ArrangeOrderPage({
           </div>
         </div>
       )}
-      <div className="flex items-center gap-2 mb-6">
-        <button
-          onClick={addManualMatch}
-          disabled={
-            !subCompetitionFilter ||
-            (activeTab === "quyen" && !detailCompetitionFilter)
-          }
-          className={`rounded-md px-3 py-2 text-white text-sm shadow ${
-            !subCompetitionFilter ||
-            (activeTab === "quyen" && !detailCompetitionFilter)
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-emerald-500 hover:bg-emerald-600"
-          }`}
-        >
-          Thêm trận trống
-        </button>
-        {(!subCompetitionFilter ||
-          (activeTab === "quyen" && !detailCompetitionFilter)) && (
-          <span className="text-sm text-orange-600">
-            Vui lòng chọn nội dung để thêm trận mới
-          </span>
-        )}
-      </div>
-
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filteredMatches.length === 0 ? (
           <div className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 col-span-full">
