@@ -65,6 +65,7 @@ type Match = {
   musicContentId?: string | null;
   gender?: "MALE" | "FEMALE";
   teamType?: "TEAM" | "PERSON";
+  teamName?: string | null;
 };
 
 const COMPETITION_TYPES: Record<CompetitionType, string> = {
@@ -447,6 +448,65 @@ function ArrangeOrderPageContent({
     });
     return set;
   }, [usedAthleteIds, athleteIdToPerformanceId]);
+
+  const matchPerformanceIdsKey = useMemo(() => {
+    return matchesForActiveType
+      .map((match) => (match.performanceId || "").trim())
+      .filter((pid) => pid.length > 0)
+      .sort()
+      .join(",");
+  }, [matchesForActiveType]);
+
+  useEffect(() => {
+    if (!matchPerformanceIdsKey) return;
+    const performanceIds = matchPerformanceIdsKey.split(",").filter(Boolean);
+    const missing = performanceIds.filter(
+      (pid) => pid && !performanceCache[pid]
+    );
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+
+    const loadMissingPerformances = async () => {
+      const results = await Promise.all(
+        missing.map(async (pid) => {
+          try {
+            const res = await api.get(`/v1/performances/${pid}`);
+            const payload = res.data as
+              | { data?: Record<string, unknown> }
+              | Record<string, unknown>;
+            const perfObj =
+              (payload as any)?.data &&
+              typeof (payload as any).data === "object"
+                ? ((payload as any).data as Record<string, unknown>)
+                : (payload as Record<string, unknown>);
+            if (perfObj) {
+              return { pid, perfObj };
+            }
+          } catch (error) {
+            console.warn("Failed to load performance for match", pid, error);
+          }
+          return null;
+        })
+      );
+      if (cancelled) return;
+      const updates: Record<string, Record<string, unknown>> = {};
+      results.forEach((entry) => {
+        if (entry && entry.perfObj) {
+          updates[entry.pid] = entry.perfObj;
+        }
+      });
+      if (Object.keys(updates).length > 0) {
+        setPerformanceCache((prev) => ({ ...prev, ...updates }));
+      }
+    };
+
+    loadMissingPerformances();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [matchPerformanceIdsKey, performanceCache]);
 
   // Load filter data
   useEffect(() => {
@@ -1287,6 +1347,7 @@ function ArrangeOrderPageContent({
           API_ENDPOINTS.PERFORMANCE_MATCHES.BY_COMPETITION(selectedTournament)
         );
         const list = (res.data || []) as Array<any>;
+        const perfCacheUpdates: Record<string, Record<string, unknown>> = {};
         // Map to Match[] only for current tab (quyen/music)
         const mapped: Match[] = list
           .filter((pm: any) => {
@@ -1297,25 +1358,92 @@ function ArrangeOrderPageContent({
             );
           })
           .map((pm: any) => {
-            const participants = Array.isArray(pm.selectedAthletes)
-              ? pm.selectedAthletes.map((a: any) => String(a.fullName || ""))
-              : [];
-            const participantIds = Array.isArray(pm.selectedAthletes)
+            const rawSelectedAthletes: Array<any> = Array.isArray(
+              pm.selectedAthletes
+            )
               ? pm.selectedAthletes
-                  .map((a: any) => (a.id ? String(a.id) : ""))
-                  .filter((x: string) => !!x)
               : [];
+            const participants = rawSelectedAthletes.map((a: any) => {
+              const teamNameFromAthlete =
+                typeof a?.teamName === "string" && a.teamName.trim().length > 0
+                  ? a.teamName.trim()
+                  : typeof a?.displayName === "string" &&
+                    a.displayName.trim().length > 0
+                  ? a.displayName.trim()
+                  : undefined;
+              if (teamNameFromAthlete) {
+                return teamNameFromAthlete;
+              }
+              const email = typeof a?.email === "string" ? a.email : "";
+              if (
+                email.toLowerCase().endsWith("@team.local") &&
+                typeof a?.fullName === "string" &&
+                a.fullName.trim().length > 0
+              ) {
+                return a.fullName.trim();
+              }
+              return String(a?.fullName || "");
+            });
+            const participantIds = rawSelectedAthletes
+              .map((a: any) => (a.id ? String(a.id) : ""))
+              .filter((x: string) => !!x)
+              .slice();
             // Derive gender from persisted selected athletes if available
             let matchGender: "MALE" | "FEMALE" | undefined = undefined;
-            if (
-              Array.isArray(pm.selectedAthletes) &&
-              pm.selectedAthletes.length > 0
-            ) {
+            if (rawSelectedAthletes.length > 0) {
               const g = String(
-                pm.selectedAthletes[0]?.gender || ""
+                rawSelectedAthletes[0]?.gender || ""
               ).toUpperCase();
               matchGender =
                 g === "FEMALE" || g === "NỮ" || g === "NU" ? "FEMALE" : "MALE";
+            }
+            let teamName: string | undefined;
+            if (
+              typeof pm?.teamName === "string" &&
+              pm.teamName.trim().length > 0
+            ) {
+              teamName = pm.teamName.trim();
+            } else if (
+              pm?.performance &&
+              typeof pm.performance === "object" &&
+              typeof (pm.performance as any)?.teamName === "string" &&
+              ((pm.performance as any)?.teamName as string).trim().length > 0
+            ) {
+              teamName = ((pm.performance as any)?.teamName as string).trim();
+            } else {
+              const candidateFromAthletes = rawSelectedAthletes
+                .map((a: any) => {
+                  if (
+                    typeof a?.teamName === "string" &&
+                    a.teamName.trim().length > 0
+                  ) {
+                    return a.teamName.trim();
+                  }
+                  const email = typeof a?.email === "string" ? a.email : "";
+                  if (
+                    email.toLowerCase().endsWith("@team.local") &&
+                    typeof a?.fullName === "string" &&
+                    a.fullName.trim().length > 0
+                  ) {
+                    return a.fullName.trim();
+                  }
+                  return undefined;
+                })
+                .find((val: string | undefined) => !!val);
+              if (candidateFromAthletes) {
+                teamName = candidateFromAthletes;
+              }
+            }
+            if (
+              pm?.performanceId &&
+              typeof pm.performanceId === "string" &&
+              pm.performanceId.trim().length > 0 &&
+              pm?.performance &&
+              typeof pm.performance === "object"
+            ) {
+              perfCacheUpdates[pm.performanceId.trim()] = {
+                ...(pm.performance as Record<string, unknown>),
+              };
             }
             return {
               id: pm.id,
@@ -1335,6 +1463,7 @@ function ArrangeOrderPageContent({
               fistItemId: pm.fistItemId ?? null,
               musicContentId: pm.musicContentId ?? null,
               gender: matchGender,
+              teamName: teamName ?? null,
             } as Match;
           });
 
@@ -1374,6 +1503,10 @@ function ArrangeOrderPageContent({
         );
 
         // Merge: replace matches for current tab with persisted ones
+        if (Object.keys(perfCacheUpdates).length > 0) {
+          setPerformanceCache((prev) => ({ ...prev, ...perfCacheUpdates }));
+        }
+
         setMatches((prev) => {
           const others = prev.filter((m) => m.type !== activeTab);
           return [...others, ...enriched];
@@ -2208,6 +2341,117 @@ function ArrangeOrderPageContent({
     setTeamModalLoading(false);
   };
 
+  const resolveTeamName = (match: Match): string => {
+    const explicitName =
+      typeof match.teamName === "string" && match.teamName.trim().length > 0
+        ? match.teamName.trim()
+        : "";
+    if (explicitName) {
+      return explicitName;
+    }
+
+    const performanceId = (match.performanceId || "").trim();
+    if (performanceId) {
+      const cachedPerf = performanceCache[performanceId];
+      if (cachedPerf) {
+        const perfRecord = cachedPerf as Record<string, unknown>;
+        const candidateKeys = [
+          "teamName",
+          "team_name",
+          "performanceName",
+          "performance_name",
+          "name",
+          "displayName",
+        ];
+        for (const key of candidateKeys) {
+          const raw = perfRecord[key];
+          if (typeof raw === "string" && raw.trim().length > 0) {
+            return raw.trim();
+          }
+        }
+        const nestedTeam = perfRecord["team"];
+        const nestedTeamObj =
+          nestedTeam && typeof nestedTeam === "object"
+            ? (nestedTeam as Record<string, unknown>)
+            : null;
+        if (
+          nestedTeamObj &&
+          typeof nestedTeamObj["name"] === "string" &&
+          (nestedTeamObj["name"] as string).trim().length > 0
+        ) {
+          return (nestedTeamObj["name"] as string).trim();
+        }
+      }
+
+      const groupedAthletes = athletesByPerformance[performanceId];
+      if (Array.isArray(groupedAthletes) && groupedAthletes.length > 0) {
+        const header = groupedAthletes.find((a) => {
+          const email = String(a.email || "").toLowerCase();
+          if (email.endsWith("@team.local")) return true;
+          const record = a as Record<string, unknown>;
+          if (
+            typeof record?.["teamName"] === "string" &&
+            (record["teamName"] as string).trim().length > 0 &&
+            (record["teamName"] as string).trim() ===
+              String(a.fullName || "").trim()
+          ) {
+            return true;
+          }
+          return false;
+        });
+        if (
+          header &&
+          typeof header.fullName === "string" &&
+          header.fullName.trim().length > 0
+        ) {
+          return header.fullName.trim();
+        }
+        const altFromGroup = groupedAthletes
+          .map((member) => {
+            const record = member as Record<string, unknown>;
+            if (
+              typeof record?.["teamName"] === "string" &&
+              (record["teamName"] as string).trim().length > 0
+            ) {
+              return (record["teamName"] as string).trim();
+            }
+            return undefined;
+          })
+          .find((val) => !!val);
+        if (altFromGroup) {
+          return altFromGroup;
+        }
+      }
+    }
+
+    if (
+      Array.isArray(match.participantIds) &&
+      match.participantIds.length > 0
+    ) {
+      const selectedAthlete = athletes.find(
+        (athlete) => athlete.id === match.participantIds[0]
+      );
+      if (
+        selectedAthlete &&
+        typeof selectedAthlete.name === "string" &&
+        selectedAthlete.name.trim().length > 0
+      ) {
+        return selectedAthlete.name.trim();
+      }
+    }
+
+    if (Array.isArray(match.participants) && match.participants.length > 0) {
+      const first = match.participants.find(
+        (name) => typeof name === "string" && name.trim().length > 0
+      );
+      if (first) {
+        return first.trim();
+      }
+    }
+
+    return "";
+  };
+
   const goToNextStep = (e?: React.MouseEvent) => {
     e?.preventDefault();
     e?.stopPropagation();
@@ -2250,6 +2494,8 @@ function ArrangeOrderPageContent({
       setupModal.selectedIds.includes(a.id)
     );
     const names = selected.map((a) => a.name);
+    const primaryName =
+      names.length > 0 && typeof names[0] === "string" ? names[0].trim() : "";
 
     // Determine specialization from tab
     const specialization =
@@ -2543,6 +2789,10 @@ function ArrangeOrderPageContent({
                 activeTab === "music" ? subCompetitionFilter : m.musicContentId,
               gender: derivedGender ?? m.gender,
               teamType: teamFilter === "TEAM" ? "TEAM" : "PERSON",
+              teamName:
+                teamFilter === "TEAM"
+                  ? primaryName || (m.teamName ?? null)
+                  : null,
             };
           }
           return m;
@@ -2623,19 +2873,6 @@ function ArrangeOrderPageContent({
             </div>
           </div>
         </div>
-
-        {selectedTournament && (
-          <div className="mt-2 text-sm text-gray-600">
-            <div>
-              <span className="font-medium">Giải đấu: </span>
-              {tournaments.find((t) => t.id === selectedTournament)?.name}
-            </div>
-            <div>
-              <span className="font-medium">Loại nội dung: </span>
-              {COMPETITION_TYPES[activeTab]}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Filters outside card - for Quyền */}
@@ -3363,147 +3600,194 @@ function ArrangeOrderPageContent({
             )}
           </div>
         ) : (
-          filteredMatches.map((match, idx) => {
-            const contentName =
-              match.type === "quyen"
-                ? (() => {
-                    const configName =
-                      fistConfigs.find((c) => c.id === match.fistConfigId)
-                        ?.name || "";
-                    const itemName = match.fistItemId
-                      ? fistItems.find((i) => i.id === match.fistItemId)
-                          ?.name || ""
-                      : "";
-                    if (configName && itemName) {
-                      return `${configName} - ${itemName}`;
-                    } else if (configName) {
-                      return configName;
-                    } else if (itemName) {
-                      return itemName;
-                    }
-                    return "-";
-                  })()
-                : musicContents.find((m) => m.id === match.musicContentId)
-                    ?.name || "-";
+          (() => {
+            const perContentCounters = new Map<string, number>();
+            return filteredMatches.map((match) => {
+              const contentKey =
+                match.type === "quyen"
+                  ? `${match.fistConfigId || ""}::${match.fistItemId || ""}`
+                  : `${match.musicContentId || ""}`;
+              const displayOrder =
+                (perContentCounters.get(contentKey) || 0) + 1;
+              perContentCounters.set(contentKey, displayOrder);
+              const pid = (match.performanceId || "").trim();
+              const cachedPerf = pid
+                ? (performanceCache as any)[pid]
+                : undefined;
+              const hasCachedTeamName = (() => {
+                if (!cachedPerf) return false;
+                const perfRecord = cachedPerf as Record<string, unknown>;
+                const candidateKeys = [
+                  "teamName",
+                  "team_name",
+                  "performanceName",
+                  "performance_name",
+                  "name",
+                  "displayName",
+                ];
+                if (
+                  candidateKeys.some((key) => {
+                    const raw = perfRecord[key];
+                    return typeof raw === "string" && raw.trim().length > 0;
+                  })
+                ) {
+                  return true;
+                }
+                const nestedTeam = perfRecord["team"];
+                const nestedTeamObj =
+                  nestedTeam && typeof nestedTeam === "object"
+                    ? (nestedTeam as Record<string, unknown>)
+                    : null;
+                if (
+                  nestedTeamObj &&
+                  typeof nestedTeamObj["name"] === "string" &&
+                  (nestedTeamObj["name"] as string).trim().length > 0
+                ) {
+                  return true;
+                }
+                return false;
+              })();
+              const hasGroupedTeam =
+                pid &&
+                Array.isArray(athletesByPerformance[pid]) &&
+                athletesByPerformance[pid].length > 1;
+              const isTeamMatch =
+                match.teamType === "TEAM" ||
+                (typeof match.teamName === "string" &&
+                  match.teamName.trim().length > 0) ||
+                hasCachedTeamName ||
+                hasGroupedTeam ||
+                (Array.isArray(match.participants) &&
+                  match.participants.length > 1);
+              const teamNameDisplay = isTeamMatch ? resolveTeamName(match) : "";
+              const contentName =
+                match.type === "quyen"
+                  ? (() => {
+                      const configName =
+                        fistConfigs.find((c) => c.id === match.fistConfigId)
+                          ?.name || "";
+                      const itemName = match.fistItemId
+                        ? fistItems.find((i) => i.id === match.fistItemId)
+                            ?.name || ""
+                        : "";
+                      if (configName && itemName) {
+                        return `${configName} - ${itemName}`;
+                      } else if (configName) {
+                        return configName;
+                      } else if (itemName) {
+                        return itemName;
+                      }
+                      return "-";
+                    })()
+                  : musicContents.find((m) => m.id === match.musicContentId)
+                      ?.name || "-";
 
-            const participantDisplay =
-              teamFilter === "TEAM"
-                ? (() => {
-                    const pid = match.performanceId || "";
-                    const perf = pid
-                      ? (performanceCache as any)[pid]
-                      : undefined;
-                    const teamName =
-                      (perf && (perf["teamName"] as string)) || "";
-                    if (teamName && teamName.trim()) return teamName;
-                    return (
-                      (match.participants && match.participants[0]) ||
-                      "Chưa chọn"
-                    );
-                  })()
+              const participantDisplay = isTeamMatch
+                ? teamNameDisplay || "Chưa chọn"
                 : Array.isArray(match.participants) &&
                   match.participants.length > 0
                 ? match.participants.join(", ")
                 : "Chưa chọn";
 
-            return (
-              <div
-                key={match.id}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
-              >
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                        Trận {idx + 1}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {COMPETITION_TYPES[match.type]}
-                      </p>
-                    </div>
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                        match.status
-                      )}`}
-                    >
-                      {getStatusLabel(match.status)}
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 mb-4">
-                    <div className="text-sm">
-                      <span className="font-medium text-gray-700">
-                        Nội dung:
-                      </span>
-                      <span className="ml-1 text-gray-900">{contentName}</span>
-                    </div>
-                    <div className="text-sm">
-                      <span className="font-medium text-gray-700">
-                        {teamFilter === "TEAM"
-                          ? "Đội biểu diễn:"
-                          : "VĐV biểu diễn:"}
-                      </span>
-                      <span className="ml-1 text-gray-900">
-                        {participantDisplay}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t border-gray-200">
-                    <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                      <span>Thứ tự: {match.order || idx + 1}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openSetupModal(match.id);
-                        }}
-                        className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
+              return (
+                <div
+                  key={match.id}
+                  className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+                >
+                  <div className="p-5">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                          Trận {displayOrder}
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          {COMPETITION_TYPES[match.type]}
+                        </p>
+                      </div>
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                          match.status
+                        )}`}
                       >
-                        Thiết lập
-                      </button>
-                      {match.status === "IN_PROGRESS" ? (
-                        <button
-                          disabled
-                          className="flex-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded text-xs font-medium cursor-not-allowed"
-                        >
-                          Đang diễn ra
-                        </button>
-                      ) : match.status === "COMPLETED" ? (
-                        <button
-                          disabled
-                          className="flex-1 px-3 py-1.5 bg-gray-100 text-gray-600 rounded text-xs font-medium cursor-not-allowed"
-                        >
-                          Đã kết thúc
-                        </button>
-                      ) : (
+                        {getStatusLabel(match.status)}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      <div className="text-sm">
+                        <span className="font-medium text-gray-700">
+                          Nội dung:
+                        </span>
+                        <span className="ml-1 text-gray-900">
+                          {contentName}
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium text-gray-700">
+                          {isTeamMatch ? "Đội biểu diễn:" : "VĐV biểu diễn:"}
+                        </span>
+                        <span className="ml-1 text-gray-900">
+                          {participantDisplay}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-200">
+                      <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                        <span>Thứ tự: {displayOrder}</span>
+                      </div>
+                      <div className="flex gap-2">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            beginMatch(match.id);
+                            openSetupModal(match.id);
                           }}
-                          className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
+                          className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
                         >
-                          Bắt đầu
+                          Thiết lập
                         </button>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteMatch(match.id);
-                        }}
-                        className="px-3 py-1.5 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700"
-                        title="Xóa trận"
-                      >
-                        Xóa
-                      </button>
+                        {match.status === "IN_PROGRESS" ? (
+                          <button
+                            disabled
+                            className="flex-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded text-xs font-medium cursor-not-allowed"
+                          >
+                            Đang diễn ra
+                          </button>
+                        ) : match.status === "COMPLETED" ? (
+                          <button
+                            disabled
+                            className="flex-1 px-3 py-1.5 bg-gray-100 text-gray-600 rounded text-xs font-medium cursor-not-allowed"
+                          >
+                            Đã kết thúc
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              beginMatch(match.id);
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
+                          >
+                            Bắt đầu
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMatch(match.id);
+                          }}
+                          className="px-3 py-1.5 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700"
+                          title="Xóa trận"
+                        >
+                          Xóa
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            });
+          })()
         )}
       </div>
 

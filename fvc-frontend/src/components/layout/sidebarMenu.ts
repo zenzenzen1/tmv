@@ -6,7 +6,7 @@ export type MenuItem = {
 
 export const defaultMenuItems: MenuItem[] = [
   { key: "tournaments", label: "Danh sách giải đấu" },
-  { key: "arrange", label: "Quản lý trận đấu" },
+  { key: "arrange", label: "Tạo trận Quyền & Võ nhạc" },
   { key: "cycles", label: "Chu kỳ tuyển thành viên" },
   { key: "locations", label: "Quản lý địa điểm" },
   { key: "trainingSessions", label: "Buổi tập luyện" },
@@ -20,11 +20,11 @@ export const defaultMenuItems: MenuItem[] = [
   { key: "fieldManagement", label: "Quản lí sân đấu" },
   { key: "athletes", label: "Quản lí VĐV" },
   { key: "brackets", label: "Chia nhánh đấu" },
-  { section: "Thi đấu", key: "scoring", label: "Chấm điểm" },
+  { section: "Thi đấu", key: "scoring", label: "Chấm điểm đối kháng" },
   {
     section: "Thi đấu",
     key: "performanceMatches",
-    label: "Quản lý trận đấu biểu diễn",
+    label: "Chấm điểm Quyền & Võ nhạc",
   },
   { section: "Quản lí nội dung", key: "forms", label: "Quyền" },
   { section: "Quản lí nội dung", key: "music", label: "Võ nhạc" },
