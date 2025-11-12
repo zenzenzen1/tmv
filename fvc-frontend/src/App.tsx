@@ -515,6 +515,14 @@ export default function App() {
             </RequireRole>
           }
         />
+        <Route
+          path="performance-matches/:matchId/manage"
+          element={
+            <RequireRole roles={["ORGANIZATION_COMMITTEE"]}>
+              <SelectPerformanceMatchPage />
+            </RequireRole>
+          }
+        />
 
         {/* Arrange */}
         <Route path="performance" element={<ArrangeOrderWrapper />} />
