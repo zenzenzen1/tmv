@@ -8,13 +8,16 @@ import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.request.CreatePerformanceMatchRequest;
 import sep490g65.fvcapi.dto.response.PerformanceMatchResponse;
 import sep490g65.fvcapi.dto.request.SavePerformanceMatchSetupRequest;
+import sep490g65.fvcapi.dto.response.AssessorResponse;
 import sep490g65.fvcapi.entity.Assessor;
 import sep490g65.fvcapi.entity.Competition;
+import sep490g65.fvcapi.entity.Field;
 import sep490g65.fvcapi.entity.Performance;
 import sep490g65.fvcapi.entity.PerformanceAthlete;
 import sep490g65.fvcapi.entity.PerformanceMatch;
 import sep490g65.fvcapi.repository.AssessorRepository;
 import sep490g65.fvcapi.repository.CompetitionRepository;
+import sep490g65.fvcapi.repository.FieldRepository;
 import sep490g65.fvcapi.repository.PerformanceAthleteRepository;
 import sep490g65.fvcapi.repository.PerformanceMatchRepository;
 import sep490g65.fvcapi.repository.PerformanceRepository;
@@ -33,6 +36,7 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
     private final CompetitionRepository competitionRepository;
     private final AssessorRepository assessorRepository;
     private final PerformanceAthleteRepository performanceAthleteRepository;
+    private final FieldRepository fieldRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     private int getNextMatchOrder(String competitionId) {
@@ -288,6 +292,18 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
             } else {
                 performanceMatch.setMusicContentId(performance.getMusicContentId());
             }
+
+            if (options.getFieldId() != null) {
+                if (!options.getFieldId().isBlank()) {
+                    Field field = fieldRepository.findById(options.getFieldId())
+                            .orElseThrow(() -> new RuntimeException("Field not found: " + options.getFieldId()));
+                    performanceMatch.setFieldId(field.getId());
+                    performanceMatch.setFieldLocation(field.getLocation());
+                } else {
+                    performanceMatch.setFieldId(null);
+                    performanceMatch.setFieldLocation(null);
+                }
+            }
         } else {
             performanceMatch.setFistConfigId(performance.getFistConfigId());
             performanceMatch.setFistItemId(performance.getFistItemId());
@@ -337,6 +353,15 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
                 performanceId, athleteCount, assessors.size());
         
         return PerformanceMatchResponse.from(performanceMatch, athletes);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AssessorResponse> getAssessorsByPerformanceMatchId(String performanceMatchId) {
+        List<Assessor> assessors = assessorRepository.findByPerformanceMatchId(performanceMatchId);
+        return assessors.stream()
+                .map(AssessorResponse::from)
+                .collect(Collectors.toList());
     }
 }
 

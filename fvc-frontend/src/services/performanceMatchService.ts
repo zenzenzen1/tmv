@@ -22,6 +22,8 @@ export interface PerformanceMatchListItem {
   fistItemId: string | null;
   musicContentId: string | null;
   durationSeconds: number | null;
+  fieldId: string | null;
+  fieldLocation: string | null;
   selectedAthletes: Array<{
     id: string;
     fullName: string;

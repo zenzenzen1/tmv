@@ -39,6 +39,8 @@ public class PerformanceMatchResponse {
     private String fistItemId;     // for Quyền filtering
     private String musicContentId; // for Võ nhạc filtering
     private Integer durationSeconds; // planned timer
+    private String fieldId;
+    private String fieldLocation;
     private List<SelectedAthlete> selectedAthletes;
 
     @Data
@@ -74,6 +76,8 @@ public class PerformanceMatchResponse {
                 .fistItemId(performanceMatch.getFistItemId())
                 .musicContentId(performanceMatch.getMusicContentId())
                 .durationSeconds(performanceMatch.getDurationSeconds())
+                .fieldId(performanceMatch.getFieldId())
+                .fieldLocation(performanceMatch.getFieldLocation())
                 .build();
     }
 

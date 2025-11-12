@@ -10,6 +10,7 @@ import sep490g65.fvcapi.entity.PerformanceMatch;
 import sep490g65.fvcapi.service.PerformanceMatchService;
 import sep490g65.fvcapi.utils.ResponseUtils;
 import sep490g65.fvcapi.dto.request.SavePerformanceMatchSetupRequest;
+import sep490g65.fvcapi.dto.response.AssessorResponse;
 
 import jakarta.validation.Valid;
 import java.util.List;
@@ -43,6 +44,13 @@ public class PerformanceMatchController {
     public ResponseEntity<sep490g65.fvcapi.dto.response.BaseResponse<List<PerformanceMatchResponse>>> getPerformanceMatchesByCompetitionId(@PathVariable String competitionId) {
         List<PerformanceMatchResponse> responses = performanceMatchService.getPerformanceMatchesByCompetitionId(competitionId);
         return ResponseEntity.ok(sep490g65.fvcapi.utils.ResponseUtils.success("Performance matches retrieved", responses));
+    }
+
+    @GetMapping("/{performanceMatchId}/assessors")
+    public ResponseEntity<BaseResponse<List<AssessorResponse>>> getAssessorsByPerformanceMatch(
+            @PathVariable String performanceMatchId) {
+        List<AssessorResponse> responses = performanceMatchService.getAssessorsByPerformanceMatchId(performanceMatchId);
+        return ResponseEntity.ok(ResponseUtils.success("Assessors retrieved", responses));
     }
 
     @PutMapping("/{id}/status/{status}")

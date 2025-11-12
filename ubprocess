@@ -1,0 +1,982 @@
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import api from "../../services/api";
+import { API_ENDPOINTS } from "../../config/endpoints";
+import type { PaginationResponse } from "../../types/api";
+import type { CompetitionType } from "../arrange/ArrangeOrderWrapper";
+import { fistContentService } from "../../services/fistContent";
+import SockJS from "sockjs-client";
+import { Client } from "@stomp/stompjs";
+import { fieldService } from "../../services/fieldService";
+import type { FieldResponse } from "../../types";
+
+type AthleteApi = {
+  id: string;
+  fullName: string;
+  email: string;
+  gender: "MALE" | "FEMALE";
+  competitionType: "fighting" | "quyen" | "music";
+  studentId?: string | null;
+  club?: string | null;
+  subCompetitionType?: string | null;
+  detailSubCompetitionType?: string | null;
+  detailSubLabel?: string | null;
+  fistItemId?: string | null;
+  fistConfigId?: string | null;
+  musicContentId?: string | null;
+  performanceId?: string | null;
+};
+
+type AthleteRow = {
+  id: string;
+  name: string;
+  email: string;
+  gender: "Nam" | "Nữ";
+  studentId: string;
+  club: string;
+  subCompetitionType: string;
+  detailSubCompetitionType: string;
+  detailSubLabel?: string | null;
+  fistItemId?: string | null;
+  fistConfigId?: string | null;
+  musicContentId?: string | null;
+  performanceId?: string | null;
+};
+
+type Match = {
+  id: string;
+  order: number;
+  type: CompetitionType;
+  contentName: string;
+  participantIds: string[];
+  participants: string[];
+  assessors: {
+    referee?: string;
+    judgeA?: string;
+    judgeB?: string;
+    judgeC?: string;
+    judgeD?: string;
+  };
+  judgesCount?: number;
+  timerSec?: number;
+  performanceId?: string; // For quyền/võ nhạc matches
+  matchOrder?: number; // From PerformanceMatch
+  status?: string; // From PerformanceMatch
+  // Content IDs from PerformanceMatch to support filtering by ID
+  fistConfigId?: string | null;
+  fistItemId?: string | null;
+  musicContentId?: string | null;
+  gender?: "MALE" | "FEMALE";
+  teamType?: "TEAM" | "PERSON";
+  teamName?: string | null;
+  fieldId?: string | null;
+  fieldName?: string | null;
+};
+
+const COMPETITION_TYPES: Record<CompetitionType, string> = {
+  quyen: "Quyền",
+  music: "Võ nhạc",
+};
+
+export default function SelectPerformanceMatchPage() {
+  const { matchId: routeMatchId } = useParams<{ matchId?: string }>();
+  const [searchParams] = useSearchParams();
+
+  const normalizeTab = useCallback(
+    (value: string | null): CompetitionType =>
+      value === "music" ? "music" : "quyen",
+    []
+  );
+
+  const [activeTab, setActiveTab] = useState<CompetitionType>(
+    normalizeTab(searchParams.get("tab"))
+  );
+
+  const searchKey = searchParams.toString();
+
+  useEffect(() => {
+    const nextTab = normalizeTab(searchParams.get("tab"));
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab);
+    }
+  }, [activeTab, normalizeTab, searchKey]);
+
+  const initialTeam =
+    (searchParams.get("team") as "PERSON" | "TEAM" | "") || "PERSON";
+  const initialGender = searchParams.get("gender") || "MALE";
+  const initialSubCompetition = searchParams.get("config") || "";
+  const initialDetailCompetition = searchParams.get("detail") || "";
+
+  const initialFilters = {
+    team: initialTeam,
+    gender: initialGender,
+    sub: initialSubCompetition,
+    detail: initialDetailCompetition,
+    hasTeam: searchParams.get("team") !== null,
+    hasGender: searchParams.get("gender") !== null,
+    hasSub: searchParams.get("config") !== null,
+    hasDetail: searchParams.get("detail") !== null,
+  };
+
+  return (
+    <ArrangeOrderPageContent
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      standaloneMatchId={routeMatchId || undefined}
+      standaloneCompetitionId={searchParams.get("competitionId") || undefined}
+      isStandalone={Boolean(routeMatchId)}
+      initialFilters={initialFilters}
+    />
+  );
+}
+
+function formatSeconds(seconds?: number | null): string {
+  if (seconds === null || seconds === undefined || Number.isNaN(seconds)) {
+    return "00:00";
+  }
+  const safeValue = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safeValue / 60);
+  const secs = safeValue % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function getStatusColor(status: string | undefined): string {
+  switch (status) {
+    case "PENDING":
+    case "CHỜ BẮT ĐẦU":
+      return "bg-gray-100 text-gray-800";
+    case "IN_PROGRESS":
+    case "ĐANG ĐẤU":
+      return "bg-blue-100 text-blue-800";
+    case "COMPLETED":
+    case "KẾT THÚC":
+      return "bg-green-100 text-green-800";
+    case "CANCELLED":
+    case "HỦY":
+      return "bg-red-100 text-red-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+}
+
+function getStatusLabel(status: string | undefined): string {
+  switch (status) {
+    case "PENDING":
+      return "Chờ bắt đầu";
+    case "IN_PROGRESS":
+      return "Đang diễn ra";
+    case "COMPLETED":
+      return "Đã kết thúc";
+    case "CANCELLED":
+      return "Đã hủy";
+    default:
+      return status || "Chờ bắt đầu";
+  }
+}
+
+const ASSESSOR_ROLES: Array<{
+  key: keyof Match["assessors"];
+  label: string;
+  subtitle?: string;
+}> = [
+  { key: "referee", label: "Giám định 1", subtitle: "(Trưởng ban)" },
+  { key: "judgeA", label: "Giám định 2" },
+  { key: "judgeB", label: "Giám định 3" },
+  { key: "judgeC", label: "Giám định 4" },
+  { key: "judgeD", label: "Giám định 5" },
+];
+
+interface ArrangeOrderPageContentProps {
+  activeTab: CompetitionType;
+  onTabChange: (tab: CompetitionType) => void;
+  standaloneMatchId?: string;
+  standaloneCompetitionId?: string;
+  isStandalone?: boolean;
+  initialFilters?: {
+    team?: "PERSON" | "TEAM" | "";
+    gender?: string;
+    sub?: string;
+    detail?: string;
+    hasTeam?: boolean;
+    hasGender?: boolean;
+    hasSub?: boolean;
+    hasDetail?: boolean;
+  };
+}
+
+function ArrangeOrderPageContent({
+  activeTab,
+  onTabChange,
+  standaloneMatchId,
+  standaloneCompetitionId,
+  isStandalone,
+  initialFilters,
+}: ArrangeOrderPageContentProps) {
+  const navigate = useNavigate();
+  const isStandaloneMode = Boolean(isStandalone && standaloneMatchId);
+
+  const {
+    team: initialTeamFilter = "PERSON",
+    gender: initialGenderFilter = "MALE",
+    sub: initialSubCompetition = "",
+    detail: initialDetailCompetition = "",
+    hasTeam: hasTeamParam = false,
+    hasGender: hasGenderParam = false,
+    hasSub: hasSubParam = false,
+    hasDetail: hasDetailParam = false,
+  } = initialFilters || {};
+
+  const [tournaments, setTournaments] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [selectedTournament, setSelectedTournament] = useState<string>(
+    standaloneCompetitionId || ""
+  );
+  const [athletes, setAthletes] = useState<AthleteRow[]>([]);
+  const [matches, setMatches] = useState<Match[]>([]);
+  // Quick filter labels derived from tournament configuration (dynamic)
+  const [quickButtons, setQuickButtons] = useState<string[]>([]);
+  // Allowed content (by current tournament). If empty => allow all
+  const [allowedFistConfigIds, setAllowedFistConfigIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [allowedFistItemIds, setAllowedFistItemIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [allowedMusicContentIds, setAllowedMusicContentIds] = useState<
+    Set<string>
+  >(new Set());
+  // Also allow constraining by names (labels from competition config)
+  const [allowedFistConfigNames, setAllowedFistConfigNames] = useState<
+    Set<string>
+  >(new Set());
+  const [allowedMusicContentNames, setAllowedMusicContentNames] = useState<
+    Set<string>
+  >(new Set());
+  // Also allow constraining by names (when competition exposes labels instead of IDs)
+
+  const [teamFilter, setTeamFilter] = useState<"PERSON" | "TEAM" | "">(
+    initialTeamFilter
+  );
+  const [genderFilter, setGenderFilter] = useState<string>(initialGenderFilter);
+
+  // Track concurrent loads for a simple loading indicator when changing tournament
+  const [pendingLoads, setPendingLoads] = useState<number>(0);
+  const [isTournamentLoading, setIsTournamentLoading] =
+    useState<boolean>(false);
+
+  useEffect(() => {
+    if (isStandaloneMode && standaloneCompetitionId) {
+      setSelectedTournament(standaloneCompetitionId);
+    }
+  }, [isStandaloneMode, standaloneCompetitionId]);
+
+  const matchesForActiveType = useMemo(
+    () => matches.filter((match) => match.type === activeTab),
+    [matches, activeTab]
+  );
+
+  // Available assessors from API
+  const [availableAssessors, setAvailableAssessors] = useState<
+    Array<{ id: string; fullName: string; email: string }>
+  >([]);
+
+  // Load available assessors
+  useEffect(() => {
+    const loadAssessors = async () => {
+      try {
+        const res = await api.get<
+          Array<{
+            id: string;
+            fullName: string;
+            personalMail: string;
+            eduMail?: string;
+            systemRole?: string;
+          }>
+        >(API_ENDPOINTS.ASSESSORS.AVAILABLE);
+
+        // BaseResponse structure or plain array
+        const payload: any = res?.data as any;
+        const data: Array<any> = Array.isArray(payload)
+          ? payload
+          : (payload?.data as Array<any>) ||
+            (payload?.content as Array<any>) ||
+            [];
+
+        console.log("Loaded assessors (raw):", data);
+
+        // Keep all assessors returned by API (API đã lọc sẵn theo vai trò chuyên môn)
+        const filtered = data
+          .map((a) => ({
+            id: a.id,
+            fullName: a.fullName || "",
+            email: a.personalMail || a.eduMail || "",
+          }))
+          .filter((a) => a.id && a.fullName);
+
+        console.log("Loaded assessors (filtered):", filtered);
+
+        setAvailableAssessors(filtered);
+      } catch (error) {
+        console.error("Failed to load assessors:", error);
+        setAvailableAssessors([]);
+      }
+    };
+    loadAssessors();
+  }, []);
+
+  useEffect(() => {
+    const loadFields = async () => {
+      try {
+        const response = await fieldService.list({ page: 0, size: 100 });
+        if (response.content) {
+          setFields(response.content);
+        }
+      } catch (error) {
+        console.error("Failed to load fields:", error);
+        setFields([]);
+      }
+    };
+    loadFields();
+  }, []);
+
+  // Auto-create 4 empty matches for the active type if none exist (Jira-like preset cards)
+  useEffect(() => {
+    const current = matches.filter((m) => m.type === activeTab);
+    if (current.length === 0) {
+      const baseOrder = 0;
+      const defaults: Match[] = Array.from({ length: 4 }).map((_, idx) => ({
+        id: `preset-${activeTab}-${Date.now()}-${idx}`,
+        order: baseOrder + idx + 1,
+        type: activeTab,
+        contentName:
+          activeTab === "quyen" ? "Nội dung Quyền" : "Nội dung Võ nhạc",
+        participantIds: [],
+        participants: [],
+        assessors: {},
+        fieldId: undefined,
+        fieldName: undefined,
+      }));
+      setMatches((prev) => [
+        ...prev.filter((m) => m.type !== activeTab),
+        ...defaults,
+      ]);
+    }
+  }, [activeTab, matches]);
+
+  // Start modal removed; settings handled in setupModal per match
+
+  const createDefaultSetupState = useCallback(
+    () => ({
+      open: false,
+      matchId: undefined as string | undefined,
+      assessors: {} as Record<string, string>,
+      judgesCount: 5,
+      defaultTimerSec: 120,
+      fieldId: "" as string | undefined,
+    }),
+    []
+  );
+  const [setupModal, setSetupModal] = useState<{
+    open: boolean;
+    matchId?: string;
+    assessors: Record<string, string>;
+    judgesCount: number;
+    defaultTimerSec: number;
+    fieldId?: string;
+  }>(createDefaultSetupState);
+  const [hasStandaloneSetupInitialized, setHasStandaloneSetupInitialized] =
+    useState(false);
+  const [fields, setFields] = useState<FieldResponse[]>([]);
+
+  // Filter states for quyen and music
+  const [subCompetitionFilter, setSubCompetitionFilter] = useState<string>(
+    initialSubCompetition
+  );
+  const [detailCompetitionFilter, setDetailCompetitionFilter] =
+    useState<string>(initialDetailCompetition);
+  const [openCategory, setOpenCategory] = useState<string>("");
+  const [showCompetitionFilter, setShowCompetitionFilter] = useState(false);
+
+  // Filter states for team and gender
+  const [showGenderFilter, setShowGenderFilter] = useState(false);
+  const [showTeamFilter, setShowTeamFilter] = useState(false);
+  // Realtime status subscriber
+  const stompRef = useRef<Client | null>(null);
+  useEffect(() => {
+    const currentMatches = matches;
+    const pids = currentMatches
+      .filter((m) => m.type === activeTab && m.performanceId)
+      .map((m) => m.performanceId as string);
+    if (pids.length === 0) return;
+
+    // Create stable key from performance IDs to avoid reconnecting unnecessarily
+    const pidsKey = pids.sort().join(",");
+
+    const wsUrl = import.meta.env.VITE_API_BASE_URL
+      ? import.meta.env.VITE_API_BASE_URL.replace("/api", "") + "/ws"
+      : "http://localhost:8080/ws";
+    const socket = new SockJS(wsUrl);
+    const client = new Client({
+      webSocketFactory: () => socket as any,
+      reconnectDelay: 5000,
+      onConnect: () => {
+        pids.forEach((pid) => {
+          client.subscribe(`/topic/performance/${pid}/status`, (msg) => {
+            try {
+              const payload = JSON.parse(msg.body) as {
+                status?: string;
+                performanceId?: string;
+              };
+              if (!payload?.status || !payload?.performanceId) return;
+              setMatches((prev) =>
+                prev.map((it) =>
+                  it.performanceId === payload.performanceId
+                    ? { ...it, status: payload.status }
+                    : it
+                )
+              );
+            } catch {}
+          });
+        });
+      },
+    });
+    client.activate();
+    stompRef.current = client;
+    return () => {
+      if (stompRef.current?.connected) stompRef.current.deactivate();
+    };
+    // Only depend on activeTab and the stable key of performance IDs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeTab,
+    matches
+      .filter((m) => m.type === activeTab && m.performanceId)
+      .map((m) => m.performanceId as string)
+      .sort()
+      .join(","),
+  ]);
+
+  // Performance cache for team details
+  const [performanceCache, setPerformanceCache] = useState<
+    Record<string, Record<string, unknown>>
+  >({});
+
+  // Group current fetched athletes by performanceId to reconstruct team members
+  const [athletesByPerformance, setAthletesByPerformance] = useState<
+    Record<string, AthleteApi[]>
+  >({});
+
+  // Filter data states
+  const [fistConfigs, setFistConfigs] = useState<
+    Array<{
+      id: string;
+      name: string;
+      description?: string | null;
+      level?: number;
+      configId?: string;
+      configName?: string;
+    }>
+  >([]);
+
+  const [fistItems, setFistItems] = useState<
+    Array<{
+      id: string;
+      name: string;
+      description?: string | null;
+      status?: boolean;
+      configId?: string;
+      participantsPerEntry?: number;
+    }>
+  >([]);
+
+  const [musicContents, setMusicContents] = useState<
+    Array<{ id: string; name: string; performersPerEntry?: number }>
+  >([]);
+
+  // If only item IDs are restricted, derive allowed config IDs from those items
+  const effectiveAllowedFistConfigIds = useMemo(() => {
+    if (allowedFistConfigIds.size > 0) return allowedFistConfigIds;
+    if (allowedFistItemIds.size === 0) return new Set<string>();
+    const s = new Set<string>();
+    fistItems.forEach((it) => {
+      if (allowedFistItemIds.has(it.id) && it.configId) s.add(it.configId);
+    });
+    return s;
+  }, [allowedFistConfigIds, allowedFistItemIds, fistItems]);
+
+  const matchPerformanceIdsKey = useMemo(() => {
+    return matchesForActiveType
+      .map((match) => (match.performanceId || "").trim())
+      .filter((pid) => pid.length > 0)
+      .sort()
+      .join(",");
+  }, [matchesForActiveType]);
+
+  useEffect(() => {
+    if (!matchPerformanceIdsKey) return;
+    const performanceIds = matchPerformanceIdsKey.split(",").filter(Boolean);
+    const missing = performanceIds.filter(
+      (pid) => pid && !performanceCache[pid]
+    );
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+
+    const loadMissingPerformances = async () => {
+      const results = await Promise.all(
+        missing.map(async (pid) => {
+          try {
+            const res = await api.get(`/v1/performances/${pid}`);
+            const payload = res.data as
+              | { data?: Record<string, unknown> }
+              | Record<string, unknown>;
+            const perfObj =
+              (payload as any)?.data &&
+              typeof (payload as any).data === "object"
+                ? ((payload as any).data as Record<string, unknown>)
+                : (payload as Record<string, unknown>);
+            if (perfObj) {
+              return { pid, perfObj };
+            }
+          } catch (error) {
+            console.warn("Failed to load performance for match", pid, error);
+          }
+          return null;
+        })
+      );
+      if (cancelled) return;
+      const updates: Record<string, Record<string, unknown>> = {};
+      results.forEach((entry) => {
+        if (entry && entry.perfObj) {
+          updates[entry.pid] = entry.perfObj;
+        }
+      });
+      if (Object.keys(updates).length > 0) {
+        setPerformanceCache((prev) => ({ ...prev, ...updates }));
+      }
+    };
+
+    loadMissingPerformances();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [matchPerformanceIdsKey, performanceCache]);
+
+  // Load filter data
+  useEffect(() => {
+    const loadFilterData = async () => {
+      try {
+        // Load fist configs (Đơn luyện/Đa luyện/Song luyện ...)
+        const fistConfigsRes = await fistContentService.list({ size: 100 });
+        setFistConfigs(fistConfigsRes.content || []);
+
+        // Load fist items (Đơn luyện 1, Đơn luyện 2, ...)
+        const fistItemsRes = await fistContentService.listItems({ size: 100 });
+        setFistItems(
+          (fistItemsRes.content || []).map(
+            (it: {
+              id: string;
+              name: string;
+              description?: string | null;
+              status?: boolean;
+              parentId?: string;
+              fistConfigId?: string;
+              config?: { id?: string };
+              configId?: string;
+              participantsPerEntry?: number;
+            }) => ({
+              id: it.id,
+              name: it.name,
+              description: it.description,
+              status: it.status,
+              configId:
+                it.configId ||
+                it.parentId ||
+                it.fistConfigId ||
+                it.config?.id ||
+                undefined,
+              participantsPerEntry: it.participantsPerEntry,
+            })
+          )
+        );
+
+        // Load music contents
+        const musicContentsRes = await api.get<{
+          content: Array<{
+            id: string;
+            name: string;
+            performersPerEntry?: number;
+          }>;
+          totalElements: number;
+        }>(API_ENDPOINTS.MUSIC_CONTENTS.BASE);
+        setMusicContents(musicContentsRes.data?.content || []);
+      } catch (error) {
+        console.error("Failed to load filter data:", error);
+      }
+    };
+
+    loadFilterData();
+  }, []);
+
+  // Click outside to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".filter-dropdown")) {
+        setShowCompetitionFilter(false);
+        setShowGenderFilter(false);
+        setShowTeamFilter(false);
+        setOpenCategory("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Filter matches based on selected filters
+  const filteredMatches = useMemo(() => {
+    // Require both subCompetitionFilter (nội dung) and detailCompetitionFilter (nội dung chi tiết) to be selected
+    // For Quyền: must select both category (e.g., "Song luyện") and detail (e.g., "Song luyện 1")
+    // For Music: must select a specific musicContent (not "Tất cả")
+
+    // If no content filter is selected, don't show any matches
+    if (!subCompetitionFilter) {
+      return [];
+    }
+
+    // For Quyền, also require detailCompetitionFilter
+    if (activeTab === "quyen" && !detailCompetitionFilter) {
+      return [];
+    }
+
+    // For Music, subCompetitionFilter must be a specific musicContent (not empty/"Tất cả")
+    // This is already checked by !subCompetitionFilter above, but we ensure it's not the "Tất cả" option
+    if (activeTab === "music" && subCompetitionFilter === "") {
+      return [];
+    }
+
+    // Helper function
+    const strip = (s: string) =>
+      (s || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+
+    const selectedCfgNameForMatch = subCompetitionFilter
+      ? fistConfigs.find((c) => c.id === subCompetitionFilter)?.name || ""
+      : "";
+    const selectedItemNameForMatch = detailCompetitionFilter
+      ? fistItems.find((i) => i.id === detailCompetitionFilter)?.name || ""
+      : "";
+
+    return matchesForActiveType.filter((match) => {
+      // For saved matches (have performanceId), filter by match-level IDs if available
+      if (match.performanceId) {
+        // Gender separation: use match.gender if present; else derive from participants/athletes list
+        const effectiveGender = (() => {
+          if (match.gender) return match.gender;
+          // Try resolve by participantIds from currently loaded athletes
+          for (const pid of match.participantIds || []) {
+            const a = athletes.find((x) => x.id === pid);
+            if (a) return a.gender === "Nữ" ? "FEMALE" : "MALE";
+          }
+          return undefined;
+        })();
+        if (
+          genderFilter &&
+          effectiveGender &&
+          effectiveGender !== genderFilter
+        ) {
+          return false;
+        }
+        // Team separation: use teamType if present; else derive from performance cache / participants
+        const effectiveTeamType = (() => {
+          if (match.teamType) return match.teamType;
+          const pid = match.performanceId || "";
+          const perf = pid ? (performanceCache as any)[pid] : undefined;
+          const teamName = perf && (perf["teamName"] as string);
+          if (teamName && teamName.trim()) return "TEAM" as const;
+          if (
+            Array.isArray(match.participants) &&
+            match.participants.length > 1
+          )
+            return "TEAM" as const;
+          return "PERSON" as const;
+        })();
+        if (teamFilter && effectiveTeamType !== teamFilter) {
+          return false;
+        }
+        if (activeTab === "quyen") {
+          if (!subCompetitionFilter || !detailCompetitionFilter) return false;
+          // Require both config and item to match by ID when present on match
+          if (
+            (match.fistConfigId &&
+              match.fistConfigId !== subCompetitionFilter) ||
+            (match.fistItemId && match.fistItemId !== detailCompetitionFilter)
+          ) {
+            return false;
+          }
+        } else if (activeTab === "music") {
+          if (!subCompetitionFilter) return false;
+          if (
+            match.musicContentId &&
+            match.musicContentId !== subCompetitionFilter
+          ) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      // If match has no participants, only show it when its content IDs match current filter
+      if (match.participantIds.length === 0) {
+        if (genderFilter && match.gender && match.gender !== genderFilter) {
+          return false;
+        }
+        if (teamFilter && match.teamType && match.teamType !== teamFilter) {
+          return false;
+        }
+        if (activeTab === "quyen") {
+          if (!subCompetitionFilter) return false;
+          if (match.fistConfigId && match.fistConfigId !== subCompetitionFilter)
+            return false;
+          if (detailCompetitionFilter) {
+            if (
+              match.fistItemId &&
+              match.fistItemId !== detailCompetitionFilter
+            )
+              return false;
+          }
+          return true;
+        } else if (activeTab === "music") {
+          if (!subCompetitionFilter) return false;
+          if (
+            match.musicContentId &&
+            match.musicContentId !== subCompetitionFilter
+          )
+            return false;
+          return true;
+        }
+        return false;
+      }
+
+      // Get athletes that are in this match
+      const matchAthletes = athletes.filter((athlete) =>
+        match.participantIds.includes(athlete.id)
+      );
+
+      // If we can't find the athletes in the filtered list, still show the match
+      // This prevents matches from disappearing when filters don't match perfectly
+      if (matchAthletes.length === 0) {
+        return true; // Show matches with participants even if they don't match current filters
+      }
+
+      // Check if at least one participant matches the filters
+      return matchAthletes.some((athlete) => {
+        // Map AthleteRow to AthleteApi for filtering logic
+        const apiAthlete: AthleteApi = {
+          id: athlete.id,
+          fullName: athlete.name,
+          email: athlete.email,
+          gender: athlete.gender === "Nam" ? "MALE" : "FEMALE",
+          competitionType: activeTab,
+          studentId: athlete.studentId,
+          club: athlete.club,
+          subCompetitionType: athlete.subCompetitionType,
+          detailSubCompetitionType: athlete.detailSubCompetitionType,
+          detailSubLabel: athlete.detailSubLabel,
+          fistItemId: athlete.fistItemId,
+          fistConfigId: athlete.fistConfigId,
+          musicContentId: athlete.musicContentId,
+          performanceId: athlete.performanceId,
+        };
+
+        // Check gender filter
+        if (genderFilter && apiAthlete.gender !== genderFilter) {
+          return false;
+        }
+
+        // Check subCompetitionType filter (fistConfig or musicContent) - REQUIRED
+        // subCompetitionFilter is already checked at the top level, but verify here too
+        if (activeTab === "quyen") {
+          // For Quyền: check if fistConfig matches
+          if (apiAthlete.fistConfigId) {
+            const cfg = fistConfigs.find(
+              (x) => x.id === apiAthlete.fistConfigId
+            );
+            if (!cfg || cfg.id !== subCompetitionFilter) {
+              return false;
+            }
+          } else {
+            // Fallback: check subCompetitionType vs resolved name
+            if (apiAthlete.subCompetitionType !== selectedCfgNameForMatch) {
+              return false;
+            }
+          }
+        } else if (activeTab === "music") {
+          // For Music: check if musicContent matches
+          if (apiAthlete.musicContentId) {
+            const mc = musicContents.find(
+              (x) => x.id === apiAthlete.musicContentId
+            );
+            if (!mc || mc.id !== subCompetitionFilter) {
+              return false;
+            }
+          } else if (apiAthlete.subCompetitionType) {
+            // fallback by name
+            const mcName =
+              musicContents.find((m) => m.id === subCompetitionFilter)?.name ||
+              "";
+            if (apiAthlete.subCompetitionType !== mcName) {
+              return false;
+            }
+          } else {
+            return false;
+          }
+        }
+
+        // Check detailCompetitionFilter (fistItem for Quyền) - REQUIRED for Quyền
+        if (activeTab === "quyen") {
+          if (apiAthlete.fistItemId) {
+            const item = fistItems.find((x) => x.id === apiAthlete.fistItemId);
+            if (!item || item.id !== detailCompetitionFilter) {
+              return false;
+            }
+          } else {
+            // Fallback: check detailSubCompetitionType or detailSubLabel vs resolved name
+            const detailMatch =
+              apiAthlete.detailSubCompetitionType ===
+                selectedItemNameForMatch ||
+              apiAthlete.detailSubLabel === selectedItemNameForMatch;
+            if (!detailMatch) {
+              return false;
+            }
+          }
+        }
+
+        // Check team filter
+        if (teamFilter) {
+          const isTeamEntry = (a: AthleteApi): boolean => {
+            if (a.competitionType === "quyen") {
+              let catName = a.subCompetitionType || "";
+              const cfgId = a.fistConfigId;
+              if (
+                (!catName ||
+                  catName === "-" ||
+                  catName.toLowerCase() === "quyền") &&
+                cfgId
+              ) {
+                const cfg = fistConfigs.find((x) => x.id === cfgId);
+                if (cfg?.name) catName = cfg.name;
+              }
+              const itemId = a.fistItemId;
+              if ((!catName || catName === "-") && itemId) {
+                const it = fistItems.find((x) => x.id === itemId);
+                const parentCfg = it?.configId
+                  ? fistConfigs.find((x) => x.id === it.configId)
+                  : undefined;
+                if (parentCfg?.name) catName = parentCfg.name;
+              }
+              const s = strip(
+                `${catName} ${a.detailSubCompetitionType || ""} ${
+                  a.detailSubLabel || ""
+                }`
+              ).replace(/\s+/g, " ");
+              if (s.includes("song luyen") || s.includes("da luyen"))
+                return true;
+              if (s.includes("don luyen")) return false;
+              return false;
+            } else if (a.competitionType === "music") {
+              const mid = a.musicContentId;
+              if (mid) {
+                const mc = musicContents.find((x) => x.id === mid);
+                if (mc && typeof mc?.performersPerEntry === "number") {
+                  return mc.performersPerEntry > 1;
+                }
+              }
+              const s = strip(
+                `${a.detailSubCompetitionType || ""} ${a.detailSubLabel || ""}`
+              )
+                .replace(/\s+/g, " ")
+                .trim();
+              if (
+                s.includes("doi nhom") ||
+                s.includes("doi hinh") ||
+                s.includes("tap the") ||
+                s.includes("team")
+              )
+                return true;
+              if (s.includes("ca nhan")) return false;
+              return false;
+            }
+            return false;
+          };
+
+          const isTeamHeader = (a: AthleteApi): boolean => {
+            const email = String(a.email || "").toLowerCase();
+            if (email.endsWith("@team.local")) return true;
+            const rec = (a as unknown as Record<string, unknown>) || {};
+            const teamName = (rec["teamName"] as string) || "";
+            const fullName = (a.fullName || "").trim();
+            if (teamName && teamName.trim().length > 0) {
+              return teamName.trim() === fullName;
+            }
+            return false;
+          };
+
+          const team = isTeamEntry(apiAthlete);
+          if (teamFilter === "TEAM") {
+            if (!(team && isTeamHeader(apiAthlete))) {
+              return false;
+            }
+          } else if (teamFilter === "PERSON") {
+            if (team) {
+              return false;
+            }
+          }
+        }
+
+        return true;
+      });
+    });
+  }, [
+    matchesForActiveType,
+    athletes,
+    subCompetitionFilter,
+    detailCompetitionFilter,
+    genderFilter,
+    teamFilter,
+    activeTab,
+    fistConfigs,
+    fistItems,
+    musicContents,
+  ]);
+
+  // Reset filters when changing tab
+  useEffect(() => {
+    if (!hasSubParam) setSubCompetitionFilter("");
+    if (!hasDetailParam) setDetailCompetitionFilter("");
+    setOpenCategory("");
+    setShowCompetitionFilter(false);
+    if (!hasGenderParam) setGenderFilter("MALE");
+    if (!hasTeamParam) setTeamFilter("PERSON");
+    setShowGenderFilter(false);
+    setShowTeamFilter(false);
+  }, [activeTab, hasDetailParam, hasGenderParam, hasSubParam, hasTeamParam]);
+
+  useEffect(() => {
+    const loadTournaments = async () => {
+      try {
+        type CompetitionOption = { id: string; name: string };
+        const res = await api.get<CompetitionOption[]>(
+          API_ENDPOINTS.TOURNAMENT_FORMS.COMPETITIONS
+        );
+        const list = res.data ?? [];
+        setTournaments(list);
+        if (list.length > 0) {
+  

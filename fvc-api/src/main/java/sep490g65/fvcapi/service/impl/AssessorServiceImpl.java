@@ -101,6 +101,9 @@ public class AssessorServiceImpl implements AssessorService {
                 performanceMatch = performanceMatchRepository.findById(request.getPerformanceMatchId())
                         .orElseThrow(() -> new IllegalArgumentException("PerformanceMatch not found: " + request.getPerformanceMatchId()));
                 assessorBuilder.performanceMatch(performanceMatch);
+                if (request.getPosition() != null) {
+                    assessorBuilder.position(request.getPosition());
+                }
                 
                 // Check if already assigned to performance match
                 if (assessorRepository.existsByUserIdAndPerformanceMatchId(request.getUserId(), request.getPerformanceMatchId())) {

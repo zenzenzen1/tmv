@@ -4,6 +4,7 @@ import sep490g65.fvcapi.dto.request.CreatePerformanceMatchRequest;
 import sep490g65.fvcapi.dto.response.PerformanceMatchResponse;
 import sep490g65.fvcapi.dto.request.SavePerformanceMatchSetupRequest;
 import sep490g65.fvcapi.entity.PerformanceMatch;
+import sep490g65.fvcapi.dto.response.AssessorResponse;
 
 import java.util.List;
 
@@ -28,5 +29,7 @@ public interface PerformanceMatchService {
      * This is called when user clicks "Save" in manage/performance
      */
     PerformanceMatchResponse savePerformanceMatchSetup(String performanceId, SavePerformanceMatchSetupRequest options);
+
+    List<AssessorResponse> getAssessorsByPerformanceMatchId(String performanceMatchId);
 }
 

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
@@ -9,6 +16,7 @@ import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 import { fieldService } from "../../services/fieldService";
 import type { FieldResponse } from "../../types";
+import { useToast } from "../../components/common/ToastContext";
 
 type AthleteApi = {
   id: string;
@@ -80,7 +88,7 @@ const COMPETITION_TYPES: Record<CompetitionType, string> = {
 
 export default function SelectPerformanceMatchPage() {
   const { matchId: routeMatchId } = useParams<{ matchId?: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const normalizeTab = useCallback(
     (value: string | null): CompetitionType =>
@@ -95,7 +103,9 @@ export default function SelectPerformanceMatchPage() {
   const searchKey = searchParams.toString();
 
   useEffect(() => {
-    const nextTab = normalizeTab(searchParams.get("tab"));
+    const tabParam = searchParams.get("tab");
+    if (!tabParam) return;
+    const nextTab = normalizeTab(tabParam);
     if (nextTab !== activeTab) {
       setActiveTab(nextTab);
     }
@@ -118,10 +128,17 @@ export default function SelectPerformanceMatchPage() {
     hasDetail: searchParams.get("detail") !== null,
   };
 
+  const handleTabChange = (tab: CompetitionType) => {
+    setActiveTab(tab);
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", tab);
+    setSearchParams(nextParams);
+  };
+
   return (
     <ArrangeOrderPageContent
       activeTab={activeTab}
-      onTabChange={setActiveTab}
+      onTabChange={handleTabChange}
       standaloneMatchId={routeMatchId || undefined}
       standaloneCompetitionId={searchParams.get("competitionId") || undefined}
       isStandalone={Boolean(routeMatchId)}
@@ -178,13 +195,20 @@ const ASSESSOR_ROLES: Array<{
   key: keyof Match["assessors"];
   label: string;
   subtitle?: string;
+  position: number;
 }> = [
-  { key: "referee", label: "Giám định 1", subtitle: "(Trưởng ban)" },
-  { key: "judgeA", label: "Giám định 2" },
-  { key: "judgeB", label: "Giám định 3" },
-  { key: "judgeC", label: "Giám định 4" },
-  { key: "judgeD", label: "Giám định 5" },
+  { key: "referee", label: "Giám định 1", position: 0 },
+  { key: "judgeA", label: "Giám định 2", position: 1 },
+  { key: "judgeB", label: "Giám định 3", position: 2 },
+  { key: "judgeC", label: "Giám định 4", position: 3 },
+  { key: "judgeD", label: "Giám định 5", position: 4 },
 ];
+
+const createEmptyAssessors = () =>
+  ASSESSOR_ROLES.reduce((acc, role) => {
+    acc[role.key] = "";
+    return acc;
+  }, {} as Record<keyof Match["assessors"], string>);
 
 interface ArrangeOrderPageContentProps {
   activeTab: CompetitionType;
@@ -214,6 +238,7 @@ function ArrangeOrderPageContent({
 }: ArrangeOrderPageContentProps) {
   const navigate = useNavigate();
   const isStandaloneMode = Boolean(isStandalone && standaloneMatchId);
+  const toast = useToast();
 
   const {
     team: initialTeamFilter = "PERSON",
@@ -233,6 +258,8 @@ function ArrangeOrderPageContent({
     standaloneCompetitionId || ""
   );
   const [athletes, setAthletes] = useState<AthleteRow[]>([]);
+  // Cache athletes by tab and filter combination to prevent reloading when switching tabs
+  const athletesCacheRef = useRef<Record<string, AthleteRow[]>>({});
   const [matches, setMatches] = useState<Match[]>([]);
   // Quick filter labels derived from tournament configuration (dynamic)
   const [quickButtons, setQuickButtons] = useState<string[]>([]);
@@ -340,8 +367,9 @@ function ArrangeOrderPageContent({
     loadFields();
   }, []);
 
-  // Auto-create 4 empty matches for the active type if none exist (Jira-like preset cards)
+  // Auto-create preset cards only when no tournament is selected
   useEffect(() => {
+    if (selectedTournament) return;
     const current = matches.filter((m) => m.type === activeTab);
     if (current.length === 0) {
       const baseOrder = 0;
@@ -362,7 +390,7 @@ function ArrangeOrderPageContent({
         ...defaults,
       ]);
     }
-  }, [activeTab, matches]);
+  }, [activeTab, matches, selectedTournament]);
 
   // Start modal removed; settings handled in setupModal per match
 
@@ -958,7 +986,9 @@ function ArrangeOrderPageContent({
   ]);
 
   // Reset filters when changing tab
-  useEffect(() => {
+  // Use useLayoutEffect to reset before paint, preventing screen flicker
+  useLayoutEffect(() => {
+    // Reset filters synchronously before paint to prevent showing stale filtered data
     if (!hasSubParam) setSubCompetitionFilter("");
     if (!hasDetailParam) setDetailCompetitionFilter("");
     setOpenCategory("");
@@ -967,6 +997,8 @@ function ArrangeOrderPageContent({
     if (!hasTeamParam) setTeamFilter("PERSON");
     setShowGenderFilter(false);
     setShowTeamFilter(false);
+    // Clear athletes cache when switching tabs to prevent stale data
+    setAthletesByPerformance({});
   }, [activeTab, hasDetailParam, hasGenderParam, hasSubParam, hasTeamParam]);
 
   useEffect(() => {
@@ -1164,6 +1196,7 @@ function ArrangeOrderPageContent({
   }, [selectedTournament, activeTab]);
 
   // Load persisted performance matches for selected tournament
+  // Load all matches (both quyen and music) to prevent flicker when switching tabs
   useEffect(() => {
     const loadPersistedMatches = async () => {
       if (!selectedTournament) {
@@ -1176,14 +1209,30 @@ function ArrangeOrderPageContent({
         );
         const list = (res.data || []) as Array<any>;
         const perfCacheUpdates: Record<string, Record<string, unknown>> = {};
-        // Map to Match[] only for current tab (quyen/music)
+        // Map to Match[] for both tabs to prevent flicker when switching
         const mapped: Match[] = list
           .filter((pm: any) => {
             const ct = String(pm.contentType || "").toUpperCase();
-            return (
-              (activeTab === "quyen" && ct === "QUYEN") ||
-              (activeTab === "music" && ct === "MUSIC")
+            if (ct !== "QUYEN" && ct !== "MUSIC") {
+              return false;
+            }
+            // Only show matches with approved performances
+            // A performance is approved when all selectedAthletes have an id (athlete is not null)
+            const rawSelectedAthletes: Array<any> = Array.isArray(
+              pm.selectedAthletes
+            )
+              ? pm.selectedAthletes
+              : [];
+            // If no athletes, don't show (not approved yet)
+            if (rawSelectedAthletes.length === 0) {
+              return false;
+            }
+            // Check if all athletes have id (approved)
+            const allApproved = rawSelectedAthletes.every(
+              (a: any) =>
+                a?.id && typeof a.id === "string" && a.id.trim() !== ""
             );
+            return allApproved;
           })
           .map((pm: any) => {
             const rawSelectedAthletes: Array<any> = Array.isArray(
@@ -1273,12 +1322,15 @@ function ArrangeOrderPageContent({
                 ...(pm.performance as Record<string, unknown>),
               };
             }
+            const contentType = String(pm.contentType || "").toUpperCase();
+            const matchType: CompetitionType =
+              contentType === "QUYEN" ? "quyen" : "music";
             return {
               id: pm.id,
               order: Number(pm.matchOrder || 0) || 0,
-              type: activeTab,
+              type: matchType,
               contentName:
-                activeTab === "quyen" ? "Nội dung Quyền" : "Nội dung Võ nhạc",
+                matchType === "quyen" ? "Nội dung Quyền" : "Nội dung Võ nhạc",
               participantIds,
               participants,
               assessors: {},
@@ -1292,6 +1344,8 @@ function ArrangeOrderPageContent({
               musicContentId: pm.musicContentId ?? null,
               gender: matchGender,
               teamName: teamName ?? null,
+              fieldId: pm.fieldId ?? null,
+              fieldName: pm.fieldLocation ?? null,
             } as Match;
           });
 
@@ -1299,10 +1353,8 @@ function ArrangeOrderPageContent({
         const enriched: Match[] = await Promise.all(
           mapped.map(async (m) => {
             try {
-              const url = API_ENDPOINTS.MATCH_ASSESSORS.LIST.replace(
-                "{matchId}",
-                m.id
-              );
+              // Use PERFORMANCE_MATCHES.ASSESSORS endpoint for performance matches
+              const url = API_ENDPOINTS.PERFORMANCE_MATCHES.ASSESSORS(m.id);
               const res = await api.get(url);
               const payload: any = (res as any)?.data;
               const arr: Array<any> = Array.isArray(payload)
@@ -1312,16 +1364,36 @@ function ArrangeOrderPageContent({
                   [];
               if (arr && arr.length > 0) {
                 const roleKeys = ASSESSOR_ROLES.map((r) => r.key);
-                const nextAssessors: Record<string, string> = {};
+                const roleByPosition = new Map(
+                  ASSESSOR_ROLES.map((role) => [role.position, role.key])
+                );
+                const nextAssessors: Record<string, string> =
+                  createEmptyAssessors();
                 arr.slice(0, 5).forEach((a: any, idx: number) => {
-                  const id = (a && (a.assessorId || a.userId || a.id)) || "";
-                  if (id && roleKeys[idx]) nextAssessors[roleKeys[idx]] = id;
+                  // AssessorResponse has userId field
+                  const id = (a && (a.userId || a.assessorId || a.id)) || "";
+                  if (!id) return;
+                  const position =
+                    typeof a?.position === "number" ? a.position : undefined;
+                  const roleKey =
+                    (position !== undefined
+                      ? roleByPosition.get(position)
+                      : undefined) || roleKeys[idx];
+                  if (roleKey) {
+                    nextAssessors[roleKey] = id;
+                  }
                 });
-                return {
-                  ...m,
-                  assessors: nextAssessors,
-                  judgesCount: 5,
-                } as Match;
+                const assignedCount = Object.values(nextAssessors).filter(
+                  (val) => typeof val === "string" && val.trim().length > 0
+                ).length;
+                // Only assign assessors if there are actually assigned assessors
+                if (assignedCount > 0) {
+                  return {
+                    ...m,
+                    assessors: nextAssessors,
+                    judgesCount: assignedCount || 5,
+                  } as Match;
+                }
               }
             } catch (_) {
               // ignore
@@ -1330,14 +1402,20 @@ function ArrangeOrderPageContent({
           })
         );
 
-        // Merge: replace matches for current tab with persisted ones
+        // Merge: replace all matches (both tabs) to prevent flicker when switching tabs
         if (Object.keys(perfCacheUpdates).length > 0) {
           setPerformanceCache((prev) => ({ ...prev, ...perfCacheUpdates }));
         }
 
+        // Update matches for both tabs, keeping existing matches that aren't in the loaded data
         setMatches((prev) => {
-          const others = prev.filter((m) => m.type !== activeTab);
-          return [...others, ...enriched];
+          // Keep only preset matches (those with preset- prefix) that don't have a persisted match
+          const presetMatches = prev.filter(
+            (m) =>
+              m.id.startsWith("preset-") && !enriched.some((e) => e.id === m.id)
+          );
+          // Merge: enriched matches (from DB) + preset matches (temporary)
+          return [...enriched, ...presetMatches];
         });
       } catch (err) {
         // ignore load errors; keep local state
@@ -1347,12 +1425,24 @@ function ArrangeOrderPageContent({
       }
     };
     loadPersistedMatches();
-  }, [selectedTournament, activeTab]);
+    // Removed activeTab from dependencies - we load all matches (both tabs) to prevent flicker
+  }, [selectedTournament]);
 
   useEffect(() => {
     const loadAthletes = async () => {
       if (!selectedTournament) {
         setAthletes([]);
+        athletesCacheRef.current = {};
+        return;
+      }
+
+      // Create cache key based on tab and filters
+      const cacheKey = `${selectedTournament}-${activeTab}-${genderFilter}-${subCompetitionFilter}-${detailCompetitionFilter}`;
+
+      // Check cache first - if we have cached athletes for this exact combination, use cache
+      const cached = athletesCacheRef.current[cacheKey];
+      if (cached && cached.length > 0) {
+        setAthletes(cached);
         return;
       }
 
@@ -1532,42 +1622,47 @@ function ArrangeOrderPageContent({
           return false;
         };
 
-        setAthletes(
-          content.map((athlete) => {
-            const rec = athlete as unknown as Record<string, unknown>;
-            const pid = (athlete.performanceId || "").toString().trim();
-            const perf =
-              pid && localPerfCache[pid]
-                ? (localPerfCache[pid] as Record<string, unknown>)
-                : undefined;
+        const mapped = content.map((athlete) => {
+          const rec = athlete as unknown as Record<string, unknown>;
+          const pid = (athlete.performanceId || "").toString().trim();
+          const perf =
+            pid && localPerfCache[pid]
+              ? (localPerfCache[pid] as Record<string, unknown>)
+              : undefined;
 
-            const isTeam = isTeamEntry(athlete);
+          const isTeam = isTeamEntry(athlete);
 
-            // Get team name from multiple sources (same as AthleteManagementPage)
-            let displayName = athlete.fullName;
-            if (isTeam) {
-              const perfTeamName = (perf?.["teamName"] as string) || "";
-              const backendTeamName = (rec["teamName"] as string) || "";
-              displayName = perfTeamName || backendTeamName || athlete.fullName;
-            }
+          // Get team name from multiple sources (same as AthleteManagementPage)
+          let displayName = athlete.fullName;
+          if (isTeam) {
+            const perfTeamName = (perf?.["teamName"] as string) || "";
+            const backendTeamName = (rec["teamName"] as string) || "";
+            displayName = perfTeamName || backendTeamName || athlete.fullName;
+          }
 
-            return {
-              id: athlete.id,
-              name: displayName,
-              email: athlete.email,
-              gender: athlete.gender === "FEMALE" ? "Nữ" : "Nam",
-              studentId: (athlete.studentId || "").toString(),
-              club: athlete.club || "",
-              subCompetitionType: athlete.subCompetitionType || "",
-              detailSubCompetitionType: athlete.detailSubCompetitionType || "",
-              detailSubLabel: athlete.detailSubLabel,
-              fistItemId: athlete.fistItemId,
-              fistConfigId: athlete.fistConfigId,
-              musicContentId: athlete.musicContentId,
-              performanceId: athlete.performanceId,
-            };
-          })
-        );
+          return {
+            id: athlete.id,
+            name: displayName,
+            email: athlete.email,
+            gender: (athlete.gender === "FEMALE" ? "Nữ" : "Nam") as
+              | "Nam"
+              | "Nữ",
+            studentId: (athlete.studentId || "").toString(),
+            club: athlete.club || "",
+            subCompetitionType: athlete.subCompetitionType || "",
+            detailSubCompetitionType: athlete.detailSubCompetitionType || "",
+            detailSubLabel: athlete.detailSubLabel,
+            fistItemId: athlete.fistItemId,
+            fistConfigId: athlete.fistConfigId,
+            musicContentId: athlete.musicContentId,
+            performanceId: athlete.performanceId,
+          };
+        });
+
+        setAthletes(mapped);
+
+        // Update cache with the cache key
+        athletesCacheRef.current[cacheKey] = mapped;
       } catch (error) {
         console.error("Failed to load athletes:", error);
         setAthletes([]);
@@ -1581,14 +1676,34 @@ function ArrangeOrderPageContent({
     // Only depend on filter IDs, not the arrays or cache themselves
     // Removed fistConfigs, fistItems, musicContents, performanceCache to prevent infinite loops
     // They are accessed via closure and only change when filters change
+    // Removed activeTab from dependencies - we'll handle tab switching via cache
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    activeTab,
     selectedTournament,
     genderFilter,
     subCompetitionFilter,
     detailCompetitionFilter,
   ]);
+
+  // Update athletes from cache when switching tabs (without API call)
+  useEffect(() => {
+    if (!selectedTournament) {
+      setAthletes([]);
+      return;
+    }
+
+    const cacheKey = `${selectedTournament}-${activeTab}-${genderFilter}-${subCompetitionFilter}-${detailCompetitionFilter}`;
+    const cached = athletesCacheRef.current[cacheKey];
+
+    if (cached && cached.length > 0) {
+      setAthletes(cached);
+    } else {
+      // If no cache, trigger load (but this should rarely happen as loadAthletes handles it)
+      setAthletes([]);
+    }
+    // Only run when activeTab changes, not when filters change (filters trigger loadAthletes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // Note: mock generator removed from UI; keep for potential dev usage
 
@@ -1615,8 +1730,9 @@ function ArrangeOrderPageContent({
 
     // Check if match needs setup (no participants selected)
     if (!match.participantIds || match.participantIds.length === 0) {
-      alert(
-        "Vui lòng setup trận đấu (chọn VĐV và gán trọng tài) trước khi bắt đầu."
+      toast.warning(
+        "Vui lòng setup trận đấu (chọn VĐV và gán trọng tài) trước khi bắt đầu.",
+        4000
       );
       return;
     }
@@ -1730,8 +1846,10 @@ function ArrangeOrderPageContent({
             fistConfigId?: string | null;
             fistItemId?: string | null;
             musicContentId?: string | null;
+            fieldId?: string | null;
           } = {
             durationSeconds: defaultTimerSec,
+            fieldId: match.fieldId ?? null,
           };
           if (match.type === "quyen") {
             if (match.fistConfigId) body.fistConfigId = match.fistConfigId;
@@ -1814,21 +1932,26 @@ function ArrangeOrderPageContent({
               pm,
               res: res.data,
             });
-            alert(
-              "Không thể tạo trận đấu. Vui lòng thử lại sau khi setup trận."
+            toast.error(
+              "Không thể tạo trận đấu. Vui lòng thử lại sau khi setup trận.",
+              4000
             );
             return;
           }
         } else {
           console.error("No performanceId found for athlete:", athleteId);
-          alert(
-            "Không thể tìm thấy thông tin performance. Vui lòng thử lại sau khi setup trận."
+          toast.error(
+            "Không thể tìm thấy thông tin performance. Vui lòng thử lại sau khi setup trận.",
+            4000
           );
           return;
         }
       } catch (error) {
         console.error("Failed to create PerformanceMatch:", error);
-        alert("Không thể tạo trận đấu. Vui lòng thử lại sau khi setup trận.");
+        toast.error(
+          "Không thể tạo trận đấu. Vui lòng thử lại sau khi setup trận.",
+          4000
+        );
         return;
       }
     }
@@ -1879,8 +2002,10 @@ function ArrangeOrderPageContent({
               fistConfigId?: string | null;
               fistItemId?: string | null;
               musicContentId?: string | null;
+              fieldId?: string | null;
             } = {
               durationSeconds: defaultTimerSec,
+              fieldId: match.fieldId ?? null,
             };
             if (match.type === "quyen") {
               if (match.fistConfigId) body.fistConfigId = match.fistConfigId;
@@ -1924,8 +2049,9 @@ function ArrangeOrderPageContent({
             }
           } catch (createError) {
             console.error("Failed to create PerformanceMatch:", createError);
-            alert(
-              "Không thể tạo trận đấu. Vui lòng thử lại sau khi setup trận."
+            toast.error(
+              "Không thể tạo trận đấu. Vui lòng thử lại sau khi setup trận.",
+              4000
             );
             return;
           }
@@ -1965,11 +2091,14 @@ function ArrangeOrderPageContent({
                 : m
             )
           );
-          alert("Không thể bắt đầu trận đấu. Vui lòng thử lại.");
+          toast.error("Không thể bắt đầu trận đấu. Vui lòng thử lại.", 4000);
         }
       } else {
         console.error("No PerformanceMatch ID available after creation");
-        alert("Không thể tìm thấy thông tin trận đấu. Vui lòng thử lại.");
+        toast.error(
+          "Không thể tìm thấy thông tin trận đấu. Vui lòng thử lại.",
+          4000
+        );
       }
     } else {
       // Fallback: use matchId for projection (manual matches without performance)
@@ -1987,12 +2116,22 @@ function ArrangeOrderPageContent({
     (match: Match) => {
       if (!match) return;
       const existingAssessors = match.assessors ?? {};
+      // Only keep assessors with actual values (not empty strings)
+      const validAssessors = Object.entries(existingAssessors).reduce(
+        (acc, [key, value]) => {
+          if (value && typeof value === "string" && value.trim() !== "") {
+            acc[key] = value;
+          }
+          return acc;
+        },
+        {} as Record<string, string>
+      );
       const assignedCount = [
-        existingAssessors.referee,
-        existingAssessors.judgeA,
-        existingAssessors.judgeB,
-        existingAssessors.judgeC,
-        existingAssessors.judgeD,
+        validAssessors.referee,
+        validAssessors.judgeA,
+        validAssessors.judgeB,
+        validAssessors.judgeC,
+        validAssessors.judgeD,
       ].filter(Boolean).length;
       const baseJudgesCount =
         typeof match?.judgesCount === "number" && match.judgesCount > 0
@@ -2003,7 +2142,7 @@ function ArrangeOrderPageContent({
       setSetupModal({
         open: true,
         matchId: match.id,
-        assessors: { ...existingAssessors },
+        assessors: validAssessors,
         judgesCount: derivedJudgesCount,
         defaultTimerSec: match?.timerSec ?? 120,
         fieldId: match?.fieldId || "",
@@ -2017,36 +2156,71 @@ function ArrangeOrderPageContent({
 
       // Prefill assigned assessors from backend (PerformanceMatch -> list assessors)
       // We map the returned list sequentially into referee, judgeA, judgeB, judgeC, judgeD
-      if (match.id) {
+      // Only fetch if match.assessors has no valid IDs (to avoid overwriting existing data)
+      const hasExistingAssessors = assignedCount > 0;
+      if (match.id && !hasExistingAssessors) {
         (async () => {
           try {
+            // Use PERFORMANCE_MATCHES.ASSESSORS endpoint for performance matches
             const res = await api.get(
-              API_ENDPOINTS.MATCH_ASSESSORS.LIST.replace("{matchId}", match.id)
+              API_ENDPOINTS.PERFORMANCE_MATCHES.ASSESSORS(match.id)
             );
             const data = (res as any)?.data as any;
-            const list: Array<{ assessorId?: string; userId?: string }> = (
+            const list: Array<{
+              assessorId?: string;
+              userId?: string;
+              position?: number;
+            }> = (
               Array.isArray(data?.content)
                 ? data.content
                 : Array.isArray(data)
                 ? data
                 : []
             ) as any[];
-            const ids = list
-              .map((it) => (it.assessorId || it.userId || "").toString())
-              .filter((s) => !!s);
+            const roleByPosition = new Map(
+              ASSESSOR_ROLES.map((role) => [role.position, role.key])
+            );
+            const assignments = list
+              .map((item) => {
+                const userId = (item?.userId || item?.assessorId || "")
+                  .toString()
+                  .trim();
+                if (!userId) return null;
+                const position =
+                  typeof item?.position === "number" ? item.position : null;
+                const roleKey =
+                  position !== null && roleByPosition.has(position)
+                    ? roleByPosition.get(position)
+                    : undefined;
+                return {
+                  userId,
+                  roleKey,
+                };
+              })
+              .filter(
+                (
+                  item
+                ): item is {
+                  userId: string;
+                  roleKey: keyof Match["assessors"] | undefined;
+                } => Boolean(item && item.userId)
+              );
 
-            if (ids.length > 0) {
-              const roleKeys = ASSESSOR_ROLES.map((r) => r.key);
-              const nextAssessors: Record<string, string> = {};
-              ids.slice(0, 5).forEach((id, idx) => {
-                const key = roleKeys[idx];
-                if (key) nextAssessors[key] = id;
+            if (assignments.length > 0) {
+              const nextAssessors = createEmptyAssessors();
+              assignments.forEach((assignment, idx) => {
+                const fallbackKey = ASSESSOR_ROLES[idx]?.key;
+                const key = assignment.roleKey ?? fallbackKey;
+                if (key) {
+                  nextAssessors[key] = assignment.userId;
+                }
               });
+              const assignedCount = assignments.length;
               setSetupModal((prev) => ({
                 ...prev,
                 assessors: { ...prev.assessors, ...nextAssessors },
                 judgesCount: Math.min(
-                  Math.max(ids.length || prev.judgesCount || 1, 1),
+                  Math.max(assignedCount || prev.judgesCount || 1, 1),
                   5
                 ),
               }));
@@ -2378,7 +2552,7 @@ function ArrangeOrderPageContent({
   const saveSetup = async () => {
     if (!setupModal.matchId || !selectedTournament) return;
     if (!setupModal.fieldId || setupModal.fieldId.trim() === "") {
-      alert("Vui lòng chọn sân thi đấu trước khi lưu thiết lập.");
+      toast.warning("Vui lòng chọn sân thi đấu trước khi lưu thiết lập.", 4000);
       return;
     }
 
@@ -2442,76 +2616,55 @@ function ArrangeOrderPageContent({
           "Failed to create Performance for individual athlete:",
           error
         );
-        alert(
-          "Không thể tạo Performance cho VĐV/đội. Vui lòng kiểm tra lại thông tin."
+        toast.error(
+          "Không thể tạo Performance cho VĐV/đội. Vui lòng kiểm tra lại thông tin.",
+          4000
         );
         return;
       }
     }
 
-    const maxJudges = Math.min(
-      Math.max(Number(setupModal.judgesCount || 1), 1),
-      5
+    const assignments = ASSESSOR_ROLES.map((role) => ({
+      key: role.key,
+      position: role.position,
+      userId: (setupModal.assessors[role.key as keyof Match["assessors"]] || "")
+        .toString()
+        .trim(),
+    }));
+
+    const missingAssignment = assignments.find(
+      (assignment) => !assignment.userId
     );
-    const rolesToInclude = ASSESSOR_ROLES.slice(0, maxJudges);
-    const selectedAssessorIds = rolesToInclude
-      .map((role) => setupModal.assessors[role.key as keyof Match["assessors"]])
-      .filter((value): value is string => Boolean(value));
-    const uniqueAssessorIds = Array.from(new Set(selectedAssessorIds));
+    if (missingAssignment) {
+      toast.error("Vui lòng chọn đủ 5 giám định trước khi lưu.", 4000);
+      return;
+    }
+
+    const uniqueAssessorIds = new Set(
+      assignments.map((assignment) => assignment.userId)
+    );
+    if (uniqueAssessorIds.size !== assignments.length) {
+      toast.error("Các giám định không được trùng lặp.", 4000);
+      return;
+    }
+
     const selectedField = fields.find(
       (field) => field.id === setupModal.fieldId
     );
-
-    try {
-      const listUrl = API_ENDPOINTS.MATCH_ASSESSORS.LIST.replace(
-        "{matchId}",
-        setupModal.matchId
-      );
-      const listRes = await api.get(listUrl);
-      const payloadList: any = (listRes as any)?.data;
-      const existingArr: Array<{
-        id?: string;
-        assessorId?: string;
-        userId?: string;
-      }> = Array.isArray(payloadList)
-        ? payloadList
-        : (payloadList?.content as Array<any>) ||
-          (payloadList?.data as Array<any>) ||
-          [];
-      const existingByPerson = new Map<string, string>();
-      existingArr.forEach((row) => {
-        const pid = (row.assessorId || row.userId || "").toString();
-        const rid = (row.id || "").toString();
-        if (pid && rid) existingByPerson.set(pid, rid);
-      });
-      for (const [personId, assignId] of existingByPerson.entries()) {
-        if (!uniqueAssessorIds.includes(personId) && assignId) {
-          try {
-            await api.delete(API_ENDPOINTS.MATCH_ASSESSORS.BY_ID(assignId));
-          } catch {
-            /* ignore */
-          }
-        }
-      }
-    } catch {
-      /* ignore */
+    if (!selectedField) {
+      toast.error("Không tìm thấy thông tin sân đã chọn.", 4000);
+      return;
     }
 
-    for (const assessorId of uniqueAssessorIds) {
-      if (!assessorId) continue;
-      const payload: any = { userId: assessorId, specialization };
-      if (specialization === "QUYEN" || specialization === "MUSIC") {
-        payload.performanceId = derivedPerformanceId;
-      } else {
-        payload.matchId = setupModal.matchId;
-        payload.role = "ASSESSOR";
-        payload.position = 1;
-      }
-      try {
-        await api.post(API_ENDPOINTS.ASSESSORS.ASSIGN, payload);
-      } catch {
-        /* ignore */
-      }
+    if (
+      (specialization === "QUYEN" || specialization === "MUSIC") &&
+      !derivedPerformanceId
+    ) {
+      toast.error(
+        "Không thể xác định thông tin performance để lưu thiết lập.",
+        4000
+      );
+      return;
     }
 
     let pm: any = null;
@@ -2521,6 +2674,7 @@ function ArrangeOrderPageContent({
     ) {
       const body: any = {
         durationSeconds: setupModal.defaultTimerSec,
+        fieldId: setupModal.fieldId,
       };
       if (specialization === "QUYEN") {
         if (match.fistConfigId) body.fistConfigId = match.fistConfigId;
@@ -2535,6 +2689,58 @@ function ArrangeOrderPageContent({
         body
       );
       pm = res.data;
+    }
+
+    const pmData = pm && typeof pm === "object" && "data" in pm ? pm.data : pm;
+    const persistedMatchId = (pmData && pmData.id) || match.id;
+
+    try {
+      const listRes = await api.get<any>(
+        API_ENDPOINTS.PERFORMANCE_MATCHES.ASSESSORS(persistedMatchId)
+      );
+      const payloadList: any = (listRes as any)?.data;
+      const existingArr: Array<any> = Array.isArray(payloadList)
+        ? payloadList
+        : Array.isArray((payloadList as any)?.data)
+        ? ((payloadList as any)?.data as Array<any>)
+        : [];
+      await Promise.all(
+        existingArr.map((row) => {
+          const assessorRecordId = (row?.id || "").toString();
+          if (!assessorRecordId) return Promise.resolve();
+          return api.delete(API_ENDPOINTS.ASSESSORS.BY_ID(assessorRecordId));
+        })
+      );
+    } catch {
+      // ignore cleanup errors
+    }
+
+    let assignmentFailed = false;
+    await Promise.all(
+      assignments.map(async (assignment) => {
+        const payload: any = {
+          userId: assignment.userId,
+          specialization,
+          performanceId: derivedPerformanceId,
+          performanceMatchId: persistedMatchId,
+          role: "ASSESSOR",
+          position: assignment.position,
+        };
+        try {
+          await api.post(API_ENDPOINTS.ASSESSORS.ASSIGN, payload);
+        } catch (error) {
+          console.error("Failed to assign assessor:", error);
+          toast.error(
+            "Không thể gán giám định. Vui lòng thử lại hoặc kiểm tra kết nối.",
+            4000
+          );
+          assignmentFailed = true;
+        }
+      })
+    );
+
+    if (assignmentFailed) {
+      return;
     }
 
     let derivedGender: "MALE" | "FEMALE" | undefined = match.gender;
@@ -2574,39 +2780,57 @@ function ArrangeOrderPageContent({
           match.contentName ||
           "-";
 
+    // If standalone mode, close modal and navigate immediately to prevent flickering
+    // Otherwise, update state first then close modal
+    if (isStandaloneMode) {
+      // Close modal and navigate immediately
+      setSetupModal(createDefaultSetupState());
+      setHasStandaloneSetupInitialized(false);
+      toast.success("Đã lưu thiết lập trận biểu diễn!", 3000);
+      // Navigate immediately without waiting for state update
+      navigate(buildReturnPath());
+      // State will be updated when page reloads
+      return;
+    }
+
+    // For non-standalone mode, update state then close modal
     setMatches((prev) =>
       prev.map((m) => {
         if (m.id !== match.id) return m;
-        const nextAssessors = rolesToInclude.reduce((acc, role) => {
-          const id = setupModal.assessors[role.key as keyof Match["assessors"]];
-          if (id) acc[role.key] = id;
+        const nextAssessors = assignments.reduce((acc, assignment) => {
+          acc[assignment.key] = assignment.userId;
           return acc;
-        }, {} as Match["assessors"]);
+        }, createEmptyAssessors());
         return {
           ...m,
+          id: pmData?.id || m.id,
           contentName: updatedContentName,
           participantIds,
           participants: participantNames,
           assessors: nextAssessors,
-          judgesCount: maxJudges,
+          judgesCount: ASSESSOR_ROLES.length,
           timerSec: setupModal.defaultTimerSec,
           performanceId: derivedPerformanceId,
-          matchOrder: pm?.matchOrder ?? m.matchOrder,
-          status: pm?.status ?? m.status,
+          matchOrder: pmData?.matchOrder ?? m.matchOrder,
+          status: pmData?.status ?? m.status,
           fistConfigId: match.fistConfigId ?? null,
           fistItemId: match.fistItemId ?? null,
           musicContentId: match.musicContentId ?? null,
           gender: derivedGender ?? m.gender,
           teamType: derivedTeamType,
           teamName: derivedTeamType === "TEAM" ? resolvedTeamName : null,
-          fieldId: setupModal.fieldId ? setupModal.fieldId : null,
-          fieldName: selectedField?.location ?? m.fieldName ?? null,
+          fieldId:
+            pmData?.fieldId ?? (setupModal.fieldId ? setupModal.fieldId : null),
+          fieldName:
+            pmData?.fieldLocation ??
+            selectedField?.location ??
+            m.fieldName ??
+            null,
         };
       })
     );
-    if (!isStandaloneMode) {
-      closeSetupModal();
-    }
+    toast.success("Đã lưu thiết lập trận biểu diễn!", 3000);
+    closeSetupModal();
   };
 
   // assessor summary hidden on cards
@@ -2750,7 +2974,7 @@ function ArrangeOrderPageContent({
             <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
                 <h4 className="text-lg font-semibold text-gray-900">
-                  Phân công giám định viên
+                  Phân công giám định
                 </h4>
                 <p className="text-sm text-gray-500">
                   Chỉ định giám định cho từng vị trí

@@ -16,6 +16,8 @@ public class SavePerformanceMatchSetupRequest {
     private String fistConfigId;   // for QUYEN
     private String fistItemId;     // for QUYEN
     private String musicContentId; // for MUSIC
+
+    private String fieldId;        // optional field assignment
 }
 
 

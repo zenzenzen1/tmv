@@ -139,6 +139,8 @@ export const API_ENDPOINTS = {
       `/v1/performance-matches/performance/${performanceId}`,
     BY_COMPETITION: (competitionId: string) =>
       `/v1/performance-matches/competition/${competitionId}`,
+    ASSESSORS: (performanceMatchId: string) =>
+      `/v1/performance-matches/${performanceMatchId}/assessors`,
   },
 
   // Club Members
@@ -216,10 +218,12 @@ export const API_ENDPOINTS = {
 
   // Epic B: Session Attendance
   ATTENDANCE: {
-    BY_SESSION: (sessionId: string) => `/v1/training-sessions/${sessionId}/attendance`,
+    BY_SESSION: (sessionId: string) =>
+      `/v1/training-sessions/${sessionId}/attendance`,
     BY_ATTENDANCE_ID: (sessionId: string, id: string) =>
       `/v1/training-sessions/${sessionId}/attendance/${id}`,
-    BULK: (sessionId: string) => `/v1/training-sessions/${sessionId}/attendance/bulk`,
+    BULK: (sessionId: string) =>
+      `/v1/training-sessions/${sessionId}/attendance/bulk`,
     STATISTICS: (sessionId: string) =>
       `/v1/training-sessions/${sessionId}/attendance/statistics`,
   },

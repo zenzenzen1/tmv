@@ -66,6 +66,12 @@ public class PerformanceMatch extends BaseEntity {
     @Column(name = "duration_seconds")
     private Integer durationSeconds; // Planned timer seconds
 
+    @Column(name = "field_id")
+    private String fieldId;
+
+    @Column(name = "field_location")
+    private String fieldLocation;
+
     // Relationships
     @OneToMany(mappedBy = "performanceMatch", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
