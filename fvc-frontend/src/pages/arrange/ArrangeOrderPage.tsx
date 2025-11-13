@@ -149,7 +149,7 @@ export default function ArrangeOrderPage({
             eduMail?: string;
             systemRole?: string;
           }>
-        >(API_ENDPOINTS.ASSESSORS.AVAILABLE);
+        >(API_ENDPOINTS.MATCH_ASSESSORS.AVAILABLE);
 
         // BaseResponse structure or plain array
         const payload: any = res?.data as any;
@@ -2295,7 +2295,7 @@ export default function ArrangeOrderPage({
           payload.position = 1;
         }
         try {
-          await api.post(API_ENDPOINTS.ASSESSORS.ASSIGN, payload);
+          await api.post(API_ENDPOINTS.MATCH_ASSESSORS.ASSIGN_SINGLE, payload);
         } catch {}
       }
 

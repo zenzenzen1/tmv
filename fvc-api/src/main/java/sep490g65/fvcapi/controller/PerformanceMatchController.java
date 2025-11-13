@@ -10,7 +10,7 @@ import sep490g65.fvcapi.entity.PerformanceMatch;
 import sep490g65.fvcapi.service.PerformanceMatchService;
 import sep490g65.fvcapi.utils.ResponseUtils;
 import sep490g65.fvcapi.dto.request.SavePerformanceMatchSetupRequest;
-import sep490g65.fvcapi.dto.response.AssessorResponse;
+import sep490g65.fvcapi.dto.response.MatchAssessorResponse;
 
 import jakarta.validation.Valid;
 import java.util.List;
@@ -47,9 +47,9 @@ public class PerformanceMatchController {
     }
 
     @GetMapping("/{performanceMatchId}/assessors")
-    public ResponseEntity<BaseResponse<List<AssessorResponse>>> getAssessorsByPerformanceMatch(
+    public ResponseEntity<BaseResponse<List<MatchAssessorResponse>>> getAssessorsByPerformanceMatch(
             @PathVariable String performanceMatchId) {
-        List<AssessorResponse> responses = performanceMatchService.getAssessorsByPerformanceMatchId(performanceMatchId);
+        List<MatchAssessorResponse> responses = performanceMatchService.getAssessorsByPerformanceMatchId(performanceMatchId);
         return ResponseEntity.ok(ResponseUtils.success("Assessors retrieved", responses));
     }
 

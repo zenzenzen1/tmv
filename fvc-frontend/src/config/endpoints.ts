@@ -115,22 +115,6 @@ export const API_ENDPOINTS = {
     STATUS: "/v1/athletes/status",
   },
 
-  // Assessors
-  ASSESSORS: {
-    BASE: "/v1/assessors",
-    AVAILABLE: "/v1/assessors/available",
-    MY_ASSIGNMENTS: "/v1/assessors/my-assignments",
-    BY_COMPETITION: (competitionId: string) =>
-      `/v1/assessors/competition/${competitionId}`,
-    BY_COMPETITION_AND_SPECIALIZATION: (
-      competitionId: string,
-      specialization: string
-    ) =>
-      `/v1/assessors/competition/${competitionId}/specialization/${specialization}`,
-    ASSIGN: "/v1/assessors/assign",
-    BY_ID: (id: string) => `/v1/assessors/${id}`,
-  },
-
   // Performance matches (quyền/võ nhạc)
   PERFORMANCE_MATCHES: {
     SAVE_BY_PERFORMANCE: (performanceId: string) =>
@@ -178,10 +162,21 @@ export const API_ENDPOINTS = {
 
   // Match Assessors
   MATCH_ASSESSORS: {
+    BASE: "/v1/match-assessors",
+    AVAILABLE: "/v1/match-assessors/available",
     ASSIGN: "/v1/match-assessors/assign",
+    ASSIGN_BY_PERFORMANCE: "/v1/match-assessors/assign/performance",
+    ASSIGN_SINGLE: "/v1/match-assessors/assign/single",
     LIST: "/v1/match-assessors/match/{matchId}",
     BY_ID: (id: string) => `/v1/match-assessors/${id}`,
-    MY_ASSIGNMENTS: "/v1/match-assessors/my-assignments",
+    MY_ASSIGNMENTS: "/v1/match-assessors/my-assigned-matches",
+    BY_COMPETITION: (competitionId: string) =>
+      `/v1/match-assessors/competition/${competitionId}`,
+    BY_COMPETITION_AND_SPECIALIZATION: (
+      competitionId: string,
+      specialization: string
+    ) =>
+      `/v1/match-assessors/competition/${competitionId}/specialization/${specialization}`,
   },
 
   // Scoring (Performance projection)

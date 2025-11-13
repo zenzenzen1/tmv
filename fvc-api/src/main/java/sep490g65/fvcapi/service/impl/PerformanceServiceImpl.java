@@ -26,7 +26,7 @@ public class PerformanceServiceImpl implements PerformanceService {
     private final PerformanceAthleteRepository performanceAthleteRepository;
     private final AthleteRepository athleteRepository;
     private final CompetitionRepository competitionRepository;
-    private final AssessorRepository assessorRepository;
+    private final MatchAssessorRepository matchAssessorRepository;
     private final AssessorScoreRepository assessorScoreRepository;
     private final sep490g65.fvcapi.repository.VovinamFistConfigRepository vovinamFistConfigRepository;
     private final sep490g65.fvcapi.repository.PerformanceMatchRepository performanceMatchRepository;
@@ -531,18 +531,19 @@ public class PerformanceServiceImpl implements PerformanceService {
                 .collect(Collectors.toList());
 
         // Get assessors for this performance
-        List<Assessor> assessors = assessorRepository.findByPerformanceIdAndSpecialization(
+        List<MatchAssessor> assessors = matchAssessorRepository.findByPerformanceIdAndSpecialization(
                 performance.getId(), 
                 performance.getContentType() == Performance.ContentType.QUYEN ? 
-                    Assessor.Specialization.QUYEN : 
+                    MatchAssessor.Specialization.QUYEN : 
                     performance.getContentType() == Performance.ContentType.MUSIC ? 
-                        Assessor.Specialization.MUSIC : 
-                        Assessor.Specialization.FIGHTING
+                        MatchAssessor.Specialization.MUSIC : 
+                        MatchAssessor.Specialization.FIGHTING
         );
         
         List<PerformanceResponse.AssessorInfo> assessorInfos = assessors.stream()
                 .map(a -> PerformanceResponse.AssessorInfo.builder()
                         .id(a.getId())
+                        .userId(a.getUser() != null ? a.getUser().getId() : null)
                         .fullName(a.getUser().getFullName())
                         .email(a.getUser().getPersonalMail())
                         .specialization(a.getSpecialization())

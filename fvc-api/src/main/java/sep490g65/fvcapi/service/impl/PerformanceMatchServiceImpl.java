@@ -8,14 +8,14 @@ import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.request.CreatePerformanceMatchRequest;
 import sep490g65.fvcapi.dto.response.PerformanceMatchResponse;
 import sep490g65.fvcapi.dto.request.SavePerformanceMatchSetupRequest;
-import sep490g65.fvcapi.dto.response.AssessorResponse;
-import sep490g65.fvcapi.entity.Assessor;
+import sep490g65.fvcapi.dto.response.MatchAssessorResponse;
 import sep490g65.fvcapi.entity.Competition;
 import sep490g65.fvcapi.entity.Field;
+import sep490g65.fvcapi.entity.MatchAssessor;
 import sep490g65.fvcapi.entity.Performance;
 import sep490g65.fvcapi.entity.PerformanceAthlete;
 import sep490g65.fvcapi.entity.PerformanceMatch;
-import sep490g65.fvcapi.repository.AssessorRepository;
+import sep490g65.fvcapi.repository.MatchAssessorRepository;
 import sep490g65.fvcapi.repository.CompetitionRepository;
 import sep490g65.fvcapi.repository.FieldRepository;
 import sep490g65.fvcapi.repository.PerformanceAthleteRepository;
@@ -34,7 +34,7 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
     private final PerformanceMatchRepository performanceMatchRepository;
     private final PerformanceRepository performanceRepository;
     private final CompetitionRepository competitionRepository;
-    private final AssessorRepository assessorRepository;
+    private final MatchAssessorRepository matchAssessorRepository;
     private final PerformanceAthleteRepository performanceAthleteRepository;
     private final FieldRepository fieldRepository;
     private final SimpMessagingTemplate messagingTemplate;
@@ -331,13 +331,27 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
             }
         }
 
-        // Link all assessors assigned to this performance with the PerformanceMatch
-        List<Assessor> assessors = assessorRepository.findByPerformanceId(performanceId);
-        for (Assessor assessor : assessors) {
-            if (assessor.getPerformanceMatch() == null) {
-                assessor.setPerformanceMatch(performanceMatch);
-                assessorRepository.save(assessor);
-                log.info("Linked assessor {} to PerformanceMatch {}", assessor.getId(), performanceMatch.getId());
+        // Link strategy:
+        // If this PerformanceMatch already has assigned assessors, do not auto-link from performance-level.
+        // This prevents overwriting explicit selections made in the setup UI.
+        List<MatchAssessor> currentPmAssessors = matchAssessorRepository.findByPerformanceMatchId(performanceMatch.getId());
+        if (currentPmAssessors == null || currentPmAssessors.isEmpty()) {
+            // Only when there are no PM-level assessors, link performance-level ones (legacy)
+            MatchAssessor.Specialization specialization = null;
+            if (performance.getContentType() == Performance.ContentType.QUYEN) {
+                specialization = MatchAssessor.Specialization.QUYEN;
+            } else if (performance.getContentType() == Performance.ContentType.MUSIC) {
+                specialization = MatchAssessor.Specialization.MUSIC;
+            }
+            List<MatchAssessor> assessors = matchAssessorRepository.findByPerformanceId(performanceId);
+            for (MatchAssessor assessor : assessors) {
+                if (assessor.getPerformanceMatch() == null) {
+                    assessor.setPerformanceMatch(performanceMatch);
+                    if (assessor.getSpecialization() == null && specialization != null) {
+                        assessor.setSpecialization(specialization);
+                    }
+                    matchAssessorRepository.save(assessor);
+                }
             }
         }
 
@@ -355,7 +369,9 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
 
         // Update status to READY if has athletes and assessors
         int athleteCount = athletes.size();
-        if (athleteCount > 0 && !assessors.isEmpty()) {
+        // Recompute current PM assessors for readiness evaluation
+        currentPmAssessors = matchAssessorRepository.findByPerformanceMatchId(performanceMatch.getId());
+        if (athleteCount > 0 && currentPmAssessors != null && !currentPmAssessors.isEmpty()) {
             // Use updatePerformanceMatchStatus to trigger sync with Performance
             // This ensures Performance status is synced to PENDING when PerformanceMatch becomes READY
             updatePerformanceMatchStatus(performanceMatch.getId(), PerformanceMatch.MatchStatus.READY);
@@ -367,17 +383,17 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
         }
 
         log.info("Saved PerformanceMatch setup for performance {}: {} athletes, {} assessors", 
-                performanceId, athleteCount, assessors.size());
+                performanceId, athleteCount, (currentPmAssessors != null ? currentPmAssessors.size() : 0));
         
         return PerformanceMatchResponse.from(performanceMatch, athletes);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<AssessorResponse> getAssessorsByPerformanceMatchId(String performanceMatchId) {
-        List<Assessor> assessors = assessorRepository.findByPerformanceMatchId(performanceMatchId);
+    public List<MatchAssessorResponse> getAssessorsByPerformanceMatchId(String performanceMatchId) {
+        List<MatchAssessor> assessors = matchAssessorRepository.findByPerformanceMatchId(performanceMatchId);
         return assessors.stream()
-                .map(AssessorResponse::from)
+                .map(MatchAssessorResponse::from)
                 .collect(Collectors.toList());
     }
 }

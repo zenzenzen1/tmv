@@ -4,8 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import sep490g65.fvcapi.entity.MatchAssessor;
 import sep490g65.fvcapi.entity.Performance;
-import sep490g65.fvcapi.entity.Assessor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -68,9 +68,10 @@ public class PerformanceResponse {
     @AllArgsConstructor
     public static class AssessorInfo {
         private String id;
+        private String userId;
         private String fullName;
         private String email;
-        private Assessor.Specialization specialization;
+        private MatchAssessor.Specialization specialization;
     }
     
     @Data

@@ -75,7 +75,7 @@ public class PerformanceMatch extends BaseEntity {
     // Relationships
     @OneToMany(mappedBy = "performanceMatch", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private java.util.List<Assessor> assessors = new java.util.ArrayList<>();
+    private java.util.List<MatchAssessor> assessors = new java.util.ArrayList<>();
 
     public enum MatchStatus {
         PENDING,      // Chờ thiết lập

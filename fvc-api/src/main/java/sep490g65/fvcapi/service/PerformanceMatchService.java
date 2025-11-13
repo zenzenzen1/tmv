@@ -4,7 +4,7 @@ import sep490g65.fvcapi.dto.request.CreatePerformanceMatchRequest;
 import sep490g65.fvcapi.dto.response.PerformanceMatchResponse;
 import sep490g65.fvcapi.dto.request.SavePerformanceMatchSetupRequest;
 import sep490g65.fvcapi.entity.PerformanceMatch;
-import sep490g65.fvcapi.dto.response.AssessorResponse;
+import sep490g65.fvcapi.dto.response.MatchAssessorResponse;
 
 import java.util.List;
 
@@ -30,6 +30,6 @@ public interface PerformanceMatchService {
      */
     PerformanceMatchResponse savePerformanceMatchSetup(String performanceId, SavePerformanceMatchSetupRequest options);
 
-    List<AssessorResponse> getAssessorsByPerformanceMatchId(String performanceMatchId);
+    List<MatchAssessorResponse> getAssessorsByPerformanceMatchId(String performanceMatchId);
 }
 

@@ -86,6 +86,92 @@ const COMPETITION_TYPES: Record<CompetitionType, string> = {
   music: "Võ nhạc",
 };
 
+const MATCH_TYPE_SEQUENCE: CompetitionType[] = ["quyen", "music"];
+
+const getMatchPriorityOrder = (match: Match): number => {
+  if (
+    typeof match.matchOrder === "number" &&
+    Number.isFinite(match.matchOrder)
+  ) {
+    return match.matchOrder;
+  }
+  if (typeof match.order === "number" && Number.isFinite(match.order)) {
+    return match.order;
+  }
+  return Number.MAX_SAFE_INTEGER;
+};
+
+const compareMatchPosition = (a: Match, b: Match): number => {
+  const diff = getMatchPriorityOrder(a) - getMatchPriorityOrder(b);
+  if (diff !== 0) return diff;
+  const contentA = (a.contentName || "").toLowerCase();
+  const contentB = (b.contentName || "").toLowerCase();
+  if (contentA !== contentB) return contentA.localeCompare(contentB);
+  return (a.id || "").localeCompare(b.id || "");
+};
+
+const normalizeMatches = (input: Match[]): Match[] => {
+  const grouped = new Map<CompetitionType, Match[]>();
+  MATCH_TYPE_SEQUENCE.forEach((type) => grouped.set(type, []));
+  const extra: Match[] = [];
+
+  input.forEach((match) => {
+    if (grouped.has(match.type)) {
+      grouped.get(match.type)!.push(match);
+    } else {
+      extra.push(match);
+    }
+  });
+
+  const applyOrdering = (items: Match[]): Match[] =>
+    items.map((match, index) => {
+      const hasExplicit =
+        typeof match.matchOrder === "number" &&
+        Number.isFinite(match.matchOrder);
+      const resolvedOrder: number = hasExplicit
+        ? (match.matchOrder as number)
+        : index + 1;
+      if (match.order === resolvedOrder) {
+        return match;
+      }
+      return { ...match, order: resolvedOrder };
+    });
+
+  const normalized: Match[] = [];
+
+  MATCH_TYPE_SEQUENCE.forEach((type) => {
+    const items = grouped.get(type);
+    if (!items || items.length === 0) return;
+    const sorted = items.slice().sort(compareMatchPosition);
+    normalized.push(...applyOrdering(sorted));
+  });
+
+  if (extra.length > 0) {
+    const sortedExtra = extra.slice().sort(compareMatchPosition);
+    normalized.push(...applyOrdering(sortedExtra));
+  }
+
+  return normalized;
+};
+
+const resolveMatchDisplayOrder = (match: Match, index: number): number => {
+  if (
+    typeof match.matchOrder === "number" &&
+    Number.isFinite(match.matchOrder) &&
+    match.matchOrder > 0
+  ) {
+    return match.matchOrder;
+  }
+  if (
+    typeof match.order === "number" &&
+    Number.isFinite(match.order) &&
+    match.order > 0
+  ) {
+    return match.order;
+  }
+  return index + 1;
+};
+
 export default function SelectPerformanceMatchPage() {
   const { matchId: routeMatchId } = useParams<{ matchId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -202,14 +288,14 @@ function getStatusLabel(status: string | undefined): string {
 const ASSESSOR_ROLES: Array<{
   key: keyof Match["assessors"];
   label: string;
-  subtitle?: string;
+  subtitle: string;
   position: number;
 }> = [
-  { key: "referee", label: "Giám định 1", position: 0 },
-  { key: "judgeA", label: "Giám định 2", position: 1 },
-  { key: "judgeB", label: "Giám định 3", position: 2 },
-  { key: "judgeC", label: "Giám định 4", position: 3 },
-  { key: "judgeD", label: "Giám định 5", position: 4 },
+  { key: "referee", label: "Giám định 1", subtitle: "Giám định", position: 0 },
+  { key: "judgeA", label: "Giám định 2", subtitle: "Giám định", position: 1 },
+  { key: "judgeB", label: "Giám định 3", subtitle: "Giám định", position: 2 },
+  { key: "judgeC", label: "Giám định 4", subtitle: "Giám định", position: 3 },
+  { key: "judgeD", label: "Giám định 5", subtitle: "Giám định", position: 4 },
 ];
 
 const createEmptyAssessors = () =>
@@ -217,6 +303,20 @@ const createEmptyAssessors = () =>
     acc[role.key] = "";
     return acc;
   }, {} as Record<keyof Match["assessors"], string>);
+
+type AssessorDetail = {
+  id: string;
+  fullName?: string;
+  email?: string;
+};
+
+const createEmptyAssessorDetails = () =>
+  ASSESSOR_ROLES.reduce((acc, role) => {
+    acc[role.key] = null;
+    return acc;
+  }, {} as Record<keyof Match["assessors"], AssessorDetail | null>);
+
+const BULK_PERFORMANCE_ASSIGNMENT_ENABLED = false;
 
 interface ArrangeOrderPageContentProps {
   activeTab: CompetitionType;
@@ -315,10 +415,20 @@ function ArrangeOrderPageContent({
   const [availableAssessors, setAvailableAssessors] = useState<
     Array<{ id: string; fullName: string; email: string }>
   >([]);
+  const [isAssessorsLoading, setIsAssessorsLoading] = useState(false);
+  const [showAssignAssessorsModal, setShowAssignAssessorsModal] =
+    useState(false);
+  const [assignModalAssessors, setAssignModalAssessors] = useState<
+    Record<keyof Match["assessors"], string>
+  >(createEmptyAssessors());
+  const [assignModalAssessorDetails, setAssignModalAssessorDetails] = useState<
+    Record<keyof Match["assessors"], AssessorDetail | null>
+  >(createEmptyAssessorDetails());
 
   // Load available assessors
   useEffect(() => {
     const loadAssessors = async () => {
+      setIsAssessorsLoading(true);
       try {
         const res = await api.get<
           Array<{
@@ -328,7 +438,7 @@ function ArrangeOrderPageContent({
             eduMail?: string;
             systemRole?: string;
           }>
-        >(API_ENDPOINTS.ASSESSORS.AVAILABLE);
+        >(API_ENDPOINTS.MATCH_ASSESSORS.AVAILABLE);
 
         // BaseResponse structure or plain array
         const payload: any = res?.data as any;
@@ -355,6 +465,8 @@ function ArrangeOrderPageContent({
       } catch (error) {
         console.error("Failed to load assessors:", error);
         setAvailableAssessors([]);
+      } finally {
+        setIsAssessorsLoading(false);
       }
     };
     loadAssessors();
@@ -389,14 +501,16 @@ function ArrangeOrderPageContent({
           activeTab === "quyen" ? "Nội dung Quyền" : "Nội dung Võ nhạc",
         participantIds: [],
         participants: [],
-        assessors: {},
+        assessors: createEmptyAssessors(),
         fieldId: undefined,
         fieldName: undefined,
       }));
-      setMatches((prev) => [
-        ...prev.filter((m) => m.type !== activeTab),
-        ...defaults,
-      ]);
+      setMatches((prev) =>
+        normalizeMatches([
+          ...prev.filter((m) => m.type !== activeTab),
+          ...defaults,
+        ])
+      );
     }
   }, [activeTab, matches, selectedTournament]);
 
@@ -406,7 +520,8 @@ function ArrangeOrderPageContent({
     () => ({
       open: false,
       matchId: undefined as string | undefined,
-      assessors: {} as Record<string, string>,
+      assessors: createEmptyAssessors(),
+      assessorDetails: createEmptyAssessorDetails(),
       judgesCount: 5,
       defaultTimerSec: 120,
       fieldId: "" as string | undefined,
@@ -417,13 +532,78 @@ function ArrangeOrderPageContent({
     open: boolean;
     matchId?: string;
     assessors: Record<string, string>;
+    assessorDetails: Record<string, AssessorDetail | null>;
     judgesCount: number;
     defaultTimerSec: number;
     fieldId?: string;
-  }>(createDefaultSetupState);
+  }>(createDefaultSetupState());
   const [hasStandaloneSetupInitialized, setHasStandaloneSetupInitialized] =
     useState(false);
   const [fields, setFields] = useState<FieldResponse[]>([]);
+
+  useEffect(() => {
+    if (!setupModal.open) return;
+    setSetupModal((prev) => {
+      if (!prev.open) return prev;
+      const updatedDetails = { ...prev.assessorDetails };
+      let changed = false;
+      ASSESSOR_ROLES.forEach((role) => {
+        const id = prev.assessors[role.key];
+        if (id) {
+          const info = availableAssessors.find(
+            (assessor) => assessor.id === id
+          );
+          if (info) {
+            const prevDetail = updatedDetails[role.key];
+            if (
+              !prevDetail ||
+              prevDetail.fullName !== info.fullName ||
+              prevDetail.email !== info.email
+            ) {
+              updatedDetails[role.key] = {
+                id,
+                fullName: info.fullName,
+                email: info.email,
+              };
+              changed = true;
+            }
+          }
+        }
+      });
+      if (!changed) return prev;
+      return {
+        ...prev,
+        assessorDetails: updatedDetails,
+      };
+    });
+  }, [availableAssessors, setupModal.open, setSetupModal]);
+
+  useEffect(() => {
+    if (!showAssignAssessorsModal) return;
+    const nextAssessors = createEmptyAssessors();
+    ASSESSOR_ROLES.forEach((role) => {
+      const value = (setupModal.assessors[role.key] || "").toString();
+      nextAssessors[role.key] = value;
+    });
+    setAssignModalAssessors(nextAssessors);
+
+    const nextDetails = createEmptyAssessorDetails();
+    ASSESSOR_ROLES.forEach((role) => {
+      const detail = setupModal.assessorDetails[role.key];
+      nextDetails[role.key] = detail
+        ? {
+            id: detail.id,
+            fullName: detail.fullName,
+            email: detail.email,
+          }
+        : null;
+    });
+    setAssignModalAssessorDetails(nextDetails);
+  }, [
+    showAssignAssessorsModal,
+    setupModal.assessors,
+    setupModal.assessorDetails,
+  ]);
 
   // Filter states for quyen and music
   const [subCompetitionFilter, setSubCompetitionFilter] = useState<string>(
@@ -466,10 +646,12 @@ function ArrangeOrderPageContent({
               };
               if (!payload?.status || !payload?.performanceId) return;
               setMatches((prev) =>
-                prev.map((it) =>
-                  it.performanceId === payload.performanceId
-                    ? { ...it, status: payload.status }
-                    : it
+                normalizeMatches(
+                  prev.map((it) =>
+                    it.performanceId === payload.performanceId
+                      ? { ...it, status: payload.status }
+                      : it
+                  )
                 )
               );
             } catch {}
@@ -710,7 +892,7 @@ function ArrangeOrderPageContent({
       ? fistItems.find((i) => i.id === detailCompetitionFilter)?.name || ""
       : "";
 
-    return matchesForActiveType.filter((match) => {
+    const filteredList = matchesForActiveType.filter((match) => {
       // For saved matches (have performanceId), filter by match-level IDs if available
       if (match.performanceId) {
         // Gender separation: use match.gender if present; else derive from participants/athletes list
@@ -980,6 +1162,8 @@ function ArrangeOrderPageContent({
         return true;
       });
     });
+
+    return filteredList.sort(compareMatchPosition);
   }, [
     matchesForActiveType,
     athletes,
@@ -1215,7 +1399,14 @@ function ArrangeOrderPageContent({
         const res = await api.get<any[]>(
           API_ENDPOINTS.PERFORMANCE_MATCHES.BY_COMPETITION(selectedTournament)
         );
-        const list = (res.data || []) as Array<any>;
+        const resPayload: any = (res as any)?.data;
+        const list: Array<any> = Array.isArray(resPayload)
+          ? resPayload
+          : Array.isArray(resPayload?.data)
+          ? (resPayload?.data as Array<any>)
+          : Array.isArray(resPayload?.content)
+          ? (resPayload?.content as Array<any>)
+          : [];
         const perfCacheUpdates: Record<string, Record<string, unknown>> = {};
         // Map to Match[] for both tabs to prevent flicker when switching
         const mapped: Match[] = list
@@ -1349,7 +1540,7 @@ function ArrangeOrderPageContent({
                 matchType === "quyen" ? "Nội dung Quyền" : "Nội dung Võ nhạc",
               participantIds,
               participants,
-              assessors: {},
+              assessors: createEmptyAssessors(),
               judgesCount: undefined,
               timerSec: pm.durationSeconds ?? undefined,
               performanceId: pm.performanceId,
@@ -1372,7 +1563,14 @@ function ArrangeOrderPageContent({
               // Use PERFORMANCE_MATCHES.ASSESSORS endpoint for performance matches
               const url = API_ENDPOINTS.PERFORMANCE_MATCHES.ASSESSORS(m.id);
               const res = await api.get(url);
-              const payload: any = (res as any)?.data;
+              const payloadRoot: any = (res as any)?.data;
+              const payload: any = Array.isArray(payloadRoot)
+                ? payloadRoot
+                : Array.isArray(payloadRoot?.data)
+                ? payloadRoot?.data
+                : Array.isArray(payloadRoot?.content)
+                ? payloadRoot?.content
+                : [];
               const arr: Array<any> = Array.isArray(payload)
                 ? payload
                 : (payload?.content as Array<any>) ||
@@ -1383,17 +1581,34 @@ function ArrangeOrderPageContent({
                 const roleByPosition = new Map(
                   ASSESSOR_ROLES.map((role) => [role.position, role.key])
                 );
+                const numericPositions = arr
+                  .map((candidate: any) =>
+                    typeof candidate?.position === "number"
+                      ? candidate.position
+                      : undefined
+                  )
+                  .filter((val): val is number => typeof val === "number");
+                const isOneBasedPositions =
+                  numericPositions.length > 0 &&
+                  !numericPositions.some((val) => val === 0) &&
+                  numericPositions.some((val) => val === ASSESSOR_ROLES.length);
                 const nextAssessors: Record<string, string> =
                   createEmptyAssessors();
                 arr.slice(0, 5).forEach((a: any, idx: number) => {
                   // AssessorResponse has userId field
                   const id = (a && (a.userId || a.assessorId || a.id)) || "";
                   if (!id) return;
-                  const position =
+                  const rawPosition =
                     typeof a?.position === "number" ? a.position : undefined;
+                  const normalizedPosition =
+                    rawPosition === undefined
+                      ? undefined
+                      : isOneBasedPositions
+                      ? Math.max(rawPosition - 1, 0)
+                      : rawPosition;
                   const roleKey =
-                    (position !== undefined
-                      ? roleByPosition.get(position)
+                    (normalizedPosition !== undefined
+                      ? roleByPosition.get(normalizedPosition)
                       : undefined) || roleKeys[idx];
                   if (roleKey) {
                     nextAssessors[roleKey] = id;
@@ -1429,14 +1644,14 @@ function ArrangeOrderPageContent({
           // When tournament is selected, only show approved matches from DB
           // Preset matches are only for when no tournament is selected
           if (selectedTournament) {
-            return enriched;
+            return normalizeMatches(enriched);
           }
           // If no tournament, keep preset matches (temporary) but filter out unapproved ones
           const presetMatches = prev.filter(
             (m) =>
               m.id.startsWith("preset-") && !enriched.some((e) => e.id === m.id)
           );
-          return [...enriched, ...presetMatches];
+          return normalizeMatches([...enriched, ...presetMatches]);
         });
       } catch (err) {
         // ignore load errors; keep local state
@@ -1738,7 +1953,7 @@ function ArrangeOrderPageContent({
         .sort((a, b) => a.order - b.order)
         .map((m, idx) => ({ ...m, order: idx + 1 }));
       const others = prev.filter((m) => m.type !== target.type);
-      return [...others, ...sameType];
+      return normalizeMatches([...others, ...sameType]);
     });
   };
 
@@ -1936,15 +2151,22 @@ function ArrangeOrderPageContent({
 
             // Update match with new PerformanceMatch info (but keep original match.id for UI)
             setMatches((prev) =>
-              prev.map((m) =>
-                m.id === match.id
-                  ? {
-                      ...m,
-                      performanceId: pid,
-                      matchOrder: pm.matchOrder,
-                      status: pm.status,
-                    }
-                  : m
+              normalizeMatches(
+                prev.map((m) =>
+                  m.id === match.id
+                    ? {
+                        ...m,
+                        performanceId: pid,
+                        matchOrder: pm.matchOrder,
+                        order:
+                          typeof pm.matchOrder === "number" &&
+                          Number.isFinite(pm.matchOrder)
+                            ? pm.matchOrder
+                            : m.order,
+                        status: pm.status,
+                      }
+                    : m
+                )
               )
             );
           } else {
@@ -2139,10 +2361,20 @@ function ArrangeOrderPageContent({
           : assignedCount;
       const derivedJudgesCount = Math.min(Math.max(baseJudgesCount || 5, 1), 5);
 
+      const initialDetails = createEmptyAssessorDetails();
+      Object.entries(validAssessors).forEach(([key, value]) => {
+        if (value && typeof value === "string" && value.trim() !== "") {
+          initialDetails[key as keyof Match["assessors"]] = {
+            id: value,
+          };
+        }
+      });
+
       setSetupModal({
         open: true,
         matchId: match.id,
         assessors: validAssessors,
+        assessorDetails: initialDetails,
         judgesCount: derivedJudgesCount,
         defaultTimerSec: match?.timerSec ?? 120,
         fieldId: match?.fieldId || "",
@@ -2153,6 +2385,44 @@ function ArrangeOrderPageContent({
       setShowCompetitionFilter(false);
       setShowGenderFilter(false);
       setShowTeamFilter(false);
+
+      // Ensure field is hydrated from backend if not yet available in local state
+      (async () => {
+        try {
+          const currentFieldId = (match?.fieldId || "").toString().trim();
+          const performanceId = (match?.performanceId || "").toString().trim();
+          if (!currentFieldId && performanceId) {
+            const url =
+              API_ENDPOINTS.PERFORMANCE_MATCHES.BY_PERFORMANCE(performanceId);
+            const res = await api.get(url);
+            const pm = (res as any)?.data?.data ?? (res as any)?.data ?? null;
+            const fetchedFieldId = (pm?.fieldId || "").toString();
+            const fetchedFieldName = (pm?.fieldLocation || "").toString();
+            if (fetchedFieldId) {
+              setSetupModal((prev) => ({
+                ...prev,
+                fieldId: fetchedFieldId,
+              }));
+              // Also reflect into matches list so reopening modal keeps the value
+              setMatches((prev) =>
+                normalizeMatches(
+                  prev.map((m) =>
+                    m.id === match.id
+                      ? {
+                          ...m,
+                          fieldId: fetchedFieldId,
+                          fieldName: fetchedFieldName || m.fieldName,
+                        }
+                      : m
+                  )
+                )
+              );
+            }
+          }
+        } catch (e) {
+          // ignore hydration errors; modal still works with empty selection
+        }
+      })();
 
       // Prefill assigned assessors from backend (PerformanceMatch -> list assessors)
       // We map the returned list sequentially into referee, judgeA, judgeB, judgeC, judgeD
@@ -2195,6 +2465,11 @@ function ArrangeOrderPageContent({
                 return {
                   userId,
                   roleKey,
+                  fullName:
+                    (item as any)?.userFullName ||
+                    (item as any)?.fullName ||
+                    "",
+                  email: (item as any)?.userEmail || (item as any)?.email || "",
                 };
               })
               .filter(
@@ -2203,22 +2478,34 @@ function ArrangeOrderPageContent({
                 ): item is {
                   userId: string;
                   roleKey: keyof Match["assessors"] | undefined;
+                  fullName: string;
+                  email: string;
                 } => Boolean(item && item.userId)
               );
 
             if (assignments.length > 0) {
               const nextAssessors = createEmptyAssessors();
+              const nextDetails = createEmptyAssessorDetails();
               assignments.forEach((assignment, idx) => {
                 const fallbackKey = ASSESSOR_ROLES[idx]?.key;
                 const key = assignment.roleKey ?? fallbackKey;
                 if (key) {
                   nextAssessors[key] = assignment.userId;
+                  nextDetails[key] = {
+                    id: assignment.userId,
+                    fullName: assignment.fullName,
+                    email: assignment.email,
+                  };
                 }
               });
               const assignedCount = assignments.length;
               setSetupModal((prev) => ({
                 ...prev,
                 assessors: { ...prev.assessors, ...nextAssessors },
+                assessorDetails: {
+                  ...prev.assessorDetails,
+                  ...nextDetails,
+                },
                 judgesCount: Math.min(
                   Math.max(assignedCount || prev.judgesCount || 1, 1),
                   5
@@ -2282,9 +2569,16 @@ function ArrangeOrderPageContent({
     detailCompetitionFilter,
   ]);
 
+  useEffect(() => {
+    if (!isStandaloneMode && !setupModal.open && showAssignAssessorsModal) {
+      setShowAssignAssessorsModal(false);
+    }
+  }, [isStandaloneMode, setupModal.open, showAssignAssessorsModal]);
+
   const closeSetupModal = () => {
     setSetupModal(createDefaultSetupState());
     setHasStandaloneSetupInitialized(false);
+    setShowAssignAssessorsModal(false);
     if (isStandaloneMode) {
       navigate(buildReturnPath());
     }
@@ -2436,14 +2730,39 @@ function ArrangeOrderPageContent({
     [athletes, athletesByPerformance, performanceCache]
   );
 
-  const updateSetupAssessor = (
+  const updateAssignModalAssessor = (
     role: keyof Match["assessors"],
     value: string
   ) => {
+    setAssignModalAssessors((prev) => ({
+      ...prev,
+      [role]: value,
+    }));
+    setAssignModalAssessorDetails((prev) => {
+      const nextDetails = { ...prev };
+      if (!value) {
+        nextDetails[role] = null;
+      } else {
+        const info = availableAssessors.find(
+          (assessor) => assessor.id === value
+        );
+        nextDetails[role] = {
+          id: value,
+          fullName: info?.fullName,
+          email: info?.email,
+        };
+      }
+      return nextDetails;
+    });
+  };
+
+  const handleAssignModalSave = () => {
     setSetupModal((prev) => ({
       ...prev,
-      assessors: { ...prev.assessors, [role]: value },
+      assessors: { ...assignModalAssessors },
+      assessorDetails: { ...assignModalAssessorDetails },
     }));
+    setShowAssignAssessorsModal(false);
   };
 
   const activeSetupSummary = useMemo(() => {
@@ -2624,10 +2943,13 @@ function ArrangeOrderPageContent({
       }
     }
 
+    const selectedAssessorMap = {
+      ...setupModal.assessors,
+    } as Record<keyof Match["assessors"], string>;
     const assignments = ASSESSOR_ROLES.map((role) => ({
       key: role.key,
       position: role.position,
-      userId: (setupModal.assessors[role.key as keyof Match["assessors"]] || "")
+      userId: (selectedAssessorMap[role.key as keyof Match["assessors"]] || "")
         .toString()
         .trim(),
     }));
@@ -2636,7 +2958,10 @@ function ArrangeOrderPageContent({
       (assignment) => !assignment.userId
     );
     if (missingAssignment) {
-      toast.error("Vui lòng chọn đủ 5 giám định trước khi lưu.", 4000);
+      toast.error(
+        `Vui lòng chọn đủ ${ASSESSOR_ROLES.length} vị trí trước khi lưu.`,
+        4000
+      );
       return;
     }
 
@@ -2667,79 +2992,201 @@ function ArrangeOrderPageContent({
       return;
     }
 
-    let pm: any = null;
-    if (
-      (specialization === "QUYEN" || specialization === "MUSIC") &&
-      derivedPerformanceId
-    ) {
-      const body: any = {
+    const matchIdString = (match.id || "").toString();
+
+    type PerformanceMatchMeta = {
+      id?: string;
+      matchOrder?: number;
+      status?: string;
+      fieldId?: string | null;
+      fieldLocation?: string | null;
+      durationSeconds?: number | null;
+    };
+
+    let pmData: PerformanceMatchMeta | undefined;
+
+    if (derivedPerformanceId) {
+      const pmPayload: {
+        durationSeconds: number;
+        fistConfigId?: string | null;
+        fistItemId?: string | null;
+        musicContentId?: string | null;
+        fieldId?: string | null;
+        fieldLocation?: string | null;
+      } = {
         durationSeconds: setupModal.defaultTimerSec,
-        fieldId: setupModal.fieldId,
+        fieldId: setupModal.fieldId ? setupModal.fieldId : null,
+        fieldLocation:
+          typeof selectedField?.location === "string"
+            ? selectedField.location
+            : null,
       };
+
       if (specialization === "QUYEN") {
-        if (match.fistConfigId) body.fistConfigId = match.fistConfigId;
-        if (match.fistItemId) body.fistItemId = match.fistItemId;
+        pmPayload.fistConfigId = match.fistConfigId ?? null;
+        pmPayload.fistItemId = match.fistItemId ?? null;
       } else if (specialization === "MUSIC") {
-        if (match.musicContentId) body.musicContentId = match.musicContentId;
+        pmPayload.musicContentId = match.musicContentId ?? null;
       }
-      const res = await api.post(
-        API_ENDPOINTS.PERFORMANCE_MATCHES.SAVE_BY_PERFORMANCE(
-          derivedPerformanceId
-        ),
-        body
-      );
-      pm = res.data;
+
+      try {
+        const pmRes = await api.post(
+          API_ENDPOINTS.PERFORMANCE_MATCHES.SAVE_BY_PERFORMANCE(
+            derivedPerformanceId
+          ),
+          pmPayload
+        );
+        const rawPmData: any = (pmRes as any)?.data;
+        pmData = ((rawPmData?.data ?? rawPmData) ||
+          undefined) as PerformanceMatchMeta;
+      } catch (error) {
+        console.error("Failed to persist performance match metadata:", error);
+        toast.error(
+          "Không thể lưu sân thi đấu cho trận biểu diễn. Vui lòng thử lại.",
+          4000
+        );
+        return;
+      }
     }
 
-    const pmData = pm && typeof pm === "object" && "data" in pm ? pm.data : pm;
-    const persistedMatchId = (pmData && pmData.id) || match.id;
+    const resolvedMatchId = (pmData?.id || matchIdString) as string;
+    let refreshedPmData: any | undefined;
+    let refreshedAssessors: Array<any> | undefined;
 
     try {
-      const listRes = await api.get<any>(
-        API_ENDPOINTS.PERFORMANCE_MATCHES.ASSESSORS(persistedMatchId)
-      );
-      const payloadList: any = (listRes as any)?.data;
-      const existingArr: Array<any> = Array.isArray(payloadList)
-        ? payloadList
-        : Array.isArray((payloadList as any)?.data)
-        ? ((payloadList as any)?.data as Array<any>)
-        : [];
-      await Promise.all(
-        existingArr.map((row) => {
-          const assessorRecordId = (row?.id || "").toString();
-          if (!assessorRecordId) return Promise.resolve();
-          return api.delete(API_ENDPOINTS.ASSESSORS.BY_ID(assessorRecordId));
-        })
-      );
-    } catch {
-      // ignore cleanup errors
-    }
-
-    let assignmentFailed = false;
-    await Promise.all(
-      assignments.map(async (assignment) => {
-        const payload: any = {
+      const assignPayload: any = {
+        specialization,
+        assignments: assignments.map((assignment) => ({
           userId: assignment.userId,
-          specialization,
-          performanceId: derivedPerformanceId,
-          performanceMatchId: persistedMatchId,
-          role: "ASSESSOR",
-          position: assignment.position,
-        };
-        try {
-          await api.post(API_ENDPOINTS.ASSESSORS.ASSIGN, payload);
-        } catch (error) {
-          console.error("Failed to assign assessor:", error);
-          toast.error(
-            "Không thể gán giám định. Vui lòng thử lại hoặc kiểm tra kết nối.",
-            4000
-          );
-          assignmentFailed = true;
-        }
-      })
-    );
+          position: assignment.position + 1,
+        })),
+      };
 
-    if (assignmentFailed) {
+      if (derivedPerformanceId) {
+        assignPayload.performanceId = derivedPerformanceId;
+        assignPayload.performanceMatchId = resolvedMatchId;
+      } else {
+        assignPayload.matchId = resolvedMatchId;
+      }
+
+      let bulkAssignSucceeded = false;
+
+      if (
+        BULK_PERFORMANCE_ASSIGNMENT_ENABLED &&
+        derivedPerformanceId &&
+        assignPayload.performanceMatchId
+      ) {
+        try {
+          await api.post(
+            API_ENDPOINTS.MATCH_ASSESSORS.ASSIGN_BY_PERFORMANCE,
+            assignPayload
+          );
+          bulkAssignSucceeded = true;
+        } catch (bulkError) {
+          console.warn(
+            "Bulk assign not available, falling back to single assignment calls",
+            bulkError
+          );
+        }
+      }
+
+      if (!bulkAssignSucceeded) {
+        let existingArr: Array<any> = [];
+        if (derivedPerformanceId) {
+          const listRes = await api.get<any>(
+            API_ENDPOINTS.PERFORMANCE_MATCHES.ASSESSORS(resolvedMatchId)
+          );
+          const performancePayload: any = (listRes as any)?.data;
+          existingArr = Array.isArray(performancePayload)
+            ? performancePayload
+            : Array.isArray(performancePayload?.data)
+            ? (performancePayload?.data as Array<any>)
+            : Array.isArray(performancePayload?.content)
+            ? (performancePayload?.content as Array<any>)
+            : [];
+        } else {
+          const listUrl = API_ENDPOINTS.MATCH_ASSESSORS.LIST.replace(
+            "{matchId}",
+            resolvedMatchId
+          );
+          const listRes = await api.get<any>(listUrl);
+          const payloadList: any = (listRes as any)?.data;
+          existingArr = Array.isArray(payloadList)
+            ? payloadList
+            : Array.isArray((payloadList as any)?.data)
+            ? ((payloadList as any)?.data as Array<any>)
+            : [];
+        }
+        await Promise.all(
+          existingArr.map((row) => {
+            const assessorRecordId = (row?.id || "").toString();
+            if (!assessorRecordId) return Promise.resolve();
+            return api.delete(
+              API_ENDPOINTS.MATCH_ASSESSORS.BY_ID(assessorRecordId)
+            );
+          })
+        );
+
+        await Promise.all(
+          assignments.map(async (assignment) => {
+            const payload: any = {
+              userId: assignment.userId,
+              specialization,
+              position: assignment.position + 1,
+            };
+            if (derivedPerformanceId) {
+              payload.performanceId = derivedPerformanceId;
+              payload.performanceMatchId = resolvedMatchId;
+            } else {
+              payload.matchId = resolvedMatchId;
+              payload.role = "ASSESSOR";
+            }
+            await api.post(
+              API_ENDPOINTS.MATCH_ASSESSORS.ASSIGN_SINGLE,
+              payload
+            );
+          })
+        );
+      }
+      if (derivedPerformanceId) {
+        try {
+          const [pmRes, assessorsRes] = await Promise.all([
+            api.get(
+              API_ENDPOINTS.PERFORMANCE_MATCHES.BY_PERFORMANCE(
+                derivedPerformanceId
+              )
+            ),
+            api.get(
+              API_ENDPOINTS.PERFORMANCE_MATCHES.ASSESSORS(resolvedMatchId)
+            ),
+          ]);
+          const pmPayload: any = (pmRes as any)?.data;
+          const pmRecord =
+            (pmPayload?.data || pmPayload?.content || pmPayload) ?? null;
+          if (pmRecord && typeof pmRecord === "object") {
+            refreshedPmData = pmRecord;
+          }
+          const assessorPayload: any = (assessorsRes as any)?.data;
+          if (Array.isArray(assessorPayload)) {
+            refreshedAssessors = assessorPayload;
+          } else if (Array.isArray(assessorPayload?.data)) {
+            refreshedAssessors = assessorPayload.data;
+          } else if (Array.isArray(assessorPayload?.content)) {
+            refreshedAssessors = assessorPayload.content;
+          }
+        } catch (reloadError) {
+          console.warn(
+            "Failed to refresh performance match details after assignment:",
+            reloadError
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to assign assessors:", error);
+      toast.error(
+        "Không thể gán giám định. Vui lòng thử lại hoặc kiểm tra kết nối.",
+        4000
+      );
       return;
     }
 
@@ -2780,55 +3227,169 @@ function ArrangeOrderPageContent({
           match.contentName ||
           "-";
 
+    // Always update local cache so returning to list reflects latest data immediately
+    setMatches((prev) =>
+      normalizeMatches(
+        prev.map((m) => {
+          const nextId = (refreshedPmData?.id ||
+            pmData?.id ||
+            match.id) as string;
+          if (m.id !== match.id && m.id !== nextId) return m;
+
+          const mapAssessorsFromApi = (arr: Array<any>) => {
+            const next = createEmptyAssessors();
+            const roleByPosition = new Map(
+              ASSESSOR_ROLES.map((role) => [role.position, role.key])
+            );
+            const numericPositions = arr
+              .map((candidate: any) =>
+                typeof candidate?.position === "number"
+                  ? candidate.position
+                  : undefined
+              )
+              .filter((val): val is number => typeof val === "number");
+            const isOneBased =
+              numericPositions.length > 0 &&
+              !numericPositions.some((val) => val === 0) &&
+              numericPositions.some((val) => val === ASSESSOR_ROLES.length);
+            arr
+              .slice(0, ASSESSOR_ROLES.length)
+              .forEach((a: any, idx: number) => {
+                const id = (a && (a.userId || a.assessorId || a.id)) || "";
+                if (!id) return;
+                const rawPosition =
+                  typeof a?.position === "number" ? a.position : undefined;
+                const normalizedPosition =
+                  rawPosition === undefined
+                    ? undefined
+                    : isOneBased
+                    ? Math.max(rawPosition - 1, 0)
+                    : rawPosition;
+                const roleKey =
+                  (normalizedPosition !== undefined
+                    ? roleByPosition.get(normalizedPosition)
+                    : undefined) || ASSESSOR_ROLES[idx]?.key;
+                if (roleKey) {
+                  next[roleKey] = id.toString();
+                }
+              });
+            return next;
+          };
+
+          const apiAssessors =
+            refreshedAssessors && refreshedAssessors.length > 0
+              ? mapAssessorsFromApi(refreshedAssessors)
+              : null;
+          const nextAssessors =
+            apiAssessors && Object.values(apiAssessors).some((val) => val)
+              ? apiAssessors
+              : {
+                  ...createEmptyAssessors(),
+                  ...selectedAssessorMap,
+                };
+          const nextAssessorDetails = ASSESSOR_ROLES.reduce((acc, role) => {
+            const currentId = nextAssessors[role.key];
+            if (currentId) {
+              const info =
+                refreshedAssessors?.find(
+                  (entry) =>
+                    (
+                      entry?.userId ||
+                      entry?.assessorId ||
+                      entry?.id
+                    )?.toString() === currentId
+                ) || availableAssessors.find((a) => a.id === currentId);
+              acc[role.key] = {
+                id: currentId,
+                fullName: info?.fullName || info?.userFullName || "",
+                email: info?.email || info?.userEmail || "",
+              };
+            } else {
+              acc[role.key] = null;
+            }
+            return acc;
+          }, createEmptyAssessorDetails());
+          const nextJudgesCount = Object.values(nextAssessors).filter(
+            (entry) =>
+              typeof entry === "string" && entry.toString().trim().length > 0
+          ).length;
+          const pmInfo = refreshedPmData || pmData || {};
+          const nextMatchOrder =
+            typeof pmInfo?.matchOrder === "number" &&
+            Number.isFinite(pmInfo.matchOrder)
+              ? pmInfo.matchOrder
+              : m.matchOrder;
+          const resolvedOrderValue =
+            typeof nextMatchOrder === "number" &&
+            Number.isFinite(nextMatchOrder)
+              ? nextMatchOrder
+              : m.order;
+          const finalTimerSec =
+            (typeof pmInfo?.durationSeconds === "number"
+              ? pmInfo.durationSeconds
+              : undefined) ??
+            setupModal.defaultTimerSec ??
+            m.timerSec;
+          const finalFieldId =
+            pmInfo?.fieldId ?? (setupModal.fieldId ? setupModal.fieldId : null);
+          const finalFieldName =
+            pmInfo?.fieldLocation ??
+            (typeof selectedField?.location === "string"
+              ? selectedField.location
+              : null) ??
+            m.fieldName ??
+            null;
+          return {
+            ...m,
+            id: nextId || m.id,
+            contentName:
+              typeof pmInfo?.contentName === "string" && pmInfo.contentName
+                ? pmInfo.contentName
+                : updatedContentName,
+            participantIds,
+            participants: participantNames,
+            assessors: nextAssessors,
+            assessorDetails: nextAssessorDetails,
+            judgesCount:
+              nextJudgesCount > 0
+                ? nextJudgesCount
+                : Object.values(selectedAssessorMap).filter(
+                    (entry) =>
+                      typeof entry === "string" &&
+                      entry.toString().trim().length > 0
+                  ).length || ASSESSOR_ROLES.length,
+            timerSec: finalTimerSec,
+            performanceId: pmInfo?.performanceId ?? derivedPerformanceId,
+            matchOrder: nextMatchOrder,
+            status: pmInfo?.status ?? m.status,
+            fistConfigId: match.fistConfigId ?? null,
+            fistItemId: match.fistItemId ?? null,
+            musicContentId: match.musicContentId ?? null,
+            gender: derivedGender ?? m.gender,
+            teamType: derivedTeamType,
+            teamName: derivedTeamType === "TEAM" ? resolvedTeamName : null,
+            fieldId: finalFieldId,
+            fieldName: finalFieldName,
+            order:
+              typeof resolvedOrderValue === "number" &&
+              Number.isFinite(resolvedOrderValue)
+                ? resolvedOrderValue
+                : m.order,
+          };
+        })
+      )
+    );
+
     // If standalone mode, close modal and navigate immediately to prevent flickering
-    // Otherwise, update state first then close modal
     if (isStandaloneMode) {
-      // Close modal and navigate immediately
       setSetupModal(createDefaultSetupState());
       setHasStandaloneSetupInitialized(false);
       toast.success("Đã lưu thiết lập trận biểu diễn!", 3000);
-      // Navigate immediately without waiting for state update
       navigate(buildReturnPath());
-      // State will be updated when page reloads
       return;
     }
 
     // For non-standalone mode, update state then close modal
-    setMatches((prev) =>
-      prev.map((m) => {
-        if (m.id !== match.id) return m;
-        const nextAssessors = assignments.reduce((acc, assignment) => {
-          acc[assignment.key] = assignment.userId;
-          return acc;
-        }, createEmptyAssessors());
-        return {
-          ...m,
-          id: pmData?.id || m.id,
-          contentName: updatedContentName,
-          participantIds,
-          participants: participantNames,
-          assessors: nextAssessors,
-          judgesCount: ASSESSOR_ROLES.length,
-          timerSec: setupModal.defaultTimerSec,
-          performanceId: derivedPerformanceId,
-          matchOrder: pmData?.matchOrder ?? m.matchOrder,
-          status: pmData?.status ?? m.status,
-          fistConfigId: match.fistConfigId ?? null,
-          fistItemId: match.fistItemId ?? null,
-          musicContentId: match.musicContentId ?? null,
-          gender: derivedGender ?? m.gender,
-          teamType: derivedTeamType,
-          teamName: derivedTeamType === "TEAM" ? resolvedTeamName : null,
-          fieldId:
-            pmData?.fieldId ?? (setupModal.fieldId ? setupModal.fieldId : null),
-          fieldName:
-            pmData?.fieldLocation ??
-            selectedField?.location ??
-            m.fieldName ??
-            null,
-        };
-      })
-    );
     toast.success("Đã lưu thiết lập trận biểu diễn!", 3000);
     closeSetupModal();
   };
@@ -2973,15 +3534,24 @@ function ArrangeOrderPageContent({
 
             <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
-                <h4 className="text-lg font-semibold text-gray-900">
-                  Phân công giám định
-                </h4>
-                <p className="text-sm text-gray-500">
-                  Chỉ định giám định cho từng vị trí
-                </p>
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900">
+                    Giám định viên
+                  </h4>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Vị trí 1-5: Giám định.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAssignAssessorsModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition"
+                >
+                  Chỉ định giám định
+                </button>
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                {ASSESSOR_ROLES.filter((role) => {
+              {(() => {
+                const activeRoles = ASSESSOR_ROLES.filter((role) => {
                   if (role.key === "referee") return true;
                   const judgeIndex =
                     role.key === "judgeA"
@@ -2995,83 +3565,103 @@ function ArrangeOrderPageContent({
                       : -1;
                   if (judgeIndex === -1) return false;
                   return setupModal.judgesCount >= judgeIndex + 1;
-                }).map((role) => {
-                  const selectedAssessorIds = Object.values(
-                    setupModal.assessors
-                  )
-                    .filter((id): id is string => Boolean(id))
-                    .filter((id) => id !== setupModal.assessors[role.key]);
+                });
 
-                  const availableForThisRole = availableAssessors.filter(
-                    (assessor) => !selectedAssessorIds.includes(assessor.id)
-                  );
-
-                  const currentId =
-                    (setupModal.assessors[
-                      role.key as keyof typeof setupModal.assessors
-                    ] as string) || "";
-                  const hasCurrent = currentId
-                    ? availableForThisRole.some((a) => a.id === currentId)
-                    : true;
-
-                  const currentAssessor = availableAssessors.find(
-                    (a) => a.id === currentId
-                  );
-
+                if (activeRoles.length === 0) {
                   return (
-                    <div
-                      key={role.key}
-                      className="rounded-lg border border-gray-200 bg-gray-50 p-4"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {role.label}
-                            {role.subtitle && (
-                              <span className="text-gray-500">
-                                {" "}
-                                {role.subtitle}
-                              </span>
-                            )}
-                          </p>
-                          {currentAssessor && (
-                            <p className="mt-1 text-xs text-gray-500">
-                              Đang chọn: {currentAssessor.fullName}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <select
-                        className="mt-3 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={setupModal.assessors[role.key as string] || ""}
-                        onChange={(e) =>
-                          updateSetupAssessor(role.key, e.target.value)
-                        }
-                      >
-                        <option value="">-- Chọn giám định --</option>
-                        {!hasCurrent && currentId && (
-                          <option value={currentId}>
-                            {currentId} (không khả dụng)
-                          </option>
-                        )}
-                        {availableForThisRole.length > 0 ? (
-                          availableForThisRole.map((assessor) => (
-                            <option key={assessor.id} value={assessor.id}>
-                              {assessor.fullName}
-                            </option>
-                          ))
-                        ) : (
-                          <option disabled>
-                            {availableAssessors.length === 0
-                              ? "Đang tải danh sách giám định..."
-                              : "Tất cả giám định đã được chọn"}
-                          </option>
-                        )}
-                      </select>
+                    <div className="text-sm text-gray-500">
+                      Không có vị trí giám định khả dụng cho tiết mục này.
                     </div>
                   );
-                })}
-              </div>
+                }
+
+                const anyAssigned = activeRoles.some((role) => {
+                  const currentId = setupModal.assessors[role.key] || "";
+                  return currentId.trim().length > 0;
+                });
+
+                return (
+                  <div>
+                    {!anyAssigned ? (
+                      <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
+                        <svg
+                          className="mx-auto h-12 w-12 text-gray-400"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M9 20H4v-2a3 3 0 015.356-1.857M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                        </svg>
+                        <h3 className="mt-4 text-base font-medium text-gray-900">
+                          Chưa có giám định viên
+                        </h3>
+                        <p className="mt-2 text-sm text-gray-500">
+                          Vui lòng chỉ định giám định viên cho trận đấu này
+                        </p>
+                      </div>
+                    ) : null}
+                    {anyAssigned && (
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {activeRoles.map((role) => {
+                          const currentId =
+                            setupModal.assessors[role.key] || "";
+                          const detail = setupModal.assessorDetails[role.key];
+                          const fallbackInfo = availableAssessors.find(
+                            (a) => a.id === currentId
+                          );
+                          const displayName =
+                            detail?.fullName || fallbackInfo?.fullName || "";
+                          const displayEmail =
+                            detail?.email || fallbackInfo?.email || "";
+                          const hasAssignment = currentId.trim().length > 0;
+
+                          const cardClasses = hasAssignment
+                            ? "border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow"
+                            : "border border-dashed border-gray-300 rounded-lg p-4 bg-gray-50";
+
+                          return (
+                            <div key={role.key} className={cardClasses}>
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                                    {role.label}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {role.subtitle}
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold text-gray-900">
+                                    {hasAssignment ? displayName : "Chưa chọn"}
+                                  </p>
+                                  {hasAssignment ? (
+                                    displayEmail ? (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        {displayEmail}
+                                      </p>
+                                    ) : null
+                                  ) : (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      Nhấn "Chỉ định giám định" để chọn người
+                                      phụ trách vị trí này.
+                                    </p>
+                                  )}
+                                </div>
+                                <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                                  Vị trí {role.position + 1}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         ) : (
@@ -3093,8 +3683,169 @@ function ArrangeOrderPageContent({
             onClick={saveSetup}
             disabled={!setupModal.fieldId || setupModal.fieldId.trim() === ""}
           >
-            Lưu thiết lập
+            Lưu
           </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAssignAssessorsModal = () => {
+    if (!showAssignAssessorsModal) {
+      return null;
+    }
+
+    const activeRoles = ASSESSOR_ROLES.filter((role) => {
+      if (role.key === "referee") return true;
+      const judgeIndex =
+        role.key === "judgeA"
+          ? 1
+          : role.key === "judgeB"
+          ? 2
+          : role.key === "judgeC"
+          ? 3
+          : role.key === "judgeD"
+          ? 4
+          : -1;
+      if (judgeIndex === -1) return false;
+      return setupModal.judgesCount >= judgeIndex + 1;
+    });
+
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-black/50">
+        <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 md:p-8 shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900">
+                Chỉ định giám định viên
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Vị trí 1-5: Giám định.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAssignAssessorsModal(false)}
+              className="text-gray-400 hover:text-gray-600 transition text-2xl leading-none"
+              aria-label="Đóng"
+            >
+              ×
+            </button>
+          </div>
+
+          {isAssessorsLoading ? (
+            <div className="flex justify-center py-10">
+              <div className="h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : activeRoles.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-600">
+              Không có vị trí giám định nào cần chỉ định cho tiết mục này.
+            </div>
+          ) : (
+            <div className="space-y-3 mb-6">
+              {activeRoles.map((role) => {
+                const currentId = assignModalAssessors[role.key] || "";
+                const assignedIds = activeRoles
+                  .map((r) => assignModalAssessors[r.key])
+                  .filter(
+                    (id): id is string => Boolean(id) && id !== currentId
+                  );
+                const availableForThisRole = availableAssessors.filter(
+                  (assessor) =>
+                    assessor.id === currentId ||
+                    !assignedIds.includes(assessor.id)
+                );
+                const detail = assignModalAssessorDetails[role.key];
+                const fallbackInfo = availableAssessors.find(
+                  (a) => a.id === currentId
+                );
+                const displayName =
+                  detail?.fullName || fallbackInfo?.fullName || "";
+                const displayEmail = detail?.email || fallbackInfo?.email || "";
+                const hasAssignment = currentId.trim().length > 0;
+                const roleLabel = role.subtitle;
+
+                return (
+                  <div
+                    key={role.key}
+                    className={`flex items-center gap-4 p-4 border rounded-lg ${"border-gray-200"}`}
+                  >
+                    <div className="w-24 text-sm font-medium">
+                      Vị trí {role.position + 1}
+                      <br />
+                      <span className="text-xs text-gray-500">{roleLabel}</span>
+                    </div>
+
+                    {hasAssignment ? (
+                      <div className="flex-1 flex items-center justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900">
+                            {displayName || role.subtitle}
+                          </div>
+                          {displayEmail && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              {displayEmail}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateAssignModalAssessor(role.key, "")
+                          }
+                          className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex-1">
+                        <select
+                          value={currentId}
+                          onChange={(e) =>
+                            updateAssignModalAssessor(role.key, e.target.value)
+                          }
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">-- Chọn giám định --</option>
+                          {availableForThisRole.length > 0 ? (
+                            availableForThisRole.map((assessor) => (
+                              <option key={assessor.id} value={assessor.id}>
+                                {assessor.fullName}
+                              </option>
+                            ))
+                          ) : (
+                            <option disabled>
+                              {availableAssessors.length === 0
+                                ? "Không có giám định khả dụng"
+                                : "Tất cả giám định đã được chọn"}
+                            </option>
+                          )}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex gap-3 justify-end">
+            <button
+              type="button"
+              onClick={() => setShowAssignAssessorsModal(false)}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={handleAssignModalSave}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Lưu
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -3181,6 +3932,7 @@ function ArrangeOrderPageContent({
         </div>
 
         {renderSetupCard("page")}
+        {renderAssignAssessorsModal()}
       </div>
     );
   }
@@ -3436,6 +4188,8 @@ function ArrangeOrderPageContent({
         </div>
       )}
 
+      {renderAssignAssessorsModal()}
+
       {/* Filters outside card - for Music */}
       {activeTab === "music" && (
         <div className="mb-4 relative">
@@ -3614,15 +4368,8 @@ function ArrangeOrderPageContent({
           </div>
         ) : (
           (() => {
-            const perContentCounters = new Map<string, number>();
-            return filteredMatches.map((match) => {
-              const contentKey =
-                match.type === "quyen"
-                  ? `${match.fistConfigId || ""}::${match.fistItemId || ""}`
-                  : `${match.musicContentId || ""}`;
-              const displayOrder =
-                (perContentCounters.get(contentKey) || 0) + 1;
-              perContentCounters.set(contentKey, displayOrder);
+            return filteredMatches.map((match, index) => {
+              const displayOrder = resolveMatchDisplayOrder(match, index);
               const pid = (match.performanceId || "").trim();
               const cachedPerf = pid
                 ? (performanceCache as any)[pid]
