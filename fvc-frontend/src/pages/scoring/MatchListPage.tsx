@@ -38,7 +38,7 @@ function getStatusColor(status: string): string {
   }
 }
 
-export default function SelectMatchPage() {
+export default function MatchListPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const [matches, setMatches] = useState<MatchListItem[]>([]);
@@ -74,8 +74,7 @@ export default function SelectMatchPage() {
     async function fetchMatches() {
       try {
         setLoading(true);
-        // Only fetch matches assigned to current user (assessor/judger)
-        const data = await matchScoringService.listMyAssignedMatches(statusFilter || undefined);
+        const data = await matchScoringService.listMatches(undefined, statusFilter || undefined);
         setMatches(data);
       } catch (err: any) {
         const errorMessage = err?.message || "Không thể tải danh sách trận đấu";
@@ -92,11 +91,17 @@ export default function SelectMatchPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Chấm điểm</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Danh sách trận đấu</h1>
           <p className="text-sm text-gray-600">
-            Chọn một trận đấu được chỉ định cho bạn để bắt đầu chấm điểm
+            Xem và quản lý tất cả các trận đấu
           </p>
         </div>
+        <button
+          onClick={() => navigate('/manage/scoring/assign-assessors')}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+        >
+          Chỉ định giám định
+        </button>
       </div>
 
       {/* Filters */}
@@ -143,8 +148,8 @@ export default function SelectMatchPage() {
           <h3 className="mt-4 text-lg font-medium text-gray-900">Không có trận đấu</h3>
           <p className="mt-2 text-sm text-gray-500">
             {statusFilter
-              ? "Không có trận đấu nào được chỉ định cho bạn với trạng thái này"
-              : "Bạn chưa được chỉ định cho trận đấu nào"}
+              ? "Không có trận đấu nào với trạng thái này"
+              : "Chưa có trận đấu nào được tạo"}
           </p>
         </div>
       ) : (
@@ -153,20 +158,10 @@ export default function SelectMatchPage() {
             // Check if match has ended
             const isMatchEnded = match.status === "KẾT THÚC" || match.status === "ENDED" || match.status === "FINISHED";
             
-            // Navigate to result page if match ended, otherwise to scoring page
-            const handleMatchClick = () => {
-              if (isMatchEnded) {
-                navigate(`/scoring/${match.id}`);
-              } else {
-                navigate(`/scoring/${match.id}`);
-              }
-            };
-            
             return (
               <div
                 key={match.id}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
-                onClick={handleMatchClick}
+                className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
               >
                 <div className="p-5">
                   <div className="flex items-start justify-between mb-3">
@@ -223,24 +218,26 @@ export default function SelectMatchPage() {
                     <div className="flex gap-2">
                       {isMatchEnded ? (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/scoring/${match.id}`);
-                          }}
+                          onClick={() => navigate(`/scoring/${match.id}`)}
                           className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
                         >
                           Xem kết quả
                         </button>
                       ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/scoring/${match.id}`);
-                          }}
-                          className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
-                        >
-                          Chấm điểm
-                        </button>
+                        <>
+                          <button
+                            onClick={() => navigate(`/manage/scoring/${match.id}/manage`)}
+                            className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
+                          >
+                            Quản lý
+                          </button>
+                          <button
+                            onClick={() => navigate(`/scoring/${match.id}`)}
+                            className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
+                          >
+                            Chấm điểm
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -253,3 +250,4 @@ export default function SelectMatchPage() {
     </div>
   );
 }
+

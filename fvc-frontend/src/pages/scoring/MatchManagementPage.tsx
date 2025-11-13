@@ -424,7 +424,7 @@ export default function MatchManagementPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
           <h3 className="text-lg font-medium text-gray-900">Không tìm thấy trận đấu</h3>
           <button
-            onClick={() => navigate("/manage/scoring")}
+            onClick={() => navigate("/manage/scoring/matches")}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Quay lại danh sách
@@ -439,7 +439,7 @@ export default function MatchManagementPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <button
-            onClick={() => navigate("/manage/scoring")}
+            onClick={() => navigate("/manage/scoring/matches")}
             className="mb-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
           >
             ← Quay lại danh sách trận đấu

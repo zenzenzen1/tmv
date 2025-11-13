@@ -39,6 +39,7 @@ import BracketBuilder from "./pages/brackets/BracketBuilder";
 import BracketViewPage from "./pages/brackets/BracketViewPage";
 import MatchScoringPage from "./pages/scoring/MatchScoringPage";
 import SelectMatchPage from "./pages/scoring/SelectMatchPage";
+import MatchListPage from "./pages/scoring/MatchListPage";
 import AssessorPage from "./pages/scoring/AssessorPage";
 import AssignAssessorsPage from "./pages/scoring/AssignAssessorsPage";
 import ProjectionScreen from "./pages/performance/ProjectionScreen";
@@ -461,6 +462,14 @@ export default function App() {
           element={
             <RequireRole roles={["ORGANIZATION_COMMITTEE"]}>
               <SelectMatchPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="scoring/matches"
+          element={
+            <RequireRole roles={["ORGANIZATION_COMMITTEE", "EXECUTIVE_BOARD"]}>
+              <MatchListPage />
             </RequireRole>
           }
         />

@@ -110,6 +110,14 @@ export const matchScoringService = {
     return res.data.data;
   },
 
+  async listMyAssignedMatches(status?: string): Promise<MatchListItem[]> {
+    const params = new URLSearchParams();
+    if (status) params.append("status", status);
+    const url = `${API_ENDPOINTS.MATCH_ASSESSORS.MY_ASSIGNMENTS}${params.toString() ? `?${params.toString()}` : ""}`;
+    const res = await apiClient.get<{ success: boolean; data: MatchListItem[] }>(url);
+    return res.data.data;
+  },
+
   async getScoreboard(matchId: string): Promise<MatchScoreboard> {
     const url = replaceMatchId(API_ENDPOINTS.MATCHES.SCOREBOARD, matchId);
     const res = await apiClient.get<{ success: boolean; data: MatchScoreboard }>(url);
