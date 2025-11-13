@@ -26,6 +26,8 @@ export const defaultMenuItems: MenuItem[] = [
     key: "performanceMatches",
     label: "Chấm điểm Quyền & Võ nhạc",
   },
+ 
+  { section: "Thi đấu", key: "matchList", label: "Danh sách trận đấu" },
   { section: "Quản lí nội dung", key: "forms", label: "Quyền" },
   { section: "Quản lí nội dung", key: "music", label: "Võ nhạc" },
   { section: "Quản lí form", key: "formList", label: "Form đăng ký CLB" },
@@ -73,10 +75,12 @@ export const getMenuItemsByRole = (role?: SystemRole | null): MenuItem[] => {
           "athletes",
           "fieldManagement",
           "memberManagement",
+          "matchList",
         ].includes(i.key)
       );
     case "ORGANIZATION_COMMITTEE":
       return defaultMenuItems.filter((i) =>
+<<<<<<< HEAD
         [
           "forms",
           "music",
@@ -84,6 +88,9 @@ export const getMenuItemsByRole = (role?: SystemRole | null): MenuItem[] => {
           "scoring",
           "performanceMatches",
         ].includes(i.key)
+=======
+        ["forms", "music", "weightClassPage", "scoring", "matchList"].includes(i.key)
+>>>>>>> master
       );
     case "MEMBER":
     case "TEACHER":

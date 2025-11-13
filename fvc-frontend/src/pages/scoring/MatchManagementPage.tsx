@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import matchScoringService, { type MatchScoreboard, type MatchAssessor } from "../../services/matchScoringService";
 import { fieldService } from "../../services/fieldService";
@@ -66,6 +66,8 @@ export default function MatchManagementPage() {
   const [showRoundsConfigModal, setShowRoundsConfigModal] = useState(false);
   const [showRoundsModal, setShowRoundsModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showScheduledTimeModal, setShowScheduledTimeModal] = useState(false);
+  const [scheduledStartTimeInput, setScheduledStartTimeInput] = useState<string>("");
   const [users, setUsers] = useState<User[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -77,6 +79,8 @@ export default function MatchManagementPage() {
     5: null,
     6: null,
   });
+  const [redAthletePresent, setRedAthletePresent] = useState<boolean>(false);
+  const [blueAthletePresent, setBlueAthletePresent] = useState<boolean>(false);
 
   const fetchMatchData = useCallback(async () => {
     if (!matchId) {
@@ -97,6 +101,20 @@ export default function MatchManagementPage() {
       setMainRoundDuration(data.mainRoundDurationSeconds || 120);
       setTiebreakerDuration(data.tiebreakerDurationSeconds || 60);
       setTotalRounds(data.totalRounds);
+      setRedAthletePresent(data.redAthletePresent || false);
+      setBlueAthletePresent(data.blueAthletePresent || false);
+      // Set scheduled start time input for editing
+      if (data.scheduledStartTime) {
+        const date = new Date(data.scheduledStartTime);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        setScheduledStartTimeInput(`${year}-${month}-${day}T${hours}:${minutes}`);
+      } else {
+        setScheduledStartTimeInput("");
+      }
     } catch (err: any) {
       const errorMessage = err?.message || "Không thể tải dữ liệu trận đấu";
       toast.error(errorMessage);
@@ -199,6 +217,28 @@ export default function MatchManagementPage() {
       ).length;
       if (judgerCount !== 1) {
         toast.error(`Trận đấu cần đúng 1 trọng tài (vị trí 6). Hiện tại có ${judgerCount} trọng tài.`, 5000);
+        setActionLoading(false);
+        return;
+      }
+
+      // Validate scheduled start time
+      if (scoreboard.scheduledStartTime) {
+        const scheduledTime = new Date(scoreboard.scheduledStartTime);
+        const now = new Date();
+        if (now < scheduledTime) {
+          const timeDiff = Math.ceil((scheduledTime.getTime() - now.getTime()) / 1000 / 60); // minutes
+          toast.error(`Chưa đến giờ bắt đầu trận đấu. Giờ bắt đầu: ${scheduledTime.toLocaleString('vi-VN')}. Còn ${timeDiff} phút nữa.`, 5000);
+          setActionLoading(false);
+          return;
+        }
+      }
+
+      // Validate both athletes are present
+      if (!redAthletePresent || !blueAthletePresent) {
+        const missingAthletes = [];
+        if (!redAthletePresent) missingAthletes.push(scoreboard.redAthlete.name);
+        if (!blueAthletePresent) missingAthletes.push(scoreboard.blueAthlete.name);
+        toast.error(`Vui lòng xác nhận cả hai vận động viên đã có mặt: ${missingAthletes.join(", ")}`, 5000);
         setActionLoading(false);
         return;
       }
@@ -407,7 +447,111 @@ export default function MatchManagementPage() {
     }
   };
 
+  // Update athlete presence when checkbox changes
+  const handleAthletePresenceChange = async (athlete: 'red' | 'blue', present: boolean) => {
+    if (!matchId) return;
+
+    const newRedPresent = athlete === 'red' ? present : redAthletePresent;
+    const newBluePresent = athlete === 'blue' ? present : blueAthletePresent;
+
+    // Update local state immediately for better UX
+    if (athlete === 'red') {
+      setRedAthletePresent(present);
+    } else {
+      setBlueAthletePresent(present);
+    }
+
+    try {
+      await matchScoringService.updateAthletePresence(matchId, newRedPresent, newBluePresent);
+      // Optionally show a subtle success message
+    } catch (err: any) {
+      // Revert on error
+      if (athlete === 'red') {
+        setRedAthletePresent(!present);
+      } else {
+        setBlueAthletePresent(!present);
+      }
+      const errorMessage = err?.response?.data?.message || err?.message || "Không thể cập nhật trạng thái";
+      toast.error(errorMessage);
+      console.error("Error updating athlete presence:", err);
+    }
+  };
+
+  const handleUpdateScheduledStartTime = async () => {
+    if (!matchId) return;
+
+    try {
+      setActionLoading(true);
+      
+      // Convert datetime-local format to ISO string
+      let scheduledTime: string | null = null;
+      if (scheduledStartTimeInput) {
+        const date = new Date(scheduledStartTimeInput);
+        scheduledTime = date.toISOString();
+      }
+
+      await matchScoringService.updateScheduledStartTime(matchId, scheduledTime);
+      await fetchMatchData();
+      setShowScheduledTimeModal(false);
+      toast.success("Giờ bắt đầu dự kiến đã được cập nhật!", 5000);
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.message || err?.message || "Không thể cập nhật giờ bắt đầu";
+      toast.error(errorMessage, 5000);
+      console.error("Error updating scheduled start time:", err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const canStartMatch = scoreboard && (scoreboard.status === "CHỜ BẮT ĐẦU" || scoreboard.status === "PENDING");
+
+  // Check if all conditions are met to start match
+  const canStartMatchNow = useMemo(() => {
+    if (!scoreboard || !canStartMatch) return false;
+    
+    // Check scheduled time
+    if (scoreboard.scheduledStartTime) {
+      const scheduledTime = new Date(scoreboard.scheduledStartTime);
+      const now = new Date();
+      if (now < scheduledTime) {
+        return false;
+      }
+    }
+    
+    // Check athletes are present
+    if (!redAthletePresent || !blueAthletePresent) {
+      return false;
+    }
+    
+    return true;
+  }, [scoreboard, canStartMatch, redAthletePresent, blueAthletePresent]);
+
+  // Get reason why match cannot start
+  const getStartMatchReason = useMemo(() => {
+    if (!scoreboard || !canStartMatch) return "";
+    
+    const reasons: string[] = [];
+    
+    // Check scheduled time
+    if (scoreboard.scheduledStartTime) {
+      const scheduledTime = new Date(scoreboard.scheduledStartTime);
+      const now = new Date();
+      if (now < scheduledTime) {
+        const timeDiff = Math.ceil((scheduledTime.getTime() - now.getTime()) / 1000 / 60);
+        reasons.push(`Chưa đến giờ bắt đầu (còn ${timeDiff} phút)`);
+      }
+    }
+    
+    // Check athletes
+    if (!redAthletePresent) {
+      reasons.push(`Chưa xác nhận ${scoreboard.redAthlete.name} có mặt`);
+    }
+    if (!blueAthletePresent) {
+      reasons.push(`Chưa xác nhận ${scoreboard.blueAthlete.name} có mặt`);
+    }
+    
+    return reasons.join(", ");
+  }, [scoreboard, canStartMatch, redAthletePresent, blueAthletePresent]);
 
   if (loading) {
     return (
@@ -424,7 +568,7 @@ export default function MatchManagementPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
           <h3 className="text-lg font-medium text-gray-900">Không tìm thấy trận đấu</h3>
           <button
-            onClick={() => navigate("/manage/scoring")}
+            onClick={() => navigate("/manage/scoring/matches")}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Quay lại danh sách
@@ -439,7 +583,7 @@ export default function MatchManagementPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <button
-            onClick={() => navigate("/manage/scoring")}
+            onClick={() => navigate("/manage/scoring/matches")}
             className="mb-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
           >
             ← Quay lại danh sách trận đấu
@@ -459,13 +603,21 @@ export default function MatchManagementPage() {
             Cấu hình rounds
           </button>
           {canStartMatch && (
-            <button
-              onClick={handleStartMatch}
-              disabled={actionLoading}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actionLoading ? "Đang xử lý..." : "Bắt đầu trận đấu"}
-            </button>
+            <div className="flex flex-col items-end gap-1">
+              <button
+                onClick={handleStartMatch}
+                disabled={actionLoading || !canStartMatchNow}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!canStartMatchNow ? getStartMatchReason : ""}
+              >
+                {actionLoading ? "Đang xử lý..." : "Bắt đầu trận đấu"}
+              </button>
+              {!canStartMatchNow && getStartMatchReason && (
+                <p className="text-xs text-red-600 max-w-xs text-right">
+                  {getStartMatchReason}
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -480,6 +632,54 @@ export default function MatchManagementPage() {
           </span>
         </div>
 
+        {/* Scheduled Start Time */}
+        {canStartMatch && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <p className="text-sm font-medium text-blue-900">Giờ bắt đầu dự kiến</p>
+                  <button
+                    onClick={() => setShowScheduledTimeModal(true)}
+                    className="text-xs text-blue-600 hover:text-blue-700 underline"
+                  >
+                    {scoreboard.scheduledStartTime ? "Chỉnh sửa" : "Thiết lập"}
+                  </button>
+                </div>
+                {scoreboard.scheduledStartTime ? (
+                  <>
+                    <p className="text-lg font-semibold text-blue-700">
+                      {new Date(scoreboard.scheduledStartTime).toLocaleString('vi-VN', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                    {(() => {
+                      const scheduledTime = new Date(scoreboard.scheduledStartTime!);
+                      const now = new Date();
+                      const isTimeReached = now >= scheduledTime;
+                      return (
+                        <div className={`mt-2 inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                          isTimeReached 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {isTimeReached ? '✓ Đã đến giờ' : '⏰ Chưa đến giờ'}
+                        </div>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">Chưa thiết lập giờ bắt đầu</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Red Athlete */}
           <div className="border-l-4 border-red-500 pl-4">
@@ -491,6 +691,27 @@ export default function MatchManagementPage() {
             <p className="text-sm text-gray-600">{scoreboard.redAthlete.unit}</p>
             {scoreboard.redAthlete.sbtNumber && (
               <p className="text-xs text-gray-500 mt-1">SBT: {scoreboard.redAthlete.sbtNumber}</p>
+            )}
+            {canStartMatch && (
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="red-athlete-present"
+                  checked={redAthletePresent}
+                  onChange={(e) => handleAthletePresenceChange('red', e.target.checked)}
+                  className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                />
+                <label htmlFor="red-athlete-present" className="text-sm font-medium text-gray-700 cursor-pointer">
+                  Xác nhận vận động viên đã có mặt
+                </label>
+              </div>
+            )}
+            {!canStartMatch && redAthletePresent && (
+              <div className="mt-2">
+                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                  ✓ Đã xác nhận có mặt
+                </span>
+              </div>
             )}
           </div>
 
@@ -504,6 +725,27 @@ export default function MatchManagementPage() {
             <p className="text-sm text-gray-600">{scoreboard.blueAthlete.unit}</p>
             {scoreboard.blueAthlete.sbtNumber && (
               <p className="text-xs text-gray-500 mt-1">SBT: {scoreboard.blueAthlete.sbtNumber}</p>
+            )}
+            {canStartMatch && (
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="blue-athlete-present"
+                  checked={blueAthletePresent}
+                  onChange={(e) => handleAthletePresenceChange('blue', e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="blue-athlete-present" className="text-sm font-medium text-gray-700 cursor-pointer">
+                  Xác nhận vận động viên đã có mặt
+                </label>
+              </div>
+            )}
+            {!canStartMatch && blueAthletePresent && (
+              <div className="mt-2">
+                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                  ✓ Đã xác nhận có mặt
+                </span>
+              </div>
             )}
           </div>
         </div>
@@ -916,6 +1158,54 @@ export default function MatchManagementPage() {
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {assigning ? "Đang chỉ định..." : "Chỉ định giám định"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scheduled Start Time Modal */}
+      {showScheduledTimeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Cấu hình giờ bắt đầu dự kiến</h3>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Giờ bắt đầu dự kiến
+              </label>
+              <input
+                type="datetime-local"
+                value={scheduledStartTimeInput}
+                onChange={(e) => setScheduledStartTimeInput(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="mt-2 text-sm text-gray-500">
+                ℹ️ Trận đấu chỉ có thể bắt đầu khi đã đến giờ này và cả hai vận động viên đã được xác nhận có mặt.
+              </p>
+              <button
+                onClick={() => {
+                  setScheduledStartTimeInput("");
+                }}
+                className="mt-2 text-sm text-red-600 hover:text-red-700 underline"
+              >
+                Xóa giờ bắt đầu
+              </button>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowScheduledTimeModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleUpdateScheduledStartTime}
+                disabled={actionLoading || !canStartMatch}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {actionLoading ? "Đang cập nhật..." : canStartMatch ? "Lưu" : "Đóng"}
               </button>
             </div>
           </div>

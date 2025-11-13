@@ -25,8 +25,11 @@ export interface MatchScoreboard {
   mainRoundDurationSeconds?: number; // Duration for main rounds (hiệp chính)
   tiebreakerDurationSeconds?: number; // Duration for tiebreaker rounds (hiệp phụ)
   status: string; // e.g., 'CHỜ BẮT ĐẦU' | 'ĐANG ĐẤU' | 'TẠM DỪNG' | 'KẾT THÚC'
+  scheduledStartTime?: string | null; // Giờ bắt đầu dự kiến
   redAthlete: MatchAthleteInfo;
   blueAthlete: MatchAthleteInfo;
+  redAthletePresent?: boolean; // Xác nhận vận động viên đỏ có mặt
+  blueAthletePresent?: boolean; // Xác nhận vận động viên xanh có mặt
 }
 
 export interface MatchEvent {
@@ -94,6 +97,7 @@ export interface MatchListItem {
   createdAt: string;
   startedAt: string | null;
   endedAt: string | null;
+  scheduledStartTime?: string | null; // Giờ bắt đầu dự kiến
 }
 
 function replaceMatchId(path: string, matchId: string): string {
@@ -106,6 +110,14 @@ export const matchScoringService = {
     if (competitionId) params.append("competitionId", competitionId);
     if (status) params.append("status", status);
     const url = `${API_ENDPOINTS.MATCHES.LIST}${params.toString() ? `?${params.toString()}` : ""}`;
+    const res = await apiClient.get<{ success: boolean; data: MatchListItem[] }>(url);
+    return res.data.data;
+  },
+
+  async listMyAssignedMatches(status?: string): Promise<MatchListItem[]> {
+    const params = new URLSearchParams();
+    if (status) params.append("status", status);
+    const url = `${API_ENDPOINTS.MATCH_ASSESSORS.MY_ASSIGNMENTS}${params.toString() ? `?${params.toString()}` : ""}`;
     const res = await apiClient.get<{ success: boolean; data: MatchListItem[] }>(url);
     return res.data.data;
   },
@@ -175,6 +187,25 @@ export const matchScoringService = {
     const url = API_ENDPOINTS.MATCHES.UPDATE_TIEBREAKER_DURATION.replace("{matchId}", matchId);
     await apiClient.patch(url, null, {
       params: { tiebreakerDurationSeconds },
+    });
+  },
+
+  async updateScheduledStartTime(matchId: string, scheduledStartTime: string | null): Promise<void> {
+    const url = API_ENDPOINTS.MATCHES.UPDATE_SCHEDULED_START_TIME.replace("{matchId}", matchId);
+    await apiClient.patch(url, null, {
+      params: scheduledStartTime ? { scheduledStartTime } : {},
+    });
+  },
+
+  async updateAthletePresence(
+    matchId: string,
+    redAthletePresent: boolean,
+    blueAthletePresent: boolean
+  ): Promise<void> {
+    const url = API_ENDPOINTS.MATCHES.UPDATE_ATHLETE_PRESENCE.replace("{matchId}", matchId);
+    await apiClient.patch(url, {
+      redAthletePresent,
+      blueAthletePresent,
     });
   },
 };

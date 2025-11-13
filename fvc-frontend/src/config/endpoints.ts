@@ -172,6 +172,8 @@ export const API_ENDPOINTS = {
     UPDATE_TIEBREAKER_DURATION: "/v1/matches/{matchId}/tiebreaker-duration",
     UPDATE_FIELD: "/v1/matches/{matchId}/field",
     UPDATE_TOTAL_ROUNDS: "/v1/matches/{matchId}/total-rounds",
+    UPDATE_SCHEDULED_START_TIME: "/v1/matches/{matchId}/scheduled-start-time",
+    UPDATE_ATHLETE_PRESENCE: "/v1/matches/{matchId}/athlete-presence",
   },
 
   // Match Assessors

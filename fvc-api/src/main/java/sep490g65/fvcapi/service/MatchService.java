@@ -81,5 +81,15 @@ public interface MatchService {
      * Get round history for a match
      */
     List<MatchRoundDto> getRoundHistory(String matchId);
+    
+    /**
+     * Update scheduled start time for a match
+     */
+    void updateScheduledStartTime(String matchId, String scheduledStartTime);
+    
+    /**
+     * Update athlete presence status for a match
+     */
+    void updateAthletePresence(String matchId, Boolean redAthletePresent, Boolean blueAthletePresent);
 }
 
