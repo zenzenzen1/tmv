@@ -19,6 +19,7 @@ type TournamentSidebarProps = {
   menuItems?: MenuItem[];
   activeMenu?: ActiveMenu;
   onChange?: (next: ActiveMenu) => void;
+  disableNavigation?: boolean;
 };
 
 export default function TournamentSidebar({
@@ -26,6 +27,7 @@ export default function TournamentSidebar({
   menuItems,
   activeMenu: controlledActiveMenu,
   onChange,
+  disableNavigation = false,
 }: TournamentSidebarProps) {
   const items = menuItems ?? defaultMenuItems;
   const navigate = useNavigate();
@@ -87,7 +89,7 @@ export default function TournamentSidebar({
       setUncontrolledActiveMenu(next);
     }
     const path = keyToPath[next];
-    if (path) navigate(path);
+    if (!disableNavigation && path) navigate(path);
   };
 
   const { topLevelItems, sectionToItems } = useMemo(() => {

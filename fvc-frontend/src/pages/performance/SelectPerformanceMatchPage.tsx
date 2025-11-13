@@ -172,6 +172,23 @@ const resolveMatchDisplayOrder = (match: Match, index: number): number => {
   return index + 1;
 };
 
+const getContentGroupingKey = (match: Match): string => {
+  if (match.type === "quyen") {
+    return [
+      "quyen",
+      match.fistConfigId ?? "",
+      match.fistItemId ?? "",
+      match.contentName ?? "",
+    ].join("|");
+  }
+  if (match.type === "music") {
+    return ["music", match.musicContentId ?? "", match.contentName ?? ""].join(
+      "|"
+    );
+  }
+  return "";
+};
+
 export default function SelectPerformanceMatchPage() {
   const { matchId: routeMatchId } = useParams<{ matchId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -4368,8 +4385,18 @@ function ArrangeOrderPageContent({
           </div>
         ) : (
           (() => {
+            const contentOrderMap = new Map<string, number>();
             return filteredMatches.map((match, index) => {
-              const displayOrder = resolveMatchDisplayOrder(match, index);
+              const groupingKey = getContentGroupingKey(match);
+              const displayOrder =
+                groupingKey.length > 0
+                  ? (() => {
+                      const current = contentOrderMap.get(groupingKey) ?? 0;
+                      const next = current + 1;
+                      contentOrderMap.set(groupingKey, next);
+                      return next;
+                    })()
+                  : resolveMatchDisplayOrder(match, index);
               const pid = (match.performanceId || "").trim();
               const cachedPerf = pid
                 ? (performanceCache as any)[pid]

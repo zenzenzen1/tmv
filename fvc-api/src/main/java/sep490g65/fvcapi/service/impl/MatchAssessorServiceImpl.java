@@ -442,6 +442,10 @@ public class MatchAssessorServiceImpl implements MatchAssessorService {
                             .matchOrder(perfMatch.getMatchOrder())
                             .status(perfMatch.getStatus() != null ? perfMatch.getStatus().name() : "PENDING")
                             .participants(participants)
+                            // Include denormalized filter fields from PerformanceMatch
+                            .fistConfigId(perfMatch.getFistConfigId())
+                            .fistItemId(perfMatch.getFistItemId())
+                            .musicContentId(perfMatch.getMusicContentId())
                             .build());
         }
 

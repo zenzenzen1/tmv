@@ -57,6 +57,10 @@ public class MyAssignedMatchResponse {
         private Integer matchOrder;
         private String status;
         private String participants; // Comma-separated names
+        // Denormalized filter fields for FE filtering
+        private String fistConfigId;   // Quyền: category/config ID
+        private String fistItemId;      // Quyền: item/content ID
+        private String musicContentId;  // Võ nhạc: content ID
     }
 }
 
