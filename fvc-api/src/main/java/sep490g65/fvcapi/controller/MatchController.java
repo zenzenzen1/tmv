@@ -225,5 +225,35 @@ public class MatchController {
                     e.getMessage(), "MATCH_ROUND_HISTORY_ERROR"));
         }
     }
+
+    @PatchMapping("/{matchId}/scheduled-start-time")
+    public ResponseEntity<BaseResponse<Void>> updateScheduledStartTime(
+            @PathVariable String matchId,
+            @RequestParam(required = false) String scheduledStartTime) {
+        try {
+            matchService.updateScheduledStartTime(matchId, scheduledStartTime);
+            return ResponseEntity.ok(ResponseUtils.success("Scheduled start time updated successfully"));
+        } catch (Exception e) {
+            log.error("Error updating scheduled start time for match {}", matchId, e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    e.getMessage(), "MATCH_UPDATE_SCHEDULED_START_TIME_ERROR"));
+        }
+    }
+
+    @PatchMapping("/{matchId}/athlete-presence")
+    public ResponseEntity<BaseResponse<Void>> updateAthletePresence(
+            @PathVariable String matchId,
+            @RequestBody java.util.Map<String, Boolean> request) {
+        try {
+            Boolean redAthletePresent = request.get("redAthletePresent");
+            Boolean blueAthletePresent = request.get("blueAthletePresent");
+            matchService.updateAthletePresence(matchId, redAthletePresent, blueAthletePresent);
+            return ResponseEntity.ok(ResponseUtils.success("Athlete presence updated successfully"));
+        } catch (Exception e) {
+            log.error("Error updating athlete presence for match {}", matchId, e);
+            return ResponseEntity.ok(ResponseUtils.error(
+                    e.getMessage(), "MATCH_UPDATE_ATHLETE_PRESENCE_ERROR"));
+        }
+    }
 }
 

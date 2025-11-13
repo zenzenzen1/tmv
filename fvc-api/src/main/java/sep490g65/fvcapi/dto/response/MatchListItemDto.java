@@ -26,6 +26,7 @@ public class MatchListItemDto {
     private Integer currentRound;
     private Integer totalRounds;
     private LocalDateTime createdAt;
+    private LocalDateTime scheduledStartTime; // Giờ bắt đầu dự kiến
     private LocalDateTime startedAt;
     private LocalDateTime endedAt;
 }
