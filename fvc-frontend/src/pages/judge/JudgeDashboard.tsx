@@ -182,13 +182,8 @@ const JudgeDashboard: React.FC = () => {
     performanceId?: string,
     status?: "pending" | "ongoing" | "completed"
   ) => {
-    // Block joining when match has not started yet
-    if (status === "pending") {
-      window.alert(
-        "Trận chưa bắt đầu. Vui lòng quay lại khi trạng thái là ĐANG DIỄN RA."
-      );
-      return;
-    }
+    // Allow joining even when match hasn't started yet
+    // Scoring will only be enabled when match is IN_PROGRESS or COMPLETED
     // Chỉ xử lý quyền và võ nhạc
     const params = new URLSearchParams();
     if (performanceId) params.set("performanceId", performanceId);
@@ -374,18 +369,14 @@ const JudgeDashboard: React.FC = () => {
                       match.status
                     )
                   }
-                  disabled={match.status === "pending"}
-                  className={`w-full px-4 py-2 rounded transition 
-                    ${
-                      match.status === "pending"
-                        ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                        : "bg-blue-600 text-white hover:bg-blue-700"
-                    }`}
-                  title={match.status === "pending" ? "Trận chưa bắt đầu" : ""}
+                  className="w-full px-4 py-2 rounded transition bg-blue-600 text-white hover:bg-blue-700"
+                  title={
+                    match.status === "pending"
+                      ? "Có thể tham gia nhưng chỉ được chấm khi trận đã bắt đầu"
+                      : ""
+                  }
                 >
-                  {match.status === "pending"
-                    ? "Chưa thể tham gia"
-                    : "Tham gia chấm"}
+                  Tham gia chấm
                 </button>
               )}
             </div>

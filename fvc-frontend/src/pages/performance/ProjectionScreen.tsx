@@ -38,6 +38,13 @@ const ProjectionScreen: React.FC = () => {
   const completionSentRef = useRef<boolean>(false);
   const allJudgesScoredRef = useRef<boolean>(false);
   const redirectTimerRef = useRef<number | null>(null);
+  const [isStarted, setIsStarted] = useState<boolean>(false);
+  const [isStarting, setIsStarting] = useState<boolean>(false);
+  const [connectedAssessorsCount, setConnectedAssessorsCount] =
+    useState<number>(0);
+  const [performanceMatchId, setPerformanceMatchId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     const key = performanceId || matchId;
@@ -68,6 +75,13 @@ const ProjectionScreen: React.FC = () => {
         .contentType;
       const isQuyen = contentTypeStr === "QUYEN" || perf.contentType === "FIST";
       const isMusic = perf.contentType === "MUSIC";
+
+      // Check initial status - but don't auto-start, wait for user to click "Bắt đầu"
+      const perfStatus = (perf as unknown as { status?: string })?.status;
+      // Always start with isStarted = false, user must click "Bắt đầu" button
+      setIsStarted(false);
+      runningRef.current = false;
+      startTimeMsRef.current = null;
 
       // Event title
       setEventTitle(
@@ -136,12 +150,32 @@ const ProjectionScreen: React.FC = () => {
             assessorCount?: number;
           };
           type PerformanceMatchInfo = {
+            id?: string;
             durationSeconds?: number;
             status?: string;
             actualStartTime?: string;
           } | null;
           const comp: CompetitionInfo = compRes?.data ?? {};
           const pm: PerformanceMatchInfo = pmRes ? pmRes.data ?? null : null;
+
+          // Get PerformanceMatch ID for assessor connection tracking
+          if (pmRes) {
+            const pmData = pmRes.data as any;
+            // Try different response structures
+            const pmId =
+              pmData?.id ||
+              pmData?.data?.id ||
+              (pm as any)?.id ||
+              (typeof pmData === "object" && pmData !== null && "id" in pmData
+                ? (pmData as any).id
+                : null);
+            if (pmId) {
+              setPerformanceMatchId(pmId);
+            }
+          } else if (matchId) {
+            // If we have matchId directly, use it
+            setPerformanceMatchId(matchId);
+          }
 
           // Ignore any local overrides for judges count; always use 5
 
@@ -172,23 +206,11 @@ const ProjectionScreen: React.FC = () => {
         setRoundTime("02:00");
         setTimeLeft("02:00");
       }
-      // If backend already in progress, start local countdown immediately
-      try {
-        const statusStr = (perf as unknown as { status?: string })?.status;
-        const startTimeStr = (perf as unknown as { startTime?: string })
-          ?.startTime;
-        if (statusStr === "IN_PROGRESS") {
-          runningRef.current = true;
-          startTimeMsRef.current = startTimeStr
-            ? Date.parse(startTimeStr)
-            : Date.now();
-        } else {
-          runningRef.current = false;
-          startTimeMsRef.current = null;
-        }
-      } catch {
-        // ignore parse issues
-      }
+      // Don't auto-start countdown even if backend is IN_PROGRESS
+      // User must click "Bắt đầu" button to start
+      // This ensures user has control over when to start the match
+      runningRef.current = false;
+      startTimeMsRef.current = null;
       // Content name: fetch by ID when available
       if (isQuyen && perf.fistItemId) {
         try {
@@ -248,6 +270,7 @@ const ProjectionScreen: React.FC = () => {
       onConnect: () => {
         const pid = performanceId; // prefer performanceId
         if (!pid) return;
+
         // Status subscription: start/stop countdown
         client.subscribe(
           `/topic/performance/${pid}/status`,
@@ -258,7 +281,9 @@ const ProjectionScreen: React.FC = () => {
                 startTime?: string;
               };
               if (!payload) return;
-              if (payload.status === "IN_PROGRESS") {
+              // Only update status from WebSocket if user has already clicked "Bắt đầu"
+              // This prevents auto-starting when status is IN_PROGRESS from backend
+              if (payload.status === "IN_PROGRESS" && isStarted) {
                 runningRef.current = true;
                 startTimeMsRef.current = payload.startTime
                   ? Date.parse(payload.startTime)
@@ -268,14 +293,18 @@ const ProjectionScreen: React.FC = () => {
                 payload.status === "CANCELLED"
               ) {
                 runningRef.current = false;
+                // Don't reset isStarted to false - match has already started, don't show "Bắt đầu" button again
+                // Keep isStarted = true so button doesn't reappear
                 startTimeMsRef.current = null;
                 setTimeLeft("00:00");
               }
+              // Don't auto-start if status is IN_PROGRESS but user hasn't clicked "Bắt đầu"
             } catch {
               // ignore parse issues
             }
           }
         );
+
         // Score subscription: update judge scores and history immediately
         // Track assessor to slot mapping to prevent duplicates
         const assessorSlotMap = new Map<string, number>();
@@ -381,6 +410,94 @@ const ProjectionScreen: React.FC = () => {
     };
   }, [performanceId, matchId, navigate]);
 
+  // WebSocket: subscribe to assessor connection status for real-time updates
+  useEffect(() => {
+    const pmId = performanceMatchId || matchId;
+    if (!pmId) return;
+
+    // Wait for WebSocket to be connected
+    const checkAndSubscribe = () => {
+      if (!stompRef.current || !stompRef.current.connected) {
+        return null;
+      }
+
+      const client = stompRef.current;
+
+      // Subscribe to assessor connection status
+      const subscription = client.subscribe(
+        `/topic/match/${pmId}/assessor-connections`,
+        (msg: { body: string }) => {
+          try {
+            const payload = JSON.parse(msg.body) as {
+              connectedCount?: number;
+              connectedAssessors?: string[];
+            };
+            console.log("Assessor connection update received:", payload);
+            if (payload && typeof payload.connectedCount === "number") {
+              setConnectedAssessorsCount(payload.connectedCount);
+              console.log(
+                `Updated connected assessors count: ${payload.connectedCount}/5`
+              );
+            }
+          } catch (e) {
+            console.error("Error parsing assessor connection status:", e);
+          }
+        }
+      );
+
+      // Request initial connection status
+      setTimeout(() => {
+        if (client.connected) {
+          console.log(
+            "Requesting initial assessor connection status for match:",
+            pmId
+          );
+          client.publish({
+            destination: `/app/match/connections/request`,
+            body: JSON.stringify({ matchId: pmId }),
+          });
+        }
+      }, 500);
+
+      return () => {
+        try {
+          subscription.unsubscribe();
+        } catch (e) {
+          console.error("Error unsubscribing from assessor connections:", e);
+        }
+      };
+    };
+
+    // Try immediately if already connected
+    let cleanup: (() => void) | null = null;
+    if (stompRef.current?.connected) {
+      cleanup = checkAndSubscribe();
+    }
+
+    // If not connected yet, wait and retry
+    let interval: NodeJS.Timeout | null = null;
+    if (!stompRef.current?.connected) {
+      interval = setInterval(() => {
+        if (stompRef.current?.connected) {
+          cleanup = checkAndSubscribe();
+          if (cleanup && interval) {
+            clearInterval(interval);
+            interval = null;
+          }
+        }
+      }, 500);
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, [performanceMatchId, matchId]);
+
   // Local countdown based on startTime and roundSeconds
   useEffect(() => {
     const timer = setInterval(() => {
@@ -444,6 +561,68 @@ const ProjectionScreen: React.FC = () => {
     // Dependencies: matchId and performanceId are stable, no need to re-run effect
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Function to start the match
+  const handleStartMatch = async () => {
+    if (!performanceId && !matchId) {
+      console.error("Missing performanceId or matchId");
+      return;
+    }
+
+    // Check if all 5 assessors are connected
+    if (connectedAssessorsCount < 5) {
+      alert(
+        `Vui lòng đợi đủ 5 giám định kết nối. Hiện tại: ${connectedAssessorsCount}/5`
+      );
+      return;
+    }
+
+    setIsStarting(true);
+    try {
+      let pmId = matchId;
+
+      // If we have performanceId but not matchId, try to get PerformanceMatch ID
+      if (!pmId && performanceId) {
+        try {
+          const res = await api.get<{
+            data?: { id?: string } | { id?: string };
+            id?: string;
+          }>(API_ENDPOINTS.PERFORMANCE_MATCHES.BY_PERFORMANCE(performanceId));
+          const payload = res?.data;
+          const pm = (payload && (payload.data || payload)) as
+            | { id?: string }
+            | undefined;
+          pmId = pm?.id || pmId;
+        } catch (error) {
+          console.warn("Failed to get PerformanceMatch ID:", error);
+        }
+      }
+
+      // Start the match by updating status to IN_PROGRESS
+      if (pmId) {
+        await api.put(
+          `/v1/performance-matches/${encodeURIComponent(
+            pmId
+          )}/status/IN_PROGRESS`
+        );
+      } else if (performanceId) {
+        // Fallback: update Performance status directly
+        await api.put(API_ENDPOINTS.PERFORMANCES.START(performanceId));
+      } else {
+        throw new Error("No PerformanceMatch ID or Performance ID available");
+      }
+
+      setIsStarted(true);
+      runningRef.current = true;
+      startTimeMsRef.current = Date.now();
+    } catch (error) {
+      console.error("Failed to start match:", error);
+      alert("Không thể bắt đầu trận đấu. Vui lòng thử lại.");
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
   return (
     <div className="bg-[#F5F7FB] min-h-screen flex flex-col items-center justify-start py-4">
       {/* Header / Info */}
@@ -459,6 +638,15 @@ const ProjectionScreen: React.FC = () => {
           <div>
             <span className="font-semibold text-gray-600 mr-2">NỘI DUNG</span>
             <span className="text-black font-medium">{contentName || ""}</span>
+          </div>
+          <div
+            className={`text-xs rounded-md px-4 py-1 font-semibold border ${
+              connectedAssessorsCount >= 5
+                ? "bg-green-100 text-green-700 border-green-200"
+                : "bg-red-100 text-red-700 border-red-200"
+            }`}
+          >
+            Đã kết nối: {connectedAssessorsCount}/5 giám định
           </div>
           <div className="ml-auto text-xs bg-green-100 rounded-md px-4 py-1 font-semibold text-[#226e39] border border-green-200">
             Thời gian thi đấu: {roundTime}
@@ -495,6 +683,20 @@ const ProjectionScreen: React.FC = () => {
             <div className="text-[76px] sm:text-[52px] font-extrabold text-[#1D4ED8] leading-none tracking-wider">
               {timeLeft}
             </div>
+            {!isStarted && (
+              <button
+                onClick={handleStartMatch}
+                disabled={isStarting || connectedAssessorsCount < 5}
+                className="mt-4 px-6 py-3 bg-green-600 text-white rounded-lg text-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-colors"
+                title={
+                  connectedAssessorsCount < 5
+                    ? `Cần đủ 5 giám định kết nối. Hiện tại: ${connectedAssessorsCount}/5`
+                    : ""
+                }
+              >
+                {isStarting ? "Đang bắt đầu..." : "Bắt đầu"}
+              </button>
+            )}
           </div>
         </div>
         {/* Row 2: Judges */}

@@ -166,17 +166,28 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
         
         // Sync Performance status from PerformanceMatch (PerformanceMatch mirrors Performance status)
         Performance performance = saved.getPerformance();
-        if (performance != null && status != PerformanceMatch.MatchStatus.READY) {
-            // READY is PerformanceMatch-specific, skip syncing to Performance
-            Performance.PerformanceStatus perfStatus = mapMatchStatusToPerformanceStatus(status);
-            if (perfStatus != null && performance.getStatus() != perfStatus) {
-                performance.setStatus(perfStatus);
-                if (status == PerformanceMatch.MatchStatus.IN_PROGRESS) {
-                    performance.setStartTime(java.time.LocalDateTime.now());
-                } else if (status == PerformanceMatch.MatchStatus.COMPLETED) {
-                    performance.setEndTime(java.time.LocalDateTime.now());
+        if (performance != null) {
+            if (status == PerformanceMatch.MatchStatus.READY) {
+                // READY means match is setup but not started yet
+                // Sync Performance status to PENDING (not started)
+                if (performance.getStatus() != Performance.PerformanceStatus.PENDING) {
+                    performance.setStatus(Performance.PerformanceStatus.PENDING);
+                    performanceRepository.save(performance);
+                    log.info("Synced Performance {} status to PENDING because PerformanceMatch {} is READY", 
+                        performance.getId(), saved.getId());
                 }
-                performanceRepository.save(performance);
+            } else {
+                // For other statuses (PENDING, IN_PROGRESS, COMPLETED, CANCELLED), sync normally
+                Performance.PerformanceStatus perfStatus = mapMatchStatusToPerformanceStatus(status);
+                if (perfStatus != null && performance.getStatus() != perfStatus) {
+                    performance.setStatus(perfStatus);
+                    if (status == PerformanceMatch.MatchStatus.IN_PROGRESS) {
+                        performance.setStartTime(java.time.LocalDateTime.now());
+                    } else if (status == PerformanceMatch.MatchStatus.COMPLETED) {
+                        performance.setEndTime(java.time.LocalDateTime.now());
+                    }
+                    performanceRepository.save(performance);
+                }
             }
             
             // Always broadcast Performance status change (even if status didn't change, for realtime sync)
@@ -184,7 +195,7 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
                 java.util.Map<String, Object> payload = new java.util.HashMap<>();
                 payload.put("type", "STATUS_CHANGED");
                 payload.put("performanceId", performance.getId());
-                payload.put("status", performance.getStatus() != null ? performance.getStatus().toString() : perfStatus != null ? perfStatus.toString() : "UNKNOWN");
+                payload.put("status", performance.getStatus() != null ? performance.getStatus().toString() : "UNKNOWN");
                 payload.put("startTime", performance.getStartTime());
                 payload.put("endTime", performance.getEndTime());
                 payload.put("matchId", saved.getId()); // Include matchId for reference
@@ -345,9 +356,15 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
         // Update status to READY if has athletes and assessors
         int athleteCount = athletes.size();
         if (athleteCount > 0 && !assessors.isEmpty()) {
-            performanceMatch.setStatus(PerformanceMatch.MatchStatus.READY);
+            // Use updatePerformanceMatchStatus to trigger sync with Performance
+            // This ensures Performance status is synced to PENDING when PerformanceMatch becomes READY
+            updatePerformanceMatchStatus(performanceMatch.getId(), PerformanceMatch.MatchStatus.READY);
+            // Reload to get updated entity
+            performanceMatch = performanceMatchRepository.findById(performanceMatch.getId())
+                    .orElseThrow(() -> new RuntimeException("PerformanceMatch not found after status update"));
+        } else {
+            performanceMatch = performanceMatchRepository.save(performanceMatch);
         }
-        performanceMatch = performanceMatchRepository.save(performanceMatch);
 
         log.info("Saved PerformanceMatch setup for performance {}: {} athletes, {} assessors", 
                 performanceId, athleteCount, assessors.size());

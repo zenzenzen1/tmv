@@ -160,6 +160,7 @@ function formatSeconds(seconds?: number | null): string {
 function getStatusColor(status: string | undefined): string {
   switch (status) {
     case "PENDING":
+    case "READY":
     case "CHỜ BẮT ĐẦU":
       return "bg-gray-100 text-gray-800";
     case "IN_PROGRESS":
@@ -172,6 +173,7 @@ function getStatusColor(status: string | undefined): string {
     case "HỦY":
       return "bg-red-100 text-red-800";
     default:
+      // Default to gray for any unknown status (treated as "Chưa bắt đầu")
       return "bg-gray-100 text-gray-800";
   }
 }
@@ -179,15 +181,21 @@ function getStatusColor(status: string | undefined): string {
 function getStatusLabel(status: string | undefined): string {
   switch (status) {
     case "PENDING":
-      return "Chờ bắt đầu";
+    case "READY":
+    case "CHỜ BẮT ĐẦU":
+      return "Chưa bắt đầu";
     case "IN_PROGRESS":
+    case "ĐANG ĐẤU":
       return "Đang diễn ra";
     case "COMPLETED":
+    case "KẾT THÚC":
       return "Đã kết thúc";
     case "CANCELLED":
+    case "HỦY":
       return "Đã hủy";
     default:
-      return status || "Chờ bắt đầu";
+      // For any other status or undefined, show "Chưa bắt đầu"
+      return "Chưa bắt đầu";
   }
 }
 
@@ -1216,6 +1224,14 @@ function ArrangeOrderPageContent({
             if (ct !== "QUYEN" && ct !== "MUSIC") {
               return false;
             }
+            // Only show matches with performanceId (must have a linked performance)
+            if (
+              !pm.performanceId ||
+              typeof pm.performanceId !== "string" ||
+              pm.performanceId.trim() === ""
+            ) {
+              return false;
+            }
             // Only show matches with approved performances
             // A performance is approved when all selectedAthletes have an id (athlete is not null)
             const rawSelectedAthletes: Array<any> = Array.isArray(
@@ -1407,14 +1423,19 @@ function ArrangeOrderPageContent({
           setPerformanceCache((prev) => ({ ...prev, ...perfCacheUpdates }));
         }
 
-        // Update matches for both tabs, keeping existing matches that aren't in the loaded data
+        // Update matches for both tabs, only keep approved matches from DB
+        // Don't keep preset matches when tournament is selected - only show approved matches
         setMatches((prev) => {
-          // Keep only preset matches (those with preset- prefix) that don't have a persisted match
+          // When tournament is selected, only show approved matches from DB
+          // Preset matches are only for when no tournament is selected
+          if (selectedTournament) {
+            return enriched;
+          }
+          // If no tournament, keep preset matches (temporary) but filter out unapproved ones
           const presetMatches = prev.filter(
             (m) =>
               m.id.startsWith("preset-") && !enriched.some((e) => e.id === m.id)
           );
-          // Merge: enriched matches (from DB) + preset matches (temporary)
           return [...enriched, ...presetMatches];
         });
       } catch (err) {
@@ -2058,43 +2079,22 @@ function ArrangeOrderPageContent({
         }
       }
 
-      // Now we should have pmId, proceed to start the match
-      if (pmId) {
-        try {
-          // Update state optimistically first
-          setMatches((prev) =>
-            prev.map((m) =>
-              m.id === match.id ? { ...m, status: "IN_PROGRESS" } : m
-            )
-          );
-
-          // Then call API and wait for response before opening projection
-          // Use pmId (PerformanceMatch ID) instead of match.id
-          await api.put(
-            `/v1/performance-matches/${encodeURIComponent(
-              pmId
-            )}/status/IN_PROGRESS`
-          );
-
-          // Open projection after API call succeeds
-          const url = `/performance/projection?performanceId=${encodeURIComponent(
-            pid
-          )}`;
-          window.open(url, "_blank");
-        } catch (error) {
-          console.error("Failed to start match:", error);
-          // Revert optimistic update on error
-          setMatches((prev) =>
-            prev.map((m) =>
-              m.id === match.id
-                ? { ...m, status: match.status || "PENDING" }
-                : m
-            )
-          );
-          toast.error("Không thể bắt đầu trận đấu. Vui lòng thử lại.", 4000);
-        }
+      // Navigate to projection screen without starting the match
+      // User will start the match manually from projection screen
+      if (pmId && pid) {
+        // Open projection without starting the match
+        const url = `/performance/projection?performanceId=${encodeURIComponent(
+          pid
+        )}`;
+        window.open(url, "_blank");
+      } else if (pid) {
+        // Fallback: use performanceId if pmId not available
+        const url = `/performance/projection?performanceId=${encodeURIComponent(
+          pid
+        )}`;
+        window.open(url, "_blank");
       } else {
-        console.error("No PerformanceMatch ID available after creation");
+        console.error("No PerformanceMatch ID or Performance ID available");
         toast.error(
           "Không thể tìm thấy thông tin trận đấu. Vui lòng thử lại.",
           4000
@@ -3781,7 +3781,7 @@ function ArrangeOrderPageContent({
                             }}
                             className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
                           >
-                            Bắt đầu
+                            Chấm điểm
                           </button>
                         )}
                         <button
