@@ -13,6 +13,19 @@ function formatDate(dateString: string | null): string {
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch {
+    return dateString;
+  }
+}
+
+function formatDateTime(dateString: string | null): string {
+  if (!dateString) return "-";
+  try {
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
     return `${day}/${month}/${year} ${hours}:${minutes}`;
@@ -21,17 +34,34 @@ function formatDate(dateString: string | null): string {
   }
 }
 
+function formatTime(dateString: string | null): string {
+  if (!dateString) return "-";
+  try {
+    const date = new Date(dateString);
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  } catch {
+    return dateString;
+  }
+}
+
 function getStatusColor(status: string): string {
   switch (status) {
     case "CHỜ BẮT ĐẦU":
+    case "PENDING":
       return "bg-gray-100 text-gray-800";
     case "ĐANG ĐẤU":
+    case "IN_PROGRESS":
       return "bg-blue-100 text-blue-800";
     case "TẠM DỪNG":
+    case "PAUSED":
       return "bg-yellow-100 text-yellow-800";
     case "KẾT THÚC":
+    case "ENDED":
       return "bg-green-100 text-green-800";
     case "HỦY":
+    case "CANCELLED":
       return "bg-red-100 text-red-800";
     default:
       return "bg-gray-100 text-gray-800";
@@ -44,6 +74,9 @@ export default function MatchListPage() {
   const [matches, setMatches] = useState<MatchListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [weightClassFilter, setWeightClassFilter] = useState<string>("");
+  const [dateFilter, setDateFilter] = useState<string>("");
+  const [timeFilter, setTimeFilter] = useState<string>("");
   const { list: weightClassList, fetch: fetchWeightClasses } = useWeightClassStore();
 
   // Fetch weight classes on mount
@@ -51,25 +84,48 @@ export default function MatchListPage() {
     fetchWeightClasses({ size: 100 });
   }, [fetchWeightClasses]);
 
-  // Create a map of weightClassId -> weight class name
+  // Create a map of weightClassId -> weight class info
   const weightClassMap = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { name: string; gender: string }>();
     if (weightClassList?.content) {
       weightClassList.content.forEach((wc: WeightClassResponse) => {
         const genderLabel = wc.gender === "MALE" ? "Nam" : wc.gender === "FEMALE" ? "Nữ" : "";
         const weightRange = `${wc.minWeight}-${wc.maxWeight}kg`;
-        map.set(wc.id, genderLabel ? `${genderLabel} - ${weightRange}` : weightRange);
+        map.set(wc.id, {
+          name: genderLabel ? `${genderLabel} - ${weightRange}` : weightRange,
+          gender: wc.gender || "",
+        });
       });
     }
     return map;
   }, [weightClassList]);
 
+  // Get unique weight classes for filter
+  const uniqueWeightClasses = useMemo(() => {
+    const unique = new Map<string, { id: string; name: string; gender: string }>();
+    if (weightClassList?.content) {
+      weightClassList.content.forEach((wc: WeightClassResponse) => {
+        if (!unique.has(wc.id)) {
+          const genderLabel = wc.gender === "MALE" ? "Nam" : wc.gender === "FEMALE" ? "Nữ" : "";
+          const weightRange = `${wc.minWeight}-${wc.maxWeight}kg`;
+          unique.set(wc.id, {
+            id: wc.id,
+            name: genderLabel ? `${genderLabel} - ${weightRange}` : weightRange,
+            gender: wc.gender || "",
+          });
+        }
+      });
+    }
+    return Array.from(unique.values());
+  }, [weightClassList]);
+
   // Function to get weight class display name
   const getWeightClassName = (weightClassId: string | null): string => {
     if (!weightClassId) return "";
-    return weightClassMap.get(weightClassId) || weightClassId;
+    return weightClassMap.get(weightClassId)?.name || weightClassId;
   };
 
+  // Fetch matches
   useEffect(() => {
     async function fetchMatches() {
       try {
@@ -86,6 +142,68 @@ export default function MatchListPage() {
     }
     fetchMatches();
   }, [statusFilter, toast]);
+
+  // Filter matches
+  const filteredMatches = useMemo(() => {
+    return matches.filter((match) => {
+      // Filter by weight class
+      if (weightClassFilter && match.weightClassId !== weightClassFilter) {
+        return false;
+      }
+
+      // Filter by date (scheduledStartTime or startedAt or createdAt)
+      if (dateFilter) {
+        const matchDate = match.scheduledStartTime || match.startedAt || match.createdAt;
+        if (matchDate) {
+          const matchDateStr = formatDate(matchDate);
+          if (matchDateStr !== dateFilter) {
+            return false;
+          }
+        } else {
+          return false;
+        }
+      }
+
+      // Filter by time (scheduledStartTime or startedAt)
+      if (timeFilter) {
+        const matchTime = match.scheduledStartTime || match.startedAt;
+        if (matchTime) {
+          const matchTimeStr = formatTime(matchTime);
+          if (matchTimeStr !== timeFilter) {
+            return false;
+          }
+        } else {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [matches, weightClassFilter, dateFilter, timeFilter, weightClassMap]);
+
+  // Get unique dates from matches for date filter
+  const availableDates = useMemo(() => {
+    const dates = new Set<string>();
+    matches.forEach((match) => {
+      const matchDate = match.scheduledStartTime || match.startedAt || match.createdAt;
+      if (matchDate) {
+        dates.add(formatDate(matchDate));
+      }
+    });
+    return Array.from(dates).sort();
+  }, [matches]);
+
+  // Get unique times from matches for time filter
+  const availableTimes = useMemo(() => {
+    const times = new Set<string>();
+    matches.forEach((match) => {
+      const matchTime = match.scheduledStartTime || match.startedAt;
+      if (matchTime) {
+        times.add(formatTime(matchTime));
+      }
+    });
+    return Array.from(times).sort();
+  }, [matches]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -106,23 +224,96 @@ export default function MatchListPage() {
 
       {/* Filters */}
       <div className="mb-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <div className="flex items-center gap-4">
-          <label className="text-sm font-medium text-gray-700">Lọc theo trạng thái:</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            <option value="">Tất cả</option>
-            <option value="PENDING">Chờ bắt đầu</option>
-            <option value="IN_PROGRESS">Đang đấu</option>
-            <option value="PAUSED">Tạm dừng</option>
-            <option value="ENDED">Kết thúc</option>
-            <option value="CANCELLED">Hủy</option>
-          </select>
-          <div className="ml-auto text-sm text-gray-600">
-            Tổng: {matches.length} trận đấu
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Trạng thái
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">Tất cả</option>
+              <option value="PENDING">Chờ bắt đầu</option>
+              <option value="IN_PROGRESS">Đang đấu</option>
+              <option value="PAUSED">Tạm dừng</option>
+              <option value="ENDED">Kết thúc</option>
+              <option value="CANCELLED">Hủy</option>
+            </select>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Hạng cân
+            </label>
+            <select
+              value={weightClassFilter}
+              onChange={(e) => setWeightClassFilter(e.target.value)}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">Tất cả</option>
+              {uniqueWeightClasses.map((wc) => (
+                <option key={wc.id} value={wc.id}>
+                  {wc.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ngày đấu
+            </label>
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">Tất cả</option>
+              {availableDates.map((date) => (
+                <option key={date} value={date}>
+                  {date}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Giờ đấu
+            </label>
+            <select
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(e.target.value)}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">Tất cả</option>
+              {availableTimes.map((time) => (
+                <option key={time} value={time}>
+                  {time}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            Hiển thị: <span className="font-semibold">{filteredMatches.length}</span> / {matches.length} trận đấu
+          </div>
+          {(weightClassFilter || dateFilter || timeFilter) && (
+            <button
+              onClick={() => {
+                setWeightClassFilter("");
+                setDateFilter("");
+                setTimeFilter("");
+              }}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Xóa bộ lọc
+            </button>
+          )}
         </div>
       </div>
 
@@ -130,7 +321,7 @@ export default function MatchListPage() {
         <div className="flex justify-center py-12">
           <LoadingSpinner />
         </div>
-      ) : matches.length === 0 ? (
+      ) : filteredMatches.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
           <svg
             className="mx-auto h-12 w-12 text-gray-400"
@@ -147,107 +338,110 @@ export default function MatchListPage() {
           </svg>
           <h3 className="mt-4 text-lg font-medium text-gray-900">Không có trận đấu</h3>
           <p className="mt-2 text-sm text-gray-500">
-            {statusFilter
-              ? "Không có trận đấu nào với trạng thái này"
+            {statusFilter || weightClassFilter || dateFilter || timeFilter
+              ? "Không có trận đấu nào phù hợp với bộ lọc"
               : "Chưa có trận đấu nào được tạo"}
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {matches.map((match) => {
-            // Check if match has ended
-            const isMatchEnded = match.status === "KẾT THÚC" || match.status === "ENDED" || match.status === "FINISHED";
-            
-            return (
-              <div
-                key={match.id}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-              >
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                        {match.roundType}
-                      </h3>
-                      {match.weightClassId && (
-                        <p className="text-sm text-gray-500">
-                          Hạng cân: {getWeightClassName(match.weightClassId)}
-                        </p>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Vòng đấu
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Hạng cân
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Vận động viên
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Giờ bắt đầu
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Trạng thái
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tiến độ
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Thao tác
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredMatches.map((match) => (
+                  <tr key={match.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{match.roundType}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {match.weightClassId ? getWeightClassName(match.weightClassId) : "-"}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                          <span className="font-medium text-gray-900">{match.redAthleteName}</span>
+                          {match.redAthleteUnit && (
+                            <span className="text-xs text-gray-500">({match.redAthleteUnit})</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          <span className="font-medium text-gray-900">{match.blueAthleteName}</span>
+                          {match.blueAthleteUnit && (
+                            <span className="text-xs text-gray-500">({match.blueAthleteUnit})</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {match.scheduledStartTime
+                          ? formatDateTime(match.scheduledStartTime)
+                          : match.startedAt
+                          ? formatDateTime(match.startedAt)
+                          : "-"}
+                      </div>
+                      {match.scheduledStartTime && (
+                        <div className="text-xs text-gray-500">
+                          {formatTime(match.scheduledStartTime)}
+                        </div>
                       )}
-                    </div>
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(match.status)}`}
-                    >
-                      {match.status}
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 text-sm">{match.redAthleteName}</p>
-                        {match.redAthleteUnit && (
-                          <p className="text-xs text-gray-500">{match.redAthleteUnit}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 text-sm">{match.blueAthleteName}</p>
-                        {match.blueAthleteUnit && (
-                          <p className="text-xs text-gray-500">{match.blueAthleteUnit}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t border-gray-200">
-                    <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                      <span>
-                        Vòng {match.currentRound}/{match.totalRounds}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(match.status)}`}
+                      >
+                        {match.status}
                       </span>
-                      <span>{formatDate(match.createdAt)}</span>
-                    </div>
-                    {match.startedAt && (
-                      <p className="text-xs text-gray-500 mb-3">
-                        Bắt đầu: {formatDate(match.startedAt)}
-                      </p>
-                    )}
-                    <div className="flex gap-2">
-                      {isMatchEnded ? (
-                        <button
-                          onClick={() => navigate(`/scoring/${match.id}`)}
-                          className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
-                        >
-                          Xem kết quả
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => navigate(`/manage/scoring/${match.id}/manage`)}
-                            className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
-                          >
-                            Quản lý
-                          </button>
-                          <button
-                            onClick={() => navigate(`/scoring/${match.id}`)}
-                            className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
-                          >
-                            Chấm điểm
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        Vòng {match.currentRound}/{match.totalRounds}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => navigate(`/manage/scoring/${match.id}/manage`)}
+                        className="text-blue-600 hover:text-blue-900 font-medium"
+                      >
+                        Quản lý
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
   );
 }
-

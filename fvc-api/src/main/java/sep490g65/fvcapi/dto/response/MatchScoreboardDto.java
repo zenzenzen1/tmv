@@ -21,6 +21,9 @@ public class MatchScoreboardDto {
     private Integer mainRoundDurationSeconds; // Duration for main rounds (hiệp chính)
     private Integer tiebreakerDurationSeconds; // Duration for tiebreaker rounds (hiệp phụ)
     private String status;
+    private String scheduledStartTime; // Giờ bắt đầu dự kiến (ISO format)
+    private Boolean redAthletePresent; // Xác nhận vận động viên đỏ có mặt
+    private Boolean blueAthletePresent; // Xác nhận vận động viên xanh có mặt
     private MatchAthleteInfoDto redAthlete;
     private MatchAthleteInfoDto blueAthlete;
 }

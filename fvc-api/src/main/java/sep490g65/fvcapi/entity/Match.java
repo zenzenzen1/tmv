@@ -87,6 +87,17 @@ public class Match extends BaseEntity {
     @Builder.Default
     private Integer tiebreakerDurationSeconds = 60; // Duration for tiebreaker round (hiệp phụ)
 
+    @Column(name = "scheduled_start_time")
+    private LocalDateTime scheduledStartTime; // Giờ bắt đầu dự kiến
+
+    @Column(name = "red_athlete_present")
+    @Builder.Default
+    private Boolean redAthletePresent = false; // Xác nhận vận động viên đỏ có mặt
+
+    @Column(name = "blue_athlete_present")
+    @Builder.Default
+    private Boolean blueAthletePresent = false; // Xác nhận vận động viên xanh có mặt
+
     @Column(name = "started_at")
     private LocalDateTime startedAt;
 

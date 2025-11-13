@@ -227,6 +227,7 @@ public class MatchServiceImpl implements MatchService {
                 .currentRound(match.getCurrentRound())
                 .totalRounds(match.getTotalRounds())
                 .createdAt(match.getCreatedAt())
+                .scheduledStartTime(match.getScheduledStartTime())
                 .startedAt(match.getStartedAt())
                 .endedAt(match.getEndedAt())
                 .build();
@@ -290,6 +291,11 @@ public class MatchServiceImpl implements MatchService {
                 .mainRoundDurationSeconds(match.getMainRoundDurationSeconds())
                 .tiebreakerDurationSeconds(match.getTiebreakerDurationSeconds())
                 .status(statusText)
+                .scheduledStartTime(match.getScheduledStartTime() != null 
+                        ? match.getScheduledStartTime().toString() 
+                        : null)
+                .redAthletePresent(match.getRedAthletePresent())
+                .blueAthletePresent(match.getBlueAthletePresent())
                 .redAthlete(MatchAthleteInfoDto.builder()
                         .id(match.getRedAthleteId())
                         .name(match.getRedAthleteName())
@@ -429,6 +435,32 @@ public class MatchServiceImpl implements MatchService {
                             ErrorCode.INVALID_MATCH_STATUS.getCode());
                 }
                 
+                // Validate scheduled start time
+                if (match.getScheduledStartTime() != null) {
+                    LocalDateTime now = LocalDateTime.now();
+                    if (now.isBefore(match.getScheduledStartTime())) {
+                        throw new BusinessException(
+                                String.format("Chưa đến giờ bắt đầu trận đấu. Giờ bắt đầu: %s. Còn %d phút nữa.",
+                                        match.getScheduledStartTime().toString(),
+                                        java.time.Duration.between(now, match.getScheduledStartTime()).toMinutes()),
+                                ErrorCode.INVALID_MATCH_STATUS.getCode());
+                    }
+                }
+                
+                // Validate both athletes are present
+                if (match.getRedAthletePresent() == null || !match.getRedAthletePresent()) {
+                    throw new BusinessException(
+                            String.format("Vui lòng xác nhận vận động viên đỏ (%s) đã có mặt trước khi bắt đầu trận đấu.",
+                                    match.getRedAthleteName()),
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                if (match.getBlueAthletePresent() == null || !match.getBlueAthletePresent()) {
+                    throw new BusinessException(
+                            String.format("Vui lòng xác nhận vận động viên xanh (%s) đã có mặt trước khi bắt đầu trận đấu.",
+                                    match.getBlueAthleteName()),
+                            ErrorCode.INVALID_MATCH_STATUS.getCode());
+                }
+                
                 match.setStatus(MatchStatus.IN_PROGRESS);
                 if (match.getStartedAt() == null) {
                     match.setStartedAt(LocalDateTime.now());
@@ -516,13 +548,21 @@ public class MatchServiceImpl implements MatchService {
                     String redScore = String.valueOf(finalScoreboard.getRedAthlete().getScore());
                     String blueScore = String.valueOf(finalScoreboard.getBlueAthlete().getScore());
                     String winner;
+                    Corner winnerCorner = null;
                     if (finalScoreboard.getRedAthlete().getScore() > finalScoreboard.getBlueAthlete().getScore()) {
                         winner = "ĐỎ";
+                        winnerCorner = Corner.RED;
                     } else if (finalScoreboard.getBlueAthlete().getScore() > finalScoreboard.getRedAthlete().getScore()) {
                         winner = "XANH";
+                        winnerCorner = Corner.BLUE;
                     } else {
                         winner = "HÒA";
+                        // winnerCorner remains null for tie
                     }
+                    
+                    // Set winner corner in match
+                    match.setWinnerCorner(winnerCorner);
+                    matchRepository.save(match);
                     
                     // Notify all assessors and disconnect them
                     webSocketConnectionEventListener.notifyMatchEndedAndDisconnect(
@@ -591,13 +631,21 @@ public class MatchServiceImpl implements MatchService {
                 String redScore = String.valueOf(finalScoreboard.getRedAthlete().getScore());
                 String blueScore = String.valueOf(finalScoreboard.getBlueAthlete().getScore());
                 String winner;
+                Corner winnerCorner = null;
                 if (finalScoreboard.getRedAthlete().getScore() > finalScoreboard.getBlueAthlete().getScore()) {
                     winner = "ĐỎ";
+                    winnerCorner = Corner.RED;
                 } else if (finalScoreboard.getBlueAthlete().getScore() > finalScoreboard.getRedAthlete().getScore()) {
                     winner = "XANH";
+                    winnerCorner = Corner.BLUE;
                 } else {
                     winner = "HÒA";
+                    // winnerCorner remains null for tie
                 }
+                
+                // Set winner corner in match
+                match.setWinnerCorner(winnerCorner);
+                matchRepository.save(match);
                 
                 // Notify all assessors and disconnect them
                 webSocketConnectionEventListener.notifyMatchEndedAndDisconnect(
@@ -1055,5 +1103,69 @@ public class MatchServiceImpl implements MatchService {
                 .description(event.getDescription())
                 .createdAt(event.getCreatedAt())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void updateScheduledStartTime(String matchId, String scheduledStartTime) {
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(matchId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        String.format(MessageConstants.MATCH_NOT_FOUND, matchId)));
+
+        // Only allow updating if match hasn't started yet
+        if (match.getStatus() != MatchStatus.PENDING) {
+            throw new BusinessException(
+                    "Chỉ có thể thay đổi giờ bắt đầu dự kiến khi trận đấu chưa bắt đầu. Trạng thái hiện tại: " + match.getStatus(),
+                    ErrorCode.INVALID_MATCH_STATUS.getCode());
+        }
+
+        LocalDateTime scheduledTime = null;
+        if (scheduledStartTime != null && !scheduledStartTime.isEmpty()) {
+            try {
+                scheduledTime = LocalDateTime.parse(scheduledStartTime);
+            } catch (Exception e) {
+                throw new BusinessException(
+                        "Định dạng giờ bắt đầu không hợp lệ. Vui lòng sử dụng định dạng ISO (yyyy-MM-ddTHH:mm:ss)",
+                        ErrorCode.INVALID_MATCH_STATUS.getCode());
+            }
+        }
+
+        match.setScheduledStartTime(scheduledTime);
+        matchRepository.save(match);
+
+        // Broadcast update via WebSocket
+        broadcastScoreboardUpdate(matchId);
+
+        log.info("Scheduled start time updated for match {} to {}", matchId, scheduledTime);
+    }
+
+    @Override
+    @Transactional
+    public void updateAthletePresence(String matchId, Boolean redAthletePresent, Boolean blueAthletePresent) {
+        Match match = matchRepository.findByIdAndDeletedAtIsNull(matchId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        String.format(MessageConstants.MATCH_NOT_FOUND, matchId)));
+
+        // Only allow updating if match hasn't started yet
+        if (match.getStatus() != MatchStatus.PENDING) {
+            throw new BusinessException(
+                    "Chỉ có thể thay đổi trạng thái xác nhận vận động viên khi trận đấu chưa bắt đầu. Trạng thái hiện tại: " + match.getStatus(),
+                    ErrorCode.INVALID_MATCH_STATUS.getCode());
+        }
+
+        if (redAthletePresent != null) {
+            match.setRedAthletePresent(redAthletePresent);
+        }
+        if (blueAthletePresent != null) {
+            match.setBlueAthletePresent(blueAthletePresent);
+        }
+
+        matchRepository.save(match);
+
+        // Broadcast update via WebSocket
+        broadcastScoreboardUpdate(matchId);
+
+        log.info("Athlete presence updated for match {}: red={}, blue={}", 
+                matchId, redAthletePresent, blueAthletePresent);
     }
 }
