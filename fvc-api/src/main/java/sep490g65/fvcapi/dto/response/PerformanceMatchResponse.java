@@ -23,8 +23,10 @@ public class PerformanceMatchResponse {
     private String performanceId;
     private Integer matchOrder;
     private LocalDateTime scheduledTime;
+    private LocalDateTime scheduledStartTime; // Giờ bắt đầu dự kiến (mới)
     private LocalDateTime actualStartTime;
     private LocalDateTime actualEndTime;
+    private String athletesPresent; // JSON map: {"athleteId1": true, "athleteId2": false, ...}
     private Performance.ContentType contentType;
     private PerformanceMatch.MatchStatus status;
     private String notes;
@@ -62,8 +64,10 @@ public class PerformanceMatchResponse {
                 .performanceId(performanceMatch.getPerformance().getId())
                 .matchOrder(performanceMatch.getMatchOrder())
                 .scheduledTime(performanceMatch.getScheduledTime())
+                .scheduledStartTime(performanceMatch.getScheduledStartTime())
                 .actualStartTime(performanceMatch.getActualStartTime())
                 .actualEndTime(performanceMatch.getActualEndTime())
+                .athletesPresent(performanceMatch.getAthletesPresent())
                 .contentType(performanceMatch.getContentType())
                 .status(performanceMatch.getStatus())
                 .notes(performanceMatch.getNotes())

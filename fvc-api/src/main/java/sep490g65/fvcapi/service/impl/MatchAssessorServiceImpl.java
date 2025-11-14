@@ -35,6 +35,7 @@ import sep490g65.fvcapi.service.MatchAssessorService;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -166,6 +167,17 @@ public class MatchAssessorServiceImpl implements MatchAssessorService {
                 throw new BusinessException("Each user can only be assigned once per performance match", "DUPLICATE_USER");
             }
         });
+
+        // Remove any existing assessors for the users we're trying to assign (regardless of specialization)
+        // This is necessary because the unique constraint is on (performance_match_id, user_id) without specialization
+        for (String userId : userIds) {
+            Optional<MatchAssessor> existingAssessor = matchAssessorRepository
+                    .findByUserIdAndPerformanceMatchId(userId, performanceMatch.getId());
+            if (existingAssessor.isPresent()) {
+                log.info("Removing existing assessor for user {} in performance match {} (different specialization)", userId, performanceMatch.getId());
+                matchAssessorRepository.delete(existingAssessor.get());
+            }
+        }
 
         User assignedBy = null;
         if (assignedByUserId != null) {

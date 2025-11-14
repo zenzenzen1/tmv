@@ -72,6 +72,12 @@ public class PerformanceMatch extends BaseEntity {
     @Column(name = "field_location")
     private String fieldLocation;
 
+    @Column(name = "scheduled_start_time")
+    private LocalDateTime scheduledStartTime; // Giờ bắt đầu dự kiến
+
+    @Column(name = "athletes_present", columnDefinition = "TEXT")
+    private String athletesPresent; // JSON map: {"athleteId1": true, "athleteId2": false, ...}
+
     // Relationships
     @OneToMany(mappedBy = "performanceMatch", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

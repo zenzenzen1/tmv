@@ -6,7 +6,9 @@ import sep490g65.fvcapi.dto.request.SavePerformanceMatchSetupRequest;
 import sep490g65.fvcapi.entity.PerformanceMatch;
 import sep490g65.fvcapi.dto.response.MatchAssessorResponse;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public interface PerformanceMatchService {
     
@@ -31,5 +33,9 @@ public interface PerformanceMatchService {
     PerformanceMatchResponse savePerformanceMatchSetup(String performanceId, SavePerformanceMatchSetupRequest options);
 
     List<MatchAssessorResponse> getAssessorsByPerformanceMatchId(String performanceMatchId);
+
+    void updateScheduledStartTime(String id, LocalDateTime scheduledStartTime);
+
+    void updateAthletePresence(String id, Map<String, Boolean> athletesPresent);
 }
 

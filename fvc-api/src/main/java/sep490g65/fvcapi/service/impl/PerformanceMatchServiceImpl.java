@@ -23,7 +23,9 @@ import sep490g65.fvcapi.repository.PerformanceMatchRepository;
 import sep490g65.fvcapi.repository.PerformanceRepository;
 import sep490g65.fvcapi.service.PerformanceMatchService;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -395,6 +397,37 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
         return assessors.stream()
                 .map(MatchAssessorResponse::from)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void updateScheduledStartTime(String id, LocalDateTime scheduledStartTime) {
+        PerformanceMatch performanceMatch = performanceMatchRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("PerformanceMatch not found"));
+        performanceMatch.setScheduledStartTime(scheduledStartTime);
+        performanceMatchRepository.save(performanceMatch);
+    }
+
+    @Override
+    @Transactional
+    public void updateAthletePresence(String id, Map<String, Boolean> athletesPresent) {
+        PerformanceMatch performanceMatch = performanceMatchRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("PerformanceMatch not found"));
+        
+        // Convert Map to JSON string
+        if (athletesPresent != null && !athletesPresent.isEmpty()) {
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                String json = objectMapper.writeValueAsString(athletesPresent);
+                performanceMatch.setAthletesPresent(json);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to serialize athletes present map to JSON", e);
+            }
+        } else {
+            performanceMatch.setAthletesPresent(null);
+        }
+        
+        performanceMatchRepository.save(performanceMatch);
     }
 }
 

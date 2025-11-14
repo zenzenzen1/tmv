@@ -125,6 +125,10 @@ export const API_ENDPOINTS = {
       `/v1/performance-matches/competition/${competitionId}`,
     ASSESSORS: (performanceMatchId: string) =>
       `/v1/performance-matches/${performanceMatchId}/assessors`,
+    UPDATE_SCHEDULED_START_TIME: (id: string) =>
+      `/v1/performance-matches/${id}/scheduled-start-time`,
+    UPDATE_ATHLETE_PRESENCE: (id: string) =>
+      `/v1/performance-matches/${id}/athlete-presence`,
   },
 
   // Club Members

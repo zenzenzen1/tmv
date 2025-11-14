@@ -17,6 +17,7 @@ import { Client } from "@stomp/stompjs";
 import { fieldService } from "../../services/fieldService";
 import type { FieldResponse } from "../../types";
 import { useToast } from "../../components/common/ToastContext";
+import PerformanceMatchSetupCard from "./PerformanceMatchSetupCard";
 
 type AthleteApi = {
   id: string;
@@ -553,6 +554,9 @@ function ArrangeOrderPageContent({
     judgesCount: number;
     defaultTimerSec: number;
     fieldId?: string;
+    scheduledStartTime?: string | null;
+    athletesPresent?: Record<string, boolean>;
+    performanceMatchId?: string;
   }>(createDefaultSetupState());
   const [hasStandaloneSetupInitialized, setHasStandaloneSetupInitialized] =
     useState(false);
@@ -2403,24 +2407,44 @@ function ArrangeOrderPageContent({
       setShowGenderFilter(false);
       setShowTeamFilter(false);
 
-      // Ensure field is hydrated from backend if not yet available in local state
+      // Ensure field, scheduledStartTime, and athletesPresent are hydrated from backend
       (async () => {
         try {
           const currentFieldId = (match?.fieldId || "").toString().trim();
           const performanceId = (match?.performanceId || "").toString().trim();
-          if (!currentFieldId && performanceId) {
+          if (performanceId) {
             const url =
               API_ENDPOINTS.PERFORMANCE_MATCHES.BY_PERFORMANCE(performanceId);
             const res = await api.get(url);
             const pm = (res as any)?.data?.data ?? (res as any)?.data ?? null;
             const fetchedFieldId = (pm?.fieldId || "").toString();
             const fetchedFieldName = (pm?.fieldLocation || "").toString();
+            const fetchedScheduledStartTime = pm?.scheduledStartTime || null;
+            const fetchedAthletesPresent = pm?.athletesPresent
+              ? typeof pm.athletesPresent === "string"
+                ? JSON.parse(pm.athletesPresent)
+                : pm.athletesPresent
+              : {};
+            const fetchedPerformanceMatchId = pm?.id || null;
+            const fetchedDurationSeconds =
+              typeof pm?.durationSeconds === "number" && pm.durationSeconds > 0
+                ? pm.durationSeconds
+                : null;
+
+            setSetupModal((prev) => ({
+              ...prev,
+              fieldId: fetchedFieldId || prev.fieldId,
+              scheduledStartTime:
+                fetchedScheduledStartTime || prev.scheduledStartTime,
+              athletesPresent:
+                fetchedAthletesPresent || prev.athletesPresent || {},
+              performanceMatchId:
+                fetchedPerformanceMatchId || prev.performanceMatchId,
+              defaultTimerSec: fetchedDurationSeconds || prev.defaultTimerSec,
+            }));
+
+            // Also reflect into matches list so reopening modal keeps the value
             if (fetchedFieldId) {
-              setSetupModal((prev) => ({
-                ...prev,
-                fieldId: fetchedFieldId,
-              }));
-              // Also reflect into matches list so reopening modal keeps the value
               setMatches((prev) =>
                 normalizeMatches(
                   prev.map((m) =>
@@ -2438,6 +2462,7 @@ function ArrangeOrderPageContent({
           }
         } catch (e) {
           // ignore hydration errors; modal still works with empty selection
+          console.error("Failed to hydrate PerformanceMatch data:", e);
         }
       })();
 
@@ -2773,13 +2798,843 @@ function ArrangeOrderPageContent({
     });
   };
 
-  const handleAssignModalSave = () => {
-    setSetupModal((prev) => ({
-      ...prev,
-      assessors: { ...assignModalAssessors },
-      assessorDetails: { ...assignModalAssessorDetails },
+  // Handler to save field only
+  const handleSaveField = useCallback(async () => {
+    if (!setupModal.matchId || !selectedTournament) return;
+    if (!setupModal.fieldId || setupModal.fieldId.trim() === "") {
+      toast.warning("Vui lòng chọn sân thi đấu.", 4000);
+      return;
+    }
+
+    const match = matches.find((m) => m.id === setupModal.matchId);
+    if (!match) return;
+
+    const participantIds = Array.isArray(match.participantIds)
+      ? match.participantIds
+      : [];
+    const selectedAthletes = athletes.filter((a) =>
+      participantIds.includes(a.id)
+    );
+
+    const specialization =
+      activeTab === "quyen"
+        ? "QUYEN"
+        : activeTab === "music"
+        ? "MUSIC"
+        : "FIGHTING";
+
+    let derivedPerformanceId =
+      match.performanceId ||
+      selectedAthletes.find((a) => a.performanceId)?.performanceId ||
+      undefined;
+
+    if (
+      (specialization === "QUYEN" || specialization === "MUSIC") &&
+      !derivedPerformanceId &&
+      selectedAthletes.length === 1
+    ) {
+      try {
+        const athlete = selectedAthletes[0];
+        const createPayload: any = {
+          competitionId: selectedTournament,
+          isTeam: false,
+          performanceType: "INDIVIDUAL",
+          contentType: specialization,
+          athleteIds: [athlete.id],
+        };
+        if (specialization === "QUYEN") {
+          if (match.fistConfigId)
+            createPayload.fistConfigId = match.fistConfigId;
+          if (match.fistItemId) createPayload.fistItemId = match.fistItemId;
+        } else if (specialization === "MUSIC") {
+          if (match.musicContentId)
+            createPayload.musicContentId = match.musicContentId;
+        }
+
+        const perfResponse = await api.post(
+          API_ENDPOINTS.PERFORMANCES.CREATE,
+          createPayload
+        );
+        derivedPerformanceId =
+          (perfResponse as any)?.data?.id || (perfResponse as any)?.id;
+      } catch (error) {
+        console.error("Failed to create Performance:", error);
+        toast.error(
+          "Không thể tạo Performance. Vui lòng kiểm tra lại thông tin.",
+          4000
+        );
+        return;
+      }
+    }
+
+    const selectedField = fields.find(
+      (field) => field.id === setupModal.fieldId
+    );
+    if (!selectedField) {
+      toast.error("Không tìm thấy thông tin sân đã chọn.", 4000);
+      return;
+    }
+
+    if (
+      (specialization === "QUYEN" || specialization === "MUSIC") &&
+      !derivedPerformanceId
+    ) {
+      toast.error(
+        "Không thể xác định thông tin performance để lưu sân thi đấu.",
+        4000
+      );
+      return;
+    }
+
+    try {
+      const pmPayload: {
+        durationSeconds?: number;
+        fistConfigId?: string | null;
+        fistItemId?: string | null;
+        musicContentId?: string | null;
+        fieldId?: string | null;
+        fieldLocation?: string | null;
+      } = {
+        fieldId: setupModal.fieldId ? setupModal.fieldId : null,
+        fieldLocation:
+          typeof selectedField?.location === "string"
+            ? selectedField.location
+            : null,
+      };
+
+      // Get existing duration if available
+      if (setupModal.performanceMatchId) {
+        try {
+          const existingRes = await api.get(
+            API_ENDPOINTS.PERFORMANCE_MATCHES.BY_PERFORMANCE(
+              derivedPerformanceId || ""
+            )
+          );
+          const existingData: any =
+            (existingRes as any)?.data?.data ?? (existingRes as any)?.data;
+          if (existingData?.durationSeconds) {
+            pmPayload.durationSeconds = existingData.durationSeconds;
+          }
+        } catch (e) {
+          // Use default if can't fetch
+          pmPayload.durationSeconds = setupModal.defaultTimerSec;
+        }
+      } else {
+        pmPayload.durationSeconds = setupModal.defaultTimerSec;
+      }
+
+      if (specialization === "QUYEN") {
+        pmPayload.fistConfigId = match.fistConfigId ?? null;
+        pmPayload.fistItemId = match.fistItemId ?? null;
+      } else if (specialization === "MUSIC") {
+        pmPayload.musicContentId = match.musicContentId ?? null;
+      }
+
+      const pmRes = await api.post(
+        API_ENDPOINTS.PERFORMANCE_MATCHES.SAVE_BY_PERFORMANCE(
+          derivedPerformanceId!
+        ),
+        pmPayload
+      );
+      const rawPmData: any = (pmRes as any)?.data;
+      const pmData = ((rawPmData?.data ?? rawPmData) || undefined) as {
+        id?: string;
+        matchOrder?: number;
+        status?: string;
+      };
+
+      if (pmData?.id) {
+        setSetupModal((prev) => ({
+          ...prev,
+          performanceMatchId: pmData.id,
+        }));
+      }
+
+      // Update matches list
+      setMatches((prev) =>
+        normalizeMatches(
+          prev.map((m) =>
+            m.id === match.id
+              ? {
+                  ...m,
+                  fieldId: setupModal.fieldId,
+                  fieldName: selectedField.location,
+                  performanceId: derivedPerformanceId || m.performanceId,
+                }
+              : m
+          )
+        )
+      );
+
+      toast.success("Đã lưu sân thi đấu!", 3000);
+    } catch (error) {
+      console.error("Failed to save field:", error);
+      toast.error("Không thể lưu sân thi đấu. Vui lòng thử lại.", 4000);
+    }
+  }, [
+    setupModal.matchId,
+    setupModal.fieldId,
+    setupModal.performanceMatchId,
+    setupModal.defaultTimerSec,
+    selectedTournament,
+    matches,
+    athletes,
+    activeTab,
+    fields,
+    toast,
+  ]);
+
+  // Handler to save duration only
+  const handleSaveDuration = useCallback(async () => {
+    if (!setupModal.matchId || !selectedTournament) return;
+
+    const match = matches.find((m) => m.id === setupModal.matchId);
+    if (!match) return;
+
+    const participantIds = Array.isArray(match.participantIds)
+      ? match.participantIds
+      : [];
+    const selectedAthletes = athletes.filter((a) =>
+      participantIds.includes(a.id)
+    );
+
+    const specialization =
+      activeTab === "quyen"
+        ? "QUYEN"
+        : activeTab === "music"
+        ? "MUSIC"
+        : "FIGHTING";
+
+    let derivedPerformanceId =
+      match.performanceId ||
+      selectedAthletes.find((a) => a.performanceId)?.performanceId ||
+      undefined;
+
+    if (
+      (specialization === "QUYEN" || specialization === "MUSIC") &&
+      !derivedPerformanceId &&
+      selectedAthletes.length === 1
+    ) {
+      try {
+        const athlete = selectedAthletes[0];
+        const createPayload: any = {
+          competitionId: selectedTournament,
+          isTeam: false,
+          performanceType: "INDIVIDUAL",
+          contentType: specialization,
+          athleteIds: [athlete.id],
+        };
+        if (specialization === "QUYEN") {
+          if (match.fistConfigId)
+            createPayload.fistConfigId = match.fistConfigId;
+          if (match.fistItemId) createPayload.fistItemId = match.fistItemId;
+        } else if (specialization === "MUSIC") {
+          if (match.musicContentId)
+            createPayload.musicContentId = match.musicContentId;
+        }
+
+        const perfResponse = await api.post(
+          API_ENDPOINTS.PERFORMANCES.CREATE,
+          createPayload
+        );
+        derivedPerformanceId =
+          (perfResponse as any)?.data?.id || (perfResponse as any)?.id;
+      } catch (error) {
+        console.error("Failed to create Performance:", error);
+        toast.error(
+          "Không thể tạo Performance. Vui lòng kiểm tra lại thông tin.",
+          4000
+        );
+        return;
+      }
+    }
+
+    if (
+      (specialization === "QUYEN" || specialization === "MUSIC") &&
+      !derivedPerformanceId
+    ) {
+      toast.error(
+        "Không thể xác định thông tin performance để lưu thời gian biểu diễn.",
+        4000
+      );
+      return;
+    }
+
+    const selectedField = fields.find(
+      (field) => field.id === setupModal.fieldId
+    );
+
+    try {
+      const pmPayload: {
+        durationSeconds: number;
+        fistConfigId?: string | null;
+        fistItemId?: string | null;
+        musicContentId?: string | null;
+        fieldId?: string | null;
+        fieldLocation?: string | null;
+      } = {
+        durationSeconds: setupModal.defaultTimerSec,
+        fieldId: setupModal.fieldId ? setupModal.fieldId : null,
+        fieldLocation:
+          typeof selectedField?.location === "string"
+            ? selectedField.location
+            : null,
+      };
+
+      if (specialization === "QUYEN") {
+        pmPayload.fistConfigId = match.fistConfigId ?? null;
+        pmPayload.fistItemId = match.fistItemId ?? null;
+      } else if (specialization === "MUSIC") {
+        pmPayload.musicContentId = match.musicContentId ?? null;
+      }
+
+      const pmRes = await api.post(
+        API_ENDPOINTS.PERFORMANCE_MATCHES.SAVE_BY_PERFORMANCE(
+          derivedPerformanceId!
+        ),
+        pmPayload
+      );
+      const rawPmData: any = (pmRes as any)?.data;
+      const pmData = ((rawPmData?.data ?? rawPmData) || undefined) as {
+        id?: string;
+        matchOrder?: number;
+        status?: string;
+      };
+
+      if (pmData?.id) {
+        setSetupModal((prev) => ({
+          ...prev,
+          performanceMatchId: pmData.id,
+        }));
+      }
+
+      toast.success("Đã lưu thời gian biểu diễn!", 3000);
+    } catch (error) {
+      console.error("Failed to save duration:", error);
+      toast.error("Không thể lưu thời gian biểu diễn. Vui lòng thử lại.", 4000);
+    }
+  }, [
+    setupModal.matchId,
+    setupModal.fieldId,
+    setupModal.defaultTimerSec,
+    setupModal.performanceMatchId,
+    selectedTournament,
+    matches,
+    athletes,
+    activeTab,
+    fields,
+    toast,
+  ]);
+
+  const handleAssignModalSave = async () => {
+    if (!setupModal.matchId || !selectedTournament) {
+      setSetupModal((prev) => ({
+        ...prev,
+        assessors: { ...assignModalAssessors },
+        assessorDetails: { ...assignModalAssessorDetails },
+      }));
+      setShowAssignAssessorsModal(false);
+      return;
+    }
+
+    const match = matches.find((m) => m.id === setupModal.matchId);
+    if (!match) {
+      setSetupModal((prev) => ({
+        ...prev,
+        assessors: { ...assignModalAssessors },
+        assessorDetails: { ...assignModalAssessorDetails },
+      }));
+      setShowAssignAssessorsModal(false);
+      return;
+    }
+
+    const participantIds = Array.isArray(match.participantIds)
+      ? match.participantIds
+      : [];
+    const selectedAthletes = athletes.filter((a) =>
+      participantIds.includes(a.id)
+    );
+    const participantNames =
+      Array.isArray(match.participants) && match.participants.length > 0
+        ? match.participants
+        : selectedAthletes.map((a) => a.name);
+
+    const specialization =
+      activeTab === "quyen"
+        ? "QUYEN"
+        : activeTab === "music"
+        ? "MUSIC"
+        : "FIGHTING";
+
+    let derivedPerformanceId =
+      match.performanceId ||
+      selectedAthletes.find((a) => a.performanceId)?.performanceId ||
+      undefined;
+
+    if (
+      (specialization === "QUYEN" || specialization === "MUSIC") &&
+      !derivedPerformanceId &&
+      selectedAthletes.length === 1
+    ) {
+      try {
+        const athlete = selectedAthletes[0];
+        const createPayload: any = {
+          competitionId: selectedTournament,
+          isTeam: false,
+          performanceType: "INDIVIDUAL",
+          contentType: specialization,
+          athleteIds: [athlete.id],
+        };
+        if (specialization === "QUYEN") {
+          if (match.fistConfigId)
+            createPayload.fistConfigId = match.fistConfigId;
+          if (match.fistItemId) createPayload.fistItemId = match.fistItemId;
+        } else if (specialization === "MUSIC") {
+          if (match.musicContentId)
+            createPayload.musicContentId = match.musicContentId;
+        }
+
+        const perfResponse = await api.post(
+          API_ENDPOINTS.PERFORMANCES.CREATE,
+          createPayload
+        );
+        derivedPerformanceId =
+          (perfResponse as any)?.data?.id || (perfResponse as any)?.id;
+      } catch (error) {
+        console.error("Failed to create Performance:", error);
+        toast.error(
+          "Không thể tạo Performance. Vui lòng kiểm tra lại thông tin.",
+          4000
+        );
+        return;
+      }
+    }
+
+    const selectedAssessorMap = {
+      ...assignModalAssessors,
+    } as Record<keyof Match["assessors"], string>;
+    const assignments = ASSESSOR_ROLES.map((role) => ({
+      key: role.key,
+      position: role.position,
+      userId: (selectedAssessorMap[role.key as keyof Match["assessors"]] || "")
+        .toString()
+        .trim(),
     }));
-    setShowAssignAssessorsModal(false);
+
+    const missingAssignment = assignments.find(
+      (assignment) => !assignment.userId
+    );
+    if (missingAssignment) {
+      toast.error(
+        `Vui lòng chọn đủ ${ASSESSOR_ROLES.length} vị trí trước khi lưu.`,
+        4000
+      );
+      return;
+    }
+
+    const uniqueAssessorIds = new Set(
+      assignments.map((assignment) => assignment.userId)
+    );
+    if (uniqueAssessorIds.size !== assignments.length) {
+      toast.error("Các giám định không được trùng lặp.", 4000);
+      return;
+    }
+
+    if (
+      (specialization === "QUYEN" || specialization === "MUSIC") &&
+      !derivedPerformanceId
+    ) {
+      toast.error(
+        "Không thể xác định thông tin performance để lưu giám định viên.",
+        4000
+      );
+      return;
+    }
+
+    const matchIdString = (match.id || "").toString();
+    let pmData:
+      | { id?: string; matchOrder?: number; status?: string }
+      | undefined;
+
+    // Get or create PerformanceMatch
+    if (derivedPerformanceId) {
+      const selectedField = fields.find(
+        (field) => field.id === setupModal.fieldId
+      );
+      const pmPayload: {
+        durationSeconds?: number;
+        fistConfigId?: string | null;
+        fistItemId?: string | null;
+        musicContentId?: string | null;
+        fieldId?: string | null;
+        fieldLocation?: string | null;
+      } = {
+        durationSeconds: setupModal.defaultTimerSec,
+        fieldId: setupModal.fieldId ? setupModal.fieldId : null,
+        fieldLocation:
+          typeof selectedField?.location === "string"
+            ? selectedField.location
+            : null,
+      };
+
+      if (specialization === "QUYEN") {
+        pmPayload.fistConfigId = match.fistConfigId ?? null;
+        pmPayload.fistItemId = match.fistItemId ?? null;
+      } else if (specialization === "MUSIC") {
+        pmPayload.musicContentId = match.musicContentId ?? null;
+      }
+
+      try {
+        const pmRes = await api.post(
+          API_ENDPOINTS.PERFORMANCE_MATCHES.SAVE_BY_PERFORMANCE(
+            derivedPerformanceId
+          ),
+          pmPayload
+        );
+        const rawPmData: any = (pmRes as any)?.data;
+        const responseData = rawPmData?.data ?? rawPmData;
+
+        console.log("SAVE_BY_PERFORMANCE response:", {
+          rawPmData,
+          responseData,
+          matchIdString,
+        });
+
+        // The response might not contain the performanceMatchId directly
+        // Fetch it from API to get the correct ID
+        try {
+          const fetchedPmRes = await api.get(
+            API_ENDPOINTS.PERFORMANCE_MATCHES.BY_PERFORMANCE(
+              derivedPerformanceId
+            )
+          );
+          const fetchedPmData: any = (fetchedPmRes as any)?.data;
+          const fetchedPm = fetchedPmData?.data || fetchedPmData;
+          console.log("Fetched PerformanceMatch after save:", fetchedPm);
+
+          if (fetchedPm?.id) {
+            pmData = {
+              id: fetchedPm.id,
+              matchOrder: fetchedPm.matchOrder,
+              status: fetchedPm.status,
+            };
+            // Update setupModal with the correct performanceMatchId
+            setSetupModal((prev) => ({
+              ...prev,
+              performanceMatchId: fetchedPm.id,
+            }));
+          } else {
+            // Fallback to response data if fetch fails
+            pmData = (responseData || undefined) as {
+              id?: string;
+              matchOrder?: number;
+              status?: string;
+            };
+            console.warn(
+              "Fetched PerformanceMatch has no id, using response data:",
+              pmData
+            );
+          }
+        } catch (fetchError) {
+          console.warn(
+            "Failed to fetch PerformanceMatch after save, using response:",
+            fetchError
+          );
+          // Fallback to response data
+          pmData = (responseData || undefined) as {
+            id?: string;
+            matchOrder?: number;
+            status?: string;
+          };
+          if (pmData && pmData.id && pmData.id !== matchIdString) {
+            // Only update if the ID is different from matchId (to avoid using matchId as performanceMatchId)
+            setSetupModal((prev) => ({
+              ...prev,
+              performanceMatchId: pmData.id,
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Failed to persist performance match metadata:", error);
+        toast.error("Không thể tạo PerformanceMatch. Vui lòng thử lại.", 4000);
+        return;
+      }
+    }
+
+    const resolvedMatchId = (pmData?.id || matchIdString) as string;
+
+    // For performance matches (QUYEN/MUSIC), we need a valid performanceMatchId
+    if (
+      (specialization === "QUYEN" || specialization === "MUSIC") &&
+      !derivedPerformanceId
+    ) {
+      toast.error(
+        "Không thể xác định thông tin performance để lưu giám định viên.",
+        4000
+      );
+      return;
+    }
+
+    // For performance matches, ensure we have a valid performanceMatchId
+    // IMPORTANT: Do NOT use matchIdString as performanceMatchId - they are different entities!
+    let finalPerformanceMatchId: string | null = null;
+
+    if (specialization === "QUYEN" || specialization === "MUSIC") {
+      console.log("Determining performanceMatchId:", {
+        pmDataId: pmData?.id,
+        setupModalPerformanceMatchId: setupModal.performanceMatchId,
+        matchIdString: matchIdString,
+        derivedPerformanceId,
+      });
+
+      if (pmData?.id) {
+        finalPerformanceMatchId = pmData.id;
+        console.log(
+          "Using pmData.id as performanceMatchId:",
+          finalPerformanceMatchId
+        );
+      } else if (setupModal.performanceMatchId) {
+        finalPerformanceMatchId = setupModal.performanceMatchId;
+        console.log(
+          "Using setupModal.performanceMatchId:",
+          finalPerformanceMatchId
+        );
+      } else if (derivedPerformanceId) {
+        // Try to fetch existing PerformanceMatch from API
+        console.log(
+          "Fetching PerformanceMatch from API for performanceId:",
+          derivedPerformanceId
+        );
+        try {
+          const existingPmRes = await api.get(
+            API_ENDPOINTS.PERFORMANCE_MATCHES.BY_PERFORMANCE(
+              derivedPerformanceId
+            )
+          );
+          const existingPmData: any = (existingPmRes as any)?.data;
+          const existingPm = existingPmData?.data || existingPmData;
+          console.log("Fetched PerformanceMatch:", existingPm);
+          if (existingPm?.id) {
+            finalPerformanceMatchId = existingPm.id;
+            console.log(
+              "Using fetched PerformanceMatch.id:",
+              finalPerformanceMatchId
+            );
+            // Update setupModal with the found performanceMatchId
+            setSetupModal((prev) => ({
+              ...prev,
+              performanceMatchId: existingPm.id,
+            }));
+          } else {
+            console.warn("Fetched PerformanceMatch has no id:", existingPm);
+          }
+        } catch (fetchError) {
+          console.error(
+            "Failed to fetch existing PerformanceMatch:",
+            fetchError
+          );
+        }
+      }
+
+      // CRITICAL: Never use matchIdString as performanceMatchId - they are different!
+      if (!finalPerformanceMatchId) {
+        console.error(
+          "Could not determine performanceMatchId. matchIdString is NOT a valid performanceMatchId:",
+          matchIdString
+        );
+        toast.error(
+          "Không thể xác định PerformanceMatch. Vui lòng lưu sân thi đấu trước.",
+          4000
+        );
+        return;
+      }
+    } else {
+      // For fighting matches, use matchIdString
+      finalPerformanceMatchId = matchIdString;
+    }
+
+    try {
+      // For performance matches, use ASSIGN_BY_PERFORMANCE endpoint
+      if (derivedPerformanceId && finalPerformanceMatchId) {
+        const assignPayload = {
+          performanceId: derivedPerformanceId,
+          performanceMatchId: finalPerformanceMatchId,
+          specialization: specialization as "QUYEN" | "MUSIC",
+          assignments: assignments.map((assignment) => ({
+            userId: assignment.userId,
+            position: assignment.position + 1, // Backend expects 1-based positions
+          })),
+        };
+
+        console.log("Assigning performance assessors with payload:", {
+          performanceId: assignPayload.performanceId,
+          performanceMatchId: assignPayload.performanceMatchId,
+          specialization: assignPayload.specialization,
+          assignmentsCount: assignPayload.assignments.length,
+          assignments: assignPayload.assignments,
+        });
+
+        try {
+          const response = await api.post(
+            API_ENDPOINTS.MATCH_ASSESSORS.ASSIGN_BY_PERFORMANCE,
+            assignPayload
+          );
+          console.log("Successfully assigned performance assessors:", response);
+        } catch (bulkError: any) {
+          console.error("Failed to assign performance assessors:", {
+            error: bulkError,
+            payload: assignPayload,
+            response: bulkError?.response?.data,
+            status: bulkError?.response?.status,
+            statusText: bulkError?.response?.statusText,
+          });
+
+          // Show more detailed error message
+          const errorMessage =
+            bulkError?.response?.data?.message ||
+            bulkError?.message ||
+            "Không thể gán giám định viên";
+          toast.error(errorMessage, 4000);
+          throw bulkError; // Re-throw to be caught by outer catch
+        }
+      } else {
+        // For fighting matches, use regular ASSIGN endpoint
+        const assignPayload = {
+          matchId: resolvedMatchId,
+          assessors: assignments.map((assignment) => ({
+            userId: assignment.userId,
+            position: assignment.position + 1,
+            role: "ASSESSOR" as const,
+          })),
+        };
+
+        await api.post(API_ENDPOINTS.MATCH_ASSESSORS.ASSIGN, assignPayload);
+      }
+
+      // Refresh assessors data
+      let refreshedAssessors: Array<any> | undefined;
+      if (derivedPerformanceId) {
+        try {
+          const assessorsRes = await api.get(
+            API_ENDPOINTS.PERFORMANCE_MATCHES.ASSESSORS(resolvedMatchId)
+          );
+          const assessorPayload: any = (assessorsRes as any)?.data;
+          if (Array.isArray(assessorPayload)) {
+            refreshedAssessors = assessorPayload;
+          } else if (Array.isArray(assessorPayload?.data)) {
+            refreshedAssessors = assessorPayload.data;
+          } else if (Array.isArray(assessorPayload?.content)) {
+            refreshedAssessors = assessorPayload.content;
+          }
+        } catch (reloadError) {
+          console.warn("Failed to refresh assessors:", reloadError);
+        }
+      }
+
+      // Update setupModal with new assessors
+      const mapAssessorsFromApi = (arr: Array<any>) => {
+        const next = createEmptyAssessors();
+        const roleByPosition = new Map(
+          ASSESSOR_ROLES.map((role) => [role.position, role.key])
+        );
+        const numericPositions = arr
+          .map((candidate: any) =>
+            typeof candidate?.position === "number"
+              ? candidate.position
+              : undefined
+          )
+          .filter((val): val is number => typeof val === "number");
+        const isOneBased =
+          numericPositions.length > 0 &&
+          !numericPositions.some((val) => val === 0) &&
+          numericPositions.some((val) => val === ASSESSOR_ROLES.length);
+        arr.slice(0, ASSESSOR_ROLES.length).forEach((a: any, idx: number) => {
+          const id = (a && (a.userId || a.assessorId || a.id)) || "";
+          if (!id) return;
+          const rawPosition =
+            typeof a?.position === "number" ? a.position : undefined;
+          const normalizedPosition =
+            rawPosition === undefined
+              ? undefined
+              : isOneBased
+              ? Math.max(rawPosition - 1, 0)
+              : rawPosition;
+          const roleKey =
+            (normalizedPosition !== undefined
+              ? roleByPosition.get(normalizedPosition)
+              : undefined) || ASSESSOR_ROLES[idx]?.key;
+          if (roleKey) {
+            next[roleKey] = id.toString();
+          }
+        });
+        return next;
+      };
+
+      const apiAssessors =
+        refreshedAssessors && refreshedAssessors.length > 0
+          ? mapAssessorsFromApi(refreshedAssessors)
+          : null;
+      const nextAssessors =
+        apiAssessors && Object.values(apiAssessors).some((val) => val)
+          ? apiAssessors
+          : {
+              ...createEmptyAssessors(),
+              ...selectedAssessorMap,
+            };
+      const nextAssessorDetails = ASSESSOR_ROLES.reduce((acc, role) => {
+        const currentId = nextAssessors[role.key];
+        if (currentId) {
+          const info =
+            refreshedAssessors?.find(
+              (entry) =>
+                (
+                  entry?.userId ||
+                  entry?.assessorId ||
+                  entry?.id
+                )?.toString() === currentId
+            ) || availableAssessors.find((a) => a.id === currentId);
+          acc[role.key] = {
+            id: currentId,
+            fullName: info?.fullName || info?.userFullName || "",
+            email: info?.email || info?.userEmail || "",
+          };
+        } else {
+          acc[role.key] = null;
+        }
+        return acc;
+      }, createEmptyAssessorDetails());
+
+      setSetupModal((prev) => ({
+        ...prev,
+        assessors: nextAssessors,
+        assessorDetails: nextAssessorDetails,
+        performanceMatchId: pmData?.id || prev.performanceMatchId,
+      }));
+
+      // Update matches list
+      setMatches((prev) =>
+        normalizeMatches(
+          prev.map((m) => {
+            if (m.id !== match.id) return m;
+            return {
+              ...m,
+              assessors: nextAssessors,
+              assessorDetails: nextAssessorDetails,
+              performanceId: derivedPerformanceId || m.performanceId,
+            };
+          })
+        )
+      );
+
+      toast.success("Đã lưu giám định viên!", 3000);
+      setShowAssignAssessorsModal(false);
+    } catch (error) {
+      console.error("Failed to assign assessors:", error);
+      toast.error(
+        "Không thể gán giám định. Vui lòng thử lại hoặc kiểm tra kết nối.",
+        4000
+      );
+    }
   };
 
   const activeSetupSummary = useMemo(() => {
@@ -3411,301 +4266,7 @@ function ArrangeOrderPageContent({
     closeSetupModal();
   };
 
-  // assessor summary hidden on cards
-
-  const renderSetupCard = (layout: "modal" | "page") => {
-    const containerClasses =
-      layout === "modal"
-        ? "bg-white rounded-xl shadow-lg w-full max-w-4xl p-6 md:p-8 max-h-[90vh] overflow-y-auto"
-        : "bg-white rounded-xl shadow-lg p-6 md:p-8";
-    const cancelLabel = layout === "modal" ? "Hủy" : "Quay lại";
-
-    return (
-      <div className={containerClasses}>
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            {layout === "modal" && (
-              <p className="text-blue-600 text-sm font-medium uppercase tracking-wide">
-                Quản lý tiết mục
-              </p>
-            )}
-            <h3 className="mt-1 text-2xl font-semibold text-gray-900">
-              Thiết lập trận biểu diễn
-            </h3>
-            {activeSetupSummary?.match && (
-              <p className="mt-1 text-sm text-gray-500">
-                Thứ tự thi đấu:{" "}
-                <span className="font-medium text-gray-700">
-                  {activeSetupSummary.match.order || "-"}
-                </span>
-              </p>
-            )}
-          </div>
-          {layout === "modal" && (
-            <button
-              className="text-gray-400 hover:text-gray-600 transition text-2xl leading-none"
-              onClick={closeSetupModal}
-              aria-label="Đóng"
-            >
-              ×
-            </button>
-          )}
-        </div>
-
-        {activeSetupSummary ? (
-          <div className="space-y-6">
-            <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900">
-                    Thông tin tiết mục
-                  </h4>
-                  <p className="mt-1 text-sm text-gray-600">
-                    {COMPETITION_TYPES[activeSetupSummary.match.type]}
-                  </p>
-                </div>
-                <span
-                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                    activeSetupSummary.match.status
-                  )}`}
-                >
-                  {getStatusLabel(activeSetupSummary.match.status)}
-                </span>
-              </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="rounded-lg bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Nội dung
-                  </p>
-                  <p className="mt-1 text-base font-medium text-gray-900">
-                    {activeSetupSummary.contentName}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    {activeSetupSummary.isTeamMatch
-                      ? "Đội biểu diễn"
-                      : "VĐV biểu diễn"}
-                  </p>
-                  <p className="mt-1 text-base font-medium text-gray-900">
-                    {activeSetupSummary.participantsDisplay}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-6">
-              <h4 className="text-lg font-semibold text-gray-900">
-                Cài đặt biểu diễn
-              </h4>
-              <div className="mt-4 grid gap-6 md:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Thời gian biểu diễn (giây)
-                  </label>
-                  <input
-                    type="number"
-                    min={30}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={setupModal.defaultTimerSec}
-                    onChange={(e) =>
-                      setSetupModal((prev) => ({
-                        ...prev,
-                        defaultTimerSec: Number(e.target.value),
-                      }))
-                    }
-                  />
-                  <p className="mt-2 text-xs text-gray-500">
-                    Nhập thời gian tối đa cho tiết mục. Giá trị tối thiểu 30
-                    giây.
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sân thi đấu
-                  </label>
-                  <select
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={setupModal.fieldId || ""}
-                    onChange={(e) =>
-                      setSetupModal((prev) => ({
-                        ...prev,
-                        fieldId: e.target.value || "",
-                      }))
-                    }
-                  >
-                    <option value="">-- Chọn sân --</option>
-                    {fields.map((field) => (
-                      <option key={field.id} value={field.id}>
-                        {field.location}
-                        {field.isUsed ? " (Đang dùng)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-2 text-xs text-gray-500">
-                    Chọn sân sẽ được sử dụng cho tiết mục này.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-6">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900">
-                    Giám định viên
-                  </h4>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Vị trí 1-5: Giám định.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAssignAssessorsModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition"
-                >
-                  Chỉ định giám định
-                </button>
-              </div>
-              {(() => {
-                const activeRoles = ASSESSOR_ROLES.filter((role) => {
-                  if (role.key === "referee") return true;
-                  const judgeIndex =
-                    role.key === "judgeA"
-                      ? 1
-                      : role.key === "judgeB"
-                      ? 2
-                      : role.key === "judgeC"
-                      ? 3
-                      : role.key === "judgeD"
-                      ? 4
-                      : -1;
-                  if (judgeIndex === -1) return false;
-                  return setupModal.judgesCount >= judgeIndex + 1;
-                });
-
-                if (activeRoles.length === 0) {
-                  return (
-                    <div className="text-sm text-gray-500">
-                      Không có vị trí giám định khả dụng cho tiết mục này.
-                    </div>
-                  );
-                }
-
-                const anyAssigned = activeRoles.some((role) => {
-                  const currentId = setupModal.assessors[role.key] || "";
-                  return currentId.trim().length > 0;
-                });
-
-                return (
-                  <div>
-                    {!anyAssigned ? (
-                      <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
-                        <svg
-                          className="mx-auto h-12 w-12 text-gray-400"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M9 20H4v-2a3 3 0 015.356-1.857M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                          />
-                        </svg>
-                        <h3 className="mt-4 text-base font-medium text-gray-900">
-                          Chưa có giám định viên
-                        </h3>
-                        <p className="mt-2 text-sm text-gray-500">
-                          Vui lòng chỉ định giám định viên cho trận đấu này
-                        </p>
-                      </div>
-                    ) : null}
-                    {anyAssigned && (
-                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        {activeRoles.map((role) => {
-                          const currentId =
-                            setupModal.assessors[role.key] || "";
-                          const detail = setupModal.assessorDetails[role.key];
-                          const fallbackInfo = availableAssessors.find(
-                            (a) => a.id === currentId
-                          );
-                          const displayName =
-                            detail?.fullName || fallbackInfo?.fullName || "";
-                          const displayEmail =
-                            detail?.email || fallbackInfo?.email || "";
-                          const hasAssignment = currentId.trim().length > 0;
-
-                          const cardClasses = hasAssignment
-                            ? "border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow"
-                            : "border border-dashed border-gray-300 rounded-lg p-4 bg-gray-50";
-
-                          return (
-                            <div key={role.key} className={cardClasses}>
-                              <div className="flex items-start justify-between gap-4">
-                                <div>
-                                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                                    {role.label}
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    {role.subtitle}
-                                  </p>
-                                  <p className="mt-1 text-sm font-semibold text-gray-900">
-                                    {hasAssignment ? displayName : "Chưa chọn"}
-                                  </p>
-                                  {hasAssignment ? (
-                                    displayEmail ? (
-                                      <p className="text-xs text-gray-500 mt-1">
-                                        {displayEmail}
-                                      </p>
-                                    ) : null
-                                  ) : (
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      Nhấn "Chỉ định giám định" để chọn người
-                                      phụ trách vị trí này.
-                                    </p>
-                                  )}
-                                </div>
-                                <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
-                                  Vị trí {role.position + 1}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
-            Không thể tải thông tin tiết mục. Vui lòng đóng và mở lại cửa sổ
-            thiết lập.
-          </div>
-        )}
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-            onClick={closeSetupModal}
-          >
-            {cancelLabel}
-          </button>
-          <button
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-            onClick={saveSetup}
-            disabled={!setupModal.fieldId || setupModal.fieldId.trim() === ""}
-          >
-            Lưu
-          </button>
-        </div>
-      </div>
-    );
-  };
+  // Setup card is now handled by PerformanceMatchSetupCard component
 
   const renderAssignAssessorsModal = () => {
     if (!showAssignAssessorsModal) {
@@ -3921,8 +4482,6 @@ function ArrangeOrderPageContent({
       );
     }
 
-    const currentMatch = matches.find((m) => m.id === standaloneMatchId);
-
     return (
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -3934,21 +4493,25 @@ function ArrangeOrderPageContent({
               ← Quay lại danh sách tiết mục
             </button>
           </div>
-
-          {currentMatch && (
-            <div className="flex flex-col items-start gap-2 md:items-end">
-              <span
-                className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
-                  currentMatch.status
-                )}`}
-              >
-                {getStatusLabel(currentMatch.status)}
-              </span>
-            </div>
-          )}
         </div>
 
-        {renderSetupCard("page")}
+        <PerformanceMatchSetupCard
+          layout="page"
+          setupModal={setupModal}
+          setSetupModal={setSetupModal}
+          activeSetupSummary={activeSetupSummary}
+          fields={fields}
+          availableAssessors={availableAssessors}
+          showAssignAssessorsModal={showAssignAssessorsModal}
+          setShowAssignAssessorsModal={setShowAssignAssessorsModal}
+          onClose={closeSetupModal}
+          isStandaloneMode={isStandaloneMode}
+          onBeginMatch={beginMatch}
+          athletes={athletes}
+          onSaveField={handleSaveField}
+          onSaveDuration={handleSaveDuration}
+          onSaveAssessors={handleAssignModalSave}
+        />
         {renderAssignAssessorsModal()}
       </div>
     );
@@ -4359,9 +4922,26 @@ function ArrangeOrderPageContent({
 
       {!isStandaloneMode && setupModal.open && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
-          {renderSetupCard("modal")}
+          <PerformanceMatchSetupCard
+            layout="modal"
+            setupModal={setupModal}
+            setSetupModal={setSetupModal}
+            activeSetupSummary={activeSetupSummary}
+            fields={fields}
+            availableAssessors={availableAssessors}
+            showAssignAssessorsModal={showAssignAssessorsModal}
+            setShowAssignAssessorsModal={setShowAssignAssessorsModal}
+            onClose={closeSetupModal}
+            isStandaloneMode={isStandaloneMode}
+            onBeginMatch={beginMatch}
+            athletes={athletes}
+            onSaveField={handleSaveField}
+            onSaveDuration={handleSaveDuration}
+            onSaveAssessors={handleAssignModalSave}
+          />
         </div>
       )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filteredMatches.length === 0 ? (
           <div className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 col-span-full">
@@ -4533,31 +5113,6 @@ function ArrangeOrderPageContent({
                         >
                           Thiết lập
                         </button>
-                        {match.status === "IN_PROGRESS" ? (
-                          <button
-                            disabled
-                            className="flex-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded text-xs font-medium cursor-not-allowed"
-                          >
-                            Đang diễn ra
-                          </button>
-                        ) : match.status === "COMPLETED" ? (
-                          <button
-                            disabled
-                            className="flex-1 px-3 py-1.5 bg-gray-100 text-gray-600 rounded text-xs font-medium cursor-not-allowed"
-                          >
-                            Đã kết thúc
-                          </button>
-                        ) : (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              beginMatch(match.id);
-                            }}
-                            className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
-                          >
-                            Chấm điểm
-                          </button>
-                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
