@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
 import { useToast } from "../../components/common/ToastContext";
+import { useAuth } from "@/stores/authStore";
 
 type FormField = {
   id: string;
@@ -27,6 +28,7 @@ type FormMeta = {
 export default function PublishedForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [meta, setMeta] = useState<FormMeta | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,10 +65,10 @@ export default function PublishedForm() {
   const [weightClasses, setWeightClasses] = useState<
     Array<{
       id: string;
-      weightClass: string;
-      gender: string;
-      minWeight: number;
-      maxWeight: number;
+      weightClass?: string;
+      gender?: string;
+      minWeight?: number;
+      maxWeight?: number;
     }>
   >([]);
   const [musicContents, setMusicContents] = useState<
@@ -107,9 +109,20 @@ export default function PublishedForm() {
     (async () => {
       try {
         setLoading(true);
-        const res = await api.get<FormMeta>(
-          API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(id as string)
-        );
+        let res: Awaited<ReturnType<typeof api.get<FormMeta>>>;
+        try {
+          res = await api.get<FormMeta>(
+            API_ENDPOINTS.TOURNAMENT_FORMS.PUBLIC_BY_ID(id as string)
+          );
+        } catch (publicError) {
+          console.warn(
+            "Public form endpoint failed, fallback to protected API:",
+            publicError
+          );
+          res = await api.get<FormMeta>(
+            API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(id as string)
+          );
+        }
         // Check if form is published
         if (res.data.status !== "PUBLISH") {
           setError("Form này chưa được xuất bản hoặc đã bị lưu trữ");
@@ -194,21 +207,36 @@ export default function PublishedForm() {
             type CompetitionDetail = {
               weightClasses?: Array<{
                 id: string;
-                weightClass: string;
-                gender: string;
-                minWeight: number;
-                maxWeight: number;
+                weightClass?: string;
+                gender?: string;
+                minWeight?: number;
+                maxWeight?: number;
               }>;
-              vovinamFistConfigs?: Array<{ id: string; name: string }>;
+              vovinamFistConfigs?: Array<{
+                id: string;
+                name: string;
+                description?: string;
+                participantsPerEntry?: number;
+              }>;
               fistConfigItemSelections?: Record<
                 string,
-                Array<{ id: string; name: string }>
+                Array<{
+                  id: string;
+                  name: string;
+                  description?: string;
+                  configId?: string;
+                  participantsPerEntry?: number;
+                }>
               >;
-              musicPerformances?: Array<{ id: string; name: string }>;
+              musicPerformances?: Array<{
+                id: string;
+                name: string;
+                performersPerEntry?: number;
+              }>;
             };
             const compRes = await api.get<
               CompetitionDetail | { data: CompetitionDetail }
-            >(API_ENDPOINTS.COMPETITIONS.BY_ID(compId));
+            >(API_ENDPOINTS.COMPETITIONS.PUBLIC_BY_ID(compId));
             const rawUnknown = (compRes as unknown as { data: unknown }).data;
             const isWrapped = (
               val: unknown
@@ -623,73 +651,68 @@ export default function PublishedForm() {
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
-      console.log("Validation errors:", errors);
-      console.log("Dynamic values:", dynamicValues);
-      console.log("Competition type:", competitionType);
-      console.log("Weight class ID:", weightClassId);
-      console.log("Fist config ID:", fistConfigId);
-      console.log("Music content ID:", musicContentId);
-      console.log("Selected gender:", selectedGender);
-      console.log("Team members:", teamMembers);
-      console.log("Participants per entry:", participantsPerEntry);
-      show("Vui lòng kiểm tra lại thông tin", "error");
+      show(
+        "Một số trường còn thiếu hoặc chưa hợp lệ. Hãy xem chi tiết ở từng ô.",
+        "error"
+      );
       return;
     }
 
-    // Server-side duplication check against existing submissions in this form (MSSV uniqueness)
-    try {
-      const resp = await api.get(`/v1/tournament-forms/${id}/submissions`, {
-        params: { all: true },
-      });
-      const rootUnknown = resp.data as unknown;
-      const pageDataUnknown =
-        (rootUnknown as Record<string, unknown>)?.data ?? rootUnknown;
-      const contentUnknown = (pageDataUnknown as { content?: unknown })
-        ?.content;
-      const submitted = Array.isArray(contentUnknown)
-        ? (contentUnknown as unknown[])
-        : [];
-      const existingIds = new Set<string>();
-      const toUpper = (s?: string) => (s || "").trim().toUpperCase();
-      for (const row of submitted) {
-        let fdObj: Record<string, unknown> = {};
-        try {
-          const r = row as Record<string, unknown>;
-          const fd = typeof r.formData === "string" ? r.formData : "";
-          fdObj = fd ? (JSON.parse(fd) as Record<string, unknown>) : {};
-        } catch {
-          /* ignore */
-        }
-        const sid = toUpper(fdObj?.studentId as string | undefined);
-        if (sid) existingIds.add(sid);
-        const membersUnknown = (fdObj?.teamMembers as unknown) || [];
-        const members = Array.isArray(membersUnknown)
-          ? (membersUnknown as Array<Record<string, unknown>>)
+    // Server-side duplication check chỉ chạy khi đã đăng nhập để tránh lỗi 403 đối với khách
+    if (isAuthenticated) {
+      try {
+        const resp = await api.get(`/v1/tournament-forms/${id}/submissions`, {
+          params: { all: true },
+        });
+        const rootUnknown = resp.data as unknown;
+        const pageDataUnknown =
+          (rootUnknown as Record<string, unknown>)?.data ?? rootUnknown;
+        const contentUnknown = (pageDataUnknown as { content?: unknown })
+          ?.content;
+        const submitted = Array.isArray(contentUnknown)
+          ? (contentUnknown as unknown[])
           : [];
-        for (const m of members) {
-          const msid = toUpper(m?.studentId as string | undefined);
-          if (msid) existingIds.add(msid);
+        const existingIds = new Set<string>();
+        const toUpper = (s?: string) => (s || "").trim().toUpperCase();
+        for (const row of submitted) {
+          let fdObj: Record<string, unknown> = {};
+          try {
+            const r = row as Record<string, unknown>;
+            const fd = typeof r.formData === "string" ? r.formData : "";
+            fdObj = fd ? (JSON.parse(fd) as Record<string, unknown>) : {};
+          } catch {
+            /* ignore */
+          }
+          const sid = toUpper(fdObj?.studentId as string | undefined);
+          if (sid) existingIds.add(sid);
+          const membersUnknown = (fdObj?.teamMembers as unknown) || [];
+          const members = Array.isArray(membersUnknown)
+            ? (membersUnknown as Array<Record<string, unknown>>)
+            : [];
+          for (const m of members) {
+            const msid = toUpper(m?.studentId as string | undefined);
+            if (msid) existingIds.add(msid);
+          }
         }
-      }
-      const captainSid = toUpper(String(dynamicValues.studentId || ""));
-      if (captainSid && existingIds.has(captainSid)) {
-        errors["studentId"] = "MSSV đã đăng ký trong form này";
-      }
-      teamMembers.forEach((m, idx) => {
-        const s = toUpper(m?.studentId || "");
-        if (s && existingIds.has(s)) {
-          errors[`teamMembers.${idx}.studentId`] =
-            "MSSV đã đăng ký trong form này";
+        const captainSid = toUpper(String(dynamicValues.studentId || ""));
+        if (captainSid && existingIds.has(captainSid)) {
+          errors["studentId"] = "MSSV đã đăng ký trong form này";
         }
-      });
-      if (Object.keys(errors).length > 0) {
-        setFieldErrors(errors);
-        show("MSSV đã tồn tại trong form này", "error");
-        return;
+        teamMembers.forEach((m, idx) => {
+          const s = toUpper(m?.studentId || "");
+          if (s && existingIds.has(s)) {
+            errors[`teamMembers.${idx}.studentId`] =
+              "MSSV đã đăng ký trong form này";
+          }
+        });
+        if (Object.keys(errors).length > 0) {
+          setFieldErrors(errors);
+          show("MSSV đã tồn tại trong form này", "error");
+          return;
+        }
+      } catch (dupErr) {
+        console.warn("Could not verify duplicate MSSV against DB", dupErr);
       }
-    } catch (dupErr) {
-      // nếu gọi kiểm tra lỗi mạng, không chặn submit, nhưng log lại
-      console.warn("Could not verify duplicate MSSV against DB", dupErr);
     }
 
     try {
@@ -741,36 +764,85 @@ export default function PublishedForm() {
     } catch (error: unknown) {
       console.error("Submission error:", error);
       setSubmitting(false);
-      // Merge: Keep HEAD's toast notification, but add master's specific error handling for duplicate email/MSSV
+
+      // Extract error message from axios interceptor ErrorResponse format
       const err = error as {
         response?: { status?: number; data?: { message?: string } };
         message?: string;
       };
       const status = err?.response?.status;
-      const serverMsg = (err?.response?.data as { message?: string })?.message;
-      if (
-        status === 409 ||
-        (typeof serverMsg === "string" &&
-          serverMsg.toLowerCase().includes("email"))
-      ) {
-        show(
-          "Email này đã đăng ký cho form này. Mỗi email chỉ được đăng ký một lần.",
-          "error"
-        );
+      // Check both response.data.message and top-level message (from axios interceptor)
+      const serverMsg =
+        (err?.response?.data as { message?: string })?.message ||
+        err?.message ||
+        "";
+
+      // Handle duplicate email (check first, before MSSV)
+      if (status === 409 && serverMsg.toLowerCase().includes("email")) {
+        // Find the email field name from meta.fields
+        let emailFieldName = "email";
+        if (meta?.fields) {
+          const emailField = meta.fields.find(
+            (f) =>
+              f.label?.toLowerCase().includes("email") ||
+              f.name?.toLowerCase() === "email" ||
+              f.id?.toLowerCase() === "email"
+          );
+          if (emailField) {
+            emailFieldName =
+              emailField.name ||
+              emailField.id ||
+              emailField.label.toLowerCase().replace(/\s+/g, "_");
+          }
+        }
+        setFieldErrors((prev) => ({
+          ...prev,
+          [emailFieldName]:
+            serverMsg || "Email này đã được đăng ký cho form này",
+        }));
+        show(serverMsg || "Email này đã được đăng ký cho form này", "error");
         return;
       }
+
+      // Handle duplicate studentId/MSSV
       if (
-        status === 409 ||
-        (typeof serverMsg === "string" &&
-          serverMsg.toLowerCase().includes("mssv"))
+        status === 409 &&
+        (serverMsg.toLowerCase().includes("mssv") ||
+          serverMsg.toLowerCase().includes("student"))
       ) {
-        show(
-          "MSSV này đã được đăng ký cho form này. Mỗi MSSV chỉ được đăng ký một lần.",
-          "error"
-        );
+        // Find the studentId field name from meta.fields
+        let studentIdFieldName = "studentId";
+        if (meta?.fields) {
+          const studentIdField = meta.fields.find(
+            (f) =>
+              f.label?.toLowerCase().includes("mssv") ||
+              f.label?.toLowerCase().includes("mã số sinh viên") ||
+              f.name?.toLowerCase() === "studentid" ||
+              f.name?.toLowerCase() === "mssv" ||
+              f.id?.toLowerCase() === "studentid" ||
+              f.id?.toLowerCase() === "mssv"
+          );
+          if (studentIdField) {
+            studentIdFieldName =
+              studentIdField.name ||
+              studentIdField.id ||
+              studentIdField.label.toLowerCase().replace(/\s+/g, "_");
+          }
+        }
+        setFieldErrors((prev) => ({
+          ...prev,
+          [studentIdFieldName]:
+            serverMsg || "MSSV này đã được đăng ký cho form này",
+        }));
+        show(serverMsg || "MSSV này đã được đăng ký cho form này", "error");
         return;
       }
-      show("Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", "error");
+
+      // Generic error
+      show(
+        serverMsg || "Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.",
+        "error"
+      );
     }
   };
 
@@ -925,12 +997,20 @@ export default function PublishedForm() {
                                 value={
                                   (dynamicValues[fieldName] as string) || ""
                                 }
-                                onChange={(e) =>
+                                onChange={(e) => {
                                   setDynamicValues((prev) => ({
                                     ...prev,
                                     [fieldName]: e.target.value,
-                                  }))
-                                }
+                                  }));
+                                  // Clear field error when user starts typing
+                                  if (fieldErrors[fieldName]) {
+                                    setFieldErrors((prev) => {
+                                      const next = { ...prev };
+                                      delete next[fieldName];
+                                      return next;
+                                    });
+                                  }
+                                }}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                 placeholder={`Nhập ${field.label.toLowerCase()}`}
                               />
@@ -941,12 +1021,20 @@ export default function PublishedForm() {
                                 value={
                                   (dynamicValues[fieldName] as string) || ""
                                 }
-                                onChange={(e) =>
+                                onChange={(e) => {
                                   setDynamicValues((prev) => ({
                                     ...prev,
                                     [fieldName]: e.target.value,
-                                  }))
-                                }
+                                  }));
+                                  // Clear field error when user starts typing
+                                  if (fieldErrors[fieldName]) {
+                                    setFieldErrors((prev) => {
+                                      const next = { ...prev };
+                                      delete next[fieldName];
+                                      return next;
+                                    });
+                                  }
+                                }}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                 placeholder={`Nhập ${field.label.toLowerCase()}`}
                               />
@@ -957,12 +1045,20 @@ export default function PublishedForm() {
                                 value={
                                   (dynamicValues[fieldName] as string) || ""
                                 }
-                                onChange={(e) =>
+                                onChange={(e) => {
                                   setDynamicValues((prev) => ({
                                     ...prev,
                                     [fieldName]: e.target.value,
-                                  }))
-                                }
+                                  }));
+                                  // Clear field error when user starts typing
+                                  if (fieldErrors[fieldName]) {
+                                    setFieldErrors((prev) => {
+                                      const next = { ...prev };
+                                      delete next[fieldName];
+                                      return next;
+                                    });
+                                  }
+                                }}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                               />
                             )}
@@ -971,12 +1067,20 @@ export default function PublishedForm() {
                                 value={
                                   (dynamicValues[fieldName] as string) || ""
                                 }
-                                onChange={(e) =>
+                                onChange={(e) => {
                                   setDynamicValues((prev) => ({
                                     ...prev,
                                     [fieldName]: e.target.value,
-                                  }))
-                                }
+                                  }));
+                                  // Clear field error when user starts typing
+                                  if (fieldErrors[fieldName]) {
+                                    setFieldErrors((prev) => {
+                                      const next = { ...prev };
+                                      delete next[fieldName];
+                                      return next;
+                                    });
+                                  }
+                                }}
                                 rows={3}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                 placeholder={`Nhập ${field.label.toLowerCase()}`}
@@ -995,6 +1099,15 @@ export default function PublishedForm() {
                                     ...prev,
                                     [fieldName]: value,
                                   }));
+
+                                  // Clear field error when user changes selection
+                                  if (fieldErrors[fieldName]) {
+                                    setFieldErrors((prev) => {
+                                      const next = { ...prev };
+                                      delete next[fieldName];
+                                      return next;
+                                    });
+                                  }
 
                                   // If this is gender field, update selectedGender and reset weight class
                                   if (field.label === "Giới tính") {
@@ -1080,6 +1193,12 @@ export default function PublishedForm() {
                                 }}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                               />
+                            )}
+                            {/* Display field error for this dynamic field */}
+                            {fieldErrors[fieldName] && (
+                              <p className="text-red-500 text-xs mt-1">
+                                {fieldErrors[fieldName]}
+                              </p>
                             )}
                           </div>
                         </div>

@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.request.CreateApplicationFormConfigRequest;
 import sep490g65.fvcapi.dto.request.UpdateApplicationFormConfigRequest;
 import sep490g65.fvcapi.dto.response.ApplicationFormConfigResponse;
+import sep490g65.fvcapi.dto.response.PublicApplicationFormResponse;
+import sep490g65.fvcapi.dto.response.PaginationResponse;
 import sep490g65.fvcapi.entity.ApplicationFormConfig;
 import sep490g65.fvcapi.entity.ApplicationFormField;
 import sep490g65.fvcapi.enums.ApplicationFormType;
@@ -20,6 +22,7 @@ import sep490g65.fvcapi.exception.BusinessException;
 import sep490g65.fvcapi.exception.custom.ResourceNotFoundException;
 import sep490g65.fvcapi.repository.ApplicationFormConfigRepository;
 import sep490g65.fvcapi.service.ApplicationFormService;
+import sep490g65.fvcapi.utils.ResponseUtils;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -552,6 +555,20 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
         return configs.map(this::mapToResponse);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PaginationResponse<PublicApplicationFormResponse> listPublicForms(int page, int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        Page<ApplicationFormConfig> configs = applicationFormConfigRepository.findPublicForms(
+                java.util.List.of(FormStatus.PUBLISH, FormStatus.POSTPONE),
+                pageable
+        );
+        Page<PublicApplicationFormResponse> mapped = configs.map(this::mapToPublicResponse);
+        return ResponseUtils.createPaginatedResponse(mapped);
+    }
+
     /**
      * Validates form creation business rules
      */
@@ -650,5 +667,22 @@ public class ApplicationFormServiceImpl implements ApplicationFormService {
                 oldStatus, FormStatus.POSTPONE);
         
         return mapToResponse(savedConfig);
+    }
+
+    private PublicApplicationFormResponse mapToPublicResponse(ApplicationFormConfig config) {
+        LocalDateTime endDate = config.getEndDate();
+        boolean expired = endDate != null && endDate.isBefore(LocalDateTime.now());
+        return PublicApplicationFormResponse.builder()
+                .id(config.getId())
+                .name(config.getName())
+                .description(config.getDescription())
+                .formType(config.getFormType())
+                .status(config.getStatus())
+                .endDate(endDate)
+                .updatedAt(config.getUpdatedAt())
+                .publicSlug(config.getPublicSlug())
+                .publicLink(config.getPublicSlug() != null ? "/public/forms/" + config.getPublicSlug() : null)
+                .expired(expired)
+                .build();
     }
 }

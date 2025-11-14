@@ -13,10 +13,12 @@ export interface PerformanceAthleteInfo {
 
 export interface PerformanceAssessorInfo {
   id: string;
-  userId: string;
-  fullName: string;
-  email: string;
+  userId?: string;
+  fullName?: string;
+  email?: string;
   position?: number;
+  role?: string;
+  specialization?: string;
 }
 
 export interface PerformanceResponseDto {

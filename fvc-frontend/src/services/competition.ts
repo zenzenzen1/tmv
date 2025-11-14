@@ -45,7 +45,17 @@ class CompetitionService {
     const response = await apiService.get<BaseResponse<CompetitionResponse>>(
       `${this.baseEndpoint}/${id}`
     );
-    return response.data.data;
+    // Handle different response structures
+    if (response?.data?.data) {
+      return response.data.data;
+    }
+    if (response?.data) {
+      return response.data as CompetitionResponse;
+    }
+    if (response) {
+      return response as unknown as CompetitionResponse;
+    }
+    throw new Error(`Competition not found with id: ${id}`);
   }
 
   // Create new competition

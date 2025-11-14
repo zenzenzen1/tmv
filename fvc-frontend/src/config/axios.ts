@@ -158,10 +158,23 @@ apiClient.interceptors.response.use(
     const isLoginEndpoint = (error.config?.url || "").includes(
       API_ENDPOINTS?.AUTH?.LOGIN || "/v1/auth/login"
     );
+    const url = error.config?.url || "";
+    const shouldBypassAuthRedirect =
+      url.includes(API_ENDPOINTS?.AUTH?.ME || "/v1/auth/me") ||
+      url.includes("/application-forms/public") ||
+      url.includes("/tournament-forms/public") ||
+      (url.includes("/tournament-forms/") && url.includes("/submissions"));
+
+    const isGuest = !useAuthStore.getState().isAuthenticated;
+
     if (
       (error.response?.status === 401 || error.response?.status === 403) &&
       !isLoginEndpoint
     ) {
+      if (isGuest || shouldBypassAuthRedirect) {
+        return Promise.reject(errorResponse);
+      }
+
       // Unauthorized/Forbidden - token expired or invalid
       console.warn("🔒 Authentication failed - redirecting to login");
 

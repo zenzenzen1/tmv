@@ -66,10 +66,22 @@ public class PerformanceMatch extends BaseEntity {
     @Column(name = "duration_seconds")
     private Integer durationSeconds; // Planned timer seconds
 
+    @Column(name = "field_id")
+    private String fieldId;
+
+    @Column(name = "field_location")
+    private String fieldLocation;
+
+    @Column(name = "scheduled_start_time")
+    private LocalDateTime scheduledStartTime; // Giờ bắt đầu dự kiến
+
+    @Column(name = "athletes_present", columnDefinition = "TEXT")
+    private String athletesPresent; // JSON map: {"athleteId1": true, "athleteId2": false, ...}
+
     // Relationships
     @OneToMany(mappedBy = "performanceMatch", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private java.util.List<Assessor> assessors = new java.util.ArrayList<>();
+    private java.util.List<MatchAssessor> assessors = new java.util.ArrayList<>();
 
     public enum MatchStatus {
         PENDING,      // Chờ thiết lập

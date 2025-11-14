@@ -6,12 +6,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.request.SubmitScoreRequest;
 import sep490g65.fvcapi.dto.response.PerformanceResponse;
-import sep490g65.fvcapi.entity.Assessor;
 import sep490g65.fvcapi.entity.AssessorScore;
+import sep490g65.fvcapi.entity.MatchAssessor;
 import sep490g65.fvcapi.entity.Performance;
-import sep490g65.fvcapi.repository.AssessorRepository;
+import sep490g65.fvcapi.entity.PerformanceMatch;
 import sep490g65.fvcapi.repository.AssessorScoreRepository;
+import sep490g65.fvcapi.repository.MatchAssessorRepository;
 import sep490g65.fvcapi.repository.PerformanceRepository;
+import sep490g65.fvcapi.repository.PerformanceMatchRepository;
 import sep490g65.fvcapi.service.PerformanceScoringService;
 import sep490g65.fvcapi.service.PerformanceService;
 
@@ -25,8 +27,9 @@ import java.util.List;
 public class PerformanceScoringServiceImpl implements PerformanceScoringService {
 
     private final AssessorScoreRepository assessorScoreRepository;
-    private final AssessorRepository assessorRepository;
+    private final MatchAssessorRepository matchAssessorRepository;
     private final PerformanceRepository performanceRepository;
+    private final PerformanceMatchRepository performanceMatchRepository;
     private final PerformanceService performanceService;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -47,8 +50,8 @@ public class PerformanceScoringServiceImpl implements PerformanceScoringService 
 
         // Resolve assessor: accept either assessor.id or user.id for convenience
         var performance = performanceRepository.findById(request.getPerformanceId()).orElseThrow();
-        var assessorEntity = assessorRepository.findById(request.getAssessorId())
-                .or(() -> assessorRepository.findByUserIdAndPerformanceId(request.getAssessorId(), request.getPerformanceId()))
+        var assessorEntity = matchAssessorRepository.findById(request.getAssessorId())
+                .or(() -> matchAssessorRepository.findByUserIdAndPerformanceId(request.getAssessorId(), request.getPerformanceId()))
                 .orElseThrow(() -> new RuntimeException("Assessor not found for performance"));
 
         AssessorScore score = AssessorScore.builder()
@@ -151,12 +154,12 @@ public class PerformanceScoringServiceImpl implements PerformanceScoringService 
         Performance performance = performanceRepository.findById(performanceId)
                 .orElseThrow(() -> new RuntimeException("Performance not found"));
 
-        Assessor assessor = assessorRepository.findById(assessorId)
+        MatchAssessor assessor = matchAssessorRepository.findById(assessorId)
                 .orElseThrow(() -> new RuntimeException("Assessor not found"));
 
         if (performance.getContentType() == Performance.ContentType.QUYEN ||
             performance.getContentType() == Performance.ContentType.MUSIC) {
-            return assessorRepository.existsByUserIdAndPerformanceId(
+            return matchAssessorRepository.existsByUserIdAndPerformanceId(
                     assessor.getUser().getId(),
                     performanceId
             );
@@ -170,8 +173,20 @@ public class PerformanceScoringServiceImpl implements PerformanceScoringService 
     public boolean isPerformanceActive(String performanceId) {
         Performance performance = performanceRepository.findById(performanceId)
                 .orElseThrow(() -> new RuntimeException("Performance not found"));
-        // Quyền/Võ nhạc: chỉ cho phép chấm SAU KHI KẾT THÚC
-        return performance.getStatus() == Performance.PerformanceStatus.COMPLETED;
+        
+        // Check PerformanceMatch status first (source of truth for match state)
+        // PerformanceMatch status is synced to Performance, but check directly for accuracy
+        var performanceMatch = performanceMatchRepository.findByPerformanceId(performanceId).orElse(null);
+        if (performanceMatch != null) {
+            // PerformanceMatch status is the actual match status
+            return performanceMatch.getStatus() == PerformanceMatch.MatchStatus.IN_PROGRESS ||
+                   performanceMatch.getStatus() == PerformanceMatch.MatchStatus.COMPLETED;
+        }
+        
+        // Fallback to Performance status if no PerformanceMatch exists
+        // Quyền/Võ nhạc: cho phép chấm điểm khi đang diễn ra (IN_PROGRESS) hoặc đã kết thúc (COMPLETED)
+        return performance.getStatus() == Performance.PerformanceStatus.IN_PROGRESS ||
+               performance.getStatus() == Performance.PerformanceStatus.COMPLETED;
     }
 
     @Override
@@ -179,13 +194,13 @@ public class PerformanceScoringServiceImpl implements PerformanceScoringService 
         Performance performance = performanceRepository.findById(performanceId)
                 .orElseThrow(() -> new RuntimeException("Performance not found"));
 
-        Assessor.Specialization specialization = performance.getContentType() == Performance.ContentType.QUYEN ?
-                Assessor.Specialization.QUYEN :
+        MatchAssessor.Specialization specialization = performance.getContentType() == Performance.ContentType.QUYEN ?
+                MatchAssessor.Specialization.QUYEN :
                 performance.getContentType() == Performance.ContentType.MUSIC ?
-                        Assessor.Specialization.MUSIC :
-                        Assessor.Specialization.FIGHTING;
+                        MatchAssessor.Specialization.MUSIC :
+                        MatchAssessor.Specialization.FIGHTING;
 
-        long totalAssessors = assessorRepository.countByPerformanceIdAndSpecialization(
+        long totalAssessors = matchAssessorRepository.countByPerformanceIdAndSpecialization(
                 performanceId,
                 specialization
         );
@@ -199,13 +214,13 @@ public class PerformanceScoringServiceImpl implements PerformanceScoringService 
         Performance performance = performanceRepository.findById(performanceId)
                 .orElseThrow(() -> new RuntimeException("Performance not found"));
 
-        Assessor.Specialization specialization = performance.getContentType() == Performance.ContentType.QUYEN ?
-                Assessor.Specialization.QUYEN :
+        MatchAssessor.Specialization specialization = performance.getContentType() == Performance.ContentType.QUYEN ?
+                MatchAssessor.Specialization.QUYEN :
                 performance.getContentType() == Performance.ContentType.MUSIC ?
-                        Assessor.Specialization.MUSIC :
-                        Assessor.Specialization.FIGHTING;
+                        MatchAssessor.Specialization.MUSIC :
+                        MatchAssessor.Specialization.FIGHTING;
 
-        return (int) assessorRepository.countByPerformanceIdAndSpecialization(
+        return (int) matchAssessorRepository.countByPerformanceIdAndSpecialization(
                 performanceId,
                 specialization
         );

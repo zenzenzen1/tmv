@@ -118,4 +118,10 @@ public interface ApplicationFormConfigRepository extends JpaRepository<Applicati
 
     Optional<ApplicationFormConfig> findByPublicSlug(String publicSlug);
     boolean existsByPublicSlug(String publicSlug);
+
+    @Query("SELECT afc FROM ApplicationFormConfig afc WHERE afc.status IN :statuses AND afc.publicSlug IS NOT NULL ORDER BY afc.updatedAt DESC")
+    Page<ApplicationFormConfig> findPublicForms(
+        @Param("statuses") List<FormStatus> statuses,
+        Pageable pageable
+    );
 }

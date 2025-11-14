@@ -6,7 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import sep490g65.fvcapi.entity.Assessor;
+import sep490g65.fvcapi.entity.MatchAssessor;
+import sep490g65.fvcapi.enums.AssessorRole;
 
 @Data
 @Builder
@@ -26,10 +27,10 @@ public class AssignAssessorRequest {
     private String matchId;
     
     @NotNull(message = "Specialization is required")
-    private Assessor.Specialization specialization;
+    private MatchAssessor.Specialization specialization;
     
     // Cho đối kháng: role và position (nullable cho quyền/võ nhạc)
-    private Assessor.MatchRole role;
+    private AssessorRole role;
     private Integer position;
 }
 

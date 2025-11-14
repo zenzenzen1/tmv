@@ -1,4 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import scoringService, {
   type PerformanceResponseDto,
@@ -38,6 +44,105 @@ const ProjectionScreen: React.FC = () => {
   const completionSentRef = useRef<boolean>(false);
   const allJudgesScoredRef = useRef<boolean>(false);
   const redirectTimerRef = useRef<number | null>(null);
+  const [isStarted, setIsStarted] = useState<boolean>(false);
+  const [isStarting, setIsStarting] = useState<boolean>(false);
+  const [connectedAssessorsCount, setConnectedAssessorsCount] =
+    useState<number>(0);
+  const [performanceMatchId, setPerformanceMatchId] = useState<string | null>(
+    null
+  );
+  const projectionStorageKey = useMemo(() => {
+    if (performanceId) return `projection:${performanceId}`;
+    if (matchId) return `projection:${matchId}`;
+    return null;
+  }, [performanceId, matchId]);
+  const projectionStorageKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    projectionStorageKeyRef.current = projectionStorageKey;
+  }, [projectionStorageKey]);
+  const [projectionStorageState, setProjectionStorageState] = useState<Record<
+    string,
+    any
+  > | null>(null);
+
+  const updateProjectionStorage = useCallback(
+    (patch: Record<string, unknown>) => {
+      if (!projectionStorageKey) return;
+      try {
+        const previousRaw = localStorage.getItem(projectionStorageKey);
+        const previous = previousRaw
+          ? (JSON.parse(previousRaw) as Record<string, unknown>)
+          : {};
+        const next = { ...previous, ...patch };
+        localStorage.setItem(projectionStorageKey, JSON.stringify(next));
+        setProjectionStorageState(next as Record<string, any>);
+      } catch (error) {
+        console.warn("Failed to update projection storage", error);
+      }
+    },
+    [projectionStorageKey]
+  );
+  const updateProjectionStorageRef = useRef<
+    (patch: Record<string, unknown>) => void
+  >(() => {});
+  useEffect(() => {
+    updateProjectionStorageRef.current = updateProjectionStorage;
+  }, [updateProjectionStorage]);
+
+  useEffect(() => {
+    if (!projectionStorageKey) {
+      setProjectionStorageState(null);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(projectionStorageKey);
+      if (!raw) {
+        setProjectionStorageState(null);
+        return;
+      }
+      setProjectionStorageState(JSON.parse(raw));
+    } catch (error) {
+      console.warn("Failed to read projection storage", error);
+      setProjectionStorageState(null);
+    }
+  }, [projectionStorageKey]);
+
+  useEffect(() => {
+    if (
+      !projectionStorageState?.isRunning ||
+      !projectionStorageState?.startedAt ||
+      isStarted
+    ) {
+      return;
+    }
+    const totalSeconds =
+      typeof projectionStorageState.durationSeconds === "number" &&
+      projectionStorageState.durationSeconds > 0
+        ? projectionStorageState.durationSeconds
+        : roundSecondsRef.current;
+    if (!totalSeconds || totalSeconds <= 0) return;
+    const elapsedSeconds = Math.floor(
+      (Date.now() - projectionStorageState.startedAt) / 1000
+    );
+    if (elapsedSeconds >= totalSeconds) {
+      setTimeLeft("00:00");
+      runningRef.current = false;
+      setIsStarted(false);
+      updateProjectionStorage({
+        isRunning: false,
+        startedAt: null,
+      });
+      return;
+    }
+    roundSecondsRef.current = totalSeconds;
+    runningRef.current = true;
+    startTimeMsRef.current = Date.now() - elapsedSeconds * 1000;
+    setIsStarted(true);
+    const remaining = totalSeconds - elapsedSeconds;
+    const m = String(Math.floor(remaining / 60)).padStart(2, "0");
+    const s = String(remaining % 60).padStart(2, "0");
+    setTimeLeft(`${m}:${s}`);
+  }, [projectionStorageState, isStarted, updateProjectionStorage]);
 
   useEffect(() => {
     const key = performanceId || matchId;
@@ -68,6 +173,13 @@ const ProjectionScreen: React.FC = () => {
         .contentType;
       const isQuyen = contentTypeStr === "QUYEN" || perf.contentType === "FIST";
       const isMusic = perf.contentType === "MUSIC";
+
+      // Check initial status - but don't auto-start, wait for user to click "Bắt đầu"
+      const perfStatus = (perf as unknown as { status?: string })?.status;
+      // Always start with isStarted = false, user must click "Bắt đầu" button
+      setIsStarted(false);
+      runningRef.current = false;
+      startTimeMsRef.current = null;
 
       // Event title
       setEventTitle(
@@ -136,12 +248,32 @@ const ProjectionScreen: React.FC = () => {
             assessorCount?: number;
           };
           type PerformanceMatchInfo = {
+            id?: string;
             durationSeconds?: number;
             status?: string;
             actualStartTime?: string;
           } | null;
           const comp: CompetitionInfo = compRes?.data ?? {};
           const pm: PerformanceMatchInfo = pmRes ? pmRes.data ?? null : null;
+
+          // Get PerformanceMatch ID for assessor connection tracking
+          if (pmRes) {
+            const pmData = pmRes.data as any;
+            // Try different response structures
+            const pmId =
+              pmData?.id ||
+              pmData?.data?.id ||
+              (pm as any)?.id ||
+              (typeof pmData === "object" && pmData !== null && "id" in pmData
+                ? (pmData as any).id
+                : null);
+            if (pmId) {
+              setPerformanceMatchId(pmId);
+            }
+          } else if (matchId) {
+            // If we have matchId directly, use it
+            setPerformanceMatchId(matchId);
+          }
 
           // Ignore any local overrides for judges count; always use 5
 
@@ -154,40 +286,99 @@ const ProjectionScreen: React.FC = () => {
           if (Number.isFinite(seconds) && seconds > 0) {
             const display = fmt(seconds);
             setRoundTime(display);
-            setTimeLeft(display);
             roundSecondsRef.current = seconds;
           } else {
             setRoundTime("02:00");
-            setTimeLeft("02:00");
             roundSecondsRef.current = 120;
+          }
+
+          // Check if match is IN_PROGRESS and resume timer from actualStartTime
+          // Priority: backend actualStartTime > localStorage > default
+          if (pm && pm.status === "IN_PROGRESS") {
+            if (pm.actualStartTime) {
+              // Use backend actualStartTime (most accurate)
+              try {
+                const actualStart = new Date(pm.actualStartTime).getTime();
+                const now = Date.now();
+                const elapsedMs = now - actualStart;
+                const elapsedSeconds = Math.floor(elapsedMs / 1000);
+                const totalSeconds = roundSecondsRef.current;
+
+                if (elapsedSeconds >= 0 && elapsedSeconds < totalSeconds) {
+                  // Match is running, resume timer
+                  const remaining = totalSeconds - elapsedSeconds;
+                  const m = String(Math.floor(remaining / 60)).padStart(2, "0");
+                  const s = String(remaining % 60).padStart(2, "0");
+                  setTimeLeft(`${m}:${s}`);
+                  runningRef.current = true;
+                  startTimeMsRef.current = actualStart;
+                  setIsStarted(true);
+                  // Update localStorage to sync with backend
+                  if (projectionStorageKey) {
+                    updateProjectionStorage({
+                      isRunning: true,
+                      startedAt: actualStart,
+                      durationSeconds: totalSeconds,
+                    });
+                  }
+                } else if (elapsedSeconds >= totalSeconds) {
+                  // Match time has expired
+                  setTimeLeft("00:00");
+                  runningRef.current = false;
+                  startTimeMsRef.current = null;
+                  setIsStarted(false);
+                } else {
+                  // Match hasn't started yet (negative elapsed)
+                  setTimeLeft(fmt(totalSeconds));
+                  runningRef.current = false;
+                  startTimeMsRef.current = null;
+                  setIsStarted(false);
+                }
+              } catch (e) {
+                console.warn(
+                  "Failed to parse actualStartTime, falling back to localStorage",
+                  e
+                );
+                // Fallback to localStorage if actualStartTime parsing fails
+                setTimeLeft(fmt(roundSecondsRef.current));
+                runningRef.current = false;
+                startTimeMsRef.current = null;
+                setIsStarted(false);
+              }
+            } else {
+              // Backend says IN_PROGRESS but no actualStartTime yet (race condition)
+              // Fallback to localStorage if available
+              setTimeLeft(fmt(roundSecondsRef.current));
+              runningRef.current = false;
+              startTimeMsRef.current = null;
+              setIsStarted(false);
+              // Let the localStorage useEffect handle resume if available
+            }
+          } else {
+            // Match not started or not IN_PROGRESS
+            setTimeLeft(fmt(roundSecondsRef.current));
+            runningRef.current = false;
+            startTimeMsRef.current = null;
+            setIsStarted(false);
           }
 
           // We always display 5 assessors; keep timing logic only
         } else {
           setRoundTime("02:00");
           setTimeLeft("02:00");
+          roundSecondsRef.current = 120;
+          runningRef.current = false;
+          startTimeMsRef.current = null;
+          setIsStarted(false);
         }
       } catch {
         // fallback to placeholder if competition fetch fails
         setRoundTime("02:00");
         setTimeLeft("02:00");
-      }
-      // If backend already in progress, start local countdown immediately
-      try {
-        const statusStr = (perf as unknown as { status?: string })?.status;
-        const startTimeStr = (perf as unknown as { startTime?: string })
-          ?.startTime;
-        if (statusStr === "IN_PROGRESS") {
-          runningRef.current = true;
-          startTimeMsRef.current = startTimeStr
-            ? Date.parse(startTimeStr)
-            : Date.now();
-        } else {
-          runningRef.current = false;
-          startTimeMsRef.current = null;
-        }
-      } catch {
-        // ignore parse issues
+        roundSecondsRef.current = 120;
+        runningRef.current = false;
+        startTimeMsRef.current = null;
+        setIsStarted(false);
       }
       // Content name: fetch by ID when available
       if (isQuyen && perf.fistItemId) {
@@ -248,6 +439,7 @@ const ProjectionScreen: React.FC = () => {
       onConnect: () => {
         const pid = performanceId; // prefer performanceId
         if (!pid) return;
+
         // Status subscription: start/stop countdown
         client.subscribe(
           `/topic/performance/${pid}/status`,
@@ -258,7 +450,9 @@ const ProjectionScreen: React.FC = () => {
                 startTime?: string;
               };
               if (!payload) return;
-              if (payload.status === "IN_PROGRESS") {
+              // Only update status from WebSocket if user has already clicked "Bắt đầu"
+              // This prevents auto-starting when status is IN_PROGRESS from backend
+              if (payload.status === "IN_PROGRESS" && isStarted) {
                 runningRef.current = true;
                 startTimeMsRef.current = payload.startTime
                   ? Date.parse(payload.startTime)
@@ -268,14 +462,18 @@ const ProjectionScreen: React.FC = () => {
                 payload.status === "CANCELLED"
               ) {
                 runningRef.current = false;
+                // Don't reset isStarted to false - match has already started, don't show "Bắt đầu" button again
+                // Keep isStarted = true so button doesn't reappear
                 startTimeMsRef.current = null;
                 setTimeLeft("00:00");
               }
+              // Don't auto-start if status is IN_PROGRESS but user hasn't clicked "Bắt đầu"
             } catch {
               // ignore parse issues
             }
           }
         );
+
         // Score subscription: update judge scores and history immediately
         // Track assessor to slot mapping to prevent duplicates
         const assessorSlotMap = new Map<string, number>();
@@ -333,20 +531,8 @@ const ProjectionScreen: React.FC = () => {
                   next.filter((v) => Number.isFinite(v) && v > 0).length >= 5;
                 if (allScored && !allJudgesScoredRef.current) {
                   allJudgesScoredRef.current = true;
-                  // Navigate to result screen after 5 seconds
-                  if (redirectTimerRef.current) {
-                    clearTimeout(redirectTimerRef.current);
-                  }
-                  redirectTimerRef.current = window.setTimeout(() => {
-                    const resultUrl = performanceId
-                      ? `/performance/result?performanceId=${encodeURIComponent(
-                          performanceId
-                        )}`
-                      : `/performance/result?matchId=${encodeURIComponent(
-                          matchId
-                        )}`;
-                    navigate(resultUrl);
-                  }, 5000); // 5 seconds delay
+                  // Don't navigate immediately - wait for timer to finish, then wait 5 more seconds
+                  // Navigation will be handled in the timer countdown effect when time reaches 00:00
                 }
 
                 return next;
@@ -358,9 +544,21 @@ const ProjectionScreen: React.FC = () => {
               }`;
               if (historyKeysRef.current.has(key)) return;
               historyKeysRef.current.add(key);
+
+              // Calculate time elapsed from match start
+              let timeStr = "";
+              if (startTimeMsRef.current) {
+                const now = Date.now();
+                const elapsedMs = now - startTimeMsRef.current;
+                const elapsedSeconds = Math.floor(elapsedMs / 1000);
+                const minutes = Math.floor(elapsedSeconds / 60);
+                const seconds = elapsedSeconds % 60;
+                timeStr = `${minutes}:${String(seconds).padStart(2, "0")}`;
+              }
+
               setHistory((prev) =>
                 [
-                  { score: payload.score!, time: "", judge: idx || 0 },
+                  { score: payload.score!, time: timeStr, judge: idx || 0 },
                   ...prev,
                 ].slice(0, 100)
               );
@@ -381,6 +579,94 @@ const ProjectionScreen: React.FC = () => {
     };
   }, [performanceId, matchId, navigate]);
 
+  // WebSocket: subscribe to assessor connection status for real-time updates
+  useEffect(() => {
+    const pmId = performanceMatchId || matchId;
+    if (!pmId) return;
+
+    // Wait for WebSocket to be connected
+    const checkAndSubscribe = () => {
+      if (!stompRef.current || !stompRef.current.connected) {
+        return null;
+      }
+
+      const client = stompRef.current;
+
+      // Subscribe to assessor connection status
+      const subscription = client.subscribe(
+        `/topic/match/${pmId}/assessor-connections`,
+        (msg: { body: string }) => {
+          try {
+            const payload = JSON.parse(msg.body) as {
+              connectedCount?: number;
+              connectedAssessors?: string[];
+            };
+            console.log("Assessor connection update received:", payload);
+            if (payload && typeof payload.connectedCount === "number") {
+              setConnectedAssessorsCount(payload.connectedCount);
+              console.log(
+                `Updated connected assessors count: ${payload.connectedCount}/5`
+              );
+            }
+          } catch (e) {
+            console.error("Error parsing assessor connection status:", e);
+          }
+        }
+      );
+
+      // Request initial connection status
+      setTimeout(() => {
+        if (client.connected) {
+          console.log(
+            "Requesting initial assessor connection status for match:",
+            pmId
+          );
+          client.publish({
+            destination: `/app/match/connections/request`,
+            body: JSON.stringify({ matchId: pmId }),
+          });
+        }
+      }, 500);
+
+      return () => {
+        try {
+          subscription.unsubscribe();
+        } catch (e) {
+          console.error("Error unsubscribing from assessor connections:", e);
+        }
+      };
+    };
+
+    // Try immediately if already connected
+    let cleanup: (() => void) | null = null;
+    if (stompRef.current?.connected) {
+      cleanup = checkAndSubscribe();
+    }
+
+    // If not connected yet, wait and retry
+    let interval: NodeJS.Timeout | null = null;
+    if (!stompRef.current?.connected) {
+      interval = setInterval(() => {
+        if (stompRef.current?.connected) {
+          cleanup = checkAndSubscribe();
+          if (cleanup && interval) {
+            clearInterval(interval);
+            interval = null;
+          }
+        }
+      }, 500);
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, [performanceMatchId, matchId]);
+
   // Local countdown based on startTime and roundSeconds
   useEffect(() => {
     const timer = setInterval(() => {
@@ -397,6 +683,10 @@ const ProjectionScreen: React.FC = () => {
         // Set time to 00:00 immediately when time expires
         setTimeLeft("00:00");
         runningRef.current = false;
+        updateProjectionStorageRef.current({
+          isRunning: false,
+          startedAt: null,
+        });
         if (!completionSentRef.current) {
           completionSentRef.current = true;
           // PerformanceMatch status is now the source of truth, it will sync to Performance automatically
@@ -437,6 +727,21 @@ const ProjectionScreen: React.FC = () => {
             }
           };
           finalizeMatchStatus();
+
+          // Navigate to result screen after 5 seconds, but only if all judges have scored
+          if (allJudgesScoredRef.current) {
+            if (redirectTimerRef.current) {
+              clearTimeout(redirectTimerRef.current);
+            }
+            redirectTimerRef.current = window.setTimeout(() => {
+              const resultUrl = performanceId
+                ? `/performance/result?performanceId=${encodeURIComponent(
+                    performanceId
+                  )}`
+                : `/performance/result?matchId=${encodeURIComponent(matchId)}`;
+              navigate(resultUrl);
+            }, 5000); // 5 seconds delay after timer expires
+          }
         }
       }
     }, 500);
@@ -444,6 +749,74 @@ const ProjectionScreen: React.FC = () => {
     // Dependencies: matchId and performanceId are stable, no need to re-run effect
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Function to start the match
+  const handleStartMatch = async () => {
+    if (!performanceId && !matchId) {
+      console.error("Missing performanceId or matchId");
+      return;
+    }
+
+    // Check if all 5 assessors are connected
+    if (connectedAssessorsCount < 5) {
+      alert(
+        `Vui lòng đợi đủ 5 giám định kết nối. Hiện tại: ${connectedAssessorsCount}/5`
+      );
+      return;
+    }
+
+    setIsStarting(true);
+    try {
+      let pmId = matchId;
+
+      // If we have performanceId but not matchId, try to get PerformanceMatch ID
+      if (!pmId && performanceId) {
+        try {
+          const res = await api.get<{
+            data?: { id?: string } | { id?: string };
+            id?: string;
+          }>(API_ENDPOINTS.PERFORMANCE_MATCHES.BY_PERFORMANCE(performanceId));
+          const payload = res?.data;
+          const pm = (payload && (payload.data || payload)) as
+            | { id?: string }
+            | undefined;
+          pmId = pm?.id || pmId;
+        } catch (error) {
+          console.warn("Failed to get PerformanceMatch ID:", error);
+        }
+      }
+
+      // Start the match by updating status to IN_PROGRESS
+      if (pmId) {
+        await api.put(
+          `/v1/performance-matches/${encodeURIComponent(
+            pmId
+          )}/status/IN_PROGRESS`
+        );
+      } else if (performanceId) {
+        // Fallback: update Performance status directly
+        await api.put(API_ENDPOINTS.PERFORMANCES.START(performanceId));
+      } else {
+        throw new Error("No PerformanceMatch ID or Performance ID available");
+      }
+
+      const startedAt = Date.now();
+      setIsStarted(true);
+      runningRef.current = true;
+      startTimeMsRef.current = startedAt;
+      updateProjectionStorage({
+        startedAt,
+        isRunning: true,
+        durationSeconds: roundSecondsRef.current,
+      });
+    } catch (error) {
+      console.error("Failed to start match:", error);
+      alert("Không thể bắt đầu trận đấu. Vui lòng thử lại.");
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
   return (
     <div className="bg-[#F5F7FB] min-h-screen flex flex-col items-center justify-start py-4">
       {/* Header / Info */}
@@ -459,6 +832,15 @@ const ProjectionScreen: React.FC = () => {
           <div>
             <span className="font-semibold text-gray-600 mr-2">NỘI DUNG</span>
             <span className="text-black font-medium">{contentName || ""}</span>
+          </div>
+          <div
+            className={`text-xs rounded-md px-4 py-1 font-semibold border ${
+              connectedAssessorsCount >= 5
+                ? "bg-green-100 text-green-700 border-green-200"
+                : "bg-red-100 text-red-700 border-red-200"
+            }`}
+          >
+            Đã kết nối: {connectedAssessorsCount}/5 giám định
           </div>
           <div className="ml-auto text-xs bg-green-100 rounded-md px-4 py-1 font-semibold text-[#226e39] border border-green-200">
             Thời gian thi đấu: {roundTime}
@@ -495,6 +877,20 @@ const ProjectionScreen: React.FC = () => {
             <div className="text-[76px] sm:text-[52px] font-extrabold text-[#1D4ED8] leading-none tracking-wider">
               {timeLeft}
             </div>
+            {!isStarted && (
+              <button
+                onClick={handleStartMatch}
+                disabled={isStarting || connectedAssessorsCount < 5}
+                className="mt-4 px-6 py-3 bg-green-600 text-white rounded-lg text-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-colors"
+                title={
+                  connectedAssessorsCount < 5
+                    ? `Cần đủ 5 giám định kết nối. Hiện tại: ${connectedAssessorsCount}/5`
+                    : ""
+                }
+              >
+                {isStarting ? "Đang bắt đầu..." : "Bắt đầu"}
+              </button>
+            )}
           </div>
         </div>
         {/* Row 2: Judges */}
@@ -524,12 +920,13 @@ const ProjectionScreen: React.FC = () => {
             </div>
           </div>
           <div className="md:col-span-3 col-span-1 bg-white rounded-xl flex flex-col justify-center border border-gray-200 p-5 min-h-[120px] shadow-sm overflow-auto">
-            <table className="w-full text-[13px] md:text-sm text-[#0F172A]">
+            <table className="w-full text-[13px] md:text-sm text-[#0F172A] table-fixed">
               <thead>
                 <tr className="border-b text-gray-500 font-semibold">
-                  <th className="text-left w-12">#</th>
-                  <th className="text-left w-24">ĐIỂM</th>
-                  <th className="text-left">GIÁM ĐỊNH</th>
+                  <th className="text-left w-1/4">#</th>
+                  <th className="text-left w-1/4">ĐIỂM</th>
+                  <th className="text-left w-1/4">THỜI GIAN</th>
+                  <th className="text-left w-1/4">GIÁM ĐỊNH</th>
                 </tr>
               </thead>
               <tbody>
@@ -537,6 +934,9 @@ const ProjectionScreen: React.FC = () => {
                   <tr key={idx} className="border-b last:border-b-0 h-10">
                     <td className="text-gray-600">{idx + 1}</td>
                     <td className="font-semibold">+{item.score}</td>
+                    <td className="text-gray-600 font-medium">
+                      {item.time || "-"}
+                    </td>
                     <td className="text-gray-700">
                       {judgeNames[(item.judge || 1) - 1] ||
                         `Assesor ${item.judge}`}

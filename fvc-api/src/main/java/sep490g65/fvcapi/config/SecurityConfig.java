@@ -61,7 +61,12 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/health").permitAll()
+                .requestMatchers("/api/v1/application-forms/public").permitAll()
                 .requestMatchers("/api/v1/application-forms/public/**").permitAll()
+                .requestMatchers("/api/v1/tournament-forms/public/**").permitAll()
+                .requestMatchers("/api/v1/competitions/public/**").permitAll()
+                .requestMatchers("/api/v1/tournament-forms/*/submissions").permitAll()
+                .requestMatchers("/api/v1/submitted-forms").permitAll()
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())

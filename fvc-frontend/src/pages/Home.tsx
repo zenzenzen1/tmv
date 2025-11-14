@@ -4,6 +4,18 @@ import api from "../services/api";
 import type { PaginationResponse } from "../types/api";
 import { API_ENDPOINTS } from "../config/endpoints";
 
+type PublicForm = {
+  id: string;
+  name: string;
+  description?: string;
+  status?: string;
+  endDate?: string | null;
+  formType?: string;
+  publicSlug?: string;
+  publicLink?: string | null;
+  expired?: boolean;
+};
+
 type FormRow = {
   id: string;
   formTitle: string;
@@ -11,6 +23,9 @@ type FormRow = {
   status: "draft" | "publish" | "archived" | "postpone";
   endDate?: string | null;
   expired?: boolean;
+  formType?: string;
+  publicSlug?: string;
+  publicLink?: string | null;
 };
 
 export default function Home() {
@@ -21,57 +36,43 @@ export default function Home() {
   const fetchForms = async () => {
     try {
       setLoading(true);
-      const res = await api.get<
-        PaginationResponse<{
-          id: string;
-          formTitle: string;
-          description?: string;
-          status: string;
-        }>
-      >(API_ENDPOINTS.TOURNAMENT_FORMS.BASE, {
-        page: 0,
-        size: 50,
-        _ts: Date.now(),
-      });
-      const baseList = res.data.content
-        .map((i) => ({
-          id: i.id,
-          formTitle: i.formTitle,
-          description: (i as { description?: string }).description,
-          status: (i.status as FormRow["status"]) || "draft",
-        }))
-        .filter((i) => {
-          const status = i.status?.toLowerCase();
-          return status === "publish" || status === "PUBLISH";
-        });
-
-      // Load details to get endDate and compute expiration
-      const detailed = await Promise.all(
-        baseList.map(async (b) => {
-          try {
-            const detail = await api.get<{
-              description?: string;
-              endDate?: string;
-            }>(API_ENDPOINTS.TOURNAMENT_FORMS.BY_ID(b.id));
-            const endDate: string | undefined = detail.data?.endDate;
-            const description: string | undefined = detail.data?.description;
-            let expired = false;
-            if (endDate) {
-              const endTs = Date.parse(endDate);
-              if (!Number.isNaN(endTs)) expired = Date.now() > endTs;
-            }
-            return {
-              ...b,
-              description: description || b.description,
-              endDate: endDate || null,
-              expired,
-            } as FormRow;
-          } catch {
-            return { ...b } as FormRow;
-          }
-        })
+      const res = await api.get<PaginationResponse<PublicForm>>(
+        API_ENDPOINTS.APPLICATION_FORMS.PUBLIC_LIST,
+        {
+          page: 0,
+          size: 50,
+          _ts: Date.now(),
+        }
       );
-      setRows(detailed);
+      const content = res.data?.content ?? [];
+      const mapped: FormRow[] = content.map((item) => {
+        const lowerStatus = item.status?.toLowerCase() as FormRow["status"];
+        const endDate = item.endDate || null;
+        const expiredFlag =
+          typeof item.expired === "boolean"
+            ? item.expired
+            : (() => {
+                if (!endDate) return false;
+                const ts = Date.parse(endDate);
+                return Number.isFinite(ts) && Date.now() > ts;
+              })();
+        return {
+          id: item.id,
+          formTitle: item.name,
+          description: item.description,
+          status: lowerStatus || "draft",
+          endDate,
+          expired: expiredFlag,
+          formType: item.formType,
+          publicSlug: item.publicSlug,
+          publicLink: item.publicLink ?? null,
+        };
+      });
+      setRows(
+        mapped.filter(
+          (row) => row.status === "publish" || row.status === "postpone"
+        )
+      );
     } catch (e) {
       console.error(e);
     } finally {
@@ -152,7 +153,16 @@ export default function Home() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => navigate(`/published-form/${f.id}`)}
+                      onClick={() => {
+                        if (
+                          f.formType === "CLUB_REGISTRATION" &&
+                          f.publicSlug
+                        ) {
+                          navigate(`/public/forms/${f.publicSlug}`);
+                          return;
+                        }
+                        navigate(`/published-form/${f.id}`);
+                      }}
                       className="rounded-md bg-[#377CFB] px-3 py-1.5 text-white text-sm hover:bg-[#2e6de0]"
                     >
                       Điền form

@@ -8,19 +8,24 @@ import org.springframework.transaction.annotation.Transactional;
 import sep490g65.fvcapi.dto.request.CreatePerformanceMatchRequest;
 import sep490g65.fvcapi.dto.response.PerformanceMatchResponse;
 import sep490g65.fvcapi.dto.request.SavePerformanceMatchSetupRequest;
-import sep490g65.fvcapi.entity.Assessor;
+import sep490g65.fvcapi.dto.response.MatchAssessorResponse;
 import sep490g65.fvcapi.entity.Competition;
+import sep490g65.fvcapi.entity.Field;
+import sep490g65.fvcapi.entity.MatchAssessor;
 import sep490g65.fvcapi.entity.Performance;
 import sep490g65.fvcapi.entity.PerformanceAthlete;
 import sep490g65.fvcapi.entity.PerformanceMatch;
-import sep490g65.fvcapi.repository.AssessorRepository;
+import sep490g65.fvcapi.repository.MatchAssessorRepository;
 import sep490g65.fvcapi.repository.CompetitionRepository;
+import sep490g65.fvcapi.repository.FieldRepository;
 import sep490g65.fvcapi.repository.PerformanceAthleteRepository;
 import sep490g65.fvcapi.repository.PerformanceMatchRepository;
 import sep490g65.fvcapi.repository.PerformanceRepository;
 import sep490g65.fvcapi.service.PerformanceMatchService;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,8 +36,9 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
     private final PerformanceMatchRepository performanceMatchRepository;
     private final PerformanceRepository performanceRepository;
     private final CompetitionRepository competitionRepository;
-    private final AssessorRepository assessorRepository;
+    private final MatchAssessorRepository matchAssessorRepository;
     private final PerformanceAthleteRepository performanceAthleteRepository;
+    private final FieldRepository fieldRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     private int getNextMatchOrder(String competitionId) {
@@ -162,17 +168,28 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
         
         // Sync Performance status from PerformanceMatch (PerformanceMatch mirrors Performance status)
         Performance performance = saved.getPerformance();
-        if (performance != null && status != PerformanceMatch.MatchStatus.READY) {
-            // READY is PerformanceMatch-specific, skip syncing to Performance
-            Performance.PerformanceStatus perfStatus = mapMatchStatusToPerformanceStatus(status);
-            if (perfStatus != null && performance.getStatus() != perfStatus) {
-                performance.setStatus(perfStatus);
-                if (status == PerformanceMatch.MatchStatus.IN_PROGRESS) {
-                    performance.setStartTime(java.time.LocalDateTime.now());
-                } else if (status == PerformanceMatch.MatchStatus.COMPLETED) {
-                    performance.setEndTime(java.time.LocalDateTime.now());
+        if (performance != null) {
+            if (status == PerformanceMatch.MatchStatus.READY) {
+                // READY means match is setup but not started yet
+                // Sync Performance status to PENDING (not started)
+                if (performance.getStatus() != Performance.PerformanceStatus.PENDING) {
+                    performance.setStatus(Performance.PerformanceStatus.PENDING);
+                    performanceRepository.save(performance);
+                    log.info("Synced Performance {} status to PENDING because PerformanceMatch {} is READY", 
+                        performance.getId(), saved.getId());
                 }
-                performanceRepository.save(performance);
+            } else {
+                // For other statuses (PENDING, IN_PROGRESS, COMPLETED, CANCELLED), sync normally
+                Performance.PerformanceStatus perfStatus = mapMatchStatusToPerformanceStatus(status);
+                if (perfStatus != null && performance.getStatus() != perfStatus) {
+                    performance.setStatus(perfStatus);
+                    if (status == PerformanceMatch.MatchStatus.IN_PROGRESS) {
+                        performance.setStartTime(java.time.LocalDateTime.now());
+                    } else if (status == PerformanceMatch.MatchStatus.COMPLETED) {
+                        performance.setEndTime(java.time.LocalDateTime.now());
+                    }
+                    performanceRepository.save(performance);
+                }
             }
             
             // Always broadcast Performance status change (even if status didn't change, for realtime sync)
@@ -180,7 +197,7 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
                 java.util.Map<String, Object> payload = new java.util.HashMap<>();
                 payload.put("type", "STATUS_CHANGED");
                 payload.put("performanceId", performance.getId());
-                payload.put("status", performance.getStatus() != null ? performance.getStatus().toString() : perfStatus != null ? perfStatus.toString() : "UNKNOWN");
+                payload.put("status", performance.getStatus() != null ? performance.getStatus().toString() : "UNKNOWN");
                 payload.put("startTime", performance.getStartTime());
                 payload.put("endTime", performance.getEndTime());
                 payload.put("matchId", saved.getId()); // Include matchId for reference
@@ -288,6 +305,18 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
             } else {
                 performanceMatch.setMusicContentId(performance.getMusicContentId());
             }
+
+            if (options.getFieldId() != null) {
+                if (!options.getFieldId().isBlank()) {
+                    Field field = fieldRepository.findById(options.getFieldId())
+                            .orElseThrow(() -> new RuntimeException("Field not found: " + options.getFieldId()));
+                    performanceMatch.setFieldId(field.getId());
+                    performanceMatch.setFieldLocation(field.getLocation());
+                } else {
+                    performanceMatch.setFieldId(null);
+                    performanceMatch.setFieldLocation(null);
+                }
+            }
         } else {
             performanceMatch.setFistConfigId(performance.getFistConfigId());
             performanceMatch.setFistItemId(performance.getFistItemId());
@@ -304,13 +333,27 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
             }
         }
 
-        // Link all assessors assigned to this performance with the PerformanceMatch
-        List<Assessor> assessors = assessorRepository.findByPerformanceId(performanceId);
-        for (Assessor assessor : assessors) {
-            if (assessor.getPerformanceMatch() == null) {
-                assessor.setPerformanceMatch(performanceMatch);
-                assessorRepository.save(assessor);
-                log.info("Linked assessor {} to PerformanceMatch {}", assessor.getId(), performanceMatch.getId());
+        // Link strategy:
+        // If this PerformanceMatch already has assigned assessors, do not auto-link from performance-level.
+        // This prevents overwriting explicit selections made in the setup UI.
+        List<MatchAssessor> currentPmAssessors = matchAssessorRepository.findByPerformanceMatchId(performanceMatch.getId());
+        if (currentPmAssessors == null || currentPmAssessors.isEmpty()) {
+            // Only when there are no PM-level assessors, link performance-level ones (legacy)
+            MatchAssessor.Specialization specialization = null;
+            if (performance.getContentType() == Performance.ContentType.QUYEN) {
+                specialization = MatchAssessor.Specialization.QUYEN;
+            } else if (performance.getContentType() == Performance.ContentType.MUSIC) {
+                specialization = MatchAssessor.Specialization.MUSIC;
+            }
+            List<MatchAssessor> assessors = matchAssessorRepository.findByPerformanceId(performanceId);
+            for (MatchAssessor assessor : assessors) {
+                if (assessor.getPerformanceMatch() == null) {
+                    assessor.setPerformanceMatch(performanceMatch);
+                    if (assessor.getSpecialization() == null && specialization != null) {
+                        assessor.setSpecialization(specialization);
+                    }
+                    matchAssessorRepository.save(assessor);
+                }
             }
         }
 
@@ -328,15 +371,63 @@ public class PerformanceMatchServiceImpl implements PerformanceMatchService {
 
         // Update status to READY if has athletes and assessors
         int athleteCount = athletes.size();
-        if (athleteCount > 0 && !assessors.isEmpty()) {
-            performanceMatch.setStatus(PerformanceMatch.MatchStatus.READY);
+        // Recompute current PM assessors for readiness evaluation
+        currentPmAssessors = matchAssessorRepository.findByPerformanceMatchId(performanceMatch.getId());
+        if (athleteCount > 0 && currentPmAssessors != null && !currentPmAssessors.isEmpty()) {
+            // Use updatePerformanceMatchStatus to trigger sync with Performance
+            // This ensures Performance status is synced to PENDING when PerformanceMatch becomes READY
+            updatePerformanceMatchStatus(performanceMatch.getId(), PerformanceMatch.MatchStatus.READY);
+            // Reload to get updated entity
+            performanceMatch = performanceMatchRepository.findById(performanceMatch.getId())
+                    .orElseThrow(() -> new RuntimeException("PerformanceMatch not found after status update"));
+        } else {
+            performanceMatch = performanceMatchRepository.save(performanceMatch);
         }
-        performanceMatch = performanceMatchRepository.save(performanceMatch);
 
         log.info("Saved PerformanceMatch setup for performance {}: {} athletes, {} assessors", 
-                performanceId, athleteCount, assessors.size());
+                performanceId, athleteCount, (currentPmAssessors != null ? currentPmAssessors.size() : 0));
         
         return PerformanceMatchResponse.from(performanceMatch, athletes);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MatchAssessorResponse> getAssessorsByPerformanceMatchId(String performanceMatchId) {
+        List<MatchAssessor> assessors = matchAssessorRepository.findByPerformanceMatchId(performanceMatchId);
+        return assessors.stream()
+                .map(MatchAssessorResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void updateScheduledStartTime(String id, LocalDateTime scheduledStartTime) {
+        PerformanceMatch performanceMatch = performanceMatchRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("PerformanceMatch not found"));
+        performanceMatch.setScheduledStartTime(scheduledStartTime);
+        performanceMatchRepository.save(performanceMatch);
+    }
+
+    @Override
+    @Transactional
+    public void updateAthletePresence(String id, Map<String, Boolean> athletesPresent) {
+        PerformanceMatch performanceMatch = performanceMatchRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("PerformanceMatch not found"));
+        
+        // Convert Map to JSON string
+        if (athletesPresent != null && !athletesPresent.isEmpty()) {
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                String json = objectMapper.writeValueAsString(athletesPresent);
+                performanceMatch.setAthletesPresent(json);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to serialize athletes present map to JSON", e);
+            }
+        } else {
+            performanceMatch.setAthletesPresent(null);
+        }
+        
+        performanceMatchRepository.save(performanceMatch);
     }
 }
 

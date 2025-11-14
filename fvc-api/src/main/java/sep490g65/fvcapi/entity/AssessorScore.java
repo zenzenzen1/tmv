@@ -35,7 +35,7 @@ public class AssessorScore extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assessor_id", nullable = false)
-    private Assessor assessor;
+    private MatchAssessor assessor;
 
     @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal score;  // Điểm từ 0.0 đến 10.0

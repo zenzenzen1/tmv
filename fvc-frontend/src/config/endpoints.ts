@@ -60,6 +60,8 @@ export const API_ENDPOINTS = {
   // Application Form Configs
   APPLICATION_FORMS: {
     BASE: "/v1/application-forms",
+    PUBLIC_LIST: "/v1/application-forms/public",
+    PUBLIC_BY_SLUG: (slug: string) => `/v1/application-forms/public/${slug}`,
     BY_ID: (id: string) => `/v1/application-forms/${id}`,
     BY_TYPE: (type: string) => `/v1/application-forms/${type}`,
     INIT_CLUB: "/v1/application-forms/init-club-registration",
@@ -75,6 +77,7 @@ export const API_ENDPOINTS = {
   TOURNAMENT_FORMS: {
     BASE: "/v1/tournament-forms",
     BY_ID: (id: string) => `/v1/tournament-forms/${id}`,
+    PUBLIC_BY_ID: (id: string) => `/v1/tournament-forms/public/${id}`,
     STATUS: (id: string) => `/v1/tournament-forms/${id}/status`,
     SUBMISSIONS: (id: string) => `/v1/tournament-forms/${id}/submissions`,
     SUBMISSION_STATUS: (submissionId: string) =>
@@ -86,6 +89,7 @@ export const API_ENDPOINTS = {
   COMPETITIONS: {
     BASE: "/v1/competitions",
     BY_ID: (id: string) => `/v1/competitions/${id}`,
+    PUBLIC_BY_ID: (id: string) => `/v1/competitions/public/${id}`,
   },
 
   // Fist contents
@@ -115,22 +119,6 @@ export const API_ENDPOINTS = {
     STATUS: "/v1/athletes/status",
   },
 
-  // Assessors
-  ASSESSORS: {
-    BASE: "/v1/assessors",
-    AVAILABLE: "/v1/assessors/available",
-    MY_ASSIGNMENTS: "/v1/assessors/my-assignments",
-    BY_COMPETITION: (competitionId: string) =>
-      `/v1/assessors/competition/${competitionId}`,
-    BY_COMPETITION_AND_SPECIALIZATION: (
-      competitionId: string,
-      specialization: string
-    ) =>
-      `/v1/assessors/competition/${competitionId}/specialization/${specialization}`,
-    ASSIGN: "/v1/assessors/assign",
-    BY_ID: (id: string) => `/v1/assessors/${id}`,
-  },
-
   // Performance matches (quyền/võ nhạc)
   PERFORMANCE_MATCHES: {
     SAVE_BY_PERFORMANCE: (performanceId: string) =>
@@ -139,6 +127,12 @@ export const API_ENDPOINTS = {
       `/v1/performance-matches/performance/${performanceId}`,
     BY_COMPETITION: (competitionId: string) =>
       `/v1/performance-matches/competition/${competitionId}`,
+    ASSESSORS: (performanceMatchId: string) =>
+      `/v1/performance-matches/${performanceMatchId}/assessors`,
+    UPDATE_SCHEDULED_START_TIME: (id: string) =>
+      `/v1/performance-matches/${id}/scheduled-start-time`,
+    UPDATE_ATHLETE_PRESENCE: (id: string) =>
+      `/v1/performance-matches/${id}/athlete-presence`,
   },
 
   // Club Members
@@ -176,10 +170,21 @@ export const API_ENDPOINTS = {
 
   // Match Assessors
   MATCH_ASSESSORS: {
+    BASE: "/v1/match-assessors",
+    AVAILABLE: "/v1/match-assessors/available",
     ASSIGN: "/v1/match-assessors/assign",
+    ASSIGN_BY_PERFORMANCE: "/v1/match-assessors/assign/performance",
+    ASSIGN_SINGLE: "/v1/match-assessors/assign/single",
     LIST: "/v1/match-assessors/match/{matchId}",
     BY_ID: (id: string) => `/v1/match-assessors/${id}`,
-    MY_ASSIGNMENTS: "/v1/match-assessors/my-assignments",
+    MY_ASSIGNMENTS: "/v1/match-assessors/my-assigned-matches",
+    BY_COMPETITION: (competitionId: string) =>
+      `/v1/match-assessors/competition/${competitionId}`,
+    BY_COMPETITION_AND_SPECIALIZATION: (
+      competitionId: string,
+      specialization: string
+    ) =>
+      `/v1/match-assessors/competition/${competitionId}/specialization/${specialization}`,
   },
 
   // Scoring (Performance projection)
@@ -218,10 +223,12 @@ export const API_ENDPOINTS = {
 
   // Epic B: Session Attendance
   ATTENDANCE: {
-    BY_SESSION: (sessionId: string) => `/v1/training-sessions/${sessionId}/attendance`,
+    BY_SESSION: (sessionId: string) =>
+      `/v1/training-sessions/${sessionId}/attendance`,
     BY_ATTENDANCE_ID: (sessionId: string, id: string) =>
       `/v1/training-sessions/${sessionId}/attendance/${id}`,
-    BULK: (sessionId: string) => `/v1/training-sessions/${sessionId}/attendance/bulk`,
+    BULK: (sessionId: string) =>
+      `/v1/training-sessions/${sessionId}/attendance/bulk`,
     STATISTICS: (sessionId: string) =>
       `/v1/training-sessions/${sessionId}/attendance/statistics`,
   },

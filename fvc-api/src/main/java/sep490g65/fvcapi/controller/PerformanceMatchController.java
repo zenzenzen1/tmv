@@ -4,12 +4,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import sep490g65.fvcapi.dto.request.CreatePerformanceMatchRequest;
+import sep490g65.fvcapi.dto.request.UpdatePerformanceMatchScheduledTimeRequest;
+import sep490g65.fvcapi.dto.request.UpdatePerformanceMatchAthletePresenceRequest;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.PerformanceMatchResponse;
 import sep490g65.fvcapi.entity.PerformanceMatch;
 import sep490g65.fvcapi.service.PerformanceMatchService;
 import sep490g65.fvcapi.utils.ResponseUtils;
 import sep490g65.fvcapi.dto.request.SavePerformanceMatchSetupRequest;
+import sep490g65.fvcapi.dto.response.MatchAssessorResponse;
 
 import jakarta.validation.Valid;
 import java.util.List;
@@ -45,6 +48,13 @@ public class PerformanceMatchController {
         return ResponseEntity.ok(sep490g65.fvcapi.utils.ResponseUtils.success("Performance matches retrieved", responses));
     }
 
+    @GetMapping("/{performanceMatchId}/assessors")
+    public ResponseEntity<BaseResponse<List<MatchAssessorResponse>>> getAssessorsByPerformanceMatch(
+            @PathVariable String performanceMatchId) {
+        List<MatchAssessorResponse> responses = performanceMatchService.getAssessorsByPerformanceMatchId(performanceMatchId);
+        return ResponseEntity.ok(ResponseUtils.success("Assessors retrieved", responses));
+    }
+
     @PutMapping("/{id}/status/{status}")
     public ResponseEntity<PerformanceMatchResponse> updatePerformanceMatchStatus(
             @PathVariable String id,
@@ -73,6 +83,22 @@ public class PerformanceMatchController {
             @RequestBody(required = false) SavePerformanceMatchSetupRequest body) {
         PerformanceMatchResponse response = performanceMatchService.savePerformanceMatchSetup(performanceId, body);
         return ResponseEntity.ok(ResponseUtils.success("Performance match setup saved successfully", response));
+    }
+
+    @PatchMapping("/{id}/scheduled-start-time")
+    public ResponseEntity<BaseResponse<Void>> updateScheduledStartTime(
+            @PathVariable String id,
+            @Valid @RequestBody UpdatePerformanceMatchScheduledTimeRequest request) {
+        performanceMatchService.updateScheduledStartTime(id, request.getScheduledStartTime());
+        return ResponseEntity.ok(ResponseUtils.success("Scheduled start time updated successfully"));
+    }
+
+    @PatchMapping("/{id}/athlete-presence")
+    public ResponseEntity<BaseResponse<Void>> updateAthletePresence(
+            @PathVariable String id,
+            @Valid @RequestBody UpdatePerformanceMatchAthletePresenceRequest request) {
+        performanceMatchService.updateAthletePresence(id, request.getAthletesPresent());
+        return ResponseEntity.ok(ResponseUtils.success("Athlete presence updated successfully"));
     }
 }
 

@@ -5,6 +5,7 @@ import sep490g65.fvcapi.dto.request.CreateCompetitionRequest;
 import sep490g65.fvcapi.dto.request.UpdateCompetitionRequest;
 import sep490g65.fvcapi.dto.response.CompetitionResponse;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
+import sep490g65.fvcapi.dto.response.PublicCompetitionDetailResponse;
 import sep490g65.fvcapi.enums.TournamentStatus;
 
 public interface CompetitionService {
@@ -20,5 +21,7 @@ public interface CompetitionService {
     void deleteCompetition(String id);
     
     CompetitionResponse changeStatus(String id, TournamentStatus status);
+
+    PublicCompetitionDetailResponse getPublicCompetitionById(String id);
 }
 

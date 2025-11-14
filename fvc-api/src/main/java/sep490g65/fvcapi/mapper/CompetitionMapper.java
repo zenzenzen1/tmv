@@ -149,6 +149,7 @@ public class CompetitionMapper {
                 .name(link.getMusicIntegratedPerformance().getName())
                 .description(link.getMusicIntegratedPerformance().getDescription())
                 .isActive(link.getMusicIntegratedPerformance().getIsActive())
+                .performersPerEntry(link.getMusicIntegratedPerformance().getPerformersPerEntry())
                 .build();
     }
     
