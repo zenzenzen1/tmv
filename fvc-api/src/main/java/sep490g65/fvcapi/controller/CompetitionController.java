@@ -15,6 +15,7 @@ import sep490g65.fvcapi.dto.request.UpdateCompetitionRequest;
 import sep490g65.fvcapi.dto.response.BaseResponse;
 import sep490g65.fvcapi.dto.response.CompetitionResponse;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
+import sep490g65.fvcapi.dto.response.PublicCompetitionDetailResponse;
 import sep490g65.fvcapi.enums.ErrorCode;
 import sep490g65.fvcapi.enums.TournamentStatus;
 import sep490g65.fvcapi.service.CompetitionService;
@@ -52,6 +53,12 @@ public class CompetitionController {
             return ResponseEntity.badRequest()
                     .body(ResponseUtils.error(MessageConstants.COMPETITION_FETCH_ERROR, ErrorCode.COMPETITION_FETCH_ERROR.getCode()));
         }
+    }
+
+    @GetMapping("/public/{id}")
+    public ResponseEntity<BaseResponse<PublicCompetitionDetailResponse>> getPublicCompetition(@PathVariable String id) {
+        PublicCompetitionDetailResponse response = competitionService.getPublicCompetitionById(id);
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, response));
     }
     
     @PostMapping

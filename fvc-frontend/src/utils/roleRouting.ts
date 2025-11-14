@@ -9,7 +9,7 @@ export const getRoleLandingRoute = (role?: SystemRole | null): string => {
     case "ORGANIZATION_COMMITTEE":
       return "/manage/forms";
     case "TEACHER":
-      return "/manage/performance";
+      return "/assessor/dashboard";
     case "MEMBER":
     default:
       return "/dashboard";

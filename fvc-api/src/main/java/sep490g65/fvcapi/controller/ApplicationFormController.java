@@ -11,6 +11,8 @@ import sep490g65.fvcapi.dto.request.CreateApplicationFormConfigRequest;
 import sep490g65.fvcapi.dto.request.UpdateApplicationFormConfigRequest;
 import sep490g65.fvcapi.dto.response.ApplicationFormConfigResponse;
 import sep490g65.fvcapi.dto.response.BaseResponse;
+import sep490g65.fvcapi.dto.response.PublicApplicationFormResponse;
+import sep490g65.fvcapi.dto.response.PaginationResponse;
 import sep490g65.fvcapi.enums.ApplicationFormType;
 import sep490g65.fvcapi.service.ApplicationFormService;
 import sep490g65.fvcapi.entity.ApplicationFormConfig;
@@ -53,6 +55,15 @@ public class ApplicationFormController {
     ) {
         org.springframework.data.domain.Page<ApplicationFormConfigResponse> data = applicationFormService.listPaginated(
                 page, size, search, dateFrom, dateTo, status);
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, data));
+    }
+
+    @GetMapping("/public")
+    public ResponseEntity<BaseResponse<PaginationResponse<PublicApplicationFormResponse>>> listPublicForms(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size
+    ) {
+        PaginationResponse<PublicApplicationFormResponse> data = applicationFormService.listPublicForms(page, size);
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.DATA_RETRIEVED, data));
     }
 

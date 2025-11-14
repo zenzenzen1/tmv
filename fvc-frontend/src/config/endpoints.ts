@@ -60,6 +60,8 @@ export const API_ENDPOINTS = {
   // Application Form Configs
   APPLICATION_FORMS: {
     BASE: "/v1/application-forms",
+    PUBLIC_LIST: "/v1/application-forms/public",
+    PUBLIC_BY_SLUG: (slug: string) => `/v1/application-forms/public/${slug}`,
     BY_ID: (id: string) => `/v1/application-forms/${id}`,
     BY_TYPE: (type: string) => `/v1/application-forms/${type}`,
     INIT_CLUB: "/v1/application-forms/init-club-registration",
@@ -75,6 +77,7 @@ export const API_ENDPOINTS = {
   TOURNAMENT_FORMS: {
     BASE: "/v1/tournament-forms",
     BY_ID: (id: string) => `/v1/tournament-forms/${id}`,
+    PUBLIC_BY_ID: (id: string) => `/v1/tournament-forms/public/${id}`,
     STATUS: (id: string) => `/v1/tournament-forms/${id}/status`,
     SUBMISSIONS: (id: string) => `/v1/tournament-forms/${id}/submissions`,
     SUBMISSION_STATUS: (submissionId: string) =>
@@ -86,6 +89,7 @@ export const API_ENDPOINTS = {
   COMPETITIONS: {
     BASE: "/v1/competitions",
     BY_ID: (id: string) => `/v1/competitions/${id}`,
+    PUBLIC_BY_ID: (id: string) => `/v1/competitions/public/${id}`,
   },
 
   // Fist contents

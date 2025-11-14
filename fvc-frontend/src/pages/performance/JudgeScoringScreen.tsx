@@ -16,8 +16,8 @@ const JudgeScoringScreen: React.FC = () => {
   const [value, setValue] = useState("0");
   const [status, setStatus] = useState<string>("PENDING");
   const [canScore, setCanScore] = useState<boolean>(false);
+  const [hasScored, setHasScored] = useState<boolean>(false);
   const [assessorName, setAssessorName] = useState<string>("");
-  const [notAllowed, setNotAllowed] = useState<boolean>(true);
   const judgeNumber = Number(params.get("position") || 0) || 1;
   const stompRef = useRef<Client | null>(null);
 
@@ -111,23 +111,45 @@ const JudgeScoringScreen: React.FC = () => {
         if (found?.fullName) setAssessorName(found.fullName);
       }
 
+      // Check if assessor has already scored by calling API
+      if (performanceId && assessorId) {
+        try {
+          const scoresRes = await api.get<
+            Array<{
+              assessor?: { id?: string; userId?: string };
+              id?: string;
+            }>
+          >(`/v1/performance-scoring/performance/${performanceId}/scores`);
+          const scores = scoresRes.data || [];
+          const assessorScored = scores.some(
+            (s) =>
+              s.assessor?.id === assessorId || s.assessor?.userId === assessorId
+          );
+          if (assessorScored) {
+            setHasScored(true);
+          }
+        } catch (err) {
+          // Ignore errors - will be handled by WebSocket or on submit
+          console.warn("Failed to check if assessor has scored:", err);
+        }
+      }
+
       console.log("Final status determined:", finalStatus);
       setStatus(finalStatus);
-      // Allow scoring when status is IN_PROGRESS or COMPLETED
+      // Allow scoring when status is IN_PROGRESS or COMPLETED, but only if not already scored
       // READY = setup done but not started (can join but cannot score)
       // PENDING = not setup (can join but cannot score)
       // IN_PROGRESS = ongoing (can score)
       // COMPLETED = finished (can score)
       const allowScore =
-        finalStatus === "IN_PROGRESS" || finalStatus === "COMPLETED";
+        (finalStatus === "IN_PROGRESS" || finalStatus === "COMPLETED") &&
+        !hasScored;
       console.log("Can score:", allowScore);
       setCanScore(allowScore);
-      // Always allow access to the screen, but scoring is disabled until match starts
-      setNotAllowed(false);
     } catch (err) {
       console.error("Failed to refresh status", err);
     }
-  }, [performanceId, assessorId, performanceMatchId]);
+  }, [performanceId, assessorId, performanceMatchId, hasScored]);
 
   useEffect(() => {
     // Load initial status once
@@ -161,9 +183,9 @@ const JudgeScoringScreen: React.FC = () => {
                 const newStatus = payload.status.toUpperCase();
                 setStatus(newStatus);
                 setCanScore(
-                  newStatus === "IN_PROGRESS" || newStatus === "COMPLETED"
+                  (newStatus === "IN_PROGRESS" || newStatus === "COMPLETED") &&
+                    !hasScored
                 );
-                setNotAllowed(false); // Always allow access
                 // Don't call refreshStatus here to avoid flickering - WebSocket is source of truth
                 return;
               } else if (payload?.startTime) {
@@ -180,6 +202,32 @@ const JudgeScoringScreen: React.FC = () => {
             }
           }
         );
+
+        // Subscribe to score-submitted to detect when this assessor has scored
+        if (performanceId && assessorId) {
+          client.subscribe(
+            `/topic/performance/${performanceId}/score-submitted`,
+            (msg) => {
+              try {
+                const payload = JSON.parse(msg.body) as {
+                  type?: string;
+                  assessorId?: string;
+                  userId?: string;
+                };
+                // If this assessor submitted a score, mark as scored
+                if (
+                  payload?.assessorId === assessorId ||
+                  payload?.userId === assessorId
+                ) {
+                  setHasScored(true);
+                  setCanScore(false);
+                }
+              } catch (e) {
+                console.warn("WS score-submitted parse error", e);
+              }
+            }
+          );
+        }
 
         // Register assessor connection for real-time tracking on projection screen
         if (performanceMatchId && assessorId) {
@@ -238,7 +286,7 @@ const JudgeScoringScreen: React.FC = () => {
   };
   const handleClear = () => setValue("0");
   const handleConfirm = () => {
-    if (!canScore || !performanceId || !assessorId) return;
+    if (!canScore || !performanceId || !assessorId || hasScored) return;
     const scoreNum = Number(value);
     if (!Number.isFinite(scoreNum)) return;
     scoringService
@@ -246,6 +294,7 @@ const JudgeScoringScreen: React.FC = () => {
       .then(() => {
         alert("Đã gửi điểm: " + scoreNum);
         setValue("0");
+        setHasScored(true); // Mark as scored to disable further scoring
       })
       .catch((err: ErrorResponse | unknown) => {
         let msg = "Gửi điểm thất bại";
@@ -253,6 +302,20 @@ const JudgeScoringScreen: React.FC = () => {
           const withMsg = err as { message?: string };
           const withData = err as { data?: { message?: string } };
           msg = withMsg.message || withData.data?.message || msg;
+
+          // If error is "Score already submitted", mark as scored
+          const errorMsg = (
+            withMsg.message ||
+            withData.data?.message ||
+            ""
+          ).toLowerCase();
+          if (
+            errorMsg.includes("already submitted") ||
+            errorMsg.includes("đã được gửi")
+          ) {
+            setHasScored(true);
+            setCanScore(false);
+          }
         }
         alert(msg);
       });
@@ -372,13 +435,28 @@ const JudgeScoringScreen: React.FC = () => {
             </div>
           </div>
         )}
+        {hasScored && (
+          <div className="mt-4 px-6 py-3 bg-green-50 border border-green-200 rounded-lg text-center">
+            <div className="text-green-800 font-semibold">Đã chấm điểm</div>
+            <div className="text-sm text-green-700 mt-1">
+              Bạn đã gửi điểm cho trận đấu này. Không thể chấm điểm thêm lần
+              nữa.
+            </div>
+          </div>
+        )}
         <button
           className="mt-8 bg-green-600 hover:bg-green-700 text-white rounded px-8 py-4 text-xl font-bold w-full max-w-md shadow disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={handleConfirm}
-          disabled={!canScore}
-          title={!canScore ? "Chỉ được chấm điểm khi trận đã bắt đầu" : ""}
+          disabled={!canScore || hasScored}
+          title={
+            hasScored
+              ? "Bạn đã chấm điểm rồi"
+              : !canScore
+              ? "Chỉ được chấm điểm khi trận đã bắt đầu"
+              : ""
+          }
         >
-          XÁC NHẬN
+          {hasScored ? "ĐÃ CHẤM ĐIỂM" : "XÁC NHẬN"}
         </button>
       </div>
     </div>

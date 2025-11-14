@@ -129,7 +129,7 @@ export default function App() {
         <Route index element={<ProfilePage />} />
       </Route>
 
-      {/* Landing page */}
+      {/* Public home / landing */}
       <Route
         path="/"
         element={
@@ -137,10 +137,11 @@ export default function App() {
             // <Navigate to="/manage/tournaments" replace />
             <Navigate to={getRoleLandingRoute(userRole)} replace />
           ) : (
-            <LandingPage />
+            <Home />
           )
         }
       />
+      <Route path="/landing" element={<LandingPage />} />
       {/* Member Management */}
       <Route path="/member-management" element={<MemberManagementListPage />} />
       {/* Tournaments */}
@@ -534,13 +535,38 @@ export default function App() {
         />
 
         {/* Arrange */}
-        <Route path="performance" element={<ArrangeOrderWrapper />} />
+        <Route
+          path="performance"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+              <ArrangeOrderWrapper />
+            </RequireRole>
+          }
+        />
         <Route
           path="performance/fist-order"
-          element={<ArrangeOrderWrapper />}
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+              <ArrangeOrderWrapper />
+            </RequireRole>
+          }
         />
-        <Route path="arrange" element={<ArrangeOrderWrapper />} />
-        <Route path="arrange/fist-order" element={<ArrangeOrderWrapper />} />
+        <Route
+          path="arrange"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+              <ArrangeOrderWrapper />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="arrange/fist-order"
+          element={
+            <RequireRole roles={["EXECUTIVE_BOARD", "ORGANIZATION_COMMITTEE"]}>
+              <ArrangeOrderWrapper />
+            </RequireRole>
+          }
+        />
 
         {/* Tournament Forms - Merge: Routes from HEAD branch */}
         <Route path="tournament-forms" element={<TournamentFormList />} />

@@ -9,9 +9,11 @@ import sep490g65.fvcapi.dto.response.PerformanceResponse;
 import sep490g65.fvcapi.entity.AssessorScore;
 import sep490g65.fvcapi.entity.MatchAssessor;
 import sep490g65.fvcapi.entity.Performance;
+import sep490g65.fvcapi.entity.PerformanceMatch;
 import sep490g65.fvcapi.repository.AssessorScoreRepository;
 import sep490g65.fvcapi.repository.MatchAssessorRepository;
 import sep490g65.fvcapi.repository.PerformanceRepository;
+import sep490g65.fvcapi.repository.PerformanceMatchRepository;
 import sep490g65.fvcapi.service.PerformanceScoringService;
 import sep490g65.fvcapi.service.PerformanceService;
 
@@ -27,6 +29,7 @@ public class PerformanceScoringServiceImpl implements PerformanceScoringService 
     private final AssessorScoreRepository assessorScoreRepository;
     private final MatchAssessorRepository matchAssessorRepository;
     private final PerformanceRepository performanceRepository;
+    private final PerformanceMatchRepository performanceMatchRepository;
     private final PerformanceService performanceService;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -170,8 +173,20 @@ public class PerformanceScoringServiceImpl implements PerformanceScoringService 
     public boolean isPerformanceActive(String performanceId) {
         Performance performance = performanceRepository.findById(performanceId)
                 .orElseThrow(() -> new RuntimeException("Performance not found"));
-        // Quyền/Võ nhạc: chỉ cho phép chấm SAU KHI KẾT THÚC
-        return performance.getStatus() == Performance.PerformanceStatus.COMPLETED;
+        
+        // Check PerformanceMatch status first (source of truth for match state)
+        // PerformanceMatch status is synced to Performance, but check directly for accuracy
+        var performanceMatch = performanceMatchRepository.findByPerformanceId(performanceId).orElse(null);
+        if (performanceMatch != null) {
+            // PerformanceMatch status is the actual match status
+            return performanceMatch.getStatus() == PerformanceMatch.MatchStatus.IN_PROGRESS ||
+                   performanceMatch.getStatus() == PerformanceMatch.MatchStatus.COMPLETED;
+        }
+        
+        // Fallback to Performance status if no PerformanceMatch exists
+        // Quyền/Võ nhạc: cho phép chấm điểm khi đang diễn ra (IN_PROGRESS) hoặc đã kết thúc (COMPLETED)
+        return performance.getStatus() == Performance.PerformanceStatus.IN_PROGRESS ||
+               performance.getStatus() == Performance.PerformanceStatus.COMPLETED;
     }
 
     @Override

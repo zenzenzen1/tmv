@@ -32,6 +32,8 @@ import sep490g65.fvcapi.entity.Competition;
 import sep490g65.fvcapi.repository.CompetitionRepository;
 import sep490g65.fvcapi.dto.request.UpdateFormRequest;
 import sep490g65.fvcapi.dto.response.FormDetailResponse;
+import sep490g65.fvcapi.entity.ApplicationFormConfig;
+import sep490g65.fvcapi.repository.ApplicationFormConfigRepository;
 
 @RestController
 @RequestMapping(ApiConstants.API_BASE_PATH + ApiConstants.TOURNAMENT_FORMS_PATH)
@@ -41,6 +43,7 @@ public class TournamentFormController {
 
     private final TournamentFormService tournamentFormService;
     private final CompetitionRepository competitionRepository;
+    private final ApplicationFormConfigRepository applicationFormConfigRepository;
 
     @GetMapping
     public ResponseEntity<BaseResponse<PaginationResponse<TournamentFormResponse>>> list(@Valid @org.springframework.web.bind.annotation.ModelAttribute RequestParam params) {
@@ -65,6 +68,23 @@ public class TournamentFormController {
 
     @GetMapping("/{id}")
     public ResponseEntity<BaseResponse<FormDetailResponse>> get(@PathVariable String id) {
+        FormDetailResponse data = tournamentFormService.getById(id);
+        return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
+    }
+
+    @GetMapping("/public/{id}")
+    public ResponseEntity<BaseResponse<FormDetailResponse>> getPublic(@PathVariable String id) {
+        ApplicationFormConfig form = applicationFormConfigRepository.findById(id)
+                .orElse(null);
+        if (form == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ResponseUtils.error("Form không tồn tại", "FORM_NOT_FOUND"));
+        }
+        FormStatus status = form.getStatus();
+        if (status == null || (status != FormStatus.PUBLISH && status != FormStatus.POSTPONE)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ResponseUtils.error("Form chưa được công bố", "FORM_NOT_PUBLIC"));
+        }
         FormDetailResponse data = tournamentFormService.getById(id);
         return ResponseEntity.ok(ResponseUtils.success(MessageConstants.OPERATION_SUCCESS, data));
     }

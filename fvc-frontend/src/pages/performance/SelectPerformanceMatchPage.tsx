@@ -18,6 +18,11 @@ import { fieldService } from "../../services/fieldService";
 import type { FieldResponse } from "../../types";
 import { useToast } from "../../components/common/ToastContext";
 import PerformanceMatchSetupCard from "./PerformanceMatchSetupCard";
+import {
+  TournamentSelector,
+  QuyenFilters,
+  MusicFilters,
+} from "./components/PerformanceFilters";
 
 type AthleteApi = {
   id: string;
@@ -80,6 +85,7 @@ type Match = {
   teamName?: string | null;
   fieldId?: string | null;
   fieldName?: string | null;
+  scheduledStartTime?: string | null;
 };
 
 const COMPETITION_TYPES: Record<CompetitionType, string> = {
@@ -90,6 +96,12 @@ const COMPETITION_TYPES: Record<CompetitionType, string> = {
 const MATCH_TYPE_SEQUENCE: CompetitionType[] = ["quyen", "music"];
 
 const getMatchPriorityOrder = (match: Match): number => {
+  if (match.scheduledStartTime) {
+    const timeValue = new Date(match.scheduledStartTime).getTime();
+    if (Number.isFinite(timeValue)) {
+      return timeValue;
+    }
+  }
   if (
     typeof match.matchOrder === "number" &&
     Number.isFinite(match.matchOrder)
@@ -188,6 +200,20 @@ const getContentGroupingKey = (match: Match): string => {
     );
   }
   return "";
+};
+
+const formatScheduleDisplay = (time?: string | null): string => {
+  if (!time) return "Chưa thiết lập";
+  const date = new Date(time);
+  if (!Number.isFinite(date.getTime())) {
+    return "Chưa thiết lập";
+  }
+  return date.toLocaleString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+  });
 };
 
 export default function SelectPerformanceMatchPage() {
@@ -418,6 +444,37 @@ function ArrangeOrderPageContent({
   const [isTournamentLoading, setIsTournamentLoading] =
     useState<boolean>(false);
 
+  const fieldScheduleIndex = useMemo(() => {
+    const index: Record<string, Record<string, string>> = {};
+    matches.forEach((match) => {
+      if (!match.fieldId || !match.scheduledStartTime) return;
+      const timeKey = new Date(match.scheduledStartTime).toISOString();
+      if (!index[match.fieldId]) {
+        index[match.fieldId] = {};
+      }
+      index[match.fieldId][timeKey] = match.id;
+    });
+    return index;
+  }, [matches]);
+
+  const assessorScheduleIndex = useMemo(() => {
+    const index: Record<string, Record<string, string>> = {};
+    matches.forEach((match) => {
+      if (!match.scheduledStartTime) return;
+      const timeKey = new Date(match.scheduledStartTime).toISOString();
+      const assessorIds = Object.values(match.assessors || {}).filter(
+        (id): id is string => Boolean(id)
+      );
+      assessorIds.forEach((assessorId) => {
+        if (!index[assessorId]) {
+          index[assessorId] = {};
+        }
+        index[assessorId][timeKey] = match.id;
+      });
+    });
+    return index;
+  }, [matches]);
+
   useEffect(() => {
     if (isStandaloneMode && standaloneCompetitionId) {
       setSelectedTournament(standaloneCompetitionId);
@@ -522,6 +579,7 @@ function ArrangeOrderPageContent({
         assessors: createEmptyAssessors(),
         fieldId: undefined,
         fieldName: undefined,
+        scheduledStartTime: null,
       }));
       setMatches((prev) =>
         normalizeMatches([
@@ -543,6 +601,7 @@ function ArrangeOrderPageContent({
       judgesCount: 5,
       defaultTimerSec: 120,
       fieldId: "" as string | undefined,
+      scheduledStartTime: undefined as string | null | undefined,
     }),
     []
   );
@@ -638,6 +697,45 @@ function ArrangeOrderPageContent({
   // Filter states for team and gender
   const [showGenderFilter, setShowGenderFilter] = useState(false);
   const [showTeamFilter, setShowTeamFilter] = useState(false);
+
+  const toggleTeamFilter = useCallback(() => {
+    setShowTeamFilter((prev) => !prev);
+  }, []);
+
+  const toggleGenderFilter = useCallback(() => {
+    setShowGenderFilter((prev) => !prev);
+  }, []);
+
+  const toggleCompetitionFilter = useCallback(() => {
+    setShowCompetitionFilter((prev) => !prev);
+  }, []);
+
+  const handleTournamentChange = useCallback(
+    (value: string) => {
+      setIsTournamentLoading(true);
+      setSubCompetitionFilter("");
+      setDetailCompetitionFilter("");
+      setGenderFilter("MALE");
+      setTeamFilter("PERSON");
+      setOpenCategory("");
+      setShowCompetitionFilter(false);
+      setShowGenderFilter(false);
+      setShowTeamFilter(false);
+      setSelectedTournament(value);
+    },
+    [
+      setDetailCompetitionFilter,
+      setGenderFilter,
+      setIsTournamentLoading,
+      setOpenCategory,
+      setSelectedTournament,
+      setShowCompetitionFilter,
+      setShowGenderFilter,
+      setShowTeamFilter,
+      setSubCompetitionFilter,
+      setTeamFilter,
+    ]
+  );
   // Realtime status subscriber
   const stompRef = useRef<Client | null>(null);
   useEffect(() => {
@@ -1574,6 +1672,7 @@ function ArrangeOrderPageContent({
               teamName: teamName ?? null,
               fieldId: pm.fieldId ?? null,
               fieldName: pm.fieldLocation ?? null,
+              scheduledStartTime: pm.scheduledStartTime ?? null,
             } as Match;
           });
 
@@ -1978,6 +2077,46 @@ function ArrangeOrderPageContent({
     });
   };
 
+  const persistProjectionState = (
+    match: Match,
+    payload: Record<string, unknown>
+  ) => {
+    if (typeof window === "undefined") return;
+    const keys: string[] = [`projection:${match.id}`];
+    const performanceKey = (match as any).performanceId as string | undefined;
+    if (performanceKey) {
+      keys.push(`projection:${performanceKey}`);
+    }
+    keys.forEach((key) => {
+      try {
+        const existingRaw = localStorage.getItem(key);
+        const existing = existingRaw
+          ? (JSON.parse(existingRaw) as Record<string, any>)
+          : {};
+        const merged: Record<string, any> = {
+          ...existing,
+          ...payload,
+        };
+        if (
+          Object.prototype.hasOwnProperty.call(existing, "startedAt") &&
+          existing.startedAt !== undefined
+        ) {
+          merged.startedAt = existing.startedAt;
+        } else if (!("startedAt" in merged)) {
+          merged.startedAt = null;
+        }
+        if (Object.prototype.hasOwnProperty.call(existing, "isRunning")) {
+          merged.isRunning = existing.isRunning;
+        } else if (!("isRunning" in merged)) {
+          merged.isRunning = false;
+        }
+        localStorage.setItem(key, JSON.stringify(merged));
+      } catch (err) {
+        console.warn("Failed to persist projection payload", err);
+      }
+    });
+  };
+
   const beginMatch = async (matchId: string) => {
     const match = matches.find((m) => m.id === matchId);
     if (!match) {
@@ -2008,28 +2147,15 @@ function ArrangeOrderPageContent({
       })),
       judgesCount,
       defaultTimerMs: defaultTimerSec * 1000,
+      durationSeconds: defaultTimerSec,
       theme: "light" as const,
       fontScale: "md" as const,
       showParticipants: true,
-      startedAt: Date.now(),
+      startedAt: match.status === "IN_PROGRESS" ? Date.now() : null,
+      isRunning: match.status === "IN_PROGRESS",
     };
 
-    try {
-      localStorage.setItem(
-        `projection:${match.id}`,
-        JSON.stringify(projectionPayload)
-      );
-      // Also store by performanceId if available, for projection fallback
-      const pidForStorage = (match as any).performanceId as string | undefined;
-      if (pidForStorage) {
-        localStorage.setItem(
-          `projection:${pidForStorage}`,
-          JSON.stringify(projectionPayload)
-        );
-      }
-    } catch (err) {
-      console.error("Failed to save to localStorage:", err);
-    }
+    persistProjectionState(match, projectionPayload);
 
     // Prefer performanceId for quyền/võ nhạc projection; fallback to matchId
     let pid = (match as any).performanceId as string | undefined;
@@ -2443,22 +2569,25 @@ function ArrangeOrderPageContent({
               defaultTimerSec: fetchedDurationSeconds || prev.defaultTimerSec,
             }));
 
-            // Also reflect into matches list so reopening modal keeps the value
-            if (fetchedFieldId) {
-              setMatches((prev) =>
-                normalizeMatches(
-                  prev.map((m) =>
-                    m.id === match.id
-                      ? {
-                          ...m,
-                          fieldId: fetchedFieldId,
-                          fieldName: fetchedFieldName || m.fieldName,
-                        }
-                      : m
-                  )
+            setMatches((prev) =>
+              normalizeMatches(
+                prev.map((m) =>
+                  m.id === match.id
+                    ? {
+                        ...m,
+                        fieldId: fetchedFieldId || m.fieldId,
+                        fieldName: fetchedFieldName || m.fieldName,
+                        scheduledStartTime:
+                          fetchedScheduledStartTime ??
+                          m.scheduledStartTime ??
+                          null,
+                        timerSec:
+                          fetchedDurationSeconds ?? m.timerSec ?? undefined,
+                      }
+                    : m
                 )
-              );
-            }
+              )
+            );
           }
         } catch (e) {
           // ignore hydration errors; modal still works with empty selection
@@ -2618,13 +2747,99 @@ function ArrangeOrderPageContent({
   }, [isStandaloneMode, setupModal.open, showAssignAssessorsModal]);
 
   const closeSetupModal = () => {
-    setSetupModal(createDefaultSetupState());
-    setHasStandaloneSetupInitialized(false);
-    setShowAssignAssessorsModal(false);
+    // Close modal immediately to prevent flickering
+    setSetupModal((prev) => ({ ...prev, open: false }));
+    // Reset other states after a brief delay to allow modal to close smoothly
+    setTimeout(() => {
+      setSetupModal(createDefaultSetupState());
+      setHasStandaloneSetupInitialized(false);
+      setShowAssignAssessorsModal(false);
+    }, 150); // Small delay to allow modal close animation
     if (isStandaloneMode) {
       navigate(buildReturnPath());
     }
   };
+
+  const handleScheduledTimeChange = useCallback(
+    (matchId: string, time: string | null) => {
+      setMatches((prev) =>
+        normalizeMatches(
+          prev.map((m) =>
+            m.id === matchId ? { ...m, scheduledStartTime: time } : m
+          )
+        )
+      );
+    },
+    []
+  );
+
+  const describeConflictMatch = useCallback(
+    (matchId?: string | null) => {
+      if (!matchId) return "trận khác";
+      const conflictMatch = matches.find((m) => m.id === matchId);
+      if (!conflictMatch) return "trận khác";
+      return conflictMatch.contentName || `Trận ${conflictMatch.order ?? ""}`;
+    },
+    [matches]
+  );
+
+  const getFieldConflictInfo = useCallback(
+    (fieldId?: string | null) => {
+      if (
+        !fieldId ||
+        !setupModal.scheduledStartTime ||
+        !fieldScheduleIndex[fieldId]
+      ) {
+        return null;
+      }
+      const scheduleKey = new Date(setupModal.scheduledStartTime).toISOString();
+      const conflictMatchId = fieldScheduleIndex[fieldId][scheduleKey];
+      if (conflictMatchId && conflictMatchId !== setupModal.matchId) {
+        return describeConflictMatch(conflictMatchId);
+      }
+      return null;
+    },
+    [
+      fieldScheduleIndex,
+      describeConflictMatch,
+      setupModal.matchId,
+      setupModal.scheduledStartTime,
+    ]
+  );
+
+  const getAssessorConflictInfoGlobal = useCallback(
+    (
+      assessorId: string,
+      scheduleKey: string | null,
+      matchId?: string | null
+    ) => {
+      if (!scheduleKey) return null;
+      const conflicts = assessorScheduleIndex[assessorId];
+      if (!conflicts) return null;
+      const conflictMatchId = conflicts[scheduleKey];
+      if (conflictMatchId && conflictMatchId !== matchId) {
+        return describeConflictMatch(conflictMatchId);
+      }
+      return null;
+    },
+    [assessorScheduleIndex, describeConflictMatch]
+  );
+
+  const handleNavigateBack = useCallback(() => {
+    setSetupModal((prev) => ({ ...prev, open: false }));
+    setTimeout(() => {
+      setSetupModal(createDefaultSetupState());
+      setHasStandaloneSetupInitialized(false);
+      setShowAssignAssessorsModal(false);
+    }, 150);
+    navigate(buildReturnPath());
+  }, [
+    buildReturnPath,
+    createDefaultSetupState,
+    navigate,
+    setHasStandaloneSetupInitialized,
+    setShowAssignAssessorsModal,
+  ]);
 
   useEffect(() => {
     if (!isStandaloneMode) return;
@@ -2651,11 +2866,7 @@ function ArrangeOrderPageContent({
     }
   }, [isStandaloneMode, standaloneMatchId]);
 
-  useEffect(() => {
-    if (!isStandaloneMode && setupModal.open) {
-      setSetupModal(createDefaultSetupState());
-    }
-  }, [isStandaloneMode, setupModal.open, createDefaultSetupState]);
+  // Removed useEffect that was resetting state on modal open - this was causing flickering
 
   // Open team detail modal - logic from AthleteManagementPage
   const resolveTeamName = useCallback(
@@ -2808,6 +3019,15 @@ function ArrangeOrderPageContent({
 
     const match = matches.find((m) => m.id === setupModal.matchId);
     if (!match) return;
+
+    const fieldConflictInfo = getFieldConflictInfo(setupModal.fieldId || null);
+    if (fieldConflictInfo) {
+      toast.warning(
+        "Sân này đã trùng giờ với trận đấu khác. Vui lòng chọn sân khác.",
+        4000
+      );
+      return;
+    }
 
     const participantIds = Array.isArray(match.participantIds)
       ? match.participantIds
@@ -2981,6 +3201,7 @@ function ArrangeOrderPageContent({
     athletes,
     activeTab,
     fields,
+    getFieldConflictInfo,
     toast,
   ]);
 
@@ -3238,6 +3459,30 @@ function ArrangeOrderPageContent({
     if (uniqueAssessorIds.size !== assignments.length) {
       toast.error("Các giám định không được trùng lặp.", 4000);
       return;
+    }
+
+    if (setupModal.scheduledStartTime) {
+      const scheduleKey = new Date(setupModal.scheduledStartTime).toISOString();
+      const conflictAssignment = assignments.find(
+        (assignment) =>
+          getAssessorConflictInfoGlobal(
+            assignment.userId,
+            scheduleKey,
+            setupModal.matchId
+          ) !== null
+      );
+      if (conflictAssignment) {
+        const conflictInfo = getAssessorConflictInfoGlobal(
+          conflictAssignment.userId,
+          scheduleKey,
+          setupModal.matchId
+        );
+        toast.warning(
+          `Giám định viên đang bận ở ${conflictInfo}. Vui lòng chọn người khác.`,
+          4000
+        );
+        return;
+      }
     }
 
     if (
@@ -4242,6 +4487,11 @@ function ArrangeOrderPageContent({
             teamName: derivedTeamType === "TEAM" ? resolvedTeamName : null,
             fieldId: finalFieldId,
             fieldName: finalFieldName,
+            scheduledStartTime:
+              pmInfo?.scheduledStartTime ??
+              setupModal.scheduledStartTime ??
+              m.scheduledStartTime ??
+              null,
             order:
               typeof resolvedOrderValue === "number" &&
               Number.isFinite(resolvedOrderValue)
@@ -4272,6 +4522,11 @@ function ArrangeOrderPageContent({
     if (!showAssignAssessorsModal) {
       return null;
     }
+
+    const currentScheduleKey = setupModal.scheduledStartTime
+      ? new Date(setupModal.scheduledStartTime).toISOString()
+      : null;
+    const currentMatchId = setupModal.matchId;
 
     const activeRoles = ASSESSOR_ROLES.filter((role) => {
       if (role.key === "referee") return true;
@@ -4387,11 +4642,26 @@ function ArrangeOrderPageContent({
                         >
                           <option value="">-- Chọn giám định --</option>
                           {availableForThisRole.length > 0 ? (
-                            availableForThisRole.map((assessor) => (
-                              <option key={assessor.id} value={assessor.id}>
-                                {assessor.fullName}
-                              </option>
-                            ))
+                            availableForThisRole.map((assessor) => {
+                              const conflictInfo =
+                                getAssessorConflictInfoGlobal(
+                                  assessor.id,
+                                  currentScheduleKey,
+                                  currentMatchId
+                                );
+                              return (
+                                <option
+                                  key={assessor.id}
+                                  value={assessor.id}
+                                  disabled={Boolean(conflictInfo)}
+                                >
+                                  {assessor.fullName}
+                                  {conflictInfo
+                                    ? ` (bận: ${conflictInfo})`
+                                    : ""}
+                                </option>
+                              );
+                            })
                           ) : (
                             <option disabled>
                               {availableAssessors.length === 0
@@ -4430,16 +4700,15 @@ function ArrangeOrderPageContent({
   };
 
   if (isStandaloneMode) {
-    const backPath = buildReturnPath();
-
     if (!standaloneMatchId) {
       return (
         <div className="p-6 max-w-3xl mx-auto">
           <button
-            onClick={() => navigate(backPath)}
-            className="mb-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
+            onClick={handleNavigateBack}
+            className="mb-4 text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
           >
-            ← Quay lại danh sách tiết mục
+            <span>←</span>
+            <span>Quay lại danh sách tiết mục</span>
           </button>
           <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
             Không tìm thấy thông tin tiết mục. Vui lòng quay lại danh sách và
@@ -4453,10 +4722,11 @@ function ArrangeOrderPageContent({
       return (
         <div className="p-6 max-w-3xl mx-auto">
           <button
-            onClick={() => navigate(backPath)}
-            className="mb-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
+            onClick={handleNavigateBack}
+            className="mb-4 text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
           >
-            ← Quay lại danh sách tiết mục
+            <span>←</span>
+            <span>Quay lại danh sách tiết mục</span>
           </button>
           <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
             Cần thông tin giải đấu để tải tiết mục. Vui lòng truy cập từ trang
@@ -4470,10 +4740,11 @@ function ArrangeOrderPageContent({
       return (
         <div className="p-6 max-w-7xl mx-auto">
           <button
-            onClick={() => navigate(backPath)}
-            className="mb-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
+            onClick={handleNavigateBack}
+            className="mb-4 text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
           >
-            ← Quay lại danh sách tiết mục
+            <span>←</span>
+            <span>Quay lại danh sách tiết mục</span>
           </button>
           <div className="mt-10 flex justify-center">
             <div className="h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -4484,17 +4755,15 @@ function ArrangeOrderPageContent({
 
     return (
       <div className="p-6 max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <button
-              onClick={() => navigate(backPath)}
-              className="mb-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
-            >
-              ← Quay lại danh sách tiết mục
-            </button>
-          </div>
+        <div>
+          <button
+            onClick={handleNavigateBack}
+            className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+          >
+            <span>←</span>
+            <span>Quay lại danh sách tiết mục</span>
+          </button>
         </div>
-
         <PerformanceMatchSetupCard
           layout="page"
           setupModal={setupModal}
@@ -4511,6 +4780,8 @@ function ArrangeOrderPageContent({
           onSaveField={handleSaveField}
           onSaveDuration={handleSaveDuration}
           onSaveAssessors={handleAssignModalSave}
+          onScheduledTimeChange={handleScheduledTimeChange}
+          getFieldConflictInfo={getFieldConflictInfo}
         />
         {renderAssignAssessorsModal()}
       </div>
@@ -4528,400 +4799,65 @@ function ArrangeOrderPageContent({
         </p>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Chọn giải đấu
-            </label>
-            <select
-              value={selectedTournament}
-              onChange={(event) => {
-                setIsTournamentLoading(true);
-                // Reset filters when tournament changes
-                setSubCompetitionFilter("");
-                setDetailCompetitionFilter("");
-                setGenderFilter("MALE");
-                setTeamFilter("PERSON");
-                setOpenCategory("");
-                setShowCompetitionFilter(false);
-                setShowGenderFilter(false);
-                setShowTeamFilter(false);
-                setSelectedTournament(event.target.value);
-              }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              {tournaments.length === 0 && (
-                <option value="">-- Chưa có giải --</option>
-              )}
-              {tournaments.map((tournament) => (
-                <option key={tournament.id} value={tournament.id}>
-                  {tournament.name}
-                </option>
-              ))}
-            </select>
-          </div>
+      <TournamentSelector
+        tournaments={tournaments}
+        selectedTournament={selectedTournament}
+        onTournamentChange={handleTournamentChange}
+        activeTab={activeTab}
+        competitionTypes={COMPETITION_TYPES}
+        onTabChange={onTabChange}
+      />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Loại nội dung
-            </label>
-            <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-              {Object.entries(COMPETITION_TYPES).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => onTabChange(key as CompetitionType)}
-                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                    activeTab === key
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters outside card - for Quyền */}
       {activeTab === "quyen" && (
-        <div className="mb-4 relative">
-          {isTournamentLoading && (
-            <div className="absolute inset-0 bg-white/60 rounded flex items-center justify-center z-10">
-              <div className="h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
-          <div className="flex items-center flex-wrap gap-2">
-            {/* Hình thức filter for Quyền - placed first */}
-            <div className="relative filter-dropdown">
-              <button
-                type="button"
-                onClick={() => setShowTeamFilter(!showTeamFilter)}
-                className={`px-3 py-1.5 text-xs font-medium rounded border ${
-                  teamFilter === "PERSON"
-                    ? "border-blue-500 text-gray-700 bg-white"
-                    : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
-                }`}
-              >
-                Hình thức
-              </button>
-              {showTeamFilter && (
-                <div className="absolute top-full left-0 mt-1 w-40 bg-white border border-gray-300 rounded shadow-lg z-20">
-                  <div className="p-2 space-y-1">
-                    {[
-                      { label: "Cá nhân", value: "PERSON" },
-                      { label: "Đồng đội", value: "TEAM" },
-                    ].map((opt) => (
-                      <label
-                        key={opt.value}
-                        className="flex items-center cursor-pointer"
-                      >
-                        <input
-                          type="radio"
-                          name="teamFilter"
-                          className="mr-2 h-3 w-3 text-blue-600"
-                          checked={teamFilter === opt.value}
-                          onChange={() =>
-                            setTeamFilter(opt.value as "PERSON" | "TEAM")
-                          }
-                        />
-                        <span className="text-sm text-gray-700">
-                          {opt.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Giới tính filter button - placed after Hình thức */}
-            <div className="relative filter-dropdown">
-              <button
-                type="button"
-                onClick={() => setShowGenderFilter(!showGenderFilter)}
-                className={`px-3 py-1.5 text-xs font-medium rounded border ${
-                  genderFilter
-                    ? "border-blue-500 text-gray-700 bg-white"
-                    : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
-                }`}
-              >
-                Giới tính
-              </button>
-              {showGenderFilter && (
-                <div className="absolute top-full left-0 mt-1 w-32 bg-white border border-gray-300 rounded shadow-lg z-20">
-                  <div className="p-2 space-y-1">
-                    {[
-                      { label: "Tất cả", value: "" },
-                      { label: "Nam", value: "MALE" },
-                      { label: "Nữ", value: "FEMALE" },
-                    ].map((g) => (
-                      <label
-                        key={g.value}
-                        className="flex items-center cursor-pointer"
-                      >
-                        <input
-                          type="radio"
-                          name="genderFilter"
-                          className="mr-2 h-3 w-3 text-blue-600"
-                          checked={genderFilter === g.value}
-                          onChange={() => setGenderFilter(g.value)}
-                        />
-                        <span className="text-sm text-gray-700">{g.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Fist configs buttons (Song luyện, Đồng luyện, etc.) */}
-            {fistConfigs
-              .filter((config) => {
-                const allowById =
-                  effectiveAllowedFistConfigIds.size === 0 ||
-                  effectiveAllowedFistConfigIds.has(config.id);
-                const allowByName =
-                  typeof allowedFistConfigNames !== "undefined" &&
-                  (allowedFistConfigNames as any).size > 0
-                    ? (allowedFistConfigNames as any).has(config.name)
-                    : true;
-                // If any allowed set is provided, enforce it; else allow all
-                const hasAnyConstraint =
-                  effectiveAllowedFistConfigIds.size > 0 ||
-                  ((allowedFistConfigNames as any)?.size || 0) > 0;
-                return hasAnyConstraint ? allowById && allowByName : true;
-              })
-              .map((config) => (
-                <div key={config.id} className="relative filter-dropdown">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (subCompetitionFilter === config.id) {
-                        setSubCompetitionFilter("");
-                        setDetailCompetitionFilter("");
-                        setOpenCategory("");
-                      } else {
-                        setSubCompetitionFilter(config.id);
-                        setDetailCompetitionFilter("");
-                        setOpenCategory((prev) =>
-                          prev === config.name ? "" : config.name
-                        );
-                      }
-                    }}
-                    className={`px-3 py-1.5 text-xs font-medium rounded border ${
-                      subCompetitionFilter === config.id
-                        ? "border-blue-500 text-gray-700 bg-white"
-                        : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
-                    }`}
-                  >
-                    {config.name}
-                  </button>
-                  {openCategory === config.name && (
-                    <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-300 rounded shadow-lg z-20">
-                      <div className="p-2 space-y-1 max-h-64 overflow-auto">
-                        <label className="flex items-center cursor-pointer">
-                          <input
-                            type="radio"
-                            name={`detailCompetitionFilter-${config.name}`}
-                            className="mr-2 h-3 w-3 text-blue-600"
-                            checked={detailCompetitionFilter === ""}
-                            onChange={() => setDetailCompetitionFilter("")}
-                          />
-                          <span className="text-sm text-gray-700">Tất cả</span>
-                        </label>
-                        {fistItems
-                          .filter((item) => {
-                            const sameCfg = item.configId === config.id;
-                            const allowItem =
-                              allowedFistItemIds.size === 0 ||
-                              allowedFistItemIds.has(item.id);
-                            return sameCfg && allowItem;
-                          })
-                          .map((item) => (
-                            <label
-                              key={item.id}
-                              className="flex items-center cursor-pointer"
-                            >
-                              <input
-                                type="radio"
-                                name={`detailCompetitionFilter-${config.name}`}
-                                className="mr-2 h-3 w-3 text-blue-600"
-                                checked={detailCompetitionFilter === item.id}
-                                onChange={() =>
-                                  setDetailCompetitionFilter(item.id)
-                                }
-                              />
-                              <span className="text-sm text-gray-700">
-                                {item.name}
-                              </span>
-                            </label>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-          </div>
-        </div>
+        <QuyenFilters
+          isLoading={isTournamentLoading}
+          teamFilter={teamFilter}
+          showTeamFilter={showTeamFilter}
+          toggleTeamFilter={toggleTeamFilter}
+          onTeamFilterChange={(value) => setTeamFilter(value)}
+          genderFilter={genderFilter as "" | "MALE" | "FEMALE"}
+          showGenderFilter={showGenderFilter}
+          toggleGenderFilter={toggleGenderFilter}
+          onGenderFilterChange={(value) => setGenderFilter(value)}
+          fistConfigs={fistConfigs}
+          fistItems={fistItems}
+          subCompetitionFilter={subCompetitionFilter}
+          onSubCompetitionChange={setSubCompetitionFilter}
+          detailCompetitionFilter={detailCompetitionFilter}
+          onDetailCompetitionChange={setDetailCompetitionFilter}
+          openCategory={openCategory}
+          setOpenCategory={setOpenCategory}
+          effectiveAllowedFistConfigIds={effectiveAllowedFistConfigIds}
+          allowedFistConfigNames={allowedFistConfigNames}
+          allowedFistItemIds={allowedFistItemIds}
+        />
       )}
 
       {renderAssignAssessorsModal()}
 
-      {/* Filters outside card - for Music */}
       {activeTab === "music" && (
-        <div className="mb-4 relative">
-          {isTournamentLoading && (
-            <div className="absolute inset-0 bg-white/60 rounded flex items-center justify-center z-10">
-              <div className="h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
-          <div className="flex items-center flex-wrap gap-2">
-            {/* Hình thức filter for Music - placed first */}
-            <div className="relative filter-dropdown">
-              <button
-                onClick={() => setShowTeamFilter(!showTeamFilter)}
-                className={`px-3 py-1.5 text-xs font-medium rounded border ${
-                  teamFilter === "PERSON"
-                    ? "border-blue-500 text-gray-700 bg-white"
-                    : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
-                }`}
-              >
-                Hình thức
-              </button>
-              {showTeamFilter && (
-                <div className="absolute top-full left-0 mt-1 w-40 bg-white border border-gray-300 rounded shadow-lg z-20">
-                  <div className="p-2 space-y-1">
-                    {[
-                      { label: "Cá nhân", value: "PERSON" },
-                      { label: "Đồng đội", value: "TEAM" },
-                    ].map((opt) => (
-                      <label
-                        key={opt.value}
-                        className="flex items-center cursor-pointer"
-                      >
-                        <input
-                          type="radio"
-                          name="teamFilter"
-                          className="mr-2 h-3 w-3 text-blue-600"
-                          checked={teamFilter === opt.value}
-                          onChange={() =>
-                            setTeamFilter(opt.value as "PERSON" | "TEAM")
-                          }
-                        />
-                        <span className="text-sm text-gray-700">
-                          {opt.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Giới tính filter - placed after Hình thức */}
-            <div className="relative filter-dropdown">
-              <button
-                type="button"
-                onClick={() => setShowGenderFilter(!showGenderFilter)}
-                className={`px-3 py-1.5 text-xs font-medium rounded border ${
-                  genderFilter
-                    ? "border-blue-500 text-gray-700 bg-white"
-                    : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
-                }`}
-              >
-                Giới tính
-              </button>
-              {showGenderFilter && (
-                <div className="absolute top-full left-0 mt-1 w-32 bg-white border border-gray-300 rounded shadow-lg z-20">
-                  <div className="p-2 space-y-1">
-                    {[
-                      { label: "Tất cả", value: "" },
-                      { label: "Nam", value: "MALE" },
-                      { label: "Nữ", value: "FEMALE" },
-                    ].map((g) => (
-                      <label
-                        key={g.value}
-                        className="flex items-center cursor-pointer"
-                      >
-                        <input
-                          type="radio"
-                          name="genderFilter"
-                          className="mr-2 h-3 w-3 text-blue-600"
-                          checked={genderFilter === g.value}
-                          onChange={() => setGenderFilter(g.value)}
-                        />
-                        <span className="text-sm text-gray-700">{g.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Music content filter */}
-            <div className="relative filter-dropdown">
-              <button
-                onClick={() => setShowCompetitionFilter(!showCompetitionFilter)}
-                className={`px-3 py-1.5 text-xs font-medium rounded border ${
-                  subCompetitionFilter
-                    ? "border-blue-500 text-gray-700 bg-white"
-                    : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
-                }`}
-              >
-                Tiết mục
-              </button>
-              {showCompetitionFilter && (
-                <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-300 rounded shadow-lg z-20">
-                  <div className="p-2 space-y-1">
-                    {musicContents
-                      .filter((content) => {
-                        const allowById =
-                          allowedMusicContentIds.size === 0 ||
-                          allowedMusicContentIds.has(content.id);
-                        const allowByName =
-                          typeof allowedMusicContentNames !== "undefined" &&
-                          (allowedMusicContentNames as any).size > 0
-                            ? (allowedMusicContentNames as any).has(
-                                content.name
-                              )
-                            : true;
-                        const hasAnyConstraint =
-                          allowedMusicContentIds.size > 0 ||
-                          ((allowedMusicContentNames as any)?.size || 0) > 0;
-                        return hasAnyConstraint
-                          ? allowById && allowByName
-                          : true;
-                      })
-                      .map((content) => (
-                        <label
-                          key={content.id}
-                          className="flex items-center cursor-pointer"
-                        >
-                          <input
-                            type="radio"
-                            name="subCompetitionFilter"
-                            className="mr-2 h-3 w-3 text-blue-600"
-                            checked={subCompetitionFilter === content.id}
-                            onChange={() => setSubCompetitionFilter(content.id)}
-                          />
-                          <span className="text-sm text-gray-700">
-                            {content.name}
-                          </span>
-                        </label>
-                      ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <MusicFilters
+          isLoading={isTournamentLoading}
+          teamFilter={teamFilter}
+          showTeamFilter={showTeamFilter}
+          toggleTeamFilter={toggleTeamFilter}
+          onTeamFilterChange={(value) => setTeamFilter(value)}
+          genderFilter={genderFilter as "" | "MALE" | "FEMALE"}
+          showGenderFilter={showGenderFilter}
+          toggleGenderFilter={toggleGenderFilter}
+          onGenderFilterChange={(value) => setGenderFilter(value)}
+          subCompetitionFilter={subCompetitionFilter}
+          onSubCompetitionChange={setSubCompetitionFilter}
+          showCompetitionFilter={showCompetitionFilter}
+          toggleCompetitionFilter={toggleCompetitionFilter}
+          musicContents={musicContents}
+          allowedMusicContentIds={allowedMusicContentIds}
+          allowedMusicContentNames={allowedMusicContentNames}
+        />
       )}
 
       {!isStandaloneMode && setupModal.open && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4 transition-opacity duration-150">
           <PerformanceMatchSetupCard
             layout="modal"
             setupModal={setupModal}
@@ -4938,6 +4874,8 @@ function ArrangeOrderPageContent({
             onSaveField={handleSaveField}
             onSaveDuration={handleSaveDuration}
             onSaveAssessors={handleAssignModalSave}
+            onScheduledTimeChange={handleScheduledTimeChange}
+            getFieldConflictInfo={getFieldConflictInfo}
           />
         </div>
       )}
@@ -4948,9 +4886,7 @@ function ArrangeOrderPageContent({
             {!subCompetitionFilter ||
             (activeTab === "quyen" && !detailCompetitionFilter) ? (
               <div>
-                <p className="mb-2">
-                  Vui lòng chọn nội dung để xem và thêm trận mới
-                </p>
+                <p className="mb-2">Vui lòng chọn nội dung để xem</p>
                 <p className="text-xs text-gray-400">
                   {activeTab === "quyen"
                     ? "Cần chọn: Hình thức + Nội dung + Chi tiết nội dung"
@@ -5095,6 +5031,22 @@ function ArrangeOrderPageContent({
                         </span>
                         <span className="ml-1 text-gray-900">
                           {participantDisplay}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <span className="font-medium text-gray-700">
+                          Giờ thi đấu:
+                        </span>
+                        <span className="ml-1 text-gray-900">
+                          {formatScheduleDisplay(match.scheduledStartTime)}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <span className="font-medium text-gray-700">
+                          Sân thi đấu:
+                        </span>
+                        <span className="ml-1 text-gray-900">
+                          {match.fieldName || "Chưa chọn"}
                         </span>
                       </div>
                     </div>

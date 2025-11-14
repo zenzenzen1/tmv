@@ -13,7 +13,12 @@ import sep490g65.fvcapi.dto.request.CompetitionFilters;
 import sep490g65.fvcapi.dto.request.CreateCompetitionRequest;
 import sep490g65.fvcapi.dto.request.UpdateCompetitionRequest;
 import sep490g65.fvcapi.dto.response.CompetitionResponse;
+import sep490g65.fvcapi.dto.response.FistConfigResponse;
+import sep490g65.fvcapi.dto.response.FistItemResponse;
+import sep490g65.fvcapi.dto.response.MusicContentResponse;
 import sep490g65.fvcapi.dto.response.PaginationResponse;
+import sep490g65.fvcapi.dto.response.PublicCompetitionDetailResponse;
+import sep490g65.fvcapi.dto.response.WeightClassResponse;
 import sep490g65.fvcapi.entity.Competition;
 import sep490g65.fvcapi.entity.CompetitionFistItemSelection;
 import sep490g65.fvcapi.entity.CompetitionMusicIntegratedPerformance;
@@ -39,7 +44,10 @@ import sep490g65.fvcapi.repository.VovinamSparringConfigWeightClassRepository;
 import sep490g65.fvcapi.repository.WeightClassRepository;
 import sep490g65.fvcapi.service.CompetitionService;
 
+import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -495,5 +503,130 @@ public class CompetitionServiceImpl implements CompetitionService {
             log.error("Error changing status for competition with id: {}", id, e);
             throw new BusinessException(MessageConstants.COMPETITION_STATUS_CHANGE_ERROR, ErrorCode.COMPETITION_STATUS_CHANGE_ERROR.getCode());
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PublicCompetitionDetailResponse getPublicCompetitionById(String id) {
+        Competition competition = competitionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(String.format(MessageConstants.COMPETITION_NOT_FOUND, id)));
+
+        CompetitionResponse detail = buildCompetitionDetail(competition);
+        return mapToPublicCompetition(detail);
+    }
+
+    private CompetitionResponse buildCompetitionDetail(Competition competition) {
+        String competitionId = competition.getId();
+        List<CompetitionFistItemSelection> fistItemSelections = fistItemSelectionRepository.findByCompetitionId(competitionId);
+
+        VovinamSparringConfig sparringConfig = sparringConfigRepository.findByCompetitionId(competitionId)
+                .orElse(null);
+        List<VovinamSparringConfigWeightClass> weightClassLinks = sparringConfig != null
+                ? sparringConfigWeightClassRepository.findBySparringConfigId(sparringConfig.getId())
+                : List.of();
+
+        List<CompetitionMusicIntegratedPerformance> musicPerformanceLinks =
+                musicPerformanceRepository.findByCompetitionId(competitionId);
+
+        return competitionMapper.toResponse(
+                competition,
+                fistItemSelections,
+                sparringConfig,
+                weightClassLinks,
+                musicPerformanceLinks
+        );
+    }
+
+    private PublicCompetitionDetailResponse mapToPublicCompetition(CompetitionResponse competition) {
+        return PublicCompetitionDetailResponse.builder()
+                .id(competition.getId())
+                .name(competition.getName())
+                .description(competition.getDescription())
+                .weightClasses(mapWeightClasses(competition.getWeightClasses()))
+                .vovinamFistConfigs(mapFistConfigs(competition.getVovinamFistConfigs()))
+                .musicPerformances(mapMusicPerformances(competition.getMusicPerformances()))
+                .fistConfigItemSelections(mapFistSelections(competition.getFistConfigItemSelections()))
+                .build();
+    }
+
+    private List<PublicCompetitionDetailResponse.WeightClassResponse> mapWeightClasses(List<WeightClassResponse> source) {
+        if (source == null || source.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return source.stream()
+                .map(w -> PublicCompetitionDetailResponse.WeightClassResponse.builder()
+                        .id(w.getId())
+                        .weightClass(deriveWeightLabel(w))
+                        .gender(w.getGender() != null ? w.getGender().name() : null)
+                        .minWeight(toDouble(w.getMinWeight()))
+                        .maxWeight(toDouble(w.getMaxWeight()))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private List<PublicCompetitionDetailResponse.FistConfigResponse> mapFistConfigs(List<FistConfigResponse> source) {
+        if (source == null || source.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return source.stream()
+                .map(cfg -> PublicCompetitionDetailResponse.FistConfigResponse.builder()
+                        .id(cfg.getId())
+                        .name(cfg.getName())
+                        .description(cfg.getDescription())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private List<PublicCompetitionDetailResponse.MusicPerformanceResponse> mapMusicPerformances(List<MusicContentResponse> source) {
+        if (source == null || source.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return source.stream()
+                .map(music -> PublicCompetitionDetailResponse.MusicPerformanceResponse.builder()
+                        .id(music.getId())
+                        .name(music.getName())
+                        .performersPerEntry(music.getPerformersPerEntry())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private Map<String, List<PublicCompetitionDetailResponse.FistItemResponse>> mapFistSelections(
+            Map<String, List<FistItemResponse>> source
+    ) {
+        if (source == null || source.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return source.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().stream()
+                                .map(item -> PublicCompetitionDetailResponse.FistItemResponse.builder()
+                                        .id(item.getId())
+                                        .name(item.getName())
+                                        .description(item.getDescription())
+                                        .configId(item.getConfigId())
+                                        .participantsPerEntry(item.getParticipantsPerEntry())
+                                        .build())
+                                .collect(Collectors.toList())
+                ));
+    }
+
+    private String deriveWeightLabel(WeightClassResponse weightClass) {
+        if (weightClass == null) {
+            return null;
+        }
+        if (weightClass.getNote() != null && !weightClass.getNote().isBlank()) {
+            return weightClass.getNote();
+        }
+        Double min = toDouble(weightClass.getMinWeight());
+        Double max = toDouble(weightClass.getMaxWeight());
+        if (min != null && max != null) {
+            return String.format("%.0f-%.0fkg", min, max);
+        }
+        return null;
+    }
+
+    private Double toDouble(BigDecimal value) {
+        return value != null ? value.doubleValue() : null;
     }
 }

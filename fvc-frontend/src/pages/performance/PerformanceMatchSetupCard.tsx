@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import api from "../../services/api";
 import { API_ENDPOINTS } from "../../config/endpoints";
@@ -146,6 +146,8 @@ interface PerformanceMatchSetupCardProps {
   onSaveField?: () => void;
   onSaveDuration?: () => void;
   onSaveAssessors?: () => void;
+  onScheduledTimeChange?: (matchId: string, time: string | null) => void;
+  getFieldConflictInfo?: (fieldId?: string | null) => string | null;
 }
 
 export default function PerformanceMatchSetupCard({
@@ -155,21 +157,98 @@ export default function PerformanceMatchSetupCard({
   activeSetupSummary,
   fields,
   availableAssessors,
-  showAssignAssessorsModal, // eslint-disable-line @typescript-eslint/no-unused-vars
   setShowAssignAssessorsModal,
   onClose,
-  onSave,
-  isStandaloneMode = false, // eslint-disable-line @typescript-eslint/no-unused-vars
   onBeginMatch,
-  athletes = [], // eslint-disable-line @typescript-eslint/no-unused-vars
   onSaveField,
   onSaveDuration,
-  onSaveAssessors,
+  onScheduledTimeChange,
+  getFieldConflictInfo,
 }: PerformanceMatchSetupCardProps) {
   const toast = useToast();
   const [showScheduledTimeModal, setShowScheduledTimeModal] = useState(false);
   const [scheduledStartTimeInput, setScheduledStartTimeInput] =
     useState<string>("");
+
+  const requiredAssessorKeys = useMemo(() => {
+    const count = Math.min(
+      Math.max(setupModal.judgesCount || ASSESSOR_ROLES.length, 1),
+      ASSESSOR_ROLES.length
+    );
+    return ASSESSOR_ROLES.slice(0, count);
+  }, [setupModal.judgesCount]);
+
+  const startValidationMessages = useMemo(() => {
+    if (!activeSetupSummary?.match) return [];
+
+    const messages: string[] = [];
+    if (!setupModal.scheduledStartTime) {
+      messages.push("Vui lòng thiết lập giờ bắt đầu dự kiến.");
+    }
+    if (!setupModal.fieldId || setupModal.fieldId.trim().length === 0) {
+      messages.push("Vui lòng chọn sân thi đấu.");
+    }
+    const assignedAssessorsReady = requiredAssessorKeys.every(
+      (role: (typeof ASSESSOR_ROLES)[number]) => {
+        const value = setupModal.assessors[role.key];
+        return typeof value === "string" && value.trim().length > 0;
+      }
+    );
+    if (!assignedAssessorsReady) {
+      messages.push("Vui lòng gán đủ giám định cho các vị trí yêu cầu.");
+    }
+    const participantIds = Array.isArray(
+      activeSetupSummary.match.participantIds
+    )
+      ? activeSetupSummary.match.participantIds
+      : [];
+    if (participantIds.length > 0) {
+      const athletesPresent = participantIds.every(
+        (id) => setupModal.athletesPresent?.[id] === true
+      );
+      if (!athletesPresent) {
+        messages.push("Cần xác nhận tất cả vận động viên đã có mặt.");
+      }
+    }
+    return messages;
+  }, [
+    activeSetupSummary?.match,
+    requiredAssessorKeys,
+    setupModal.assessors,
+    setupModal.athletesPresent,
+    setupModal.fieldId,
+    setupModal.scheduledStartTime,
+  ]);
+
+  const canStartMatch = startValidationMessages.length === 0;
+
+  const selectedFieldConflict =
+    setupModal.scheduledStartTime && setupModal.fieldId && getFieldConflictInfo
+      ? getFieldConflictInfo(setupModal.fieldId)
+      : null;
+
+  const handleBeginMatchClick = useCallback(() => {
+    if (!activeSetupSummary?.match?.id || !onBeginMatch) return;
+    if (!canStartMatch) {
+      const firstMessage = startValidationMessages[0];
+      if (firstMessage) {
+        toast.warning(firstMessage, 4000);
+      }
+      return;
+    }
+    onBeginMatch(activeSetupSummary.match.id);
+  }, [
+    activeSetupSummary?.match?.id,
+    canStartMatch,
+    onBeginMatch,
+    startValidationMessages,
+    toast,
+  ]);
+
+  const handleResumeMatchClick = useCallback(() => {
+    if (!activeSetupSummary?.match?.id || !onBeginMatch) return;
+    onBeginMatch(activeSetupSummary.match.id);
+  }, [activeSetupSummary?.match?.id, onBeginMatch]);
 
   const containerClasses =
     layout === "modal"
@@ -187,8 +266,13 @@ export default function PerformanceMatchSetupCard({
       try {
         let scheduledTime: string | null = null;
         if (!clearTime && scheduledStartTimeInput) {
-          const date = new Date(scheduledStartTimeInput);
-          scheduledTime = date.toISOString();
+          // Keep local datetime (no timezone shift) by appending seconds manually
+          const normalizedInput = scheduledStartTimeInput.includes(":")
+            ? scheduledStartTimeInput
+            : `${scheduledStartTimeInput}:00`;
+          scheduledTime = `${normalizedInput}${
+            normalizedInput.length === 16 ? ":00" : ""
+          }`.replace("::", ":");
         }
 
         await api.patch(
@@ -202,6 +286,10 @@ export default function PerformanceMatchSetupCard({
           ...prev,
           scheduledStartTime: scheduledTime || undefined,
         }));
+
+        if (setupModal.matchId) {
+          onScheduledTimeChange?.(setupModal.matchId, scheduledTime);
+        }
 
         setScheduledStartTimeInput("");
         setShowScheduledTimeModal(false);
@@ -226,8 +314,10 @@ export default function PerformanceMatchSetupCard({
     },
     [
       setupModal.performanceMatchId,
+      setupModal.matchId,
       scheduledStartTimeInput,
       setSetupModal,
+      onScheduledTimeChange,
       toast,
     ]
   );
@@ -405,24 +495,24 @@ export default function PerformanceMatchSetupCard({
               Thiết lập trận biểu diễn
             </h3>
             {activeSetupSummary?.match && (
-              <p className="mt-1 text-sm text-gray-500">
-                Thứ tự thi đấu:{" "}
-                <span className="font-medium text-gray-700">
-                  {activeSetupSummary.match.order || "-"}
-                </span>
-              </p>
+              <p className="mt-1 text-sm text-gray-500"></p>
             )}
           </div>
           <div className="flex items-center gap-3">
             {activeSetupSummary?.match && onBeginMatch && (
               <>
                 {activeSetupSummary.match.status === "IN_PROGRESS" ? (
-                  <button
-                    disabled
-                    className="px-4 py-2 text-sm font-medium bg-blue-100 text-blue-700 rounded-lg cursor-not-allowed"
-                  >
-                    Đang diễn ra
-                  </button>
+                  <div className="flex flex-col items-end">
+                    <button
+                      onClick={handleResumeMatchClick}
+                      className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700"
+                    >
+                      Mở lại màn hình
+                    </button>
+                    <p className="mt-1 text-xs text-blue-600">
+                      Trận đang diễn ra
+                    </p>
+                  </div>
                 ) : activeSetupSummary.match.status === "COMPLETED" ? (
                   <button
                     disabled
@@ -431,16 +521,24 @@ export default function PerformanceMatchSetupCard({
                     Đã kết thúc
                   </button>
                 ) : (
-                  <button
-                    onClick={() => {
-                      if (activeSetupSummary.match.id && onBeginMatch) {
-                        onBeginMatch(activeSetupSummary.match.id);
-                      }
-                    }}
-                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
-                  >
-                    Bắt đầu trận đấu
-                  </button>
+                  <div className="flex flex-col items-end">
+                    <button
+                      onClick={handleBeginMatchClick}
+                      disabled={!canStartMatch}
+                      className={`px-4 py-2 text-sm font-medium rounded-lg ${
+                        canStartMatch
+                          ? "text-white bg-green-600 hover:bg-green-700"
+                          : "text-gray-500 bg-gray-200 cursor-not-allowed"
+                      }`}
+                    >
+                      Bắt đầu trận đấu
+                    </button>
+                    {!canStartMatch && (
+                      <p className="mt-1 text-xs text-red-600 text-right">
+                        Vui lòng hoàn tất các bước bắt buộc trước khi bắt đầu.
+                      </p>
+                    )}
+                  </div>
                 )}
               </>
             )}
@@ -648,12 +746,23 @@ export default function PerformanceMatchSetupCard({
                       }
                     >
                       <option value="">-- Chọn sân --</option>
-                      {fields.map((field) => (
-                        <option key={field.id} value={field.id}>
-                          {field.location}
-                          {field.isUsed ? " (Đang dùng)" : ""}
-                        </option>
-                      ))}
+                      {fields.map((field) => {
+                        const conflictInfo =
+                          setupModal.scheduledStartTime && getFieldConflictInfo
+                            ? getFieldConflictInfo(field.id)
+                            : null;
+                        return (
+                          <option
+                            key={field.id}
+                            value={field.id}
+                            disabled={Boolean(conflictInfo)}
+                          >
+                            {field.location}
+                            {field.isUsed ? " (Đang dùng)" : ""}
+                            {conflictInfo ? " (Trùng giờ)" : ""}
+                          </option>
+                        );
+                      })}
                     </select>
                     {onSaveField && (
                       <button
@@ -667,6 +776,11 @@ export default function PerformanceMatchSetupCard({
                       >
                         Lưu
                       </button>
+                    )}
+                    {selectedFieldConflict && (
+                      <p className="mt-2 text-xs text-red-600">
+                        Sân đã trùng giờ với trận đấu khác.
+                      </p>
                     )}
                   </div>
                   <p className="mt-2 text-xs text-gray-500">
@@ -815,6 +929,17 @@ export default function PerformanceMatchSetupCard({
           </div>
         )}
       </div>
+      {!canStartMatch &&
+        activeSetupSummary?.match?.status !== "IN_PROGRESS" && (
+          <div className="mt-2 text-sm text-red-600 space-y-1">
+            <p>Để bắt đầu trận đấu, vui lòng hoàn tất:</p>
+            <ul className="list-disc list-inside">
+              {startValidationMessages.map((msg: string) => (
+                <li key={msg}>{msg}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       {renderScheduledTimeModal()}
     </>
   );

@@ -57,7 +57,7 @@ export default function FormRegistrationPage() {
       let response;
       if (slug) {
         response = await apiService.get<any>(
-          `${API_ENDPOINTS.APPLICATION_FORMS.BASE}/public/${slug}`
+          API_ENDPOINTS.APPLICATION_FORMS.PUBLIC_BY_SLUG(slug)
         );
       } else {
         response = await apiService.get<any>(
@@ -73,7 +73,7 @@ export default function FormRegistrationPage() {
         }
 
         setFormConfig(response.data);
-        
+
         // Check if form is postponed
         if (response.data.status === "POSTPONE") {
           // Form is postponed - user can view but cannot submit
@@ -236,17 +236,16 @@ export default function FormRegistrationPage() {
         }
       });
 
-      const response = await apiService.post<any>(
-        API_ENDPOINTS.WAITLIST.ADD,
-        {
-          applicationFormConfigId: formConfig.id,
-          formData: mappedFormData,
-          email: email,
-        }
-      );
+      const response = await apiService.post<any>(API_ENDPOINTS.WAITLIST.ADD, {
+        applicationFormConfigId: formConfig.id,
+        formData: mappedFormData,
+        email: email,
+      });
 
       if (response.success) {
-        toast.success("Đã thêm vào danh sách chờ thành công! Bạn sẽ được thông báo khi form được mở lại.");
+        toast.success(
+          "Đã thêm vào danh sách chờ thành công! Bạn sẽ được thông báo khi form được mở lại."
+        );
         // Clear form data
         const initialData: Record<string, any> = {};
         formConfig.fields?.forEach((field: FormField) => {
@@ -270,7 +269,7 @@ export default function FormRegistrationPage() {
     e.preventDefault();
 
     if (!formConfig) return;
-    
+
     // Prevent submission if form is postponed
     if (formConfig.status === "POSTPONE") {
       toast.error("Form đã bị hoãn. Không thể gửi đăng ký mới.");
@@ -612,39 +611,43 @@ export default function FormRegistrationPage() {
                 .map((s) => s.trim())
                 .filter(Boolean)
                 .map((option, index) => {
-                const isChecked = Array.isArray(value)
-                  ? value.includes(option.trim())
-                  : false;
-                return (
-                  <label
-                    key={index}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      checked={isChecked}
-                      onChange={(e) => {
-                        const currentValues = Array.isArray(value) ? value : [];
-                        if (e.target.checked) {
-                          handleInputChange(field.name, [
-                            ...currentValues,
-                            option.trim(),
-                          ]);
-                        } else {
-                          handleInputChange(
-                            field.name,
-                            currentValues.filter(
-                              (v: string) => v !== option.trim()
-                            )
-                          );
-                        }
-                      }}
-                    />
-                    <span className="text-sm text-gray-700">{option.trim()}</span>
-                  </label>
-                );
-              })}
+                  const isChecked = Array.isArray(value)
+                    ? value.includes(option.trim())
+                    : false;
+                  return (
+                    <label
+                      key={index}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          const currentValues = Array.isArray(value)
+                            ? value
+                            : [];
+                          if (e.target.checked) {
+                            handleInputChange(field.name, [
+                              ...currentValues,
+                              option.trim(),
+                            ]);
+                          } else {
+                            handleInputChange(
+                              field.name,
+                              currentValues.filter(
+                                (v: string) => v !== option.trim()
+                              )
+                            );
+                          }
+                        }}
+                      />
+                      <span className="text-sm text-gray-700">
+                        {option.trim()}
+                      </span>
+                    </label>
+                  );
+                })}
             </div>
             {hasError && (
               <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
@@ -778,7 +781,12 @@ export default function FormRegistrationPage() {
     <div className="min-h-screen bg-[#f0ebf8] py-10 px-4">
       <div className="max-w-2xl mx-auto">
         {/* Top color bar like Google Forms */}
-        <div className="h-4 w-full rounded-t-xl" style={{ background: "linear-gradient(90deg, #673ab7 0%, #8e24aa 100%)" }} />
+        <div
+          className="h-4 w-full rounded-t-xl"
+          style={{
+            background: "linear-gradient(90deg, #673ab7 0%, #8e24aa 100%)",
+          }}
+        />
 
         {/* Form card */}
         <div className="bg-white rounded-b-xl shadow-md border border-[#dadce0]">
@@ -791,16 +799,30 @@ export default function FormRegistrationPage() {
                   onClick={() => navigate(-1)}
                   className="inline-flex items-center gap-2 text-[#1a73e8] hover:bg-[#f1f3f4] px-3 py-1.5 rounded"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
                   </svg>
                   Quay lại
                 </button>
               </div>
             )}
-            <h1 className="mt-4 text-3xl font-semibold text-[#202124]">{formConfig.name}</h1>
+            <h1 className="mt-4 text-3xl font-semibold text-[#202124]">
+              {formConfig.name}
+            </h1>
             {formConfig.description && (
-              <p className="mt-2 text-sm text-[#5f6368]">{formConfig.description}</p>
+              <p className="mt-2 text-sm text-[#5f6368]">
+                {formConfig.description}
+              </p>
             )}
             {/* Removed global required hint; show only per-field markers */}
           </div>
@@ -811,14 +833,17 @@ export default function FormRegistrationPage() {
               {formConfig.fields
                 ?.sort((a, b) => a.sortOrder - b.sortOrder)
                 .map((field) => (
-                  <div key={field.id} className="rounded-xl border border-[#dadce0] p-5">
+                  <div
+                    key={field.id}
+                    className="rounded-xl border border-[#dadce0] p-5"
+                  >
                     <label className="block text-base font-medium text-[#202124] mb-3">
                       {field.label}
-                      {field.required && <span className="text-[#d93025] ml-1">*</span>}
+                      {field.required && (
+                        <span className="text-[#d93025] ml-1">*</span>
+                      )}
                     </label>
-                    <div className="text-sm">
-                      {renderField(field)}
-                    </div>
+                    <div className="text-sm">{renderField(field)}</div>
                   </div>
                 ))}
             </div>
@@ -830,8 +855,18 @@ export default function FormRegistrationPage() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg">
                       <div className="flex-shrink-0">
-                        <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        <svg
+                          className="w-6 h-6 text-orange-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                          />
                         </svg>
                       </div>
                       <div className="flex-1">
@@ -839,7 +874,9 @@ export default function FormRegistrationPage() {
                           Form đã bị hoãn
                         </h3>
                         <p className="text-sm text-orange-700">
-                          Form đăng ký này đã tạm thời bị hoãn. Bạn có thể thêm vào danh sách chờ và sẽ được thông báo khi form được mở lại.
+                          Form đăng ký này đã tạm thời bị hoãn. Bạn có thể thêm
+                          vào danh sách chờ và sẽ được thông báo khi form được
+                          mở lại.
                         </p>
                       </div>
                     </div>
@@ -852,16 +889,41 @@ export default function FormRegistrationPage() {
                       >
                         {addingToWaitlist ? (
                           <>
-                            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            <svg
+                              className="animate-spin h-4 w-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
                             </svg>
                             Đang thêm...
                           </>
                         ) : (
                           <>
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 4v16m8-8H4"
+                              />
                             </svg>
                             Thêm vào danh sách chờ
                           </>
