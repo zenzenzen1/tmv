@@ -48,6 +48,9 @@ export default function FistContentListPage() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [participantsPerEntry, setParticipantsPerEntry] = useState<number>(1);
   const [search, setSearch] = useState("");
+  const [itemNameError, setItemNameError] = useState<string>("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{configId: string, itemId: string} | null>(null);
 
   useEffect(() => {
     fetch();
@@ -95,7 +98,14 @@ export default function FistContentListPage() {
               fullWidth
             />
             {/* Type filter removed */}
-            <Button variant="contained" onClick={() => setOpenItemModal(true)}>
+            <Button variant="contained" onClick={() => {
+              setEditingItemId(null);
+              setItemName("");
+              setItemDescription("");
+              setItemTypeId(null);
+              setParticipantsPerEntry(1);
+              setOpenItemModal(true);
+            }}>
               + Tạo nội dung
             </Button>
           </Stack>
@@ -160,22 +170,11 @@ export default function FistContentListPage() {
                       <Button
                         size="small"
                         color="error"
-                        onClick={async () => {
+                        onClick={() => {
                           const configId = row.configId;
                           if (!configId) return;
-                          if (!confirm("Xóa mục này?")) return;
-                          const svc = (
-                            await import("../../services/fistContent")
-                          ).fistContentService;
-                          try {
-                            await svc.deleteItem(configId, row.id);
-                            success("Đã xóa nội dung");
-                            const res = await svc.listItems({ size: 100 });
-                            setAllItems(res.content ?? []);
-                          } catch (e) {
-                            console.error(e);
-                            toastError("Xóa nội dung thất bại");
-                          }
+                          setItemToDelete({ configId, itemId: row.id });
+                          setDeleteConfirmOpen(true);
                         }}
                       >
                         Xóa
@@ -208,7 +207,33 @@ export default function FistContentListPage() {
                 <TextField
                   label="Tên nội dung"
                   value={itemName}
-                  onChange={(e) => setItemName(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setItemName(value);
+                    
+                    // Validate special characters
+                    const specialCharsRegex = /[!@#$%^&*()+=\[\]{};':"\\|,.<>?]/;
+                    if (specialCharsRegex.test(value)) {
+                      setItemNameError("Tên nội dung không được chứa ký tự đặc biệt");
+                      return;
+                    }
+                    
+                    // Validate duplicate names
+                    const isDuplicate = allItems.some(
+                      (item) => 
+                        item.name.toLowerCase().trim() === value.toLowerCase().trim() && 
+                        item.id !== editingItemId
+                    );
+                    if (isDuplicate) {
+                      setItemNameError("Tên nội dung đã tồn tại");
+                      return;
+                    }
+                    
+                    setItemNameError("");
+                  }}
+                  error={!!itemNameError}
+                  helperText={itemNameError}
+                  required
                 />
                 <Autocomplete
                   options={fistConfigs}
@@ -216,7 +241,7 @@ export default function FistContentListPage() {
                   value={fistConfigs.find((c) => c.id === itemTypeId) || null}
                   onChange={(_, v) => setItemTypeId(v?.id || null)}
                   renderInput={(params) => (
-                    <TextField {...params} label="Loại nội dung" />
+                    <TextField {...params} label="Loại nội dung" required />
                   )}
                 />
                 <TextField
@@ -238,34 +263,38 @@ export default function FistContentListPage() {
               </Stack>
             </DialogContent>
             <DialogActions>
-              <Button onClick={() => setOpenItemModal(false)} color="inherit">
+              <Button onClick={() => {
+                setOpenItemModal(false);
+                setItemNameError("");
+              }} color="inherit">
                 Hủy
               </Button>
               <Button
                 onClick={async () => {
-                  if (!itemTypeId || !itemName.trim()) return;
+                  if (!itemTypeId || !itemName.trim() || itemNameError) return;
                   const svc = (await import("../../services/fistContent"))
                     .fistContentService;
-                  if (editingItemId) {
-                    await svc.updateItem(itemTypeId, editingItemId, {
-                      name: itemName.trim(),
-                      description: itemDescription || undefined,
-                      // gửi thêm số người/tiết mục; backend có thể bỏ qua nếu chưa hỗ trợ
-                      participantsPerEntry: participantsPerEntry,
-                    } as any);
-                  } else {
-                    await svc.createItem(itemTypeId, {
-                      name: itemName.trim(),
-                      description: itemDescription || undefined,
-                      participantsPerEntry: participantsPerEntry,
-                    } as any);
-                  }
-                  setOpenItemModal(false);
-                  setEditingItemId(null);
-                  setItemName("");
-                  setItemDescription("");
-                  setParticipantsPerEntry(1);
                   try {
+                    if (editingItemId) {
+                      await svc.updateItem(itemTypeId, editingItemId, {
+                        name: itemName.trim(),
+                        description: itemDescription || undefined,
+                        // gửi thêm số người/tiết mục; backend có thể bỏ qua nếu chưa hỗ trợ
+                        participantsPerEntry: participantsPerEntry,
+                      } as any);
+                    } else {
+                      await svc.createItem(itemTypeId, {
+                        name: itemName.trim(),
+                        description: itemDescription || undefined,
+                        participantsPerEntry: participantsPerEntry,
+                      } as any);
+                    }
+                    setOpenItemModal(false);
+                    setEditingItemId(null);
+                    setItemName("");
+                    setItemDescription("");
+                    setParticipantsPerEntry(1);
+                    setItemNameError("");
                     const res = await svc.listItems({ size: 100 });
                     setAllItems(res.content ?? []);
                     success(
@@ -281,8 +310,53 @@ export default function FistContentListPage() {
                   }
                 }}
                 variant="contained"
+                disabled={!itemTypeId || !itemName.trim() || !!itemNameError}
               >
                 Lưu
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Delete Confirmation Dialog */}
+          <Dialog
+            open={deleteConfirmOpen}
+            onClose={() => setDeleteConfirmOpen(false)}
+            maxWidth="xs"
+            fullWidth
+          >
+            <DialogTitle>Xác nhận xóa</DialogTitle>
+            <DialogContent>
+              <Typography>
+                Bạn có chắc chắn muốn xóa nội dung này không? Hành động này không thể hoàn tác.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setDeleteConfirmOpen(false)} color="inherit">
+                Hủy
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!itemToDelete) return;
+                  const svc = (
+                    await import("../../services/fistContent")
+                  ).fistContentService;
+                  try {
+                    await svc.deleteItem(itemToDelete.configId, itemToDelete.itemId);
+                    success("Đã xóa nội dung");
+                    const res = await svc.listItems({ size: 100 });
+                    setAllItems(res.content ?? []);
+                  } catch (e) {
+                    console.error(e);
+                    toastError("Xóa nội dung thất bại");
+                  } finally {
+                    setDeleteConfirmOpen(false);
+                    setItemToDelete(null);
+                  }
+                }}
+                color="error"
+                variant="contained"
+              >
+                Xóa
               </Button>
             </DialogActions>
           </Dialog>

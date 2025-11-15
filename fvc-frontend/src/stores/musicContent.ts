@@ -63,11 +63,16 @@ export const useMusicContentStore = create<Store>()(
       set({ isLoading: true, error: null });
       try {
         await musicContentService.create(payload);
-        set({ modalOpen: false });
+        set({ isLoading: false });
         await get().fetch();
-      } catch (err) {
-        const { message } = globalErrorHandler(err);
-        set({ error: message, isLoading: false });
+      } catch (err: any) {
+        // Handle duplicate name error - keep modal open
+        if (err?.response?.data?.errorCode === "DUPLICATE_NAME") {
+          set({ error: "Tên nội dung đã bị trùng", isLoading: false });
+        } else {
+          const { message } = globalErrorHandler(err);
+          set({ error: message, isLoading: false });
+        }
         throw err;
       }
     },
@@ -76,11 +81,16 @@ export const useMusicContentStore = create<Store>()(
       set({ isLoading: true, error: null });
       try {
         await musicContentService.update(id, payload);
-        set({ modalOpen: false, editing: null });
+        set({ editing: null, isLoading: false });
         await get().fetch();
-      } catch (err) {
-        const { message } = globalErrorHandler(err);
-        set({ error: message, isLoading: false });
+      } catch (err: any) {
+        // Handle duplicate name error - keep modal open
+        if (err?.response?.data?.errorCode === "DUPLICATE_NAME") {
+          set({ error: "Tên nội dung đã bị trùng", isLoading: false });
+        } else {
+          const { message } = globalErrorHandler(err);
+          set({ error: message, isLoading: false });
+        }
         throw err;
       }
     },

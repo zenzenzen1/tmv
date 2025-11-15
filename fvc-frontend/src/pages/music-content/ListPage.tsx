@@ -1,22 +1,34 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMusicContentStore } from "../../stores/musicContent";
 import MusicContentModal from "@/pages/music-content/MusicContentModal";
 import {
   CommonTable,
   type TableColumn,
 } from "../../components/common/CommonTable";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+  Stack,
+} from "@mui/material";
+import { useToast } from "../../components/common/ToastContext";
 
 export default function MusicContentListPage() {
   const {
     list,
     isLoading,
-    error,
     fetch,
     openCreate,
     openEdit,
     setPage,
     remove,
   } = useMusicContentStore();
+  const { success, error: toastError } = useToast();
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
 
   useEffect(() => {
     fetch();
@@ -34,7 +46,6 @@ export default function MusicContentListPage() {
       </div>
 
       {isLoading && <div>Loading...</div>}
-      {error && <div className="text-red-600">{error}</div>}
 
       {list && (
         <CommonTable<any>
@@ -73,20 +84,24 @@ export default function MusicContentListPage() {
               key: "actions",
               title: "Thao tác",
               render: (row) => (
-                <div className="flex gap-2">
-                  <button className="input-field" onClick={() => openEdit(row)}>
-                    Chi tiết
-                  </button>
-
-                  {!row.isActive && (
-                    <button
-                      className="input-field text-red-600 hover:underline"
-                      onClick={() => remove(row.id)}
-                    >
-                      Xóa
-                    </button>
-                  )}
-                </div>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small"
+                    onClick={() => openEdit(row)}
+                  >
+                    Sửa
+                  </Button>
+                  <Button
+                    size="small"
+                    color="error"
+                    onClick={() => {
+                      setItemToDelete(row);
+                      setDeleteConfirmOpen(true);
+                    }}
+                  >
+                    Xóa
+                  </Button>
+                </Stack>
               ),
               sortable: false,
             },
@@ -104,6 +119,50 @@ export default function MusicContentListPage() {
         />
       )}
       <MusicContentModal />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Xác nhận xóa</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Bạn có chắc chắn muốn xóa nội dung <strong>"{itemToDelete?.name}"</strong> không? Hành động này không thể hoàn tác.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)} color="inherit">
+            Hủy
+          </Button>
+          <Button
+            onClick={async () => {
+              if (!itemToDelete) return;
+              try {
+                await remove(itemToDelete.id);
+                success("Đã xóa nội dung");
+                setDeleteConfirmOpen(false);
+                setItemToDelete(null);
+              } catch (e: any) {
+                // Check if content is in use
+                if (e?.response?.data?.errorCode === "CONTENT_IN_USE") {
+                  toastError(e.response.data.message || "Xóa nội dung thất bại do nội dung đang được sử dụng trong giải đấu");
+                } else {
+                  toastError("Xóa nội dung thất bại");
+                }
+                setDeleteConfirmOpen(false);
+                setItemToDelete(null);
+              }
+            }}
+            color="error"
+            variant="contained"
+          >
+            Xóa
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 }

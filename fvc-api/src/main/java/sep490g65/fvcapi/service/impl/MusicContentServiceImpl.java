@@ -78,7 +78,19 @@ public class MusicContentServiceImpl implements MusicContentService {
     public MusicContentResponse update(String id, UpdateMusicContentRequest request) {
         MusicIntegratedPerformance e = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Music content not found: " + id));
-        if (request.getName() != null) e.setName(request.getName());
+        
+        // Check for duplicate name if name is being changed
+        if (request.getName() != null) {
+            if (!request.getName().equalsIgnoreCase(e.getName())) {
+                // Name is different, check for duplicates
+                if (repository.existsByNameIgnoreCase(request.getName())) {
+                    throw new BusinessException("Music content with this name already exists", "DUPLICATE_NAME");
+                }
+            }
+            // Always update the name (even if same, to preserve user's casing preference)
+            e.setName(request.getName());
+        }
+        
         if (request.getDescription() != null) e.setDescription(request.getDescription());
         if (request.getIsActive() != null) e.setIsActive(request.getIsActive());
         if (request.getPerformersPerEntry() != null) e.setPerformersPerEntry(request.getPerformersPerEntry());
@@ -89,6 +101,13 @@ public class MusicContentServiceImpl implements MusicContentService {
     public void delete(String id) {
         MusicIntegratedPerformance e = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Music content not found: " + id));
+        
+        // Check if content is being used in any competition
+        if (e.getCompetitionRelations() != null && !e.getCompetitionRelations().isEmpty()) {
+            throw new BusinessException("Xóa nội dung thất bại do nội dung đang được sử dụng trong giải đấu", "CONTENT_IN_USE");
+        }
+        
+        // Hard delete: permanently remove
         repository.delete(e);
     }
 }

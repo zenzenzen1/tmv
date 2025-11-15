@@ -1,11 +1,23 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useFieldStore } from '../../stores/field';
 import type { FieldResponse } from '../../types';
 import FieldModal from './FieldModal';
 import { CommonTable, type TableColumn } from '../../components/common/CommonTable';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+} from '@mui/material';
+import { useToast } from '../../components/common/ToastContext';
 
 export default function FieldManagementPage() {
   const { list, isLoading, error, fetch, openCreate, openEdit, remove, setPage } = useFieldStore();
+  const { success, error: toastError } = useToast();
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [fieldToDelete, setFieldToDelete] = useState<FieldResponse | null>(null);
 
   useEffect(() => {
     fetch();
@@ -47,21 +59,27 @@ export default function FieldManagementPage() {
               render: (row) => (
                 row ? (
                   <div className="flex gap-2">
-                    <button className="input-field" onClick={() => openEdit(row)}>Chi tiết</button>
-                    <button 
-                      className="input-field text-red-600 hover:text-red-700" 
-                      onClick={async () => {
-                        if (confirm('Bạn có chắc chắn muốn xóa sân đấu này?')) {
-                          try {
-                            await remove(row.id);
-                          } catch (err) {
-                            console.error('Delete failed:', err);
-                          }
+                    <Button
+                      size="small"
+                      onClick={() => openEdit(row)}
+                    >
+                      Chi tiết
+                    </Button>
+                    <Button
+                      size="small"
+                      color="error"
+                      disabled={row.isUsed}
+                      onClick={() => {
+                        if (row.isUsed) {
+                          toastError("Không thể xóa sân đấu đang được sử dụng");
+                          return;
                         }
+                        setFieldToDelete(row);
+                        setDeleteConfirmOpen(true);
                       }}
                     >
                       Xóa
-                    </button>
+                    </Button>
                   </div>
                 ) : (
                   <span>-</span>
@@ -84,6 +102,55 @@ export default function FieldManagementPage() {
           </div>
         )
       )}
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Xác nhận xóa</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Bạn có chắc chắn muốn xóa sân đấu "{fieldToDelete?.location}" không? Hành động này không thể hoàn tác.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)} color="inherit">
+            Hủy
+          </Button>
+          <Button
+            onClick={async () => {
+              if (!fieldToDelete) return;
+              try {
+                await remove(fieldToDelete.id);
+                success("Đã xóa sân đấu");
+                setDeleteConfirmOpen(false);
+                setFieldToDelete(null);
+              } catch (e: any) {
+                console.error(e);
+                // Check if error is due to field being in use
+                const errorMessage = e?.response?.data?.message || e?.message || "";
+                if (errorMessage.toLowerCase().includes("đang được sử dụng") || 
+                    errorMessage.toLowerCase().includes("in use") ||
+                    errorMessage.toLowerCase().includes("being used")) {
+                  toastError("Không thể xóa sân đấu đang được sử dụng");
+                } else {
+                  toastError("Xóa sân đấu thất bại");
+                }
+                setDeleteConfirmOpen(false);
+                setFieldToDelete(null);
+              }
+            }}
+            color="error"
+            variant="contained"
+          >
+            Xóa
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
       <FieldModal />
     </div>
   );

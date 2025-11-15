@@ -4,7 +4,7 @@ server:
 spring:
   devtools:
     restart:
-      enabled: false
+      enabled: true
 
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fvc-db}

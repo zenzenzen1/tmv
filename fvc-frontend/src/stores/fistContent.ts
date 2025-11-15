@@ -88,6 +88,7 @@ export const useFistContentStore = create<Store>()(
         await fistContentService.create(payload);
         set({ modalOpen: false });
         await get().fetch();
+        await get().fetchFistConfigs(); // Refresh configs after creating
       } catch (err) {
         const { message } = globalErrorHandler(err);
         set({ error: message, isLoading: false });
@@ -101,6 +102,7 @@ export const useFistContentStore = create<Store>()(
         await fistContentService.update(id, payload);
         set({ modalOpen: false, editing: null });
         await get().fetch();
+        await get().fetchFistConfigs(); // Refresh configs after updating
       } catch (err) {
         const { message } = globalErrorHandler(err);
         set({ error: message, isLoading: false });
